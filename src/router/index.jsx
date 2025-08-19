@@ -9,20 +9,26 @@ import StockCreation from "../components/Stock/StockManagement.jsx";
 import UnitOfMeasure from "../components/UnitOfMeasure/UnitOfMeasure.jsx";
 import Staff from "../components/Staff/staff.jsx";
 import Settings from "../components/Settings/Settings.jsx";
-import NotFound from '../components/NotFound.jsx'
+import NotFound from "../components/NotFound.jsx";
+import ERPLogin from "../components/Login/Login.jsx";
+import PurchaseOrderPage from "../components/PurchaseOrder/PurchaseOrderPage.jsx";
+import SalesOrderPage from "../components/PurchaseOrder/SalesOrderPage.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
+      <Route path="/" element={<ERPLogin />} />
       <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/vendor-creation" element={<VendorCreation />} />{" "}
         <Route path="/customer-creation" element={<CustomerCreation />} />{" "}
         <Route path="/stock-item-creation" element={<StockCreation />} />{" "}
         <Route path="/unit-setup" element={<UnitOfMeasure />} />{" "}
         <Route path="/staff-records" element={<Staff />} />{" "}
         <Route path="/settings" element={<Settings />} />{" "}
+        <Route path="/purchase-order" element={<PurchaseOrderPage />} />{" "}
+        <Route path="/sales-order" element={<SalesOrderPage />} />{" "}
       </Route>
-       {/* </Route> */}
+      {/* </Route> */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

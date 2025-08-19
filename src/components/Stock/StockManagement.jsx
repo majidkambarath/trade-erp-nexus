@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Package,
   Plus,
@@ -21,62 +21,10 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import axiosInstance from "../../axios/axios";
 
 const StockManagement = () => {
-  const [stockItems, setStockItems] = useState([
-    {
-      id: 1,
-      itemId: "ITM001",
-      sku: "SKU-LAPTOP-001",
-      itemName: "Gaming Laptop Pro",
-      category: "Electronics",
-      unitOfMeasure: "Piece",
-      barcodeQrCode: "123456789012",
-      reorderLevel: 5,
-      batchNumber: "BATCH-001",
-      expiryDate: "2025-12-31",
-      purchasePrice: 1200,
-      salesPrice: 1500,
-      currentStock: 25,
-      status: "Active",
-      lastUpdated: "2025-06-29",
-    },
-    {
-      id: 2,
-      itemId: "ITM002",
-      sku: "SKU-PHONE-002",
-      itemName: "Smartphone Ultra",
-      category: "Electronics",
-      unitOfMeasure: "Piece",
-      barcodeQrCode: "987654321098",
-      reorderLevel: 10,
-      batchNumber: "BATCH-002",
-      expiryDate: "",
-      purchasePrice: 800,
-      salesPrice: 999,
-      currentStock: 3,
-      status: "Active",
-      lastUpdated: "2025-06-28",
-    },
-    {
-      id: 3,
-      itemId: "ITM003",
-      sku: "SKU-TABLET-003",
-      itemName: "Tablet Air",
-      category: "Electronics",
-      unitOfMeasure: "Piece",
-      barcodeQrCode: "456789123456",
-      reorderLevel: 8,
-      batchNumber: "BATCH-003",
-      expiryDate: "",
-      purchasePrice: 400,
-      salesPrice: 549,
-      currentStock: 15,
-      status: "Inactive",
-      lastUpdated: "2025-06-27",
-    },
-  ]);
-
+  const [stockItems, setStockItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editItemId, setEditItemId] = useState(null);
@@ -85,7 +33,6 @@ const StockManagement = () => {
   const [showLowStock, setShowLowStock] = useState(false);
 
   const [formData, setFormData] = useState({
-    itemId: `ITM${String(Date.now()).slice(-3)}`,
     sku: "",
     itemName: "",
     category: "",
@@ -108,6 +55,14 @@ const StockManagement = () => {
     type: "success",
   });
 
+  // Delete confirmation state
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    visible: false,
+    itemId: null,
+    itemName: "",
+    isDeleting: false,
+  });
+
   const categories = [
     "Electronics",
     "Clothing",
@@ -117,6 +72,28 @@ const StockManagement = () => {
     "Tools",
   ];
   const unitsOfMeasure = ["Piece", "Kg", "Liter", "Meter", "Box", "Carton"];
+
+  useEffect(() => {
+    fetchStockItems();
+  }, []);
+
+  const fetchStockItems = async () => {
+    try {
+      const response = await axiosInstance.get("/stock");
+      setStockItems(response.data.data || []);
+    } catch (error) {
+      setShowToast({
+        visible: true,
+        message:
+          error.response?.data?.message || "Failed to fetch stock items.",
+        type: "error",
+      });
+      setTimeout(
+        () => setShowToast((prev) => ({ ...prev, visible: false })),
+        3000
+      );
+    }
+  };
 
   // Calculate statistics
   const totalItems = stockItems.length;
@@ -172,7 +149,7 @@ const StockManagement = () => {
     return newErrors;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -181,40 +158,47 @@ const StockManagement = () => {
 
     setIsSubmitting(true);
     try {
-      const stockItem = {
-        ...formData,
-        id: editItemId || Date.now(),
+      const payload = {
+        sku: formData.sku,
+        itemName: formData.itemName,
+        category: formData.category,
+        unitOfMeasure: formData.unitOfMeasure,
+        barcodeQrCode: formData.barcodeQrCode,
         reorderLevel: Number(formData.reorderLevel) || 0,
+        batchNumber: formData.batchNumber,
+        expiryDate: formData.expiryDate,
         purchasePrice: Number(formData.purchasePrice) || 0,
         salesPrice: Number(formData.salesPrice) || 0,
         currentStock: Number(formData.currentStock) || 0,
-        lastUpdated: new Date().toISOString().split("T")[0],
+        status: formData.status,
       };
 
       if (editItemId) {
-        setStockItems((prev) =>
-          prev.map((item) =>
-            item.id === editItemId ? { ...item, ...stockItem } : item
-          )
-        );
+        await axiosInstance.put(`/stock/${editItemId}`, payload);
         setShowToast({
           visible: true,
           message: "Stock item updated successfully!",
           type: "success",
         });
       } else {
-        setStockItems((prev) => [...prev, stockItem]);
+        const response = await axiosInstance.post("/stock", payload);
+        // Assuming the backend returns the new item with an ID
+        setStockItems((prev) => [
+          ...prev,
+          { id: response.data.data.id, ...payload },
+        ]);
         setShowToast({
           visible: true,
           message: "Stock item created successfully!",
           type: "success",
         });
       }
+      fetchStockItems(); // Refresh the list
       resetForm();
     } catch (error) {
       setShowToast({
         visible: true,
-        message: "Failed to save stock item.",
+        message: error.response?.data?.message || "Failed to save stock item.",
         type: "error",
       });
     } finally {
@@ -227,9 +211,8 @@ const StockManagement = () => {
   };
 
   const handleEdit = (item) => {
-    setEditItemId(item.id);
+    setEditItemId(item._id);
     setFormData({
-      itemId: item.itemId,
       sku: item.sku,
       itemName: item.itemName,
       category: item.category,
@@ -246,23 +229,60 @@ const StockManagement = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
-    setStockItems((prev) => prev.filter((item) => item.id !== id));
-    setShowToast({
+  // Show delete confirmation
+  const showDeleteConfirmation = (id, itemName) => {
+    setDeleteConfirmation({
       visible: true,
-      message: "Stock item deleted successfully!",
-      type: "success",
+      itemId: id,
+      itemName: itemName,
+      isDeleting: false,
     });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
+  };
+
+  // Hide delete confirmation
+  const hideDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      visible: false,
+      itemId: null,
+      itemName: "",
+      isDeleting: false,
+    });
+  };
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
+
+    try {
+      await axiosInstance.delete(`/stock/${deleteConfirmation.itemId}`);
+      setStockItems((prev) =>
+        prev.filter((item) => item._id !== deleteConfirmation.itemId)
+      );
+      setShowToast({
+        visible: true,
+        message: "Stock item deleted successfully!",
+        type: "success",
+      });
+      hideDeleteConfirmation();
+    } catch (error) {
+      setShowToast({
+        visible: true,
+        message:
+          error.response?.data?.message || "Failed to delete stock item.",
+        type: "error",
+      });
+      setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
+    } finally {
+      setTimeout(
+        () => setShowToast((prev) => ({ ...prev, visible: false })),
+        3000
+      );
+    }
   };
 
   const resetForm = () => {
     setEditItemId(null);
     setFormData({
-      itemId: `ITM${String(Date.now()).slice(-3)}`,
       sku: "",
       itemName: "",
       category: "",
@@ -349,6 +369,7 @@ const StockManagement = () => {
         </div>
       </div>
 
+      
       {/* Toast Notification */}
       {showToast.visible && (
         <div
@@ -359,6 +380,66 @@ const StockManagement = () => {
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span>{showToast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.visible && (
+        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
+            <div className="p-6">
+              {/* Icon */}
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-600" />
+                </div>
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Stock Item
+              </h3>
+              
+              {/* Message */}
+              <p className="text-gray-600 text-center mb-2">
+                Are you sure you want to delete
+              </p>
+              <p className="text-gray-900 font-semibold text-center mb-6">
+                "{deleteConfirmation.itemName}"?
+              </p>
+              <p className="text-sm text-gray-500 text-center mb-8">
+                This action cannot be undone and will permanently remove the item from your inventory.
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={hideDeleteConfirmation}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {deleteConfirmation.isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" />
+                      Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -606,7 +687,7 @@ const StockManagement = () => {
                           <Edit size={16} />
                         </button>
                         <button
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => showDeleteConfirmation(item._id, item.itemName)}
                           className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
                         >
                           <Trash2 size={16} />
@@ -623,7 +704,7 @@ const StockManagement = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[95vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
               <div>
@@ -654,19 +735,18 @@ const StockManagement = () => {
                   </h4>
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Item ID
                   </label>
                   <input
                     type="text"
                     name="itemId"
-                    value={formData.itemId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                    value={formData.itemId || ""}
                     readOnly
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">

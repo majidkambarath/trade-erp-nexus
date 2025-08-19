@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Plus,
@@ -17,90 +17,17 @@ import {
   Users,
   TrendingUp,
   Clock,
+  AlertTriangle,
+  UserPlus,
 } from "lucide-react";
+import axiosInstance from "../../axios/axios";
 
 const CustomerManagement = () => {
-  const [customers, setCustomers] = useState([
-    {
-      id: 1,
-      customerId: "CUST20250629-001",
-      customerName: "Acme Corporation",
-      contactPerson: "Alice Johnson",
-      email: "alice@acmecorp.com",
-      phone: "+1234567890",
-      billingAddress: "123 Business Ave, Corporate City, NY 10001",
-      shippingAddress: "123 Business Ave, Corporate City, NY 10001",
-      creditLimit: 50000,
-      paymentTerms: "Net 30",
-      status: "Active",
-      joinDate: "Jan 15, 2024",
-      totalOrders: 24,
-      totalSpent: 125000,
-      lastOrder: "Jun 20, 2025",
-    },
-    {
-      id: 2,
-      customerId: "CUST20250629-002",
-      customerName: "Tech Innovations Ltd",
-      contactPerson: "Bob Smith",
-      email: "bob@techinnovations.com",
-      phone: "+9876543210",
-      billingAddress: "456 Innovation St, Tech Valley, CA 94000",
-      shippingAddress: "789 Delivery Rd, Tech Valley, CA 94000",
-      creditLimit: 75000,
-      paymentTerms: "Net 45",
-      status: "Active",
-      joinDate: "Mar 10, 2024",
-      totalOrders: 18,
-      totalSpent: 89500,
-      lastOrder: "Jun 25, 2025",
-    },
-    {
-      id: 3,
-      customerId: "CUST20250629-003",
-      customerName: "Green Solutions Inc",
-      contactPerson: "Carol Green",
-      email: "carol@greensolutions.com",
-      phone: "+5555555555",
-      billingAddress: "321 Eco Blvd, Green City, OR 97000",
-      shippingAddress: "321 Eco Blvd, Green City, OR 97000",
-      creditLimit: 30000,
-      paymentTerms: "Net 30",
-      status: "Inactive",
-      joinDate: "Feb 5, 2024",
-      totalOrders: 12,
-      totalSpent: 42000,
-      lastOrder: "May 10, 2025",
-    },
-    {
-      id: 4,
-      customerId: "CUST20250629-004",
-      customerName: "Metro Manufacturing",
-      contactPerson: "David Wilson",
-      email: "david@metromanufacturing.com",
-      phone: "+1112223333",
-      billingAddress: "654 Industrial Way, Metro City, TX 75000",
-      shippingAddress: "987 Warehouse Dr, Metro City, TX 75000",
-      creditLimit: 100000,
-      paymentTerms: "Net 60",
-      status: "Active",
-      joinDate: "Dec 20, 2023",
-      totalOrders: 36,
-      totalSpent: 210000,
-      lastOrder: "Jun 28, 2025",
-    },
-  ]);
-
+  const [customers, setCustomers] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editCustomerId, setEditCustomerId] = useState(null);
   const [formData, setFormData] = useState({
-    customerId: `CUST${new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, "")}-${String(
-      Math.floor(Math.random() * 1000) + 1
-    ).padStart(3, "0")}`,
     customerName: "",
     contactPerson: "",
     email: "",
@@ -120,14 +47,47 @@ const CustomerManagement = () => {
   });
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPaymentTerms, setFilterPaymentTerms] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    visible: false,
+    customerId: null,
+    customerName: "",
+    isDeleting: false,
+  });
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axiosInstance.get("/customers/customers");
+            console.log(response.data);
+
+      setCustomers(response.data.data || []);
+    } catch (error) {
+      setShowToast({
+        visible: true,
+        message: error.response?.data?.message || "Failed to fetch customers.",
+        type: "error",
+      });
+      setTimeout(
+        () => setShowToast((prev) => ({ ...prev, visible: false })),
+        3000
+      );
+    }
+  };
 
   const activeCustomers = customers.filter((c) => c.status === "Active").length;
   const inactiveCustomers = customers.filter(
     (c) => c.status === "Inactive"
   ).length;
-  const totalRevenue = customers.reduce((sum, c) => sum + c.totalSpent, 0);
+  const totalRevenue = customers.reduce(
+    (sum, c) => sum + (c.totalSpent || 0),
+    0
+  );
   const avgOrderValue =
-    totalRevenue / customers.reduce((sum, c) => sum + c.totalOrders, 0) || 0;
+    totalRevenue /
+      customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0) || 0;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -154,7 +114,7 @@ const CustomerManagement = () => {
     return newErrors;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const newErrors = validateForm();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -163,50 +123,44 @@ const CustomerManagement = () => {
 
     setIsSubmitting(true);
     try {
-      const newCustomer = {
-        ...formData,
-        id: editCustomerId || Date.now(),
+      const payload = {
+        customerName: formData.customerName,
+        contactPerson: formData.contactPerson,
+        email: formData.email,
+        phone: formData.phone,
+        billingAddress: formData.billingAddress,
+        shippingAddress: formData.shippingAddress,
         creditLimit: Number(formData.creditLimit) || 0,
-        joinDate: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        totalOrders: 0,
-        totalSpent: 0,
-        lastOrder: "N/A",
+        paymentTerms: formData.paymentTerms,
+        status: formData.status,
       };
 
       if (editCustomerId) {
-        setCustomers((prev) =>
-          prev.map((c) =>
-            c.id === editCustomerId
-              ? {
-                  ...c,
-                  ...formData,
-                  creditLimit: Number(formData.creditLimit) || 0,
-                }
-              : c
-          )
-        );
+        await axiosInstance.put(`/customers/${editCustomerId}`, payload);
         setShowToast({
           visible: true,
           message: "Customer updated successfully!",
           type: "success",
         });
       } else {
-        setCustomers((prev) => [...prev, newCustomer]);
+        const response = await axiosInstance.post("/customers", payload);
+        // Assuming the backend returns the new customer with an ID
+        setCustomers((prev) => [
+          ...prev,
+          { id: response.data.data.id, ...payload },
+        ]);
         setShowToast({
           visible: true,
           message: "Customer created successfully!",
           type: "success",
         });
       }
+      fetchCustomers(); // Refresh the list
       resetForm();
     } catch (error) {
       setShowToast({
         visible: true,
-        message: "Failed to save customer.",
+        message: error.response?.data?.message || "Failed to save customer.",
         type: "error",
       });
     } finally {
@@ -219,9 +173,8 @@ const CustomerManagement = () => {
   };
 
   const handleEdit = (customer) => {
-    setEditCustomerId(customer.id);
+    setEditCustomerId(customer._id);
     setFormData({
-      customerId: customer.customerId,
       customerName: customer.customerName,
       contactPerson: customer.contactPerson,
       email: customer.email,
@@ -235,28 +188,57 @@ const CustomerManagement = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id) => {
-    setCustomers((prev) => prev.filter((customer) => customer.id !== id));
-    setShowToast({
+  const showDeleteConfirmation = (customer) => {
+    setDeleteConfirmation({
       visible: true,
-      message: "Customer deleted successfully!",
-      type: "success",
+      customerId: customer._id,
+      customerName: customer.customerName,
+      isDeleting: false,
     });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
+  };
+
+  const hideDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      visible: false,
+      customerId: null,
+      customerName: "",
+      isDeleting: false,
+    });
+  };
+
+  const confirmDelete = async () => {
+    setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
+    
+    try {
+      await axiosInstance.delete(`/customers/${deleteConfirmation.customerId}`);
+      setCustomers((prev) => 
+        prev.filter((customer) => customer._id !== deleteConfirmation.customerId)
+      );
+      setShowToast({
+        visible: true,
+        message: "Customer deleted successfully!",
+        type: "success",
+      });
+      hideDeleteConfirmation();
+      fetchCustomers(); // Refresh the list
+    } catch (error) {
+      setShowToast({
+        visible: true,
+        message: error.response?.data?.message || "Failed to delete customer.",
+        type: "error",
+      });
+      setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
+    } finally {
+      setTimeout(
+        () => setShowToast((prev) => ({ ...prev, visible: false })),
+        3000
+      );
+    }
   };
 
   const resetForm = () => {
     setEditCustomerId(null);
     setFormData({
-      customerId: `CUST${new Date()
-        .toISOString()
-        .slice(0, 10)
-        .replace(/-/g, "")}-${String(
-        Math.floor(Math.random() * 1000) + 1
-      ).padStart(3, "0")}`,
       customerName: "",
       contactPerson: "",
       email: "",
@@ -300,6 +282,30 @@ const CustomerManagement = () => {
       currency: "USD",
     }).format(amount);
   };
+
+  // Empty State Component
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-6">
+      <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-6">
+        <UserPlus size={40} className="text-blue-600" />
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+        No customers found
+      </h3>
+      <p className="text-gray-600 text-center mb-8 max-w-md">
+        {searchTerm || filterStatus || filterPaymentTerms
+          ? "No customers match your current filters. Try adjusting your search criteria."
+          : "Start building your customer base by adding your first customer."}
+      </p>
+      <button
+        onClick={openAddModal}
+        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+      >
+        <Plus size={20} />
+        Add First Customer
+      </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
@@ -464,97 +470,161 @@ const CustomerManagement = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Customer ID
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Customer Name
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Contact Person
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Email
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Phone
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Credit Limit
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Payment Terms
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCustomers.map((customer) => (
-                <tr
-                  key={customer.id}
-                  className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                >
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    {customer.customerId}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                    {customer.customerName}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.contactPerson}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.email}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.phone}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                    {formatCurrency(customer.creditLimit)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.paymentTerms}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                        customer.status
-                      )}`}
-                    >
-                      {customer.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => handleEdit(customer)}
-                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(customer.id)}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+        {filteredCustomers.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Customer ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Customer Name
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Contact Person
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Credit Limit
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Payment Terms
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredCustomers.map((customer) => (
+                  <tr
+                    key={customer._id}
+                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      {customer.customerId}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {customer.customerName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {customer.contactPerson}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {customer.email}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {customer.phone}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {formatCurrency(customer.creditLimit)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {customer.paymentTerms}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                          customer.status
+                        )}`}
+                      >
+                        {customer.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => handleEdit(customer)}
+                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => showDeleteConfirmation(customer)}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation.visible && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
+            <div className="p-6">
+              {/* Icon */}
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-600" />
+                </div>
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Customer
+              </h3>
+              
+              {/* Message */}
+              <p className="text-gray-600 text-center mb-2">
+                Are you sure you want to delete
+              </p>
+              <p className="text-gray-900 font-semibold text-center mb-6">
+                "{deleteConfirmation.customerName}"?
+              </p>
+              <p className="text-sm text-gray-500 text-center mb-8">
+                This action cannot be undone and will permanently remove the customer from your database.
+              </p>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={hideDeleteConfirmation}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {deleteConfirmation.isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" />
+                      Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -580,19 +650,18 @@ const CustomerManagement = () => {
 
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+                {/* <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Hash size={16} className="inline mr-2" /> Customer ID
                   </label>
                   <input
                     type="text"
                     name="customerId"
-                    value={formData.customerId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                    value={formData.customerId || ""}
                     readOnly
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   />
-                </div>
+                </div> */}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -787,7 +856,7 @@ const CustomerManagement = () => {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="px-8 py-3  bg-blue-600 text-white rounded-xl  hover:to-blue-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl"
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:to-blue-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl"
                 >
                   {isSubmitting ? (
                     <>

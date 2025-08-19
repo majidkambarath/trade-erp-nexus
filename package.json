@@ -11,14 +11,16 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.10",
-    "axios": "^1.10.0",
+    "axios": "^1.11.0",
     "framer-motion": "^12.19.2",
+    "html2pdf.js": "^0.10.3",
     "lucide-react": "^0.522.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.4",
+    "sweetalert2": "^11.22.4",
     "tailwindcss": "^4.1.10"
   },
   "devDependencies": {

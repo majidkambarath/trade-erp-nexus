@@ -60,11 +60,31 @@ const Sidebar = () => {
         text: "Financial Modules",
         // to: "/financial",
         children: [
-          { icon: <Receipt strokeWidth={1.5} size={20} />, text: "Receipt Voucher", to: "/receipt-voucher" },
-          { icon: <CreditCard strokeWidth={1.5} size={20} />, text: "Payment Voucher", to: "/payment-voucher" },
-          { icon: <Calculator strokeWidth={1.5} size={20} />, text: "Journal Voucher", to: "/journal-voucher" },
-          { icon: <Wallet strokeWidth={1.5} size={20} />, text: "Contra Voucher", to: "/contra-voucher" },
-          { icon: <TrendingUp strokeWidth={1.5} size={20} />, text: "Expense Voucher", to: "/expense-voucher" },
+          {
+            icon: <Receipt strokeWidth={1.5} size={20} />,
+            text: "Receipt Voucher",
+            to: "/receipt-voucher",
+          },
+          {
+            icon: <CreditCard strokeWidth={1.5} size={20} />,
+            text: "Payment Voucher",
+            to: "/payment-voucher",
+          },
+          {
+            icon: <Calculator strokeWidth={1.5} size={20} />,
+            text: "Journal Voucher",
+            to: "/journal-voucher",
+          },
+          {
+            icon: <Wallet strokeWidth={1.5} size={20} />,
+            text: "Contra Voucher",
+            to: "/contra-voucher",
+          },
+          {
+            icon: <TrendingUp strokeWidth={1.5} size={20} />,
+            text: "Expense Voucher",
+            to: "/expense-voucher",
+          },
         ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
       },
       {
@@ -73,10 +93,24 @@ const Sidebar = () => {
         text: "Vendor Modules",
         // to: "/vendor-modules",
         children: [
-          { icon: <UserPlus strokeWidth={1.5} size={20} />, text: "Vendor Creation", to: "/vendor-creation" },
-          { icon: <BookOpen strokeWidth={1.5} size={20} />, text: "Vendor Ledger", to: "/vendor-ledger" },
-          { icon: <CreditCard strokeWidth={1.5} size={20} />, text: "Vendor Payments", to: "/vendor-payments" },
-        ].filter((item) => userRole === "Admin" || userRole === "Purchase Officer"),
+          {
+            icon: <UserPlus strokeWidth={1.5} size={20} />,
+            text: "Vendor Creation",
+            to: "/vendor-creation",
+          },
+          {
+            icon: <BookOpen strokeWidth={1.5} size={20} />,
+            text: "Vendor Ledger",
+            to: "/vendor-ledger",
+          },
+          {
+            icon: <CreditCard strokeWidth={1.5} size={20} />,
+            text: "Vendor Payments",
+            to: "/vendor-payments",
+          },
+        ].filter(
+          (item) => userRole === "Admin" || userRole === "Purchase Officer"
+        ),
       },
       {
         key: "customerModules",
@@ -84,10 +118,24 @@ const Sidebar = () => {
         text: "Customer Modules",
         // to: "/customer-modules",
         children: [
-          { icon: <UserPlus strokeWidth={1.5} size={20} />, text: "Customer Creation", to: "/customer-creation" },
-          { icon: <BookOpen strokeWidth={1.5} size={20} />, text: "Customer Ledger", to: "/customer-ledger" },
-          { icon: <Receipt strokeWidth={1.5} size={20} />, text: "Customer Receipts", to: "/customer-receipts" },
-        ].filter((item) => userRole === "Admin" || userRole === "Sales Executive"),
+          {
+            icon: <UserPlus strokeWidth={1.5} size={20} />,
+            text: "Customer Creation",
+            to: "/customer-creation",
+          },
+          {
+            icon: <BookOpen strokeWidth={1.5} size={20} />,
+            text: "Customer Ledger",
+            to: "/customer-ledger",
+          },
+          {
+            icon: <Receipt strokeWidth={1.5} size={20} />,
+            text: "Customer Receipts",
+            to: "/customer-receipts",
+          },
+        ].filter(
+          (item) => userRole === "Admin" || userRole === "Sales Executive"
+        ),
       },
       {
         key: "salesPurchase",
@@ -95,10 +143,26 @@ const Sidebar = () => {
         text: "Sales & Purchase",
         // to: "/sales-purchase",
         children: [
-          { icon: <ShoppingCart strokeWidth={1.5} size={20} />, text: "Purchase Order", to: "/purchase-order" },
-          { icon: <FileText strokeWidth={1.5} size={20} />, text: "Sales Order", to: "/sales-order" },
-          { icon: <ArrowLeftRight strokeWidth={1.5} size={20} />, text: "Purchase Return", to: "/purchase-return" },
-          { icon: <ArrowLeftRight strokeWidth={1.5} size={20} />, text: "Sales Return", to: "/sales-return" },
+          {
+            icon: <ShoppingCart strokeWidth={1.5} size={20} />,
+            text: "Purchase Order",
+            to: "/purchase-order",
+          },
+          {
+            icon: <FileText strokeWidth={1.5} size={20} />,
+            text: "Sales Order",
+            to: "/sales-order",
+          },
+          {
+            icon: <ArrowLeftRight strokeWidth={1.5} size={20} />,
+            text: "Purchase Return",
+            to: "/purchase-return",
+          },
+          {
+            icon: <ArrowLeftRight strokeWidth={1.5} size={20} />,
+            text: "Sales Return",
+            to: "/sales-return",
+          },
         ].filter(
           (item) =>
             userRole === "Admin" ||
@@ -112,10 +176,24 @@ const Sidebar = () => {
         text: "Inventory & Stock",
         // to: "/inventory-stock",
         children: [
-          { icon: <Barcode strokeWidth={1.5} size={20} />, text: "Stock Item Creation", to: "/stock-item-creation" },
-          { icon: <Box strokeWidth={1.5} size={20} />, text: "Inventory", to: "/inventory" },
-          { icon: <Archive strokeWidth={1.5} size={20} />, text: "Stock Management", to: "/stock-management" },
-        ].filter((item) => userRole === "Admin" || userRole === "Inventory Manager"),
+          {
+            icon: <Barcode strokeWidth={1.5} size={20} />,
+            text: "Stock Item Creation",
+            to: "/stock-item-creation",
+          },
+          {
+            icon: <Box strokeWidth={1.5} size={20} />,
+            text: "Inventory",
+            to: "/inventory",
+          },
+          {
+            icon: <Archive strokeWidth={1.5} size={20} />,
+            text: "Stock Management",
+            to: "/stock-management",
+          },
+        ].filter(
+          (item) => userRole === "Admin" || userRole === "Inventory Manager"
+        ),
       },
       {
         key: "ledger",
@@ -123,9 +201,21 @@ const Sidebar = () => {
         text: "Ledger & Accounting",
         // to: "/ledger-accounting",
         children: [
-          { icon: <BookOpen strokeWidth={1.5} size={20} />, text: "General Ledger", to: "/general-ledger" },
-          { icon: <FileText strokeWidth={1.5} size={20} />, text: "Supplier Ledger", to: "/supplier-ledger" },
-          { icon: <Activity strokeWidth={1.5} size={20} />, text: "In/Out Ledger", to: "/in-out-ledger" },
+          {
+            icon: <BookOpen strokeWidth={1.5} size={20} />,
+            text: "General Ledger",
+            to: "/general-ledger",
+          },
+          {
+            icon: <FileText strokeWidth={1.5} size={20} />,
+            text: "Supplier Ledger",
+            to: "/supplier-ledger",
+          },
+          {
+            icon: <Activity strokeWidth={1.5} size={20} />,
+            text: "In/Out Ledger",
+            to: "/in-out-ledger",
+          },
         ].filter(
           (item) =>
             userRole === "Admin" ||
@@ -140,9 +230,19 @@ const Sidebar = () => {
         text: "Unit of Measure",
         // to: "/unit-measure",
         children: [
-          { icon: <Ruler strokeWidth={1.5} size={20} />, text: "Unit Setup", to: "/unit-setup" },
-          { icon: <Settings strokeWidth={1.5} size={20} />, text: "Conversion Logic", to: "/conversion-logic" },
-        ].filter((item) => userRole === "Admin" || userRole === "Inventory Manager"),
+          {
+            icon: <Ruler strokeWidth={1.5} size={20} />,
+            text: "Unit Setup",
+            to: "/unit-setup",
+          },
+          {
+            icon: <Settings strokeWidth={1.5} size={20} />,
+            text: "Conversion Logic",
+            to: "/conversion-logic",
+          },
+        ].filter(
+          (item) => userRole === "Admin" || userRole === "Inventory Manager"
+        ),
       },
       {
         key: "staff",
@@ -150,8 +250,16 @@ const Sidebar = () => {
         text: "Staff Management",
         // to: "/staff-management",
         children: [
-          { icon: <Users strokeWidth={1.5} size={20} />, text: "Staff Records", to: "/staff-records" },
-          { icon: <Shield strokeWidth={1.5} size={20} />, text: "Staff Access", to: "/staff-access" },
+          {
+            icon: <Users strokeWidth={1.5} size={20} />,
+            text: "Staff Records",
+            to: "/staff-records",
+          },
+          {
+            icon: <Shield strokeWidth={1.5} size={20} />,
+            text: "Staff Access",
+            to: "/staff-access",
+          },
         ].filter((item) => userRole === "Admin" || userRole === "HR"),
       },
       {
@@ -160,7 +268,11 @@ const Sidebar = () => {
         text: "Taxation Settings",
         // to: "/taxation-settings",
         children: [
-          { icon: <Percent strokeWidth={1.5} size={20} />, text: "Tax Configuration", to: "/tax-configuration" },
+          {
+            icon: <Percent strokeWidth={1.5} size={20} />,
+            text: "Tax Configuration",
+            to: "/tax-configuration",
+          },
         ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
       },
       {
@@ -169,13 +281,41 @@ const Sidebar = () => {
         text: "Reports",
         // to: "/reports",
         children: [
-          { icon: <BarChart3 strokeWidth={1.5} size={20} />, text: "Financial Reports", to: "/financial-reports" },
-          { icon: <TrendingUp strokeWidth={1.5} size={20} />, text: "Sales/Purchase Reports", to: "/sales-purchase-reports" },
-          { icon: <Archive strokeWidth={1.5} size={20} />, text: "Inventory Reports", to: "/inventory-reports" },
-          { icon: <Database strokeWidth={1.5} size={20} />, text: "Ledger Reports", to: "/ledger-reports" },
-          { icon: <Users strokeWidth={1.5} size={20} />, text: "Staff Reports", to: "/staff-transaction-reports" },
-          { icon: <Briefcase strokeWidth={1.5} size={20} />, text: "Vendor Reports", to: "/vendor-reports" },
-          { icon: <UserCheck strokeWidth={1.5} size={20} />, text: "Customer Reports", to: "/customer-reports" },
+          {
+            icon: <BarChart3 strokeWidth={1.5} size={20} />,
+            text: "Financial Reports",
+            to: "/financial-reports",
+          },
+          {
+            icon: <TrendingUp strokeWidth={1.5} size={20} />,
+            text: "Sales/Purchase Reports",
+            to: "/sales-purchase-reports",
+          },
+          {
+            icon: <Archive strokeWidth={1.5} size={20} />,
+            text: "Inventory Reports",
+            to: "/inventory-reports",
+          },
+          {
+            icon: <Database strokeWidth={1.5} size={20} />,
+            text: "Ledger Reports",
+            to: "/ledger-reports",
+          },
+          {
+            icon: <Users strokeWidth={1.5} size={20} />,
+            text: "Staff Reports",
+            to: "/staff-transaction-reports",
+          },
+          {
+            icon: <Briefcase strokeWidth={1.5} size={20} />,
+            text: "Vendor Reports",
+            to: "/vendor-reports",
+          },
+          {
+            icon: <UserCheck strokeWidth={1.5} size={20} />,
+            text: "Customer Reports",
+            to: "/customer-reports",
+          },
         ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
       },
     ];
@@ -186,7 +326,8 @@ const Sidebar = () => {
   useEffect(() => {
     const activeSection = navigationSections.find(
       (section) =>
-        section.children.some((child) => child.to === currentPath) || section.to === currentPath
+        section.children.some((child) => child.to === currentPath) ||
+        section.to === currentPath
     );
     if (activeSection) {
       setExpandedSections((prev) => ({
@@ -213,9 +354,64 @@ const Sidebar = () => {
 
   const handleLogout = (e) => {
     e.preventDefault();
-    console.log("Logout clicked");
-    // Add logout logic here, e.g., clear auth tokens and redirect
-    navigate("/login");
+
+    try {
+      // Define the keys you want to clear (based on your screenshot)
+      const sessionKeys = [
+        "accessToken",
+        "refreshToken",
+        "adminId",
+        "loginTime",
+        "tokenExpiry",
+        "rememberMe",
+      ];
+
+      const localKeys = [
+        "accessToken",
+        "refreshToken",
+        "adminId",
+        "loginTime",
+        "tokenExpiry",
+        "rememberMe",
+        "userPreferences", // if you have any
+        "theme", // if you store theme preference
+      ];
+
+      // Clear specific sessionStorage items
+      sessionKeys.forEach((key) => {
+        if (sessionStorage.getItem(key) !== null) {
+          sessionStorage.removeItem(key);
+          console.log(`Cleared sessionStorage key: ${key}`);
+        }
+      });
+
+      // Clear specific localStorage items
+      localKeys.forEach((key) => {
+        if (localStorage.getItem(key) !== null) {
+          localStorage.removeItem(key);
+          console.log(`Cleared localStorage key: ${key}`);
+        }
+      });
+
+      console.log("Authentication data cleared successfully");
+
+      // Navigate to login page
+      navigate("/");
+    } catch (error) {
+      console.error("Error during logout:", error);
+
+      // Fallback to complete clear if targeted clear fails
+      try {
+        sessionStorage.clear();
+        localStorage.clear();
+        console.log("Performed complete storage clear as fallback");
+      } catch (fallbackError) {
+        console.error("Fallback clear also failed:", fallbackError);
+      }
+
+      // Still navigate to login
+      navigate("/");
+    }
   };
 
   return (
@@ -246,19 +442,31 @@ const Sidebar = () => {
                 <span className="text-xl font-bold text-gray-800">
                   ERP NEXUS
                 </span>
-                <div className="text-xs text-gray-600 -mt-1">Enterprise System</div>
+                <div className="text-xs text-gray-600 -mt-1">
+                  Enterprise System
+                </div>
               </div>
             </div>
           )}
           <button
             onClick={toggleSidebar}
             className="relative p-2.5 rounded-xl bg-gray-100/50 backdrop-blur-sm transition-all duration-300 border border-gray-200/50 hover:bg-gray-200/50 hover:border-gray-300/50"
-            aria-label={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+            aria-label={
+              isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"
+            }
           >
             {isSidebarCollapsed ? (
-              <ChevronRight strokeWidth={2} size={18} className="text-gray-600" />
+              <ChevronRight
+                strokeWidth={2}
+                size={18}
+                className="text-gray-600"
+              />
             ) : (
-              <ChevronLeft strokeWidth={2} size={18} className="text-gray-600" />
+              <ChevronLeft
+                strokeWidth={2}
+                size={18}
+                className="text-gray-600"
+              />
             )}
           </button>
         </div>
@@ -271,8 +479,12 @@ const Sidebar = () => {
                 <User className="w-5 h-5 text-gray-800" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-800">Administrator</div>
-                <div className="text-xs text-gray-600 truncate">admin@company.com</div>
+                <div className="text-sm font-semibold text-gray-800">
+                  Administrator
+                </div>
+                <div className="text-xs text-gray-600 truncate">
+                  admin@company.com
+                </div>
               </div>
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
             </div>
@@ -382,7 +594,11 @@ const Sidebar = () => {
 // Sidebar Item Component
 const SidebarItem = React.memo(
   ({ icon, text, to, active, isCollapsed, special = false, onClick }) => (
-    <div className="block cursor-pointer group" title={isCollapsed ? text : ""} onClick={onClick}>
+    <div
+      className="block cursor-pointer group"
+      title={isCollapsed ? text : ""}
+      onClick={onClick}
+    >
       <div
         className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
           isCollapsed ? "justify-center" : ""
@@ -394,11 +610,17 @@ const SidebarItem = React.memo(
             : "text-gray-600 hover:bg-gray-200/50 hover:border-gray-300/50 border border-transparent"
         } backdrop-blur-sm`}
       >
-        <div className={`relative z-10 p-2 rounded-lg ${active && special ? "bg-gray-300/50" : "bg-gray-200/50"}`}>
+        <div
+          className={`relative z-10 p-2 rounded-lg ${
+            active && special ? "bg-gray-300/50" : "bg-gray-200/50"
+          }`}
+        >
           {icon}
         </div>
         {!isCollapsed && (
-          <span className="font-medium truncate relative z-10 text-sm">{text}</span>
+          <span className="font-medium truncate relative z-10 text-sm">
+            {text}
+          </span>
         )}
         <div className="absolute inset-0 bg-gray-200/10 rounded-xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
       </div>
@@ -448,10 +670,14 @@ const SidebarSection = React.memo(
           } backdrop-blur-sm`}
           title={isCollapsed ? text : ""}
         >
-          <div className="relative z-10 p-2 rounded-lg bg-gray-200/50">{icon}</div>
+          <div className="relative z-10 p-2 rounded-lg bg-gray-200/50">
+            {icon}
+          </div>
           {!isCollapsed && (
             <>
-              <span className="font-medium flex-1 truncate relative z-10 text-sm">{text}</span>
+              <span className="font-medium flex-1 truncate relative z-10 text-sm">
+                {text}
+              </span>
               <div
                 className={`toggle-arrow transform transition-transform duration-300 relative z-10 p-1 rounded ${
                   expanded ? "rotate-180" : ""
@@ -462,7 +688,11 @@ const SidebarSection = React.memo(
                   onToggle();
                 }}
               >
-                <ChevronDown strokeWidth={1.5} size={18} className="text-gray-600" />
+                <ChevronDown
+                  strokeWidth={1.5}
+                  size={18}
+                  className="text-gray-600"
+                />
               </div>
             </>
           )}
@@ -471,7 +701,9 @@ const SidebarSection = React.memo(
 
         <div
           className={`overflow-hidden transition-all duration-500 ease-out ${
-            expanded && !isCollapsed ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+            expanded && !isCollapsed
+              ? "max-h-96 opacity-100"
+              : "max-h-0 opacity-0"
           }`}
         >
           <div className="ml-6 mt-2 space-y-1 border-l border-gray-200/50 pl-4">
@@ -493,9 +725,13 @@ const SidebarSection = React.memo(
                   {currentPath === child.to && (
                     <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 bg-gray-400 rounded-r-full"></div>
                   )}
-                  <div className="relative z-10 ml-1 p-1.5 rounded-md bg-gray-200/50">{child.icon}</div>
+                  <div className="relative z-10 ml-1 p-1.5 rounded-md bg-gray-200/50">
+                    {child.icon}
+                  </div>
                   {!isCollapsed && (
-                    <span className="font-medium text-sm truncate relative z-10">{child.text}</span>
+                    <span className="font-medium text-sm truncate relative z-10">
+                      {child.text}
+                    </span>
                   )}
                   <div className="absolute inset-0 bg-gray-200/10 rounded-lg blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 </div>
