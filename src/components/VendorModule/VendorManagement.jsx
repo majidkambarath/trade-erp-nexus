@@ -53,7 +53,7 @@ const VendorManagement = () => {
 
   const fetchVendors = async () => {
     try {
-      const res = await axiosInstance.get("/vendors");
+      const res = await axiosInstance.get("/vendors/vendors");
       setVendors(res.data.data || []);
     } catch (error) {
       console.error("Failed to fetch vendors:", error);
@@ -100,14 +100,14 @@ const VendorManagement = () => {
       delete payload.vendorId;
 
       if (editVendorId) {
-        await axiosInstance.put(`/vendors/${editVendorId}`, payload);
+        await axiosInstance.put(`/vendors/vendors/${editVendorId}`, payload);
         setShowToast({
           visible: true,
           message: "Vendor updated successfully!",
           type: "success",
         });
       } else {
-        await axiosInstance.post("/vendors", payload);
+        await axiosInstance.post("/vendors/vendors", payload);
         setShowToast({
           visible: true,
           message: "Vendor created successfully!",
@@ -148,7 +148,7 @@ const VendorManagement = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axiosInstance.delete(`/vendors/${id}`);
+      await axiosInstance.delete(`/vendors/vendors/${id}`);
       await fetchVendors();
       setShowToast({
         visible: true,

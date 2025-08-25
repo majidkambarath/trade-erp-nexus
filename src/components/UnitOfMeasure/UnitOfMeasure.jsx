@@ -44,6 +44,7 @@
       status: "Active",
     });
 
+
     const [errors, setErrors] = useState({});
     const [showToast, setShowToast] = useState({
       visible: false,
@@ -84,6 +85,7 @@
     const fetchConversions = async () => {
       try {
         const response = await axiosInstance.get("/uom/conversions");
+        console.log((response.data.data));
         // Ensure response.data is an array
         setConversions(
           Array.isArray(response.data.data) ? response.data.data : []
@@ -215,6 +217,7 @@
               "/uom/conversions",
               payload
             );
+           
             setConversions((prev) => [...prev, response.data]);
             showToastMessage("Conversion created successfully!", "success");
           }
@@ -244,8 +247,8 @@
         });
       } else {
         setConversionForm({
-          fromUOM: item.fromUOM,
-          toUOM: item.toUOM,
+          fromUOM: item.fromUOM._id,
+          toUOM: item.toUOM._id,
           conversionRatio: item.conversionRatio.toString(),
           category: item.category,
           status: item.status,

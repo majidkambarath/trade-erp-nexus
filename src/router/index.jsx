@@ -11,8 +11,11 @@ import Staff from "../components/Staff/staff.jsx";
 import Settings from "../components/Settings/Settings.jsx";
 import NotFound from "../components/NotFound.jsx";
 import ERPLogin from "../components/Login/Login.jsx";
-import PurchaseOrderPage from "../components/PurchaseOrder/PurchaseOrderPage.jsx";
-import SalesOrderPage from "../components/PurchaseOrder/SalesOrderPage.jsx";
+import PurchaseOrderPage from "../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx";
+import SalesOrderPage from "../components/PurchaseOrder/sales/SalesOrderPage.jsx";
+import InventoryManagement from '../components/Inventory/InventoryManagement.jsx'
+import PurchaseReturnPage from "../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx"
+import SalesReturnPage from "../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
@@ -27,6 +30,10 @@ export default function AdminRouter() {
         <Route path="/settings" element={<Settings />} />{" "}
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />{" "}
         <Route path="/sales-order" element={<SalesOrderPage />} />{" "}
+        <Route path="/inventory" element={<InventoryManagement />} />{" "}
+        <Route path="/purchase-return" element={<PurchaseReturnPage />} />{" "}
+        <Route path="/sales-return" element={<SalesReturnPage />} />{" "}
+
       </Route>
       {/* </Route> */}
       <Route path="*" element={<NotFound />} />
