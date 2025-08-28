@@ -15,6 +15,9 @@ const SOForm = React.memo(
     setActiveView,
     setSalesOrders,
     activeView = "create", // Default to "create" if not provided
+    resetForm,
+    calculateTotals,
+    onSOSuccess,
   }) => {
     const isEditing = activeView === "edit";
 
@@ -24,7 +27,7 @@ const SOForm = React.memo(
     // Log renders for debugging
     useEffect(() => {
       console.log("SOForm rendered");
-    });
+    }, []);
 
     // Validate form data
     const validateForm = useCallback(() => {
@@ -139,31 +142,6 @@ const SOForm = React.memo(
       [formData.items, setFormData]
     );
 
-    // Reset the form
-    const resetForm = useCallback(() => {
-      setFormData({
-        transactionNo: "",
-        partyId: "",
-        date: new Date().toISOString().slice(0, 10),
-        deliveryDate: "",
-        status: "DRAFT",
-        items: [
-          {
-            itemId: "",
-            description: "",
-            qty: "",
-            rate: "",
-            taxPercent: "5",
-          },
-        ],
-        terms: "",
-        notes: "",
-        priority: "Medium",
-      });
-      setFormErrors({});
-      setSelectedSO(null);
-    }, [setFormData, setSelectedSO]);
-
     // Save or update the sales order
     const saveSO = useCallback(async () => {
       if (!validateForm()) {
@@ -244,9 +222,8 @@ const SOForm = React.memo(
           setSalesOrders((prev) => [newSO, ...prev]);
         }
 
-        setSelectedSO(newSO);
-        setActiveView("invoice");
-        resetForm();
+        // Call onSOSuccess for both create and edit to handle navigation
+        onSOSuccess(newSO);
       } catch (error) {
         addNotification(
           "Failed to save sales order: " + (error.response?.data?.message || error.message),
@@ -259,40 +236,9 @@ const SOForm = React.memo(
       selectedSO,
       customers,
       setSalesOrders,
-      setSelectedSO,
-      setActiveView,
       addNotification,
-      resetForm,
+      onSOSuccess,
     ]);
-
-    // Calculate totals for items
-    const calculateTotals = useMemo(
-      () => (items) => {
-        let subtotal = 0;
-        let tax = 0;
-
-        items.forEach((item) => {
-          const qty = parseFloat(item.qty) || 0;
-          const rate = parseFloat(item.rate) || 0;
-          const taxPercent = parseFloat(item.taxPercent) || 0;
-
-          const lineSubtotal = qty * rate;
-          const lineTax = lineSubtotal * (taxPercent / 100);
-
-          subtotal += lineSubtotal;
-          tax += lineTax;
-        });
-
-        const total = (subtotal + tax).toFixed(2);
-        subtotal = subtotal.toFixed(2);
-        tax = tax.toFixed(2);
-
-        return { subtotal, tax, total };
-      },
-      []
-    );
-
-    const totals = calculateTotals(formData.items);
 
     // Stabilize customers and stockItems props
     const stableCustomers = useMemo(() => customers || [], [customers]);
@@ -505,16 +451,16 @@ const SOForm = React.memo(
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
-                      <span>AED {totals.subtotal}</span>
+                      <span>AED {calculateTotals(formData.items).subtotal}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Tax:</span>
-                      <span>AED {totals.tax}</span>
+                      <span>AED {calculateTotals(formData.items).tax}</span>
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total:</span>
-                        <span className="text-emerald-600">AED {totals.total}</span>
+                        <span className="text-emerald-600">AED {calculateTotals(formData.items).total}</span>
                       </div>
                     </div>
                   </div>
@@ -657,7 +603,10 @@ const SOForm = React.memo(
       prevProps.setSelectedSO === nextProps.setSelectedSO &&
       prevProps.setActiveView === nextProps.setActiveView &&
       prevProps.setSalesOrders === nextProps.setSalesOrders &&
-      prevProps.activeView === nextProps.activeView
+      prevProps.activeView === nextProps.activeView &&
+      prevProps.resetForm === nextProps.resetForm &&
+      prevProps.calculateTotals === nextProps.calculateTotals &&
+      prevProps.onSOSuccess === nextProps.onSOSuccess
     );
   }
 );

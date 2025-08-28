@@ -28,6 +28,7 @@ const TableView = ({
   approvePO,
   deletePO,
 }) => {
+  console.log(paginatedPOs)
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
@@ -161,7 +162,6 @@ const TableView = ({
                     <p className="font-medium text-slate-900">
                       {po.vendorName}
                     </p>
-                    <p className="text-xs text-slate-500">{po.vendorId}</p>
                   </div>
                 </td>
                 <td className="px-4 py-4">

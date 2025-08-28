@@ -54,39 +54,39 @@ const Sidebar = () => {
   // Navigation structure based on ERP requirements
   const navigationSections = useMemo(() => {
     const sections = [
-      {
-        key: "financial",
-        icon: <DollarSign strokeWidth={1.5} size={22} />,
-        text: "Financial Modules",
-        // to: "/financial",
-        children: [
-          {
-            icon: <Receipt strokeWidth={1.5} size={20} />,
-            text: "Receipt Voucher",
-            to: "/receipt-voucher",
-          },
-          {
-            icon: <CreditCard strokeWidth={1.5} size={20} />,
-            text: "Payment Voucher",
-            to: "/payment-voucher",
-          },
-          {
-            icon: <Calculator strokeWidth={1.5} size={20} />,
-            text: "Journal Voucher",
-            to: "/journal-voucher",
-          },
-          {
-            icon: <Wallet strokeWidth={1.5} size={20} />,
-            text: "Contra Voucher",
-            to: "/contra-voucher",
-          },
-          {
-            icon: <TrendingUp strokeWidth={1.5} size={20} />,
-            text: "Expense Voucher",
-            to: "/expense-voucher",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
-      },
+      // {
+      //   key: "financial",
+      //   icon: <DollarSign strokeWidth={1.5} size={22} />,
+      //   text: "Financial Modules",
+      //   // to: "/financial",
+      //   children: [
+      //     {
+      //       icon: <Receipt strokeWidth={1.5} size={20} />,
+      //       text: "Receipt Voucher",
+      //       to: "/receipt-voucher",
+      //     },
+      //     {
+      //       icon: <CreditCard strokeWidth={1.5} size={20} />,
+      //       text: "Payment Voucher",
+      //       to: "/payment-voucher",
+      //     },
+      //     {
+      //       icon: <Calculator strokeWidth={1.5} size={20} />,
+      //       text: "Journal Voucher",
+      //       to: "/journal-voucher",
+      //     },
+      //     {
+      //       icon: <Wallet strokeWidth={1.5} size={20} />,
+      //       text: "Contra Voucher",
+      //       to: "/contra-voucher",
+      //     },
+      //     {
+      //       icon: <TrendingUp strokeWidth={1.5} size={20} />,
+      //       text: "Expense Voucher",
+      //       to: "/expense-voucher",
+      //     },
+      //   ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+      // },
       {
         key: "vendorModules",
         icon: <Briefcase strokeWidth={1.5} size={22} />,
@@ -98,16 +98,16 @@ const Sidebar = () => {
             text: "Vendor Creation",
             to: "/vendor-creation",
           },
-          {
-            icon: <BookOpen strokeWidth={1.5} size={20} />,
-            text: "Vendor Ledger",
-            to: "/vendor-ledger",
-          },
-          {
-            icon: <CreditCard strokeWidth={1.5} size={20} />,
-            text: "Vendor Payments",
-            to: "/vendor-payments",
-          },
+          // {
+          //   icon: <BookOpen strokeWidth={1.5} size={20} />,
+          //   text: "Vendor Ledger",
+          //   to: "/vendor-ledger",
+          // },
+          // {
+          //   icon: <CreditCard strokeWidth={1.5} size={20} />,
+          //   text: "Vendor Payments",
+          //   to: "/vendor-payments",
+          // },
         ].filter(
           (item) => userRole === "Admin" || userRole === "Purchase Officer"
         ),
@@ -123,16 +123,16 @@ const Sidebar = () => {
             text: "Customer Creation",
             to: "/customer-creation",
           },
-          {
-            icon: <BookOpen strokeWidth={1.5} size={20} />,
-            text: "Customer Ledger",
-            to: "/customer-ledger",
-          },
-          {
-            icon: <Receipt strokeWidth={1.5} size={20} />,
-            text: "Customer Receipts",
-            to: "/customer-receipts",
-          },
+          // {
+          //   icon: <BookOpen strokeWidth={1.5} size={20} />,
+          //   text: "Customer Ledger",
+          //   to: "/customer-ledger",
+          // },
+          // {
+          //   icon: <Receipt strokeWidth={1.5} size={20} />,
+          //   text: "Customer Receipts",
+          //   to: "/customer-receipts",
+          // },
         ].filter(
           (item) => userRole === "Admin" || userRole === "Sales Executive"
         ),
@@ -186,44 +186,44 @@ const Sidebar = () => {
             text: "Inventory",
             to: "/inventory",
           },
-          {
-            icon: <Archive strokeWidth={1.5} size={20} />,
-            text: "Stock Management",
-            to: "/stock-management",
-          },
+          // {
+          //   icon: <Archive strokeWidth={1.5} size={20} />,
+          //   text: "Stock Management",
+          //   to: "/stock-management",
+          // },
         ].filter(
           (item) => userRole === "Admin" || userRole === "Inventory Manager"
         ),
       },
-      {
-        key: "ledger",
-        icon: <Database strokeWidth={1.5} size={22} />,
-        text: "Ledger & Accounting",
-        // to: "/ledger-accounting",
-        children: [
-          {
-            icon: <BookOpen strokeWidth={1.5} size={20} />,
-            text: "General Ledger",
-            to: "/general-ledger",
-          },
-          {
-            icon: <FileText strokeWidth={1.5} size={20} />,
-            text: "Supplier Ledger",
-            to: "/supplier-ledger",
-          },
-          {
-            icon: <Activity strokeWidth={1.5} size={20} />,
-            text: "In/Out Ledger",
-            to: "/in-out-ledger",
-          },
-        ].filter(
-          (item) =>
-            userRole === "Admin" ||
-            userRole === "Accountant" ||
-            userRole === "Purchase Officer" ||
-            userRole === "Sales Executive"
-        ),
-      },
+      // {
+      //   key: "ledger",
+      //   icon: <Database strokeWidth={1.5} size={22} />,
+      //   text: "Ledger & Accounting",
+      //   // to: "/ledger-accounting",
+      //   children: [
+      //     {
+      //       icon: <BookOpen strokeWidth={1.5} size={20} />,
+      //       text: "General Ledger",
+      //       to: "/general-ledger",
+      //     },
+      //     {
+      //       icon: <FileText strokeWidth={1.5} size={20} />,
+      //       text: "Supplier Ledger",
+      //       to: "/supplier-ledger",
+      //     },
+      //     {
+      //       icon: <Activity strokeWidth={1.5} size={20} />,
+      //       text: "In/Out Ledger",
+      //       to: "/in-out-ledger",
+      //     },
+      //   ].filter(
+      //     (item) =>
+      //       userRole === "Admin" ||
+      //       userRole === "Accountant" ||
+      //       userRole === "Purchase Officer" ||
+      //       userRole === "Sales Executive"
+      //   ),
+      // },
       {
         key: "unitOfMeasure",
         icon: <Scale strokeWidth={1.5} size={22} />,
@@ -235,89 +235,89 @@ const Sidebar = () => {
             text: "Unit Setup",
             to: "/unit-setup",
           },
-          {
-            icon: <Settings strokeWidth={1.5} size={20} />,
-            text: "Conversion Logic",
-            to: "/conversion-logic",
-          },
+          // {
+          //   icon: <Settings strokeWidth={1.5} size={20} />,
+          //   text: "Conversion Logic",
+          //   to: "/conversion-logic",
+          // },
         ].filter(
           (item) => userRole === "Admin" || userRole === "Inventory Manager"
         ),
       },
-      {
-        key: "staff",
-        icon: <UserPlus strokeWidth={1.5} size={22} />,
-        text: "Staff Management",
-        // to: "/staff-management",
-        children: [
-          {
-            icon: <Users strokeWidth={1.5} size={20} />,
-            text: "Staff Records",
-            to: "/staff-records",
-          },
-          {
-            icon: <Shield strokeWidth={1.5} size={20} />,
-            text: "Staff Access",
-            to: "/staff-access",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "HR"),
-      },
-      {
-        key: "taxation",
-        icon: <Percent strokeWidth={1.5} size={22} />,
-        text: "Taxation Settings",
-        // to: "/taxation-settings",
-        children: [
-          {
-            icon: <Percent strokeWidth={1.5} size={20} />,
-            text: "Tax Configuration",
-            to: "/tax-configuration",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
-      },
-      {
-        key: "reports",
-        icon: <PieChart strokeWidth={1.5} size={22} />,
-        text: "Reports",
-        // to: "/reports",
-        children: [
-          {
-            icon: <BarChart3 strokeWidth={1.5} size={20} />,
-            text: "Financial Reports",
-            to: "/financial-reports",
-          },
-          {
-            icon: <TrendingUp strokeWidth={1.5} size={20} />,
-            text: "Sales/Purchase Reports",
-            to: "/sales-purchase-reports",
-          },
-          {
-            icon: <Archive strokeWidth={1.5} size={20} />,
-            text: "Inventory Reports",
-            to: "/inventory-reports",
-          },
-          {
-            icon: <Database strokeWidth={1.5} size={20} />,
-            text: "Ledger Reports",
-            to: "/ledger-reports",
-          },
-          {
-            icon: <Users strokeWidth={1.5} size={20} />,
-            text: "Staff Reports",
-            to: "/staff-transaction-reports",
-          },
-          {
-            icon: <Briefcase strokeWidth={1.5} size={20} />,
-            text: "Vendor Reports",
-            to: "/vendor-reports",
-          },
-          {
-            icon: <UserCheck strokeWidth={1.5} size={20} />,
-            text: "Customer Reports",
-            to: "/customer-reports",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
-      },
+      // {
+      //   key: "staff",
+      //   icon: <UserPlus strokeWidth={1.5} size={22} />,
+      //   text: "Staff Management",
+      //   // to: "/staff-management",
+      //   children: [
+      //     {
+      //       icon: <Users strokeWidth={1.5} size={20} />,
+      //       text: "Staff Records",
+      //       to: "/staff-records",
+      //     },
+      //     {
+      //       icon: <Shield strokeWidth={1.5} size={20} />,
+      //       text: "Staff Access",
+      //       to: "/staff-access",
+      //     },
+      //   ].filter((item) => userRole === "Admin" || userRole === "HR"),
+      // },
+      // {
+      //   key: "taxation",
+      //   icon: <Percent strokeWidth={1.5} size={22} />,
+      //   text: "Taxation Settings",
+      //   // to: "/taxation-settings",
+      //   children: [
+      //     {
+      //       icon: <Percent strokeWidth={1.5} size={20} />,
+      //       text: "Tax Configuration",
+      //       to: "/tax-configuration",
+      //     },
+      //   ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+      // },
+      // {
+      //   key: "reports",
+      //   icon: <PieChart strokeWidth={1.5} size={22} />,
+      //   text: "Reports",
+      //   // to: "/reports",
+      //   children: [
+      //     {
+      //       icon: <BarChart3 strokeWidth={1.5} size={20} />,
+      //       text: "Financial Reports",
+      //       to: "/financial-reports",
+      //     },
+      //     {
+      //       icon: <TrendingUp strokeWidth={1.5} size={20} />,
+      //       text: "Sales/Purchase Reports",
+      //       to: "/sales-purchase-reports",
+      //     },
+      //     {
+      //       icon: <Archive strokeWidth={1.5} size={20} />,
+      //       text: "Inventory Reports",
+      //       to: "/inventory-reports",
+      //     },
+      //     {
+      //       icon: <Database strokeWidth={1.5} size={20} />,
+      //       text: "Ledger Reports",
+      //       to: "/ledger-reports",
+      //     },
+      //     {
+      //       icon: <Users strokeWidth={1.5} size={20} />,
+      //       text: "Staff Reports",
+      //       to: "/staff-transaction-reports",
+      //     },
+      //     {
+      //       icon: <Briefcase strokeWidth={1.5} size={20} />,
+      //       text: "Vendor Reports",
+      //       to: "/vendor-reports",
+      //     },
+      //     {
+      //       icon: <UserCheck strokeWidth={1.5} size={20} />,
+      //       text: "Customer Reports",
+      //       to: "/customer-reports",
+      //     },
+      //   ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+      // },
     ];
     return sections.filter((section) => section.children.length > 0);
   }, [userRole]);

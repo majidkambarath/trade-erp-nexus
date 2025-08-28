@@ -15,6 +15,9 @@ const POForm = React.memo(
     setActiveView,
     setPurchaseOrders,
     activeView = "create", // Default to "create" if not provided
+    resetForm,
+    calculateTotals,
+    onPOSuccess,
   }) => {
     const isEditing = activeView === "edit";
 
@@ -24,7 +27,7 @@ const POForm = React.memo(
     // Log renders for debugging
     useEffect(() => {
       console.log("POForm rendered");
-    });
+    }, []);
 
     // Validate form data
     const validateForm = useCallback(() => {
@@ -36,7 +39,7 @@ const POForm = React.memo(
         errors.date = "Date is required";
       }
       if (!formData.deliveryDate) {
-        errors.deliveryDate = "Delivery date is required";
+        errors.deliveryDate = "Return date is required";
       }
       if (!formData.items.some((item) => item.itemId && item.qty && item.rate)) {
         errors.items = "At least one valid item is required";
@@ -139,32 +142,7 @@ const POForm = React.memo(
       [formData.items, setFormData]
     );
 
-    // Reset the form
-    const resetForm = useCallback(() => {
-      setFormData({
-        transactionNo: "",
-        partyId: "",
-        date: new Date().toISOString().slice(0, 10),
-        deliveryDate: "",
-        status: "DRAFT",
-        items: [
-          {
-            itemId: "",
-            description: "",
-            qty: "",
-            rate: "",
-            taxPercent: "5",
-          },
-        ],
-        terms: "",
-        notes: "",
-        priority: "Medium",
-      });
-      setFormErrors({});
-      setSelectedPO(null);
-    }, [setFormData, setSelectedPO]);
-
-    // Save or update the purchase order
+    // Save or update the purchase return order
     const savePO = useCallback(async () => {
       if (!validateForm()) {
         addNotification("Please fix form errors before saving", "error");
@@ -207,13 +185,13 @@ const POForm = React.memo(
             `/transactions/transactions/${selectedPO.id}`,
             transactionData
           );
-          addNotification("Purchase Order updated successfully", "success");
+          addNotification("Purchase Return Order updated successfully", "success");
         } else {
           response = await axiosInstance.post(
             "/transactions/transactions",
             transactionData
           );
-          addNotification("Purchase Order created successfully", "success");
+          addNotification("Purchase Return Order created successfully", "success");
         }
 
         const newPO = {
@@ -245,12 +223,11 @@ const POForm = React.memo(
           setPurchaseOrders((prev) => [newPO, ...prev]);
         }
 
-        setSelectedPO(newPO);
-        setActiveView("invoice");
-        resetForm();
+        // Call onPOSuccess to handle navigation to invoice
+        onPOSuccess(newPO);
       } catch (error) {
         addNotification(
-          "Failed to save purchase order: " + (error.response?.data?.message || error.message),
+          "Failed to save purchase return order: " + (error.response?.data?.message || error.message),
           "error"
         );
       }
@@ -260,38 +237,9 @@ const POForm = React.memo(
       selectedPO,
       vendors,
       setPurchaseOrders,
-      setSelectedPO,
-      setActiveView,
       addNotification,
-      resetForm,
+      onPOSuccess,
     ]);
-
-    // Calculate totals for items
-    const calculateTotals = useMemo(
-      () => (items) => {
-        let subtotal = 0;
-        let tax = 0;
-
-        items.forEach((item) => {
-          const qty = parseFloat(item.qty) || 0;
-          const rate = parseFloat(item.rate) || 0;
-          const taxPercent = parseFloat(item.taxPercent) || 0;
-
-          const lineSubtotal = qty * rate;
-          const lineTax = lineSubtotal * (taxPercent / 100);
-
-          subtotal += lineSubtotal;
-          tax += lineTax;
-        });
-
-        const total = (subtotal + tax).toFixed(2);
-        subtotal = subtotal.toFixed(2);
-        tax = tax.toFixed(2);
-
-        return { subtotal, tax, total };
-      },
-      []
-    );
 
     const totals = calculateTotals(formData.items);
 
@@ -317,10 +265,10 @@ const POForm = React.memo(
                 </button>
                 <div>
                   <h1 className="text-3xl font-bold text-slate-800">
-                    {isEditing ? "Edit Purchase Order" : "Create Purchase Order"}
+                    {isEditing ? "Edit Purchase Return Order" : "Create Purchase Return Order"}
                   </h1>
                   <p className="text-slate-600 mt-1">
-                    {isEditing ? "Update purchase order details" : "Create a new purchase order"}
+                    {isEditing ? "Update purchase return order details" : "Create a new purchase return order"}
                   </p>
                 </div>
               </div>
@@ -330,7 +278,7 @@ const POForm = React.memo(
                   className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
                 >
                   <Save className="w-5 h-5" />
-                  <span>{isEditing ? "Update PO" : "Save PO"}</span>
+                  <span>{isEditing ? "Update PR" : "Save PR"}</span>
                 </button>
               </div>
             </div>
@@ -343,7 +291,7 @@ const POForm = React.memo(
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    PO Number
+                    PR Number
                   </label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -499,7 +447,7 @@ const POForm = React.memo(
                 )}
 
                 <div className="mt-6 pt-6 border-t border-slate-200">
-                  <h4 className="font-semibold text-slate-800 mb-3">Order Summary</h4>
+                  <h4 className="font-semibold text-slate-800 mb-3">Return Order Summary</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Items:</span>
@@ -528,7 +476,7 @@ const POForm = React.memo(
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-slate-800 flex items-center">
                   <Package className="w-6 h-6 mr-2 text-blue-600" />
-                  Purchase Items
+                  Return Items
                 </h3>
                 <button
                   onClick={addItem}
@@ -659,7 +607,10 @@ const POForm = React.memo(
       prevProps.setSelectedPO === nextProps.setSelectedPO &&
       prevProps.setActiveView === nextProps.setActiveView &&
       prevProps.setPurchaseOrders === nextProps.setPurchaseOrders &&
-      prevProps.activeView === nextProps.activeView
+      prevProps.activeView === nextProps.activeView &&
+      prevProps.resetForm === nextProps.resetForm &&
+      prevProps.calculateTotals === nextProps.calculateTotals &&
+      prevProps.onPOSuccess === nextProps.onPOSuccess
     );
   }
 );

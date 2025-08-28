@@ -62,8 +62,10 @@ const PurchaseOrderManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  console.log(purchaseOrders)
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  const [createdPO, setCreatedPO] = useState(null); // Track newly created PO
 
   // Form state for creating/editing PO
   const [formData, setFormData] = useState({
@@ -170,9 +172,7 @@ const PurchaseOrderManagement = () => {
           id: transaction._id,
           transactionNo: transaction.transactionNo,
           vendorId: transaction.partyId,
-          vendorName:
-            vendors.find((v) => v._id === transaction.partyId)?.vendorName ||
-            "Unknown",
+          vendorName: transaction.partyName,
           date: transaction.date,
           deliveryDate: transaction.deliveryDate,
           status: transaction.status,
@@ -226,6 +226,19 @@ const PurchaseOrderManagement = () => {
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, 5000);
+  };
+
+  // Handle successful PO save - redirect to invoice without resetting selectedPO prematurely
+  const handlePOSuccess = (newPO) => {
+    setCreatedPO(newPO);
+    setSelectedPO(newPO);
+    setActiveView("invoice");
+    addNotification(
+      "Purchase Order saved successfully! Showing invoice...",
+      "success"
+    );
+    // Reset form after navigation to avoid conflicting with invoice view
+    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
   };
 
   // Statistics calculations
@@ -842,8 +855,8 @@ const PurchaseOrderManagement = () => {
       notes: "",
       priority: "Medium",
     });
-    setSelectedPO(null);
     setFormErrors({});
+    // Removed setSelectedPO(null) to prevent clearing during navigation to invoice
   }, []);
 
   // Calculate totals for items
@@ -972,6 +985,7 @@ const PurchaseOrderManagement = () => {
               <button
                 onClick={() => {
                   resetForm();
+                  setSelectedPO(null); // Clear selectedPO when starting new create
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
@@ -1182,6 +1196,8 @@ const PurchaseOrderManagement = () => {
                 setPurchaseOrders={setPurchaseOrders}
                 resetForm={resetForm}
                 calculateTotals={calculateTotals}
+                onPOSuccess={handlePOSuccess}
+                activeView={activeView}
               />
             )}
             {activeView === "invoice" && (
@@ -1190,6 +1206,9 @@ const PurchaseOrderManagement = () => {
                 vendors={vendors}
                 calculateTotals={calculateTotals}
                 setActiveView={setActiveView}
+                createdPO={createdPO}
+                setSelectedPO={setSelectedPO}
+                setCreatedPO={setCreatedPO}
               />
             )}
           </>

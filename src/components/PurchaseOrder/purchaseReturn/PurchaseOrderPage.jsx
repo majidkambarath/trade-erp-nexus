@@ -45,7 +45,7 @@ import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
 
-const PurchaseOrderManagement = () => {
+const PurchaseReturnOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
   const [viewMode, setViewMode] = useState("table"); // table, grid
   const [selectedPO, setSelectedPO] = useState(null);
@@ -58,13 +58,13 @@ const PurchaseOrderManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [notifications, setNotifications] = useState([]);
-  console.log(notifications)
   const [selectedPOs, setSelectedPOs] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
+  const [createdPO, setCreatedPO] = useState(null); // Track newly created PO
 
   // Form state for creating/editing PO
   const [formData, setFormData] = useState({
@@ -122,7 +122,7 @@ const PurchaseOrderManagement = () => {
   const fetchStockItems = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/stock/stock"); // Corrected endpoint
+      const response = await axiosInstance.get("/stock/stock");
       console.log("Stock Items Response:", response.data); // Debug
       const stocks = response.data.data?.stocks || response.data.data || [];
       setStockItems(
@@ -171,9 +171,7 @@ const PurchaseOrderManagement = () => {
           id: transaction._id,
           transactionNo: transaction.transactionNo,
           vendorId: transaction.partyId,
-          vendorName:
-            vendors.find((v) => v._id === transaction.partyId)?.vendorName ||
-            "Unknown",
+          vendorName: transaction.partyName,
           date: transaction.date,
           deliveryDate: transaction.deliveryDate,
           status: transaction.status,
@@ -227,6 +225,19 @@ const PurchaseOrderManagement = () => {
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, 5000);
+  };
+
+  // Handle successful PO save - redirect to invoice without resetting selectedPO prematurely
+  const handlePOSuccess = (newPO) => {
+    setCreatedPO(newPO);
+    setSelectedPO(newPO);
+    setActiveView("invoice");
+    addNotification(
+      "Purchase Return Order saved successfully! Showing invoice...",
+      "success"
+    );
+    // Reset form after navigation to avoid conflicting with invoice view
+    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
   };
 
   // Statistics calculations
@@ -473,7 +484,6 @@ const PurchaseOrderManagement = () => {
         }
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
-        // Implement export logic
         const csv = [
           "TransactionNo,Vendor,Date,DeliveryDate,Status,TotalAmount,Priority",
           ...selectedPOs.map((poId) => {
@@ -484,7 +494,7 @@ const PurchaseOrderManagement = () => {
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "selected_purchase_orders.csv";
+        link.download = "selected_purchase_return_orders.csv";
         link.click();
         addNotification("Orders exported successfully", "success");
       }
@@ -502,9 +512,9 @@ const PurchaseOrderManagement = () => {
   // Notifications Component
   const NotificationList = () => (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {notifications.map((notification,i) => (
+      {notifications.map((notification) => (
         <div
-          key={i}
+          key={notification.id}
           className={`px-4 py-3 rounded-lg shadow-lg max-w-sm backdrop-blur-sm ${
             notification.type === "success"
               ? "bg-emerald-500/90 text-white"
@@ -539,7 +549,9 @@ const PurchaseOrderManagement = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Total Orders</p>
+              <p className="text-sm font-medium text-slate-600">
+                Total Return Orders
+              </p>
               <p className="text-3xl font-bold text-slate-900">
                 {statistics.total}
               </p>
@@ -565,7 +577,6 @@ const PurchaseOrderManagement = () => {
             </div>
           </div>
         </div>
-        {/* Other statistic cards remain unchanged */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
@@ -605,7 +616,9 @@ const PurchaseOrderManagement = () => {
               <p className="text-3xl font-bold text-indigo-600">
                 {statistics.thisMonthPOs}
               </p>
-              <p className="text-sm text-slate-500 mt-2">New orders created</p>
+              <p className="text-sm text-slate-500 mt-2">
+                New return orders created
+              </p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-white" />
@@ -617,7 +630,7 @@ const PurchaseOrderManagement = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Recent Purchase Orders
+            Recent Purchase Return Orders
           </h3>
           <div className="space-y-3">
             {purchaseOrders.slice(0, 5).map((po) => (
@@ -843,8 +856,8 @@ const PurchaseOrderManagement = () => {
       notes: "",
       priority: "Medium",
     });
-    setSelectedPO(null);
     setFormErrors({});
+    // Removed setSelectedPO(null) to prevent clearing during navigation to invoice
   }, []);
 
   // Calculate totals for items
@@ -902,12 +915,12 @@ const PurchaseOrderManagement = () => {
       await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
         action: "approve",
       });
-      addNotification("Purchase Order approved successfully", "success");
+      addNotification("Purchase Return Order approved successfully", "success");
       fetchTransactions();
     } catch (error) {
       console.error("Approve PO Error:", error);
       addNotification(
-        "Failed to approve purchase order: " +
+        "Failed to approve purchase return order: " +
           (error.response?.data?.message || error.message),
         "error"
       );
@@ -920,12 +933,12 @@ const PurchaseOrderManagement = () => {
       await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
         action: "reject",
       });
-      addNotification("Purchase Order rejected successfully", "success");
+      addNotification("Purchase Return Order rejected successfully", "success");
       fetchTransactions();
     } catch (error) {
       console.error("Reject PO Error:", error);
       addNotification(
-        "Failed to reject purchase order: " +
+        "Failed to reject purchase return order: " +
           (error.response?.data?.message || error.message),
         "error"
       );
@@ -935,16 +948,21 @@ const PurchaseOrderManagement = () => {
   // Delete PO
   const deletePO = async (id) => {
     if (
-      window.confirm("Are you sure you want to delete this purchase order?")
+      window.confirm(
+        "Are you sure you want to delete this purchase return order?"
+      )
     ) {
       try {
         await axiosInstance.delete(`/transactions/transactions/${id}`);
-        addNotification("Purchase Order deleted successfully", "success");
+        addNotification(
+          "Purchase Return Order deleted successfully",
+          "success"
+        );
         fetchTransactions();
       } catch (error) {
         console.error("Delete PO Error:", error);
         addNotification(
-          "Failed to delete purchase order: " +
+          "Failed to delete purchase return order: " +
             (error.response?.data?.message || error.message),
           "error"
         );
@@ -973,13 +991,14 @@ const PurchaseOrderManagement = () => {
               <button
                 onClick={() => {
                   resetForm();
+                  setSelectedPO(null); // Clear selectedPO when starting new create
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
                 className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
               >
                 <Plus className="w-5 h-5" />
-                <span>Create New PO</span>
+                <span>Create New PR</span>
               </button>
               <button
                 onClick={() => {
@@ -1006,7 +1025,7 @@ const PurchaseOrderManagement = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by PO number, vendor, or user..."
+                    placeholder="Search by PR number, vendor, or user..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -1183,6 +1202,8 @@ const PurchaseOrderManagement = () => {
                 setPurchaseOrders={setPurchaseOrders}
                 resetForm={resetForm}
                 calculateTotals={calculateTotals}
+                onPOSuccess={handlePOSuccess}
+                activeView={activeView}
               />
             )}
             {activeView === "invoice" && (
@@ -1191,6 +1212,9 @@ const PurchaseOrderManagement = () => {
                 vendors={vendors}
                 calculateTotals={calculateTotals}
                 setActiveView={setActiveView}
+                createdPO={createdPO}
+                setSelectedPO={setSelectedPO}
+                setCreatedPO={setCreatedPO}
               />
             )}
           </>
@@ -1200,4 +1224,4 @@ const PurchaseOrderManagement = () => {
   );
 };
 
-export default PurchaseOrderManagement;
+export default PurchaseReturnOrderManagement;

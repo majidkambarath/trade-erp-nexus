@@ -1,9 +1,18 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import { Package, Plus, Trash2, Calendar, User, Save, ArrowLeft, Hash } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Trash2,
+  Calendar,
+  User,
+  Save,
+  ArrowLeft,
+  Hash,
+} from "lucide-react";
 import axiosInstance from "../../../axios/axios"; // Adjust path as needed
 
-// Memoize the SOForm component to prevent unnecessary re-renders
-const SOForm = React.memo(
+// Memoize the SalesReturnForm component to prevent unnecessary re-renders
+const SalesReturnForm = React.memo(
   ({
     formData,
     setFormData,
@@ -15,16 +24,18 @@ const SOForm = React.memo(
     setActiveView,
     setSalesOrders,
     activeView = "create", // Default to "create" if not provided
+    resetForm,
+    calculateTotals,
+    onSOSuccess,
+    formErrors,
+    setFormErrors,
   }) => {
     const isEditing = activeView === "edit";
 
-    // Local state for form errors
-    const [formErrors, setFormErrors] = useState({});
-
     // Log renders for debugging
     useEffect(() => {
-      console.log("SOForm rendered");
-    });
+      console.log("SalesReturnForm rendered");
+    }, []);
 
     // Validate form data
     const validateForm = useCallback(() => {
@@ -36,9 +47,12 @@ const SOForm = React.memo(
         errors.date = "Date is required";
       }
       if (!formData.deliveryDate) {
-        errors.deliveryDate = "Delivery date is required";
+        errors.deliveryDate = "Return date is required";
       }
-      if (!formData.items.some((item) => item.itemId && item.qty && item.rate)) {
+
+      if (
+        !formData.items.some((item) => item.itemId && item.qty && item.rate)
+      ) {
         errors.items = "At least one valid item is required";
       }
       formData.items.forEach((item, index) => {
@@ -51,7 +65,7 @@ const SOForm = React.memo(
       });
       setFormErrors(errors);
       return Object.keys(errors).length === 0;
-    }, [formData]);
+    }, [formData, setFormErrors]);
 
     // Handle input changes for text fields and textareas
     const handleInputChange = useCallback(
@@ -60,7 +74,7 @@ const SOForm = React.memo(
         setFormData((prev) => ({ ...prev, [name]: value }));
         setFormErrors((prev) => ({ ...prev, [name]: null }));
       },
-      [setFormData]
+      [setFormData, setFormErrors]
     );
 
     // Handle customer selection
@@ -70,10 +84,13 @@ const SOForm = React.memo(
         if (customer) {
           setFormData((prev) => ({ ...prev, partyId: customer._id }));
           setFormErrors((prev) => ({ ...prev, partyId: null }));
-          addNotification(`Customer ${customer.customerName} selected`, "success");
+          addNotification(
+            `Customer ${customer.customerName} selected`,
+            "success"
+          );
         }
       },
-      [customers, setFormData, addNotification]
+      [customers, setFormData, setFormErrors, addNotification]
     );
 
     // Handle item field changes
@@ -86,7 +103,7 @@ const SOForm = React.memo(
           const item = stockItems.find((i) => i.itemId === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].rate = item.purchasePrice.toString();
+            newItems[index].rate = item.salesPrice.toString(); // Use salesPrice for returns
             if (item.currentStock < item.reorderLevel) {
               addNotification(
                 `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
@@ -99,7 +116,7 @@ const SOForm = React.memo(
         setFormData((prev) => ({ ...prev, items: newItems }));
         setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: null }));
       },
-      [formData.items, stockItems, setFormData, addNotification]
+      [formData.items, stockItems, setFormData, setFormErrors, addNotification]
     );
 
     // Add a new item
@@ -136,35 +153,10 @@ const SOForm = React.memo(
           });
         }
       },
-      [formData.items, setFormData]
+      [formData.items, setFormData, setFormErrors]
     );
 
-    // Reset the form
-    const resetForm = useCallback(() => {
-      setFormData({
-        transactionNo: "",
-        partyId: "",
-        date: new Date().toISOString().slice(0, 10),
-        deliveryDate: "",
-        status: "DRAFT",
-        items: [
-          {
-            itemId: "",
-            description: "",
-            qty: "",
-            rate: "",
-            taxPercent: "5",
-          },
-        ],
-        terms: "",
-        notes: "",
-        priority: "Medium",
-      });
-      setFormErrors({});
-      setSelectedSO(null);
-    }, [setFormData, setSelectedSO]);
-
-    // Save or update the sales order
+    // Save or update the sales return order
     const saveSO = useCallback(async () => {
       if (!validateForm()) {
         addNotification("Please fix form errors before saving", "error");
@@ -187,7 +179,7 @@ const SOForm = React.memo(
             .map((item) => ({
               itemId: item.itemId,
               description: item.description,
-              qty: parseFloat(item.qty) || 0,
+              qty: parseFloat(item.qty) || 0, // Negative for returns
               rate: parseFloat(item.rate) || 0,
               taxPercent: parseFloat(item.taxPercent) || 0,
               lineTotal:
@@ -207,13 +199,13 @@ const SOForm = React.memo(
             `/transactions/transactions/${selectedSO.id}`,
             transactionData
           );
-          addNotification("Sales Order updated successfully", "success");
+          addNotification("Sales Return Order updated successfully", "success");
         } else {
           response = await axiosInstance.post(
             "/transactions/transactions",
             transactionData
           );
-          addNotification("Sales Order created successfully", "success");
+          addNotification("Sales Return Order created successfully", "success");
         }
 
         const newSO = {
@@ -221,7 +213,8 @@ const SOForm = React.memo(
           transactionNo: response.data.data.transactionNo,
           customerId: response.data.data.partyId,
           customerName:
-            customers.find((c) => c._id === response.data.data.partyId)?.customerName || "Unknown",
+            customers.find((c) => c._id === response.data.data.partyId)
+              ?.customerName || "Unknown",
           date: response.data.data.date,
           deliveryDate: response.data.data.deliveryDate,
           status: response.data.data.status,
@@ -244,12 +237,12 @@ const SOForm = React.memo(
           setSalesOrders((prev) => [newSO, ...prev]);
         }
 
-        setSelectedSO(newSO);
-        setActiveView("invoice");
-        resetForm();
+        onSOSuccess(newSO);
       } catch (error) {
+        console.error("Save Sales Return Order Error:", error);
         addNotification(
-          "Failed to save sales order: " + (error.response?.data?.message || error.message),
+          "Failed to save sales return order: " +
+            (error.response?.data?.message || error.message),
           "error"
         );
       }
@@ -259,40 +252,9 @@ const SOForm = React.memo(
       selectedSO,
       customers,
       setSalesOrders,
-      setSelectedSO,
-      setActiveView,
       addNotification,
-      resetForm,
+      onSOSuccess,
     ]);
-
-    // Calculate totals for items
-    const calculateTotals = useMemo(
-      () => (items) => {
-        let subtotal = 0;
-        let tax = 0;
-
-        items.forEach((item) => {
-          const qty = parseFloat(item.qty) || 0;
-          const rate = parseFloat(item.rate) || 0;
-          const taxPercent = parseFloat(item.taxPercent) || 0;
-
-          const lineSubtotal = qty * rate;
-          const lineTax = lineSubtotal * (taxPercent / 100);
-
-          subtotal += lineSubtotal;
-          tax += lineTax;
-        });
-
-        const total = (subtotal + tax).toFixed(2);
-        subtotal = subtotal.toFixed(2);
-        tax = tax.toFixed(2);
-
-        return { subtotal, tax, total };
-      },
-      []
-    );
-
-    const totals = calculateTotals(formData.items);
 
     // Stabilize customers and stockItems props
     const stableCustomers = useMemo(() => customers || [], [customers]);
@@ -316,10 +278,14 @@ const SOForm = React.memo(
                 </button>
                 <div>
                   <h1 className="text-3xl font-bold text-slate-800">
-                    {isEditing ? "Edit Sales Order" : "Create Sales Order"}
+                    {isEditing
+                      ? "Edit Sales Return Order"
+                      : "Create Sales Return Order"}
                   </h1>
                   <p className="text-slate-600 mt-1">
-                    {isEditing ? "Update sales order details" : "Create a new sales order"}
+                    {isEditing
+                      ? "Update sales return order details"
+                      : "Create a new sales return order"}
                   </p>
                 </div>
               </div>
@@ -329,7 +295,9 @@ const SOForm = React.memo(
                   className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
                 >
                   <Save className="w-5 h-5" />
-                  <span>{isEditing ? "Update SO" : "Save SO"}</span>
+                  <span>
+                    {isEditing ? "Update Return Order" : "Save Return Order"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -342,7 +310,7 @@ const SOForm = React.memo(
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    SO Number
+                    SR Number
                   </label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -370,11 +338,15 @@ const SOForm = React.memo(
                         value={formData.date || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.date ? "border-red-500" : "border-slate-200"
+                          formErrors.date
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.date && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.date}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -391,11 +363,15 @@ const SOForm = React.memo(
                         value={formData.deliveryDate || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.deliveryDate ? "border-red-500" : "border-slate-200"
+                          formErrors.deliveryDate
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.deliveryDate && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.deliveryDate}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.deliveryDate}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -421,7 +397,9 @@ const SOForm = React.memo(
                     ))}
                   </select>
                   {formErrors.partyId && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.partyId}</p>
+                    <p className="text-red-500 text-xs mt-1">
+                      {formErrors.partyId}
+                    </p>
                   )}
                 </div>
 
@@ -443,6 +421,22 @@ const SOForm = React.memo(
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Priority
+                  </label>
+                  <select
+                    name="priority"
+                    value={formData.priority || "Medium"}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Terms & Conditions
                   </label>
                   <textarea
@@ -450,7 +444,7 @@ const SOForm = React.memo(
                     name="terms"
                     value={formData.terms || ""}
                     onChange={handleInputChange}
-                    placeholder="Payment terms, delivery conditions, etc."
+                    placeholder="Payment terms, return conditions, etc."
                     className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
                   />
                 </div>
@@ -471,14 +465,22 @@ const SOForm = React.memo(
               </div>
 
               <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">Customer Preview</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Customer Preview
+                </h3>
                 {formData.partyId ? (
                   (() => {
-                    const customer = stableCustomers.find((c) => c._id === formData.partyId);
+                    const customer = stableCustomers.find(
+                      (c) => c._id === formData.partyId
+                    );
                     return customer ? (
                       <div className="text-sm text-slate-700 space-y-2">
-                        <p className="font-semibold text-blue-600">{customer.customerId}</p>
-                        <p className="font-bold text-slate-800">{customer.customerName}</p>
+                        <p className="font-semibold text-blue-600">
+                          {customer.customerId}
+                        </p>
+                        <p className="font-bold text-slate-800">
+                          {customer.customerName}
+                        </p>
                         <p>{customer.address}</p>
                         <p className="flex items-center space-x-1">
                           <User className="w-3 h-3" />
@@ -489,32 +491,55 @@ const SOForm = React.memo(
                         <p>Terms: {customer.paymentTerms}</p>
                       </div>
                     ) : (
-                      <p className="text-slate-500 italic">Customer not found</p>
+                      <p className="text-slate-500 italic">
+                        Customer not found
+                      </p>
                     );
                   })()
                 ) : (
-                  <p className="text-slate-500 italic">Select a customer to see details</p>
+                  <p className="text-slate-500 italic">
+                    Select a customer to see details
+                  </p>
                 )}
 
                 <div className="mt-6 pt-6 border-t border-slate-200">
-                  <h4 className="font-semibold text-slate-800 mb-3">Order Summary</h4>
+                  <h4 className="font-semibold text-slate-800 mb-3">
+                    Return Order Summary
+                  </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Items:</span>
-                      <span>{formData.items.filter((item) => item.itemId).length}</span>
+                      <span>
+                        {formData.items.filter((item) => item.itemId).length}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
-                      <span>AED {totals.subtotal}</span>
+                      <span>
+                        AED{" "}
+                        {Math.abs(
+                          parseFloat(calculateTotals(formData.items).subtotal)
+                        ).toFixed(2)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Tax:</span>
-                      <span>AED {totals.tax}</span>
+                      <span>
+                        AED{" "}
+                        {Math.abs(
+                          parseFloat(calculateTotals(formData.items).tax)
+                        ).toFixed(2)}
+                      </span>
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span className="text-emerald-600">AED {totals.total}</span>
+                        <span>Total Refund:</span>
+                        <span className="text-rose-600">
+                          AED{" "}
+                          {Math.abs(
+                            parseFloat(calculateTotals(formData.items).total)
+                          ).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -526,7 +551,7 @@ const SOForm = React.memo(
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-slate-800 flex items-center">
                   <Package className="w-6 h-6 mr-2 text-blue-600" />
-                  Sales Items
+                  Return Items
                 </h3>
                 <button
                   onClick={addItem}
@@ -550,9 +575,13 @@ const SOForm = React.memo(
                     <div className="col-span-2">
                       <select
                         value={item.itemId || ""}
-                        onChange={(e) => handleItemChange(index, "itemId", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "itemId", e.target.value)
+                        }
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`itemId_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`itemId_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       >
                         <option value="">Select Item...</option>
@@ -563,7 +592,9 @@ const SOForm = React.memo(
                         ))}
                       </select>
                       {formErrors[`itemId_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`itemId_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`itemId_${index}`]}
+                        </p>
                       )}
                     </div>
 
@@ -571,7 +602,9 @@ const SOForm = React.memo(
                       <input
                         type="text"
                         value={item.description || ""}
-                        onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "description", e.target.value)
+                        }
                         placeholder="Description"
                         className="w-full px-4 py-3 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
@@ -581,15 +614,21 @@ const SOForm = React.memo(
                       <input
                         type="number"
                         value={item.qty || ""}
-                        onChange={(e) => handleItemChange(index, "qty", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "qty", e.target.value)
+                        }
                         placeholder="Qty"
-                        min="0"
+                        step="0"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`qty_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`qty_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`qty_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`qty_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`qty_${index}`]}
+                        </p>
                       )}
                     </div>
 
@@ -597,16 +636,22 @@ const SOForm = React.memo(
                       <input
                         type="number"
                         value={item.rate || ""}
-                        onChange={(e) => handleItemChange(index, "rate", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "rate", e.target.value)
+                        }
                         placeholder="Rate"
                         min="0"
                         step="0.01"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`rate_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`rate_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`rate_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`rate_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`rate_${index}`]}
+                        </p>
                       )}
                     </div>
 
@@ -614,16 +659,22 @@ const SOForm = React.memo(
                       <input
                         type="number"
                         value={item.taxPercent || ""}
-                        onChange={(e) => handleItemChange(index, "taxPercent", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "taxPercent", e.target.value)
+                        }
                         placeholder="Tax %"
                         min="0"
                         step="0.1"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`taxPercent_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`taxPercent_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`taxPercent_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`taxPercent_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`taxPercent_${index}`]}
+                        </p>
                       )}
                     </div>
 
@@ -657,9 +708,14 @@ const SOForm = React.memo(
       prevProps.setSelectedSO === nextProps.setSelectedSO &&
       prevProps.setActiveView === nextProps.setActiveView &&
       prevProps.setSalesOrders === nextProps.setSalesOrders &&
-      prevProps.activeView === nextProps.activeView
+      prevProps.activeView === nextProps.activeView &&
+      prevProps.resetForm === nextProps.resetForm &&
+      prevProps.calculateTotals === nextProps.calculateTotals &&
+      prevProps.onSOSuccess === nextProps.onSOSuccess &&
+      prevProps.formErrors === nextProps.formErrors &&
+      prevProps.setFormErrors === nextProps.setFormErrors
     );
   }
 );
 
-export default SOForm;
+export default SalesReturnForm;

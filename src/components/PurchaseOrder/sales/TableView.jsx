@@ -161,7 +161,6 @@ const TableView = ({
                     <p className="font-medium text-slate-900">
                       {so.customerName}
                     </p>
-                    <p className="text-xs text-slate-500">{so.customerId}</p>
                   </div>
                 </td>
                 <td className="px-4 py-4">

@@ -1,197 +1,709 @@
-import React from "react";
-import { ArrowLeft, Download, Send } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 
-const InvoiceView = ({ selectedSO, customers, calculateTotals, setActiveView }) => {
-  if (!selectedSO) return null;
+const SaleInvoiceView = ({
+  selectedSO,
+  createdSO,
+  customers,
+  calculateTotals,
+  setActiveView,
+  setSelectedSO,
+  setCreatedSO,
+}) => {
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
-  const customer = customers.find((c) => c._id === selectedSO.customerId);
-  let subtotal = 0;
-  let totalTax = 0;
-  selectedSO.items.forEach(item => {
-    const value = item.qty * parseFloat(item.rate);
-    const tax = value * (item.taxPercent / 100);
-    subtotal += value;
-    totalTax += tax;
-  });
-  const grandTotal = subtotal + totalTax;
+  // Use createdSO if it exists, otherwise fall back to selectedSO
+  const so = createdSO || selectedSO;
+
+  // Validate sales order data
+  if (!so || !so.items || !Array.isArray(so.items)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
+          <p className="text-gray-600 mb-4">
+            Invalid sales order data. Please try again or contact support.
+          </p>
+          <button
+            onClick={() => setActiveView("list")}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to List</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Find customer details with fallback
+  const customer = customers?.find((c) => c._id === so.customerId) || {
+    customerName: "Unknown Customer",
+    address: "N/A",
+    phone: "N/A",
+    vatNumber: "N/A",
+  };
+
+  // Calculate totals safely
+  const totals = calculateTotals(so.items) || {
+    subtotal: "0.00",
+    tax: "0.00",
+    total: "0.00",
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const input = document.getElementById("invoice-content");
+      if (!input) {
+        throw new Error("Invoice content element not found");
+      }
+
+      const canvas = await html2canvas(input, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+        width: input.scrollWidth,
+        height: input.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.getElementById("invoice-content");
+          if (clonedElement) {
+            clonedElement.style.display = "block";
+            clonedElement.style.visibility = "visible";
+            // Ensure logo is loaded in the cloned document
+            const img = clonedElement.querySelector("img");
+            if (img) {
+              img.src = img.src; // Force reload to ensure CORS compliance
+            }
+          }
+        },
+      });
+
+      const imgData = canvas.toDataURL("image/png", 1.0);
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(
+        pdfWidth / (imgWidth * 0.264583),
+        pdfHeight / (imgHeight * 0.264583)
+      );
+
+      const imgX = (pdfWidth - imgWidth * 0.264583 * ratio) / 2;
+      const imgY = 0;
+
+      pdf.addImage(
+        imgData,
+        "PNG",
+        imgX,
+        imgY,
+        imgWidth * 0.264583 * ratio,
+        imgHeight * 0.264583 * ratio,
+        undefined,
+        "FAST"
+      );
+
+      const filename = `SO_${so.transactionNo || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
+      pdf.save(filename);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(`Failed to generate PDF: ${error.message}. Please try again or use the Print option.`);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handlePrintPDF = () => {
+    const printWindow = window.open("", "_blank");
+    const invoiceContent = document.getElementById("invoice-content");
+
+    if (!invoiceContent || !printWindow) {
+      alert("Unable to open print dialog");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>SO_${so.transactionNo || "Unknown"}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { 
+              margin: 0; 
+              padding: 20px; 
+              font-family: Arial, sans-serif;
+              line-height: 1.4;
+              color: #000;
+            }
+            @media print { 
+              body { margin: 0; padding: 0; }
+              .no-print { display: none !important; }
+            }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { padding: 8px; text-align: left; border: 1px solid #000; }
+            img { max-width: 80px; max-height: 80px; }
+          </style>
+        </head>
+        <body>
+          ${invoiceContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  const handleSendToCustomer = () => {
+    alert("Sales Order invoice sent to customer!");
+    // TODO: Implement actual email integration here
+  };
+
+  const handleBackClick = () => {
+    setSelectedSO(null);
+    setCreatedSO(null);
+    setActiveView("list");
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        {/* Header Actions */}
+        {/* Action Buttons */}
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => setActiveView("list")}
+            onClick={handleBackClick}
             className="flex items-center space-x-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to List</span>
           </button>
+
           <div className="flex space-x-3">
-            <button className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              <Download className="w-4 h-4" />
-              <span>Download PDF</span>
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPDF}
+              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGeneratingPDF ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>{isGeneratingPDF ? "Generating..." : "Download PDF"}</span>
             </button>
-            <button className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+
+            <button
+              onClick={handlePrintPDF}
+              className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print PDF</span>
+            </button>
+
+            <button
+              onClick={handleSendToCustomer}
+              className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
               <Send className="w-4 h-4" />
               <span>Send to Customer</span>
             </button>
           </div>
         </div>
 
-        {/* Invoice Document */}
-        <div className="bg-white shadow-lg border border-gray-200">
-          {/* Company Header */}
-          <div className="px-8 py-6 border-b">
-            <div className="text-center mb-4">
-              <h1 className="text-lg font-bold text-gray-800 mb-1" dir="rtl">
-                نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
-              </h1>
-              <h2 className="text-xl font-bold text-teal-700 mb-2">
-                NH FOODSTUFF TRADING LLC S.O.C.
-              </h2>
+        {/* Invoice Content */}
+        <div
+          id="invoice-content"
+          className="bg-white shadow-lg"
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            margin: "0 auto",
+            padding: "20mm",
+            fontSize: "12px",
+            lineHeight: "1.4",
+            fontFamily: "Arial, sans-serif",
+            color: "#000",
+          }}
+        >
+          {/* Header Section */}
+          <div
+            style={{
+              textAlign: "center",
+              marginBottom: "20px",
+              borderBottom: "2px solid #8B5CF6",
+              paddingBottom: "15px",
+            }}
+          >
+            <h1
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                margin: "0 0 5px 0",
+                direction: "rtl",
+              }}
+            >
+              نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
+            </h1>
+            <h2
+              style={{
+                fontSize: "18px",
+                fontWeight: "bold",
+                margin: "0 0 15px 0",
+                color: "#0f766e",
+              }}
+            >
+              NH FOODSTUFF TRADING LLC S.O.C.
+            </h2>
+
+            <div
+              style={{
+                backgroundColor: "#c8a2c8",
+                color: "white",
+                padding: "8px",
+                margin: "0 -20mm 20px -20mm",
+              }}
+            >
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}>
+                SALES INVOICE
+              </h3>
             </div>
-            
-            {/* Purple header bar */}
-            <div className="bg-purple-300 text-center py-2 -mx-8 mb-6">
-              <h3 className="text-lg font-bold text-white">TAX INVOICE</h3>
+          </div>
+
+          {/* Company Details and Invoice Info */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "20px",
+              fontSize: "10px",
+            }}
+          >
+            <div>
+              <p style={{ margin: "2px 0" }}>Dubai, UAE</p>
+              <p style={{ margin: "2px 0" }}>VAT Reg. No: 10503303</p>
+              <p style={{ margin: "2px 0" }}>Email: finance@nhfo.com</p>
+              <p style={{ margin: "2px 0" }}>Phone: +971 58 724 2111</p>
+              <p style={{ margin: "2px 0" }}>Web: www.nhfo.com</p>
             </div>
 
-            <div className="flex justify-between items-start">
-              <div className="text-sm space-y-1">
-                <p>Dubai, UAE</p>
-                <p>VAT Reg. No: 10503303</p>
-                <p>Email: finance@nhfo.com</p>
-                <p>Phone: +971 58 724 2111</p>
-                <p>Web: www.nhfo.com</p>
-              </div>
-              
-              {/* Logo and Company Info */}
-              <div className="text-center">
-                <img 
-                  src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_uploads/NH%20foods_1755452579855.jpg" 
-                  alt="NH Foods Logo" 
-                  className="w-20 h-20 object-contain mb-2 mx-auto"
-                />
-                <p className="text-xs text-gray-600">Precision. Purity. Everyday</p>
-              </div>
-              
-              <div className="text-right text-sm space-y-1">
-                <p>Date: {new Date(selectedSO.date).toLocaleDateString("en-GB")}</p>
-                <p>Invoice: 0110</p>
-                <p>SO: {selectedSO.transactionNo}</p>
-                <p>Quote Ref: {selectedSO.quoteRef || "N/A"}</p>
-              </div>
+            <div style={{ textAlign: "center" }}>
+              <img
+                src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
+                alt="NH Foods Logo"
+                style={{ width: "80px", height: "80px", objectFit: "contain" }}
+                onError={(e) => (e.target.src = "/path/to/fallback-logo.png")}
+              />
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <p style={{ margin: "2px 0" }}>
+                Date: {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
+              </p>
+              <p style={{ margin: "2px 0" }}>Invoice: {so.transactionNo || "N/A"}</p>
+              <p style={{ margin: "2px 0" }}>SO: {so.transactionNo || "N/A"}</p>
             </div>
           </div>
 
           {/* Bill To Section */}
-          <div className="px-8 py-4 bg-purple-100">
-            <div className="flex justify-between">
+          <div
+            style={{
+              backgroundColor: "#e6d7e6",
+              padding: "10px",
+              marginBottom: "20px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
               <div>
-                <h4 className="font-semibold text-gray-800 mb-2">Bill To:</h4>
-                <div className="text-sm space-y-1">
-                  <p className="font-semibold">{customer.customerName}</p>
-                  <p>{customer.address}</p>
-                  <p>Tel: {customer.phone}</p>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    marginBottom: "5px",
+                  }}
+                >
+                  Bill To:
+                </div>
+                <div style={{ fontSize: "10px" }}>
+                  <p style={{ margin: "2px 0", fontWeight: "bold" }}>
+                    {customer.customerName || "N/A"}
+                  </p>
+                  <p style={{ margin: "2px 0" }}>
+                    {customer.address?.split("\n")[0] || "N/A"}
+                  </p>
+                  <p style={{ margin: "2px 0" }}>
+                    {customer.address?.split("\n")[1] || ""}
+                  </p>
+                  <p style={{ margin: "2px 0" }}>
+                    Tel: {customer.phone || "N/A"}
+                  </p>
                 </div>
               </div>
-              <div className="text-right text-sm">
-                <p>VAT Reg. No: {customer.vatNumber}</p>
+              <div style={{ fontSize: "10px" }}>
+                <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
+                <p style={{ margin: "2px 0", fontWeight: "bold" }}>
+                  {customer.vatNumber || "N/A"}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Items Table */}
-          <div className="px-8 py-6">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-purple-200">
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Line</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">CODE</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Item Description</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Qty</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Unit price</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Value</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">VAT 5%</th>
-                  <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedSO.items.map((item, index) => {
-                  const value = item.qty * parseFloat(item.rate);
-                  const vat = value * (item.taxPercent / 100);
-                  const amount = value + vat;
-                  return (
-                    <tr key={index} className="border-b border-gray-200">
-                      <td className="px-3 py-3 text-sm text-center">{index + 1}</td>
-                      <td className="px-3 py-3 text-sm">{item.itemId}</td>
-                      <td className="px-3 py-3 text-sm">{item.description}</td>
-                      <td className="px-3 py-3 text-sm text-center">{item.qty}</td>
-                      <td className="px-3 py-3 text-sm text-center">{item.rate}</td>
-                      <td className="px-3 py-3 text-sm text-center">{value.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-sm text-center">{vat.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-sm text-center font-semibold">{amount.toFixed(2)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginBottom: "20px",
+              fontSize: "10px",
+            }}
+          >
+            <thead>
+              <tr style={{ backgroundColor: "#e6d7e6" }}>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Line
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "left",
+                    fontWeight: "bold",
+                  }}
+                >
+                  CODE
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "left",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Item Description
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Qty
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Unit Price
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Value
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  VAT 5%
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {so.items.map((item, index) => {
+                const qty = parseFloat(item.qty) || 0;
+                const rate = parseFloat(item.rate) || 0;
+                const taxPercent = parseFloat(item.taxPercent) || 0;
+                const value = qty * rate;
+                const vat = (value * taxPercent) / 100;
+                const amount = value + vat; // Always calculate to ensure consistency
+                return (
+                  <tr key={index}>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {index + 1}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                      }}
+                    >
+                      {item.itemId || "N/A"}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                      }}
+                    >
+                      {item.description || "N/A"}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {qty.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {rate.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {value.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {vat.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {amount.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
           {/* Bank Details and Totals */}
-          <div className="px-8 py-6 border-t">
-            <div className="flex justify-between">
-              <div className="w-1/2">
-                <h4 className="font-semibold text-gray-800 mb-3">BANK DETAILS:-</h4>
-                <div className="text-sm space-y-1">
-                  <p><strong>BANK:</strong> NATIONAL BANK OF Abudhabi</p>
-                  <p><strong>ACCOUNT NO:</strong> 087989283001</p>
-                </div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "20px",
+            }}
+          >
+            <div style={{ width: "45%" }}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "bold",
+                  marginBottom: "10px",
+                }}
+              >
+                BANK DETAILS:-
               </div>
-              
-              <div className="w-1/3">
-                <table className="w-full">
-                  <tr className="border border-gray-400">
-                    <td className="px-3 py-2 text-sm font-semibold text-right">Sub Total</td>
-                    <td className="px-3 py-2 text-sm text-center border-l border-gray-400">{subtotal.toFixed(2)}</td>
-                  </tr>
-                  <tr className="border-l border-r border-b border-gray-400">
-                    <td className="px-3 py-2 text-sm font-semibold text-right">VAT (5%)</td>
-                    <td className="px-3 py-2 text-sm text-center border-l border-gray-400">{totalTax.toFixed(2)}</td>
-                  </tr>
-                </table>
+              <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+                <p style={{ margin: "2px 0" }}>
+                  <strong>BANK:</strong> NATIONAL BANK OF ABUDHABI
+                </p>
+                <p style={{ margin: "2px 0" }}>
+                  <strong>ACCOUNT NO:</strong> 087989283001
+                </p>
+              </div>
+            </div>
+
+            <div style={{ width: "40%" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "10px",
+                }}
+              >
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "right",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Sub Total
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {totals.subtotal}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "right",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    VAT (5%)
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {totals.tax}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          {/* IBAN Details and Grand Total */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              marginBottom: "20px",
+            }}
+          >
+            <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+              <p style={{ margin: "2px 0" }}>
+                <strong>IBAN NO:</strong> AE410547283001
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                <strong>CURRENCY:</strong> AED
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                <strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C
+              </p>
+            </div>
+
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "10px 20px",
+                backgroundColor: "#f9f9f9",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "15px",
+                }}
+              >
+                <span style={{ fontSize: "12px", fontWeight: "bold" }}>
+                  GRAND TOTAL
+                </span>
+                <span style={{ fontSize: "14px", fontWeight: "bold" }}>
+                  {totals.total}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Footer Section */}
-          <div className="px-8 py-6 border-t">
-            <div className="flex justify-between items-center mb-6">
-              <div className="text-sm space-y-1">
-                <p><strong>IBAN NO:</strong> AE410547283001</p>
-                <p><strong>CURRENCY:</strong> AED</p>
-                <p><strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C</p>
-              </div>
-              
-              <div className="border-2 border-gray-400 px-6 py-3">
-                <div className="flex items-center space-x-4">
-                  <span className="text-lg font-bold">GRAND TOTAL</span>
-                  <span className="text-xl font-bold">{grandTotal.toFixed(2)}</span>
-                </div>
-              </div>
+          <div style={{ marginTop: "30px" }}>
+            <div style={{ textAlign: "center", marginBottom: "30px" }}>
+              <p style={{ fontSize: "11px", margin: "0" }}>
+                Received the above goods in good order and condition.
+              </p>
             </div>
 
-            <div className="text-center mb-6">
-              <p className="text-sm">Received the above goods in good order and condition.</p>
-            </div>
-
-            <div className="flex justify-between pt-6 border-t border-gray-300">
-              <div>
-                <p className="text-sm">Received by: _______________________</p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                paddingTop: "20px",
+              }}
+            >
+              <div style={{ fontSize: "11px", width: "45%" }}>
+                <p style={{ margin: "0 0 30px 0" }}>Received by:</p>
+                <div
+                  style={{
+                    borderBottom: "1px solid #000",
+                    marginBottom: "5px",
+                  }}
+                ></div>
               </div>
-              <div>
-                <p className="text-sm">Prepared by: _______________________</p>
+              <div
+                style={{
+                  fontSize: "11px",
+                  width: "45%",
+                  textAlign: "right",
+                }}
+              >
+                <p style={{ margin: "0 0 30px 0" }}>Prepared by:</p>
+                <div
+                  style={{
+                    borderBottom: "1px solid #000",
+                    marginBottom: "5px",
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -201,4 +713,4 @@ const InvoiceView = ({ selectedSO, customers, calculateTotals, setActiveView }) 
   );
 };
 
-export default InvoiceView;
+export default SaleInvoiceView;

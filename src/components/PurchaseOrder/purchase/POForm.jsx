@@ -15,6 +15,9 @@ const POForm = React.memo(
     setActiveView,
     setPurchaseOrders,
     activeView = "create", // Default to "create" if not provided
+    resetForm,
+    calculateTotals,
+    onPOSuccess,
   }) => {
     const isEditing = activeView === "edit";
 
@@ -139,31 +142,6 @@ const POForm = React.memo(
       [formData.items, setFormData]
     );
 
-    // Reset the form
-    const resetForm = useCallback(() => {
-      setFormData({
-        transactionNo: "",
-        partyId: "",
-        date: new Date().toISOString().slice(0, 10),
-        deliveryDate: "",
-        status: "DRAFT",
-        items: [
-          {
-            itemId: "",
-            description: "",
-            qty: "",
-            rate: "",
-            taxPercent: "5",
-          },
-        ],
-        terms: "",
-        notes: "",
-        priority: "Medium",
-      });
-      setFormErrors({});
-      setSelectedPO(null);
-    }, [setFormData, setSelectedPO]);
-
     // Save or update the purchase order
     const savePO = useCallback(async () => {
       if (!validateForm()) {
@@ -226,7 +204,7 @@ const POForm = React.memo(
           deliveryDate: response.data.data.deliveryDate,
           status: response.data.data.status,
           approvalStatus: response.data.data.status,
-          totalAmount: response.data.data.totalAmount.toFixed(2),
+          totalAmount: response.data.data?.totalAmount.toFixed(2),
           items: response.data.data.items,
           terms: response.data.data.terms,
           notes: response.data.data.notes,
@@ -245,9 +223,8 @@ const POForm = React.memo(
           setPurchaseOrders((prev) => [newPO, ...prev]);
         }
 
-        setSelectedPO(newPO);
-        setActiveView("invoice");
-        resetForm();
+        // Call onPOSuccess for both create and edit to handle navigation to invoice
+        onPOSuccess(newPO);
       } catch (error) {
         addNotification(
           "Failed to save purchase order: " + (error.response?.data?.message || error.message),
@@ -260,38 +237,9 @@ const POForm = React.memo(
       selectedPO,
       vendors,
       setPurchaseOrders,
-      setSelectedPO,
-      setActiveView,
       addNotification,
-      resetForm,
+      onPOSuccess,
     ]);
-
-    // Calculate totals for items
-    const calculateTotals = useMemo(
-      () => (items) => {
-        let subtotal = 0;
-        let tax = 0;
-
-        items.forEach((item) => {
-          const qty = parseFloat(item.qty) || 0;
-          const rate = parseFloat(item.rate) || 0;
-          const taxPercent = parseFloat(item.taxPercent) || 0;
-
-          const lineSubtotal = qty * rate;
-          const lineTax = lineSubtotal * (taxPercent / 100);
-
-          subtotal += lineSubtotal;
-          tax += lineTax;
-        });
-
-        const total = (subtotal + tax).toFixed(2);
-        subtotal = subtotal.toFixed(2);
-        tax = tax.toFixed(2);
-
-        return { subtotal, tax, total };
-      },
-      []
-    );
 
     const totals = calculateTotals(formData.items);
 

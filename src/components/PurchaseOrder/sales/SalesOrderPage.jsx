@@ -43,7 +43,7 @@ import axiosInstance from "../../../axios/axios"; // Import the configured Axios
 import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
-import InvoiceView from "./InvoiceView";
+import SaleInvoiceView from "./InvoiceView";
 
 const SalesOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
@@ -62,8 +62,10 @@ const SalesOrderManagement = () => {
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
+  console.log(salesOrders);
   const [isLoading, setIsLoading] = useState(false);
-  const [formErrors, setFormErrors] = useState({}); // Added for form validation
+  const [formErrors, setFormErrors] = useState({});
+  const [createdSO, setCreatedSO] = useState(null); // Track newly created SO
 
   // Form state for creating/editing SO
   const [formData, setFormData] = useState({
@@ -93,13 +95,20 @@ const SalesOrderManagement = () => {
     fetchTransactions();
   }, []);
 
+  // Refetch transactions when filters change
+  useEffect(() => {
+    fetchTransactions();
+  }, [searchTerm, statusFilter, customerFilter, dateFilter]);
+
   // Fetch customers from backend
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
       const response = await axiosInstance.get("/customers/customers");
-      setCustomers(response.data.data);
+      console.log("Customers Response:", response.data); // Debug
+      setCustomers(response.data.data || []);
     } catch (error) {
+      console.error("Fetch Customers Error:", error);
       addNotification(
         "Failed to fetch customers: " +
           (error.response?.data?.message || error.message),
@@ -110,38 +119,39 @@ const SalesOrderManagement = () => {
     }
   };
 
-   const fetchStockItems = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axiosInstance.get("/stock/stock"); // Corrected endpoint
-        console.log("Stock Items Response:", response.data); // Debug
-        const stocks = response.data.data?.stocks || response.data.data || [];
-        setStockItems(
-          stocks.map((item) => ({
-            _id: item._id,
-            itemId: item.itemId,
-            itemName: item.itemName,
-            sku: item.sku,
-            category: item.category,
-            unitOfMeasure: item.unitOfMeasure,
-            currentStock: item.currentStock,
-            purchasePrice: item.purchasePrice,
-            salesPrice: item.salesPrice,
-            reorderLevel: item.reorderLevel,
-            status: item.status,
-          }))
-        );
-      } catch (error) {
-        console.error("Fetch Stock Items Error:", error);
-        addNotification(
-          "Failed to fetch stock items: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Fetch stock items from backend
+  const fetchStockItems = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.get("/stock/stock");
+      console.log("Stock Items Response:", response.data); // Debug
+      const stocks = response.data.data?.stocks || response.data.data || [];
+      setStockItems(
+        stocks.map((item) => ({
+          _id: item._id,
+          itemId: item.itemId,
+          itemName: item.itemName,
+          sku: item.sku,
+          category: item.category,
+          unitOfMeasure: item.unitOfMeasure,
+          currentStock: item.currentStock,
+          purchasePrice: item.purchasePrice,
+          salesPrice: item.salesPrice,
+          reorderLevel: item.reorderLevel,
+          status: item.status,
+        }))
+      );
+    } catch (error) {
+      console.error("Fetch Stock Items Error:", error);
+      addNotification(
+        "Failed to fetch stock items: " +
+          (error.response?.data?.message || error.message),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Fetch transactions from backend
   const fetchTransactions = async () => {
@@ -156,14 +166,13 @@ const SalesOrderManagement = () => {
           dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
         },
       });
+      console.log("Transactions Response:", response.data); // Debug
       setSalesOrders(
-        response.data.data.map((transaction) => ({
+        response.data?.data.map((transaction) => ({
           id: transaction._id,
           transactionNo: transaction.transactionNo,
           customerId: transaction.partyId,
-          customerName:
-            customers.find((c) => c._id === transaction.partyId)?.customerName ||
-            "Unknown",
+          customerName: transaction?.partyName,
           date: transaction.date,
           deliveryDate: transaction.deliveryDate,
           status: transaction.status,
@@ -179,6 +188,7 @@ const SalesOrderManagement = () => {
         }))
       );
     } catch (error) {
+      console.error("Fetch Transactions Error:", error);
       addNotification(
         "Failed to fetch transactions: " +
           (error.response?.data?.message || error.message),
@@ -217,135 +227,164 @@ const SalesOrderManagement = () => {
     }, 5000);
   };
 
-  // Statistics calculations
-  const getStatistics = () => {
-    const total = salesOrders.length;
-    const draft = salesOrders.filter((so) => so.status === "DRAFT").length;
-    const confirmed = salesOrders.filter(
-      (so) => so.status === "CONFIRMED"
-    ).length;
-    const invoiced = salesOrders.filter(
-      (so) => so.status === "INVOICED"
-    ).length;
-
-    const totalValue = salesOrders.reduce(
-      (sum, so) => sum + parseFloat(so.totalAmount),
-      0
+  // Handle successful SO save - redirect to invoice without resetting selectedSO prematurely
+  const handleSOSuccess = (newSO) => {
+    setCreatedSO(newSO);
+    setSelectedSO(newSO);
+    setActiveView("invoice");
+    addNotification(
+      "Sales Order saved successfully! Showing invoice...",
+      "success"
     );
-    const invoicedValue = salesOrders
-      .filter((so) => so.status === "INVOICED")
-      .reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-
-    const thisMonth = new Date().getMonth();
-    const thisYear = new Date().getFullYear();
-    const thisMonthSOs = salesOrders.filter((so) => {
-      const soDate = new Date(so.date);
-      return (
-        soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear
-      );
-    }).length;
-
-    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-    const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
-    const lastMonthSOs = salesOrders.filter((so) => {
-      const soDate = new Date(so.date);
-      return (
-        soDate.getMonth() === lastMonth &&
-        soDate.getFullYear() === lastMonthYear
-      );
-    }).length;
-
-    const growthRate =
-      lastMonthSOs === 0
-        ? 0
-        : ((thisMonthSOs - lastMonthSOs) / lastMonthSOs) * 100;
-
-    return {
-      total,
-      draft,
-      confirmed,
-      invoiced,
-      totalValue,
-      invoicedValue,
-      thisMonthSOs,
-      growthRate,
-    };
+    // Reset form after navigation to avoid conflicting with invoice view
+    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
   };
+
+  // Statistics calculations
+  const getStatistics = useMemo(
+    () => () => {
+      const total = salesOrders.length;
+      const draft = salesOrders.filter((so) => so.status === "DRAFT").length;
+      const confirmed = salesOrders.filter(
+        (so) => so.status === "CONFIRMED"
+      ).length;
+      const invoiced = salesOrders.filter(
+        (so) => so.status === "INVOICED"
+      ).length;
+
+      const totalValue = salesOrders.reduce(
+        (sum, so) => sum + parseFloat(so.totalAmount),
+        0
+      );
+      const invoicedValue = salesOrders
+        .filter((so) => so.status === "INVOICED")
+        .reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+
+      const thisMonth = new Date().getMonth();
+      const thisYear = new Date().getFullYear();
+      const thisMonthSOs = salesOrders.filter((so) => {
+        const soDate = new Date(so.date);
+        return (
+          soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear
+        );
+      }).length;
+
+      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+      const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+      const lastMonthSOs = salesOrders.filter((so) => {
+        const soDate = new Date(so.date);
+        return (
+          soDate.getMonth() === lastMonth &&
+          soDate.getFullYear() === lastMonthYear
+        );
+      }).length;
+
+      const growthRate =
+        lastMonthSOs === 0
+          ? 0
+          : ((thisMonthSOs - lastMonthSOs) / lastMonthSOs) * 100;
+
+      return {
+        total,
+        draft,
+        confirmed,
+        invoiced,
+        totalValue,
+        invoicedValue,
+        thisMonthSOs,
+        growthRate,
+      };
+    },
+    [salesOrders]
+  );
 
   const statistics = getStatistics();
 
   // Filtering and sorting logic
-  const filteredAndSortedSOs = () => {
-    let filtered = salesOrders.filter((so) => {
-      const matchesSearch =
-        so.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        so.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        so.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredAndSortedSOs = useMemo(
+    () => () => {
+      let filtered = salesOrders.filter((so) => {
+        const matchesSearch =
+          so.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          so.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          so.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesStatus =
-        statusFilter === "ALL" || so.status === statusFilter;
-      const matchesCustomer =
-        customerFilter === "ALL" || so.customerId === customerFilter;
+        const matchesStatus =
+          statusFilter === "ALL" || so.status === statusFilter;
+        const matchesCustomer =
+          customerFilter === "ALL" || so.customerId === customerFilter;
 
-      let matchesDate = true;
-      if (dateFilter !== "ALL") {
-        const soDate = new Date(so.date);
-        const today = new Date();
+        let matchesDate = true;
+        if (dateFilter !== "ALL") {
+          const soDate = new Date(so.date);
+          const today = new Date();
 
-        switch (dateFilter) {
-          case "TODAY":
-            matchesDate = soDate.toDateString() === today.toDateString();
-            break;
-          case "WEEK":
-            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-            matchesDate = soDate >= weekAgo;
-            break;
-          case "MONTH":
-            const monthAgo = new Date(
-              today.getFullYear(),
-              today.getMonth() - 1,
-              today.getDate()
-            );
-            matchesDate = soDate >= monthAgo;
-            break;
+          switch (dateFilter) {
+            case "TODAY":
+              matchesDate = soDate.toDateString() === today.toDateString();
+              break;
+            case "WEEK":
+              const weekAgo = new Date(
+                today.getTime() - 7 * 24 * 60 * 60 * 1000
+              );
+              matchesDate = soDate >= weekAgo;
+              break;
+            case "MONTH":
+              const monthAgo = new Date(
+                today.getFullYear(),
+                today.getMonth() - 1,
+                today.getDate()
+              );
+              matchesDate = soDate >= monthAgo;
+              break;
+          }
         }
-      }
 
-      return matchesSearch && matchesStatus && matchesCustomer && matchesDate;
-    });
+        return matchesSearch && matchesStatus && matchesCustomer && matchesDate;
+      });
 
-    filtered.sort((a, b) => {
-      let aVal, bVal;
+      filtered.sort((a, b) => {
+        let aVal, bVal;
 
-      switch (sortBy) {
-        case "date":
-          aVal = new Date(a.date);
-          bVal = new Date(b.date);
-          break;
-        case "amount":
-          aVal = parseFloat(a.totalAmount);
-          bVal = parseFloat(b.totalAmount);
-          break;
-        case "customer":
-          aVal = a.customerName;
-          bVal = b.customerName;
-          break;
-        case "status":
-          aVal = a.status;
-          bVal = b.status;
-          break;
-        default:
-          aVal = a.transactionNo;
-          bVal = b.transactionNo;
-      }
+        switch (sortBy) {
+          case "date":
+            aVal = new Date(a.date);
+            bVal = new Date(b.date);
+            break;
+          case "amount":
+            aVal = parseFloat(a.totalAmount);
+            bVal = parseFloat(b.totalAmount);
+            break;
+          case "customer":
+            aVal = a.customerName;
+            bVal = b.customerName;
+            break;
+          case "status":
+            aVal = a.status;
+            bVal = b.status;
+            break;
+          default:
+            aVal = a.transactionNo;
+            bVal = b.transactionNo;
+        }
 
-      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
+        if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
 
-    return filtered;
-  };
+      return filtered;
+    },
+    [
+      salesOrders,
+      searchTerm,
+      statusFilter,
+      customerFilter,
+      dateFilter,
+      sortBy,
+      sortOrder,
+    ]
+  );
 
   const filteredSOs = filteredAndSortedSOs();
   const totalPages = Math.ceil(filteredSOs.length / itemsPerPage);
@@ -435,10 +474,23 @@ const SalesOrderManagement = () => {
         }
       } else if (action === "export") {
         addNotification(`Exporting ${selectedSOs.length} orders...`, "info");
-        // Implement export logic if needed
+        const csv = [
+          "TransactionNo,Customer,Date,DeliveryDate,Status,TotalAmount,Priority",
+          ...selectedSOs.map((soId) => {
+            const so = salesOrders.find((s) => s.id === soId);
+            return `${so.transactionNo},${so.customerName},${so.date},${so.deliveryDate},${so.status},${so.totalAmount},${so.priority}`;
+          }),
+        ].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "selected_sales_orders.csv";
+        link.click();
+        addNotification("Orders exported successfully", "success");
       }
       setSelectedSOs([]);
     } catch (error) {
+      console.error("Bulk Action Error:", error);
       addNotification(
         "Bulk action failed: " +
           (error.response?.data?.message || error.message),
@@ -513,13 +565,10 @@ const SalesOrderManagement = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Confirmed
-              </p>
+              <p className="text-sm font-medium text-slate-600">Confirmed</p>
               <p className="text-3xl font-bold text-blue-600">
                 {statistics.confirmed}
               </p>
@@ -530,7 +579,6 @@ const SalesOrderManagement = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
@@ -547,7 +595,6 @@ const SalesOrderManagement = () => {
             </div>
           </div>
         </div>
-
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
@@ -775,9 +822,9 @@ const SalesOrderManagement = () => {
       notes: "",
       priority: "Medium",
     });
-    setSelectedSO(null);
     setFormErrors({});
-  }, [setFormData, setSelectedSO, setFormErrors]);
+    // Removed setSelectedSO(null) to prevent clearing during navigation to invoice
+  }, []);
 
   // Calculate totals for items
   const calculateTotals = (items) => {
@@ -809,7 +856,9 @@ const SalesOrderManagement = () => {
       transactionNo: so.transactionNo,
       partyId: so.customerId,
       date: new Date(so.date).toISOString().slice(0, 10),
-      deliveryDate: new Date(so.deliveryDate).toISOString().slice(0, 10),
+      deliveryDate: so.deliveryDate
+        ? new Date(so.deliveryDate).toISOString().slice(0, 10)
+        : "",
       status: so.status,
       items: so.items.map((item) => ({
         itemId: item.itemId,
@@ -818,9 +867,9 @@ const SalesOrderManagement = () => {
         rate: item.rate.toString(),
         taxPercent: item.taxPercent.toString(),
       })),
-      terms: so.terms,
-      notes: so.notes,
-      priority: so.priority,
+      terms: so.terms || "",
+      notes: so.notes || "",
+      priority: so.priority || "Medium",
     });
     setSelectedSO(so);
     setActiveView("edit");
@@ -835,6 +884,7 @@ const SalesOrderManagement = () => {
       addNotification("Sales Order confirmed successfully", "success");
       fetchTransactions();
     } catch (error) {
+      console.error("Confirm SO Error:", error);
       addNotification(
         "Failed to confirm sales order: " +
           (error.response?.data?.message || error.message),
@@ -845,14 +895,13 @@ const SalesOrderManagement = () => {
 
   // Delete SO
   const deleteSO = async (id) => {
-    if (
-      window.confirm("Are you sure you want to delete this sales order?")
-    ) {
+    if (window.confirm("Are you sure you want to delete this sales order?")) {
       try {
         await axiosInstance.delete(`/transactions/transactions/${id}`);
         addNotification("Sales Order deleted successfully", "success");
         fetchTransactions();
       } catch (error) {
+        console.error("Delete SO Error:", error);
         addNotification(
           "Failed to delete sales order: " +
             (error.response?.data?.message || error.message),
@@ -882,6 +931,8 @@ const SalesOrderManagement = () => {
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => {
+                  resetForm();
+                  setSelectedSO(null); // Clear selectedSO when starting new create
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
@@ -891,7 +942,11 @@ const SalesOrderManagement = () => {
                 <span>Create New SO</span>
               </button>
               <button
-                onClick={() => fetchTransactions()}
+                onClick={() => {
+                  fetchCustomers();
+                  fetchStockItems();
+                  fetchTransactions();
+                }}
                 className="p-3 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
               >
                 <RefreshCw className="w-5 h-5 text-slate-600" />
@@ -1084,14 +1139,23 @@ const SalesOrderManagement = () => {
                 setSelectedSO={setSelectedSO}
                 setActiveView={setActiveView}
                 setSalesOrders={setSalesOrders}
+                resetForm={resetForm}
+                calculateTotals={calculateTotals}
+                onSOSuccess={handleSOSuccess}
+                activeView={activeView}
+                formErrors={formErrors}
+                setFormErrors={setFormErrors}
               />
             )}
             {activeView === "invoice" && (
-              <InvoiceView
+              <SaleInvoiceView
                 selectedSO={selectedSO}
                 customers={customers}
                 calculateTotals={calculateTotals}
                 setActiveView={setActiveView}
+                createdSO={createdSO}
+                setSelectedSO={setSelectedSO}
+                setCreatedSO={setCreatedSO}
               />
             )}
           </>
