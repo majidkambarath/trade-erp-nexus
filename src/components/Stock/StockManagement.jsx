@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Package,
   Plus,
@@ -25,13 +32,15 @@ import {
   Clock,
   ArrowLeft,
   AlertCircle,
+  Truck,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import DirhamIcon from "../../assets/dirham.svg";
 
-// Session management utilities (using memory storage for Claude environment)
+// Session management utilities
 const SessionManager = {
   storage: {},
-  
+
   get: (key) => {
     try {
       return this.storage[`stock_session_${key}`] || null;
@@ -39,43 +48,60 @@ const SessionManager = {
       return null;
     }
   },
-  
+
   set: (key, value) => {
     try {
       this.storage[`stock_session_${key}`] = value;
     } catch (error) {
-      console.warn('Session storage failed:', error);
+      console.warn("Session storage failed:", error);
     }
   },
-  
+
   remove: (key) => {
     try {
       delete this.storage[`stock_session_${key}`];
     } catch (error) {
-      console.warn('Session removal failed:', error);
+      console.warn("Session removal failed:", error);
     }
   },
-  
+
   clear: () => {
-    Object.keys(this.storage).forEach(key => {
-      if (key.startsWith('stock_session_')) {
+    Object.keys(this.storage).forEach((key) => {
+      if (key.startsWith("stock_session_")) {
         delete this.storage[key];
       }
     });
-  }
+  },
+};
+
+// Utility function to map text color classes to SVG filters
+const getColorFilter = (colorClass) => {
+  const colorMap = {
+    "text-gray-900": "none",
+    "text-red-600":
+      "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
+    "text-yellow-600":
+      "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
+    "text-green-600":
+      "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
+  };
+  return colorMap[colorClass] || "none";
 };
 
 const StockManagement = () => {
   const [stockItems, setStockItems] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editItemId, setEditItemId] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterVendor, setFilterVendor] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showLowStock, setShowLowStock] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   const [formData, setFormData] = useState({
     sku: "",
@@ -90,6 +116,7 @@ const StockManagement = () => {
     salesPrice: "",
     currentStock: "",
     status: "Active",
+    vendorId: "",
   });
 
   const [errors, setErrors] = useState({});
@@ -106,55 +133,86 @@ const StockManagement = () => {
     isDeleting: false,
   });
 
-  // New UX enhancement states
   const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Refs for enhanced UX
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
+  const navigate = useNavigate();
 
-  const categories = [
-    "Electronics",
-    "Clothing", 
-    "Books",
-    "Food",
-    "Medicine",
-    "Tools",
-  ];
   const unitsOfMeasure = ["Piece", "Kg", "Liter", "Meter", "Box", "Carton"];
 
-  // Load session data on component mount
-  useEffect(() => {
-    const savedFormData = SessionManager.get('formData');
-    const savedFilters = SessionManager.get('filters');
-    const savedSearchTerm = SessionManager.get('searchTerm');
+  const showToastMessage = useCallback((message, type = "success") => {
+    setShowToast({ visible: true, message, type });
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
+  }, []);
 
-    if (savedFormData && Object.values(savedFormData).some(val => val)) {
+  const fetchCategories = useCallback(async () => {
+    try {
+      const response = await axiosInstance.get("/categories/categories");
+      setCategories(response.data.data?.categories || []);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      showToastMessage(
+        error.response?.data?.message || "Failed to fetch categories.",
+        "error"
+      );
+    }
+  }, [showToastMessage]);
+
+  const fetchVendors = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/vendors/vendors");
+      setVendors(res.data.data || []);
+    } catch (error) {
+      console.error("Failed to fetch vendors:", error);
+      showToastMessage(
+        error.response?.data?.message || "Failed to fetch vendors.",
+        "error"
+      );
+    }
+  }, [showToastMessage]);
+
+  useEffect(() => {
+    if (showModal) {
+      fetchCategories();
+      fetchVendors();
+    }
+  }, [showModal, fetchCategories, fetchVendors]);
+
+  useEffect(() => {
+    const savedFormData = SessionManager.get("formData");
+    const savedFilters = SessionManager.get("filters");
+    const savedSearchTerm = SessionManager.get("searchTerm");
+
+    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
       setFormData(savedFormData);
       setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get('lastSaveTime'));
+      setLastSaveTime(SessionManager.get("lastSaveTime"));
     }
-    
+
     if (savedFilters) {
       setFilterCategory(savedFilters.category || "");
+      setFilterVendor(savedFilters.vendor || "");
       setFilterStatus(savedFilters.status || "");
       setShowLowStock(savedFilters.showLowStock || false);
     }
-    
+
     if (savedSearchTerm) {
       setSearchTerm(savedSearchTerm);
     }
   }, []);
 
-  // Auto-save form data to session
   useEffect(() => {
-    if (showModal && Object.values(formData).some(val => val)) {
+    if (showModal && Object.values(formData).some((val) => val)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set('formData', formData);
-        SessionManager.set('lastSaveTime', new Date().toISOString());
+        SessionManager.set("formData", formData);
+        SessionManager.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
       }, 2000);
@@ -167,60 +225,61 @@ const StockManagement = () => {
     };
   }, [formData, showModal]);
 
-  // Save search and filter preferences
   useEffect(() => {
-    SessionManager.set('searchTerm', searchTerm);
+    SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
-    SessionManager.set('filters', { 
-      category: filterCategory, 
-      status: filterStatus, 
-      showLowStock: showLowStock 
+    SessionManager.set("filters", {
+      category: filterCategory,
+      vendor: filterVendor,
+      status: filterStatus,
+      showLowStock: showLowStock,
     });
-  }, [filterCategory, filterStatus, showLowStock]);
+  }, [filterCategory, filterVendor, filterStatus, showLowStock]);
 
-  const fetchStockItems = useCallback(async (showRefreshIndicator = false) => {
-    try {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
+  const fetchStockItems = useCallback(
+    async (showRefreshIndicator = false) => {
+      try {
+        if (showRefreshIndicator) {
+          setIsRefreshing(true);
+        } else {
+          setIsLoading(true);
+        }
+
+        const response = await axiosInstance.get("/stock/stock");
+        setStockItems(response.data.data?.stocks || []);
+
+        if (showRefreshIndicator) {
+          showToastMessage("Data refreshed successfully!", "success");
+        }
+      } catch (error) {
+        console.error("Failed to fetch stock items:", error);
+        showToastMessage(
+          error.response?.data?.message || "Failed to fetch stock items.",
+          "error"
+        );
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-      
-      const response = await axiosInstance.get("/stock/stock");
-      setStockItems(response.data.data?.stocks || []);
-      
-      if (showRefreshIndicator) {
-        showToastMessage("Data refreshed successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Failed to fetch stock items:", error);
-      showToastMessage(
-        error.response?.data?.message || "Failed to fetch stock items.",
-        "error"
-      );
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
+    },
+    [showToastMessage]
+  );
 
   useEffect(() => {
     fetchStockItems();
   }, [fetchStockItems]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast(prev => ({ ...prev, visible: false })), 3000);
-  }, []);
-
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-    setIsDraftSaved(false);
-  }, [errors]);
+  const handleChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+      setIsDraftSaved(false);
+    },
+    [errors]
+  );
 
   const validateForm = useCallback(() => {
     const newErrors = {};
@@ -229,6 +288,7 @@ const StockManagement = () => {
     if (!formData.category) newErrors.category = "Category is required";
     if (!formData.unitOfMeasure)
       newErrors.unitOfMeasure = "Unit of measure is required";
+    if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
     if (
       formData.reorderLevel &&
       (isNaN(formData.reorderLevel) || Number(formData.reorderLevel) < 0)
@@ -239,7 +299,8 @@ const StockManagement = () => {
       formData.purchasePrice &&
       (isNaN(formData.purchasePrice) || Number(formData.purchasePrice) < 0)
     ) {
-      newErrors.purchasePrice = "Purchase price must be a valid positive number";
+      newErrors.purchasePrice =
+        "Purchase price must be a valid positive number";
     }
     if (
       formData.salesPrice &&
@@ -268,7 +329,7 @@ const StockManagement = () => {
       const payload = {
         sku: formData.sku,
         itemName: formData.itemName,
-        category: formData.category,
+        categoryId: formData.category,
         unitOfMeasure: formData.unitOfMeasure,
         barcodeQrCode: formData.barcodeQrCode,
         reorderLevel: Number(formData.reorderLevel) || 0,
@@ -278,6 +339,7 @@ const StockManagement = () => {
         salesPrice: Number(formData.salesPrice) || 0,
         currentStock: Number(formData.currentStock) || 0,
         status: formData.status,
+        vendorId: formData.vendorId,
       };
 
       if (editItemId) {
@@ -287,14 +349,12 @@ const StockManagement = () => {
         await axiosInstance.post("/stock/stock", payload);
         showToastMessage("Stock item created successfully!", "success");
       }
-      
+
       await fetchStockItems();
       resetForm();
-      
-      // Clear session data after successful submission
-      SessionManager.remove('formData');
-      SessionManager.remove('lastSaveTime');
-      
+
+      SessionManager.remove("formData");
+      SessionManager.remove("lastSaveTime");
     } catch (error) {
       showToastMessage(
         error.response?.data?.message || "Failed to save stock item.",
@@ -310,7 +370,7 @@ const StockManagement = () => {
     setFormData({
       sku: item.sku,
       itemName: item.itemName,
-      category: item.category,
+      category: item.category?._id || "",
       unitOfMeasure: item.unitOfMeasure,
       barcodeQrCode: item.barcodeQrCode || "",
       reorderLevel: item.reorderLevel.toString(),
@@ -322,13 +382,13 @@ const StockManagement = () => {
       salesPrice: item.salesPrice.toString(),
       currentStock: item.currentStock.toString(),
       status: item.status,
+      vendorId: item.vendorId?._id || "",
     });
     setShowModal(true);
     setIsDraftSaved(false);
-    
-    // Clear any existing draft when editing
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const showDeleteConfirmation = useCallback((item) => {
@@ -354,7 +414,7 @@ const StockManagement = () => {
 
     try {
       await axiosInstance.delete(`/stock/stock/${deleteConfirmation.itemId}`);
-      setStockItems((prev) => 
+      setStockItems((prev) =>
         prev.filter((item) => item._id !== deleteConfirmation.itemId)
       );
       showToastMessage("Stock item deleted successfully!", "success");
@@ -367,7 +427,12 @@ const StockManagement = () => {
       );
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
     }
-  }, [deleteConfirmation.itemId, fetchStockItems, showToastMessage, hideDeleteConfirmation]);
+  }, [
+    deleteConfirmation.itemId,
+    fetchStockItems,
+    showToastMessage,
+    hideDeleteConfirmation,
+  ]);
 
   const resetForm = useCallback(() => {
     setEditItemId(null);
@@ -384,15 +449,15 @@ const StockManagement = () => {
       salesPrice: "",
       currentStock: "",
       status: "Active",
+      vendorId: "",
     });
     setErrors({});
     setShowModal(false);
     setIsDraftSaved(false);
     setLastSaveTime(null);
-    
-    // Clear session draft
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const openAddModal = useCallback(() => {
@@ -403,8 +468,7 @@ const StockManagement = () => {
       if (modal) {
         modal.classList.add("scale-100");
       }
-      
-      // Focus first input
+
       if (formRef.current) {
         const firstInput = formRef.current.querySelector('input[name="sku"]');
         if (firstInput) firstInput.focus();
@@ -417,44 +481,129 @@ const StockManagement = () => {
   }, [fetchStockItems]);
 
   const handleSort = useCallback((key) => {
-    setSortConfig(prevConfig => ({
+    setSortConfig((prevConfig) => ({
       key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+      direction:
+        prevConfig.key === key && prevConfig.direction === "asc"
+          ? "desc"
+          : "asc",
     }));
   }, []);
+
+  const handleNavigateToCategory = useCallback(
+    (categoryId = "") => {
+      navigate(
+        `/category-management${
+          categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ""
+        }`
+      );
+    },
+    [navigate]
+  );
+
+  const sortedAndFilteredItems = useMemo(() => {
+    let filtered = stockItems.filter((item) => {
+      const matchesSearch =
+        item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.itemId &&
+          item.itemId.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = filterCategory
+        ? item.category?.name === filterCategory
+        : true;
+      const matchesVendor = filterVendor
+        ? item.vendorId?.vendorName === filterVendor
+        : true;
+      const matchesStatus = filterStatus ? item.status === filterStatus : true;
+      const matchesLowStock = showLowStock
+        ? item.currentStock <= item.reorderLevel
+        : true;
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesVendor &&
+        matchesStatus &&
+        matchesLowStock
+      );
+    });
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        if (sortConfig.key === "category") {
+          aValue = a.category?.name || "";
+          bValue = b.category?.name || "";
+        } else if (sortConfig.key === "vendor") {
+          aValue = a.vendorId?.vendorName || "";
+          bValue = b.vendorId?.vendorName || "";
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [
+    stockItems,
+    searchTerm,
+    filterCategory,
+    filterVendor,
+    filterStatus,
+    showLowStock,
+    sortConfig,
+  ]);
 
   const handleExport = useCallback(async () => {
     try {
       const csv = [
-        "ItemID,SKU,ItemName,Category,UnitOfMeasure,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt",
+        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt",
         ...sortedAndFilteredItems.map(
           (item) =>
-            `${item.itemId || item._id},${item.sku},"${item.itemName}",${item.category},${item.unitOfMeasure},${item.currentStock},${item.reorderLevel},${item.purchasePrice},${item.salesPrice},${item.status},${item.batchNumber || ""},${item.expiryDate || ""},${item.createdAt || new Date().toISOString()}`
+            `${item.itemId || item._id},${item.sku},"${item.itemName}",${
+              item.category?.name || ""
+            },${item.category?._id || ""},${item.vendorId?.vendorName || ""},${
+              item.vendorId?._id || ""
+            },${item.unitOfMeasure},${item.currentStock},${item.reorderLevel},${
+              item.purchasePrice
+            },${item.salesPrice},${item.status},${item.batchNumber || ""},${
+              item.expiryDate || ""
+            },${item.createdAt || new Date().toISOString()}`
         ),
       ].join("\n");
-      
+
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.download = 'stock_export.csv';
+      link.download = "stock_export.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       showToastMessage("Stock data exported successfully!", "success");
     } catch (error) {
       showToastMessage("Failed to export stock data.", "error");
     }
-  }, []);
+  }, [sortedAndFilteredItems, showToastMessage]);
 
   const getStatusBadge = useCallback((status) => {
     const badges = {
       Active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
       Inactive: "bg-slate-100 text-slate-800 border border-slate-200",
     };
-    return badges[status] || "bg-slate-100 text-slate-800 border border-slate-200";
+    return (
+      badges[status] || "bg-slate-100 text-slate-800 border border-slate-200"
+    );
   }, []);
 
   const getStatusIcon = useCallback((status) => {
@@ -462,7 +611,9 @@ const StockManagement = () => {
       Active: <CheckCircle size={14} className="text-emerald-600" />,
       Inactive: <XCircle size={14} className="text-slate-600" />,
     };
-    return icons[status] || <AlertCircle size={14} className="text-slate-600" />;
+    return (
+      icons[status] || <AlertCircle size={14} className="text-slate-600" />
+    );
   }, []);
 
   const getStockStatus = useCallback((currentStock, reorderLevel) => {
@@ -478,29 +629,42 @@ const StockManagement = () => {
     return { color: "text-green-600", icon: TrendingUp, label: "Good Stock" };
   }, []);
 
-  const formatCurrency = useCallback((amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+  const formatCurrency = useCallback((amount, colorClass = "text-gray-900") => {
+    const numAmount = Number(amount) || 0;
+    const absAmount = Math.abs(numAmount).toFixed(2);
+    const isNegative = numAmount < 0;
+
+    return (
+      <span className={`inline-flex items-center ${colorClass}`}>
+        {isNegative && "-"}
+        <img
+          src={DirhamIcon}
+          alt="AED"
+          className="w-4.5 h-4.5 mr-1"
+          style={{ filter: getColorFilter(colorClass) }}
+        />
+        {absAmount}
+      </span>
+    );
   }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
-    if (!timeString) return '';
+    if (!timeString) return "";
     const time = new Date(timeString);
     const now = new Date();
     const diffMs = now - time;
     const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
     return time.toLocaleTimeString();
   }, []);
 
-  // Enhanced statistics calculations
   const stockStats = useMemo(() => {
     const totalItems = stockItems.length;
-    const activeItems = stockItems.filter((item) => item.status === "Active").length;
+    const activeItems = stockItems.filter(
+      (item) => item.status === "Active"
+    ).length;
     const lowStockItems = stockItems.filter(
       (item) => item.currentStock <= item.reorderLevel
     ).length;
@@ -508,51 +672,15 @@ const StockManagement = () => {
       (sum, item) => sum + (item.currentStock * item.purchasePrice || 0),
       0
     );
-    
+
     return {
       totalItems,
       activeItems,
       lowStockItems,
-      totalValue
+      totalValue,
     };
   }, [stockItems]);
 
-  const sortedAndFilteredItems = useMemo(() => {
-    let filtered = stockItems.filter((item) => {
-      const matchesSearch =
-        item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.itemId && item.itemId.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesCategory = filterCategory
-        ? item.category === filterCategory
-        : true;
-      const matchesStatus = filterStatus ? item.status === filterStatus : true;
-      const matchesLowStock = showLowStock
-        ? item.currentStock <= item.reorderLevel
-        : true;
-
-      return matchesSearch && matchesCategory && matchesStatus && matchesLowStock;
-    });
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-        
-        if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [stockItems, searchTerm, filterCategory, filterStatus, showLowStock, sortConfig]);
-
-  // Enhanced Empty State Component
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
       <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
@@ -562,7 +690,11 @@ const StockManagement = () => {
         No stock items found
       </h3>
       <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm || filterCategory || filterStatus || showLowStock
+        {searchTerm ||
+        filterCategory ||
+        filterVendor ||
+        filterStatus ||
+        showLowStock
           ? "No items match your current filters. Try adjusting your search criteria."
           : "Start building your inventory by adding your first stock item."}
       </p>
@@ -580,7 +712,10 @@ const StockManagement = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={48} className="text-indigo-600 animate-spin mx-auto mb-4" />
+          <Loader2
+            size={48}
+            className="text-indigo-600 animate-spin mx-auto mb-4"
+          />
           <p className="text-gray-600 text-lg">Loading stock items...</p>
         </div>
       </div>
@@ -588,8 +723,7 @@ const StockManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 sm:p-6">
-      {/* Enhanced Header */}
+    <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -600,12 +734,20 @@ const StockManagement = () => {
               Stock Management
             </h1>
             <p className="text-gray-600 mt-1">
-              {stockStats.totalItems} total items • {sortedAndFilteredItems.length} displayed
+              {stockStats.totalItems} total items •{" "}
+              {sortedAndFilteredItems.length} displayed
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+          <button
+            onClick={() => handleNavigateToCategory()}
+            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600"
+            title="Manage Categories"
+          >
+            <Tag size={16} className="text-gray-600 hover:text-indigo-600" />
+          </button>
           <button
             onClick={handleExport}
             className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200"
@@ -613,20 +755,25 @@ const StockManagement = () => {
           >
             <Download size={16} className="text-gray-600" />
           </button>
-          
+
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw size={16} className={`text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              size={16}
+              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </button>
-          
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
-              showFilters ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-gray-600'
+              showFilters
+                ? "bg-indigo-100 text-indigo-600"
+                : "bg-white text-gray-600"
             }`}
             title="Toggle filters"
           >
@@ -635,7 +782,6 @@ const StockManagement = () => {
         </div>
       </div>
 
-      {/* Toast Notification */}
       {showToast.visible && (
         <div
           className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
@@ -653,7 +799,6 @@ const StockManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Statistics Cards */}
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
@@ -665,7 +810,7 @@ const StockManagement = () => {
               textColor: "text-indigo-700",
               borderColor: "border-indigo-200",
               iconBg: "bg-indigo-100",
-              iconColor: "text-indigo-600"
+              iconColor: "text-indigo-600",
             },
             {
               title: "Active Items",
@@ -675,7 +820,7 @@ const StockManagement = () => {
               textColor: "text-emerald-700",
               borderColor: "border-emerald-200",
               iconBg: "bg-emerald-100",
-              iconColor: "text-emerald-600"
+              iconColor: "text-emerald-600",
             },
             {
               title: "Low Stock Alert",
@@ -685,7 +830,7 @@ const StockManagement = () => {
               textColor: "text-red-700",
               borderColor: "border-red-200",
               iconBg: "bg-red-100",
-              iconColor: "text-red-600"
+              iconColor: "text-red-600",
             },
             {
               title: "Total Value",
@@ -695,8 +840,8 @@ const StockManagement = () => {
               textColor: "text-purple-700",
               borderColor: "border-purple-200",
               iconBg: "bg-purple-100",
-              iconColor: "text-purple-600"
-            }
+              iconColor: "text-purple-600",
+            },
           ].map((card, index) => (
             <div
               key={index}
@@ -704,40 +849,41 @@ const StockManagement = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 ${card.iconBg} rounded-xl`}>
-                  <div className={card.iconColor}>
-                    {card.icon}
-                  </div>
+                  <div className={card.iconColor}>{card.icon}</div>
                 </div>
                 <button
                   className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity font-medium`}
                   onClick={() => {
-                    if (card.title.includes('Active')) setFilterStatus('Active');
-                    else if (card.title.includes('Low Stock')) setShowLowStock(true);
+                    if (card.title.includes("Active"))
+                      setFilterStatus("Active");
+                    else if (card.title.includes("Low Stock"))
+                      setShowLowStock(true);
                   }}
                 >
-                  {card.title.includes('Value') ? 'View Details →' : 'View All →'}
+                  {card.title.includes("Value")
+                    ? "View Details →"
+                    : "View All →"}
                 </button>
               </div>
               <h3 className={`text-sm font-medium ${card.textColor} mb-2`}>
                 {card.title}
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
-                {card.count}
-              </p>
+              <p className="text-3xl font-bold text-gray-900">{card.count}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {card.title.includes('Total Items') ? 'In inventory' :
-                 card.title.includes('Active') ? 'Currently available' :
-                 card.title.includes('Low Stock') ? 'Need restocking' :
-                 'Current valuation'}
+                {card.title.includes("Total Items")
+                  ? "In inventory"
+                  : card.title.includes("Active")
+                  ? "Currently available"
+                  : card.title.includes("Low Stock")
+                  ? "Need restocking"
+                  : "Current valuation"}
               </p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
-        {/* Header */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -757,7 +903,6 @@ const StockManagement = () => {
             </button>
           </div>
 
-          {/* Search and Filters */}
           <div className="mt-6 space-y-4">
             <div className="relative">
               <Search
@@ -781,7 +926,7 @@ const StockManagement = () => {
                 </button>
               )}
             </div>
-            
+
             {showFilters && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
                 <select
@@ -791,12 +936,25 @@ const StockManagement = () => {
                 >
                   <option value="">All Categories</option>
                   {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
+                    <option key={cat._id} value={cat.name}>
+                      {cat.name}
                     </option>
                   ))}
                 </select>
-                
+
+                <select
+                  value={filterVendor}
+                  onChange={(e) => setFilterVendor(e.target.value)}
+                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">All Vendors</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor._id} value={vendor.vendorName}>
+                      {vendor.vendorName}
+                    </option>
+                  ))}
+                </select>
+
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -806,7 +964,7 @@ const StockManagement = () => {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
-                
+
                 <button
                   onClick={() => setShowLowStock(!showLowStock)}
                   className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
@@ -817,10 +975,11 @@ const StockManagement = () => {
                 >
                   Low Stock Only
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setFilterCategory("");
+                    setFilterVendor("");
                     setFilterStatus("");
                     setShowLowStock(false);
                     setSearchTerm("");
@@ -834,7 +993,6 @@ const StockManagement = () => {
           </div>
         </div>
 
-        {/* Table/Content */}
         {sortedAndFilteredItems.length === 0 ? (
           <EmptyState />
         ) : (
@@ -843,23 +1001,26 @@ const StockManagement = () => {
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   {[
-                    { key: 'itemName', label: 'Item Info' },
-                    { key: 'category', label: 'Category' },
-                    { key: 'currentStock', label: 'Stock Level' },
-                    { key: 'purchasePrice', label: 'Pricing' },
-                    { key: 'status', label: 'Status' },
-                    { key: null, label: 'Actions' }
+                    { key: "itemName", label: "Item Info" },
+                    { key: "category", label: "Category" },
+                    { key: "vendor", label: "Vendor" },
+                    { key: "currentStock", label: "Stock Level" },
+                    { key: "purchasePrice", label: "Pricing" },
+                    { key: "status", label: "Status" },
+                    { key: null, label: "Actions" },
                   ].map((column) => (
                     <th
-                      key={column.key || 'actions'}
+                      key={column.key || "actions"}
                       className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={column.key ? () => handleSort(column.key) : undefined}
+                      onClick={
+                        column.key ? () => handleSort(column.key) : undefined
+                      }
                     >
                       <div className="flex items-center space-x-1">
                         <span>{column.label}</span>
                         {column.key && sortConfig.key === column.key && (
                           <span className="text-indigo-600">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                            {sortConfig.direction === "asc" ? "↑" : "↓"}
                           </span>
                         )}
                       </div>
@@ -900,13 +1061,23 @@ const StockManagement = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {item.category}
+                          <p
+                            className="text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+                            onClick={() =>
+                              handleNavigateToCategory(item.category?._id)
+                            }
+                          >
+                            {item.category?.name || "N/A"}
                           </p>
                           <p className="text-xs text-gray-500">
                             {item.unitOfMeasure}
                           </p>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-medium text-gray-900">
+                          {item.vendorId?.vendorName || "N/A"}
+                        </p>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
@@ -970,7 +1141,6 @@ const StockManagement = () => {
         )}
       </div>
 
-      {/* Enhanced Delete Confirmation Modal */}
       {deleteConfirmation.visible && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
@@ -980,11 +1150,11 @@ const StockManagement = () => {
                   <AlertTriangle size={32} className="text-red-600" />
                 </div>
               </div>
-              
+
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
                 Delete Stock Item
               </h3>
-              
+
               <p className="text-gray-600 text-center mb-2">
                 Are you sure you want to delete
               </p>
@@ -992,7 +1162,8 @@ const StockManagement = () => {
                 "{deleteConfirmation.itemName}"?
               </p>
               <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the item from your inventory.
+                This action cannot be undone and will permanently remove the
+                item from your inventory.
               </p>
 
               <div className="flex space-x-3">
@@ -1026,11 +1197,9 @@ const StockManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
@@ -1058,7 +1227,6 @@ const StockManagement = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6" ref={formRef}>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-3">
@@ -1067,7 +1235,7 @@ const StockManagement = () => {
                     Basic Information
                   </h4>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Barcode size={16} className="inline mr-2" />
@@ -1123,27 +1291,68 @@ const StockManagement = () => {
                     <Tag size={16} className="inline mr-2" />
                     Category *
                   </label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.category
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center space-x-2">
+                    <select
+                      name="category"
+                      value={formData.category}
+                      onChange={handleChange}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                        errors.category
+                          ? "border-red-300 bg-red-50"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map((cat) => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() =>
+                        handleNavigateToCategory(formData.category)
+                      }
+                      className="p-2 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 hover:text-indigo-700 transition-all duration-200"
+                      title="Manage Category"
+                    >
+                      <Tag size={16} />
+                    </button>
+                  </div>
                   {errors.category && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
                       <AlertCircle size={12} className="mr-1" />
                       {errors.category}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Truck size={16} className="inline mr-2" />
+                    Vendor *
+                  </label>
+                  <select
+                    name="vendorId"
+                    value={formData.vendorId}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                      errors.vendorId
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    <option value="">Select Vendor</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor._id} value={vendor._id}>
+                        {vendor.vendorName}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.vendorId && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.vendorId}
                     </p>
                   )}
                 </div>
@@ -1351,7 +1560,6 @@ const StockManagement = () => {
                 </div>
               </div>
 
-              {/* Modal Footer */}
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                 <div className="flex items-center text-sm text-gray-500">
                   {isDraftSaved ? (
@@ -1359,14 +1567,17 @@ const StockManagement = () => {
                       <CheckCircle size={14} className="mr-1" />
                       Changes saved automatically
                     </span>
-                  ) : formData.itemName || formData.sku || formData.category ? (
+                  ) : formData.itemName ||
+                    formData.sku ||
+                    formData.category ||
+                    formData.vendorId ? (
                     <span className="flex items-center text-amber-600">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>
                   ) : null}
                 </div>
-                
+
                 <div className="flex space-x-4">
                   <button
                     type="button"

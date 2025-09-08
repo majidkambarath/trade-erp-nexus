@@ -89,7 +89,11 @@ const POForm = React.memo(
           const item = stockItems.find((i) => i.itemId === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].rate = item.purchasePrice.toString();
+            newItems[index].purchasePrice = item.purchasePrice.toString();
+            newItems[index].category = item.category || "";
+            newItems[index].rate = newItems[index].qty
+              ? (parseFloat(item.purchasePrice) * parseFloat(newItems[index].qty)).toString()
+              : item.purchasePrice.toString();
             if (item.currentStock < item.reorderLevel) {
               addNotification(
                 `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
@@ -97,6 +101,10 @@ const POForm = React.memo(
               );
             }
           }
+        } else if (field === "qty") {
+          const qty = parseFloat(value) || 0;
+          const purchasePrice = parseFloat(newItems[index].purchasePrice) || 0;
+          newItems[index].rate = (qty * purchasePrice).toString();
         }
 
         setFormData((prev) => ({ ...prev, items: newItems }));
@@ -117,6 +125,8 @@ const POForm = React.memo(
             qty: "",
             rate: "",
             taxPercent: "5",
+            purchasePrice: "",
+            category: "",
           },
         ],
       }));
@@ -168,6 +178,8 @@ const POForm = React.memo(
               qty: parseFloat(item.qty) || 0,
               rate: parseFloat(item.rate) || 0,
               taxPercent: parseFloat(item.taxPercent) || 0,
+              purchasePrice: parseFloat(item.purchasePrice) || 0,
+              category: item.category || "",
               lineTotal:
                 parseFloat(item.qty || 0) *
                 parseFloat(item.rate || 0) *
@@ -498,6 +510,7 @@ const POForm = React.memo(
                     className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
                   >
                     <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
                       <select
                         value={item.itemId || ""}
                         onChange={(e) => handleItemChange(index, "itemId", e.target.value)}
@@ -517,7 +530,8 @@ const POForm = React.memo(
                       )}
                     </div>
 
-                    <div className="col-span-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
                       <input
                         type="text"
                         value={item.description || ""}
@@ -528,6 +542,17 @@ const POForm = React.memo(
                     </div>
 
                     <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                      <input
+                        type="text"
+                        value={item.category || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
                       <input
                         type="number"
                         value={item.qty || ""}
@@ -544,23 +569,30 @@ const POForm = React.memo(
                     </div>
 
                     <div className="col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price</label>
+                      <input
+                        type="number"
+                        value={item.purchasePrice || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rate</label>
                       <input
                         type="number"
                         value={item.rate || ""}
-                        onChange={(e) => handleItemChange(index, "rate", e.target.value)}
-                        placeholder="Rate"
-                        min="0"
-                        step="0.01"
-                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`rate_${index}`] ? "border-red-500" : "border-slate-200"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
                       {formErrors[`rate_${index}`] && (
                         <p className="text-red-500 text-xs mt-1">{formErrors[`rate_${index}`]}</p>
                       )}
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tax %</label>
                       <input
                         type="number"
                         value={item.taxPercent || ""}

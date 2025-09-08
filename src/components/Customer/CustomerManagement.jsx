@@ -1,9 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
   Search,
-  Eye,
   Edit,
   Trash2,
   X,
@@ -12,7 +17,6 @@ import {
   Phone,
   MapPin,
   CreditCard,
-  Hash,
   Building,
   Users,
   TrendingUp,
@@ -26,14 +30,28 @@ import {
   XCircle,
   AlertCircle,
   Filter,
-  DollarSign
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import DirhamIcon from "../../assets/dirham.svg";
 
-// Session management utilities (using memory storage for Claude environment)
+// Utility to apply color filter based on class
+const getColorFilter = (colorClass) => {
+  switch (colorClass) {
+    case "text-emerald-700":
+      return "invert(34%) sepia(94%) saturate(1352%) hue-rotate(145deg) brightness(94%) contrast(101%)";
+    case "text-blue-700":
+      return "invert(35%) sepia(99%) saturate(1352%) hue-rotate(200deg) brightness(94%) contrast(101%)";
+    case "text-indigo-700":
+      return "invert(38%) sepia(99%) saturate(1352%) hue-rotate(230deg) brightness(94%) contrast(101%)";
+    default:
+      return "none";
+  }
+};
+
+// Session management utilities
 const SessionManager = {
   storage: {},
-  
+
   get: (key) => {
     try {
       return this.storage[`customer_session_${key}`] || null;
@@ -41,30 +59,30 @@ const SessionManager = {
       return null;
     }
   },
-  
+
   set: (key, value) => {
     try {
       this.storage[`customer_session_${key}`] = value;
     } catch (error) {
-      console.warn('Session storage failed:', error);
+      console.warn("Session storage failed:", error);
     }
   },
-  
+
   remove: (key) => {
     try {
       delete this.storage[`customer_session_${key}`];
     } catch (error) {
-      console.warn('Session removal failed:', error);
+      console.warn("Session removal failed:", error);
     }
   },
-  
+
   clear: () => {
-    Object.keys(this.storage).forEach(key => {
-      if (key.startsWith('customer_session_')) {
+    Object.keys(this.storage).forEach((key) => {
+      if (key.startsWith("customer_session_")) {
         delete this.storage[key];
       }
     });
-  }
+  },
 };
 
 const CustomerManagement = () => {
@@ -99,36 +117,59 @@ const CustomerManagement = () => {
     customerName: "",
     isDeleting: false,
   });
-  
+
   // New UX enhancement states
   const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+
   // Refs for enhanced UX
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
 
+  // Updated formatCurrency function using DirhamIcon
+  const formatCurrency = useCallback(
+    (amount, colorClass = "text-gray-900", text) => {
+      const numAmount = Number(amount) || 0;
+      const absAmount = Math.abs(numAmount).toFixed(2);
+      const isNegative = numAmount < 0;
+
+      return (
+        <span className={`inline-flex items-center ${colorClass} `}>
+          {isNegative && "-"}
+          <img
+            src={DirhamIcon}
+            alt="AED"
+            className={`${text ? "w-6.5 h-7.5" : "w-4.5 h-4.5"}  mr-1 `}
+            style={{ filter: getColorFilter(colorClass) }}
+          />
+          {absAmount}
+        </span>
+      );
+    },
+    []
+  );
+
   // Load session data on component mount
   useEffect(() => {
-    const savedFormData = SessionManager.get('formData');
-    const savedFilters = SessionManager.get('filters');
-    const savedSearchTerm = SessionManager.get('searchTerm');
+    const savedFormData = SessionManager.get("formData");
+    const savedFilters = SessionManager.get("filters");
+    const savedSearchTerm = SessionManager.get("searchTerm");
 
-    if (savedFormData && Object.values(savedFormData).some(val => val)) {
+    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
       setFormData(savedFormData);
       setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get('lastSaveTime'));
+      setLastSaveTime(SessionManager.get("lastSaveTime"));
     }
-    
+
     if (savedFilters) {
       setFilterStatus(savedFilters.status || "");
       setFilterPaymentTerms(savedFilters.paymentTerms || "");
     }
-    
+
     if (savedSearchTerm) {
       setSearchTerm(savedSearchTerm);
     }
@@ -136,10 +177,10 @@ const CustomerManagement = () => {
 
   // Auto-save form data to session
   useEffect(() => {
-    if (showModal && Object.values(formData).some(val => val)) {
+    if (showModal && Object.values(formData).some((val) => val)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set('formData', formData);
-        SessionManager.set('lastSaveTime', new Date().toISOString());
+        SessionManager.set("formData", formData);
+        SessionManager.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
       }, 2000);
@@ -154,11 +195,14 @@ const CustomerManagement = () => {
 
   // Save search and filter preferences
   useEffect(() => {
-    SessionManager.set('searchTerm', searchTerm);
+    SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
-    SessionManager.set('filters', { status: filterStatus, paymentTerms: filterPaymentTerms });
+    SessionManager.set("filters", {
+      status: filterStatus,
+      paymentTerms: filterPaymentTerms,
+    });
   }, [filterStatus, filterPaymentTerms]);
 
   const fetchCustomers = useCallback(async (showRefreshIndicator = false) => {
@@ -168,11 +212,10 @@ const CustomerManagement = () => {
       } else {
         setIsLoading(true);
       }
-      
+
       const response = await axiosInstance.get("/customers/customers");
-      console.log(response.data);
       setCustomers(response.data.data || []);
-      
+
       if (showRefreshIndicator) {
         showToastMessage("Data refreshed successfully!", "success");
       }
@@ -194,15 +237,21 @@ const CustomerManagement = () => {
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast(prev => ({ ...prev, visible: false })), 3000);
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
   }, []);
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-    setIsDraftSaved(false);
-  }, [errors]);
+  const handleChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+      setIsDraftSaved(false);
+    },
+    [errors]
+  );
 
   const validateForm = useCallback(() => {
     const newErrors = {};
@@ -234,9 +283,9 @@ const CustomerManagement = () => {
     try {
       const payload = {
         customerName: formData.customerName,
-        contactPerson: formData.contactPerson,
+        contactPerson: formData.contactPerson.trim(),
         email: formData.email,
-        phone: formData.phone,
+        phone: formData.phone.trim(),
         billingAddress: formData.billingAddress,
         shippingAddress: formData.shippingAddress,
         creditLimit: Number(formData.creditLimit) || 0,
@@ -255,14 +304,13 @@ const CustomerManagement = () => {
         ]);
         showToastMessage("Customer created successfully!", "success");
       }
-      
+
       await fetchCustomers();
       resetForm();
-      
+
       // Clear session data after successful submission
-      SessionManager.remove('formData');
-      SessionManager.remove('lastSaveTime');
-      
+      SessionManager.remove("formData");
+      SessionManager.remove("lastSaveTime");
     } catch (error) {
       showToastMessage(
         error.response?.data?.message || "Failed to save customer.",
@@ -271,7 +319,13 @@ const CustomerManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [editCustomerId, formData, fetchCustomers, validateForm, showToastMessage]);
+  }, [
+    editCustomerId,
+    formData,
+    fetchCustomers,
+    validateForm,
+    showToastMessage,
+  ]);
 
   const handleEdit = useCallback((customer) => {
     setEditCustomerId(customer._id);
@@ -288,10 +342,10 @@ const CustomerManagement = () => {
     });
     setShowModal(true);
     setIsDraftSaved(false);
-    
+
     // Clear any existing draft when editing
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const showDeleteConfirmation = useCallback((customer) => {
@@ -314,11 +368,13 @@ const CustomerManagement = () => {
 
   const confirmDelete = useCallback(async () => {
     setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
-    
+
     try {
       await axiosInstance.delete(`/customers/${deleteConfirmation.customerId}`);
-      setCustomers((prev) => 
-        prev.filter((customer) => customer._id !== deleteConfirmation.customerId)
+      setCustomers((prev) =>
+        prev.filter(
+          (customer) => customer._id !== deleteConfirmation.customerId
+        )
       );
       showToastMessage("Customer deleted successfully!", "success");
       hideDeleteConfirmation();
@@ -330,7 +386,12 @@ const CustomerManagement = () => {
       );
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
     }
-  }, [deleteConfirmation.customerId, fetchCustomers, showToastMessage, hideDeleteConfirmation]);
+  }, [
+    deleteConfirmation.customerId,
+    fetchCustomers,
+    showToastMessage,
+    hideDeleteConfirmation,
+  ]);
 
   const resetForm = useCallback(() => {
     setEditCustomerId(null);
@@ -349,10 +410,10 @@ const CustomerManagement = () => {
     setShowModal(false);
     setIsDraftSaved(false);
     setLastSaveTime(null);
-    
+
     // Clear session draft
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const openAddModal = useCallback(() => {
@@ -363,10 +424,12 @@ const CustomerManagement = () => {
       if (modal) {
         modal.classList.add("scale-100");
       }
-      
+
       // Focus first input
       if (formRef.current) {
-        const firstInput = formRef.current.querySelector('input[name="customerName"]');
+        const firstInput = formRef.current.querySelector(
+          'input[name="customerName"]'
+        );
         if (firstInput) firstInput.focus();
       }
     }, 10);
@@ -377,9 +440,12 @@ const CustomerManagement = () => {
   }, [fetchCustomers]);
 
   const handleSort = useCallback((key) => {
-    setSortConfig(prevConfig => ({
+    setSortConfig((prevConfig) => ({
       key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+      direction:
+        prevConfig.key === key && prevConfig.direction === "asc"
+          ? "desc"
+          : "asc",
     }));
   }, []);
 
@@ -388,7 +454,9 @@ const CustomerManagement = () => {
       Active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
       Inactive: "bg-slate-100 text-slate-800 border border-slate-200",
     };
-    return badges[status] || "bg-slate-100 text-slate-800 border border-slate-200";
+    return (
+      badges[status] || "bg-slate-100 text-slate-800 border border-slate-200"
+    );
   }, []);
 
   const getStatusIcon = useCallback((status) => {
@@ -396,66 +464,79 @@ const CustomerManagement = () => {
       Active: <CheckCircle size={14} className="text-emerald-600" />,
       Inactive: <XCircle size={14} className="text-slate-600" />,
     };
-    return icons[status] || <AlertCircle size={14} className="text-slate-600" />;
-  }, []);
-
-  const formatCurrency = useCallback((amount) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+    return (
+      icons[status] || <AlertCircle size={14} className="text-slate-600" />
+    );
   }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
-    if (!timeString) return '';
+    if (!timeString) return "";
     const time = new Date(timeString);
     const now = new Date();
     const diffMs = now - time;
     const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
     return time.toLocaleTimeString();
   }, []);
 
   // Enhanced statistics calculations
   const customerStats = useMemo(() => {
-    const activeCustomers = customers.filter((c) => c.status === "Active").length;
-    const inactiveCustomers = customers.filter((c) => c.status === "Inactive").length;
-    const totalRevenue = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
-    const totalOrders = customers.reduce((sum, c) => sum + (c.totalOrders || 0), 0);
+    const activeCustomers = customers.filter(
+      (c) => c.status === "Active"
+    ).length;
+    const inactiveCustomers = customers.filter(
+      (c) => c.status === "Inactive"
+    ).length;
+    const totalRevenue = customers.reduce(
+      (sum, c) => sum + (c.totalSpent || 0),
+      0
+    );
+    const totalOrders = customers.reduce(
+      (sum, c) => sum + (c.totalOrders || 0),
+      0
+    );
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    
+
     return {
       activeCustomers,
       inactiveCustomers,
       totalRevenue,
       avgOrderValue,
-      totalCustomers: customers.length
+      totalCustomers: customers.length,
     };
   }, [customers]);
 
   const sortedAndFilteredCustomers = useMemo(() => {
     let filtered = customers.filter(
       (customer) =>
-        (customer.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (customer.customerName
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+          customer.contactPerson
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
           customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.customerId.toLowerCase().includes(searchTerm.toLowerCase())) &&
+          customer.customerId
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())) &&
         (filterStatus ? customer.status === filterStatus : true) &&
-        (filterPaymentTerms ? customer.paymentTerms === filterPaymentTerms : true)
+        (filterPaymentTerms
+          ? customer.paymentTerms === filterPaymentTerms
+          : true)
     );
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-        
+
         if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
+          return sortConfig.direction === "asc" ? -1 : 1;
         }
         if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
+          return sortConfig.direction === "asc" ? 1 : -1;
         }
         return 0;
       });
@@ -492,7 +573,10 @@ const CustomerManagement = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={48} className="text-purple-600 animate-spin mx-auto mb-4" />
+          <Loader2
+            size={48}
+            className="text-purple-600 animate-spin mx-auto mb-4"
+          />
           <p className="text-gray-600 text-lg">Loading customers...</p>
         </div>
       </div>
@@ -512,11 +596,12 @@ const CustomerManagement = () => {
               Customer Management
             </h1>
             <p className="text-gray-600 mt-1">
-              {customerStats.totalCustomers} total customers • {sortedAndFilteredCustomers.length} displayed
+              {customerStats.totalCustomers} total customers •{" "}
+              {sortedAndFilteredCustomers.length} displayed
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleRefresh}
@@ -524,13 +609,18 @@ const CustomerManagement = () => {
             className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw size={16} className={`text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              size={16}
+              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </button>
-          
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
-              showFilters ? 'bg-purple-100 text-purple-600' : 'bg-white text-gray-600'
+              showFilters
+                ? "bg-purple-100 text-purple-600"
+                : "bg-white text-gray-600"
             }`}
             title="Toggle filters"
           >
@@ -569,7 +659,7 @@ const CustomerManagement = () => {
               textColor: "text-emerald-700",
               borderColor: "border-emerald-200",
               iconBg: "bg-emerald-100",
-              iconColor: "text-emerald-600"
+              iconColor: "text-emerald-600",
             },
             {
               title: "Inactive Customers",
@@ -579,28 +669,37 @@ const CustomerManagement = () => {
               textColor: "text-slate-700",
               borderColor: "border-slate-200",
               iconBg: "bg-slate-100",
-              iconColor: "text-slate-600"
+              iconColor: "text-slate-600",
             },
             {
               title: "Total Revenue",
-              count: formatCurrency(customerStats.totalRevenue),
+              count: formatCurrency(
+                customerStats.totalRevenue,
+                "text-blue-700",
+                "w-6.5 h-7.5"
+              ),
               icon: <TrendingUp size={24} />,
               bgColor: "bg-blue-50",
               textColor: "text-blue-700",
               borderColor: "border-blue-200",
               iconBg: "bg-blue-100",
-              iconColor: "text-blue-600"
+              iconColor: "text-blue-600",
+              textSize: "text-4xl",
             },
             {
               title: "Avg Order Value",
-              count: formatCurrency(customerStats.avgOrderValue),
-              icon: <DollarSign size={24} />,
+              count: formatCurrency(
+                customerStats.avgOrderValue,
+                "text-indigo-700",
+                "w-6.5 h-7.5"
+              ),
+              icon: <CreditCard size={24} />,
               bgColor: "bg-indigo-50",
               textColor: "text-indigo-700",
               borderColor: "border-indigo-200",
               iconBg: "bg-indigo-100",
-              iconColor: "text-indigo-600"
-            }
+              iconColor: "text-indigo-600",
+            },
           ].map((card, index) => (
             <div
               key={index}
@@ -608,31 +707,34 @@ const CustomerManagement = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`p-3 ${card.iconBg} rounded-xl`}>
-                  <div className={card.iconColor}>
-                    {card.icon}
-                  </div>
+                  <div className={card.iconColor}>{card.icon}</div>
                 </div>
                 <button
                   className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity font-medium`}
                   onClick={() => {
-                    if (card.title.includes('Active')) setFilterStatus('Active');
-                    else if (card.title.includes('Inactive')) setFilterStatus('Inactive');
+                    if (card.title.includes("Active"))
+                      setFilterStatus("Active");
+                    else if (card.title.includes("Inactive"))
+                      setFilterStatus("Inactive");
                   }}
                 >
-                  {card.title.includes('Revenue') || card.title.includes('Avg') ? 'View Details →' : 'View All →'}
+                  {card.title.includes("Revenue") || card.title.includes("Avg")
+                    ? "View Details →"
+                    : "View All →"}
                 </button>
               </div>
               <h3 className={`text-sm font-medium ${card.textColor} mb-2`}>
                 {card.title}
               </h3>
-              <p className="text-3xl font-bold text-gray-900">
-                {card.count}
-              </p>
+              <p className="text-3xl font-bold text-gray-900">{card.count}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {card.title.includes('Active') ? 'Currently engaged' :
-                 card.title.includes('Inactive') ? 'Need re-engagement' :
-                 card.title.includes('Revenue') ? 'All-time earnings' :
-                 'Per transaction'}
+                {card.title.includes("Active")
+                  ? "Currently engaged"
+                  : card.title.includes("Inactive")
+                  ? "Need re-engagement"
+                  : card.title.includes("Revenue")
+                  ? "All-time earnings"
+                  : "Per transaction"}
               </p>
             </div>
           ))}
@@ -685,7 +787,7 @@ const CustomerManagement = () => {
                 </button>
               )}
             </div>
-            
+
             {showFilters && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
                 <select
@@ -697,7 +799,7 @@ const CustomerManagement = () => {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
-                
+
                 <select
                   value={filterPaymentTerms}
                   onChange={(e) => setFilterPaymentTerms(e.target.value)}
@@ -710,7 +812,7 @@ const CustomerManagement = () => {
                   <option value="Cash on Delivery">Cash on Delivery</option>
                   <option value="Prepaid">Prepaid</option>
                 </select>
-                
+
                 <button
                   onClick={() => {
                     setFilterStatus("");
@@ -735,26 +837,28 @@ const CustomerManagement = () => {
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   {[
-                    { key: 'customerId', label: 'Customer ID' },
-                    { key: 'customerName', label: 'Customer Name' },
-                    { key: 'contactPerson', label: 'Contact Person' },
-                    { key: 'email', label: 'Email' },
-                    { key: 'phone', label: 'Phone' },
-                    { key: 'creditLimit', label: 'Credit Limit' },
-                    { key: 'paymentTerms', label: 'Payment Terms' },
-                    { key: 'status', label: 'Status' },
-                    { key: null, label: 'Actions' }
+                    { key: "customerId", label: "Customer ID" },
+                    { key: "customerName", label: "Customer Name" },
+                    { key: "contactPerson", label: "Contact Person" },
+                    { key: "email", label: "Email" },
+                    { key: "phone", label: "Phone" },
+                    { key: "creditLimit", label: "Credit Limit" },
+                    { key: "paymentTerms", label: "Payment Terms" },
+                    { key: "status", label: "Status" },
+                    { key: null, label: "Actions" },
                   ].map((column) => (
                     <th
-                      key={column.key || 'actions'}
+                      key={column.key || "actions"}
                       className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={column.key ? () => handleSort(column.key) : undefined}
+                      onClick={
+                        column.key ? () => handleSort(column.key) : undefined
+                      }
                     >
                       <div className="flex items-center space-x-1">
                         <span>{column.label}</span>
                         {column.key && sortConfig.key === column.key && (
                           <span className="text-purple-600">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                            {sortConfig.direction === "asc" ? "↑" : "↓"}
                           </span>
                         )}
                       </div>
@@ -777,7 +881,9 @@ const CustomerManagement = () => {
                           <Users size={16} className="text-purple-600" />
                         </div>
                         <div>
-                          <div className="font-medium">{customer.customerName}</div>
+                          <div className="font-medium">
+                            {customer.customerName}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -785,7 +891,7 @@ const CustomerManagement = () => {
                       {customer.contactPerson}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      <a 
+                      <a
                         href={`mailto:${customer.email}`}
                         className="text-purple-600 hover:text-purple-800 transition-colors"
                       >
@@ -793,7 +899,7 @@ const CustomerManagement = () => {
                       </a>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      <a 
+                      <a
                         href={`tel:${customer.phone}`}
                         className="text-purple-600 hover:text-purple-800 transition-colors"
                       >
@@ -854,11 +960,11 @@ const CustomerManagement = () => {
                   <AlertTriangle size={32} className="text-red-600" />
                 </div>
               </div>
-              
+
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
                 Delete Customer
               </h3>
-              
+
               <p className="text-gray-600 text-center mb-2">
                 Are you sure you want to delete
               </p>
@@ -866,7 +972,8 @@ const CustomerManagement = () => {
                 "{deleteConfirmation.customerName}"?
               </p>
               <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the customer from your database.
+                This action cannot be undone and will permanently remove the
+                customer from your database.
               </p>
 
               <div className="flex space-x-3">
@@ -937,7 +1044,8 @@ const CustomerManagement = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Building size={16} className="inline mr-2" /> Customer Name *
+                    <Building size={16} className="inline mr-2" /> Customer Name
+                    *
                   </label>
                   <input
                     type="text"
@@ -1023,7 +1131,8 @@ const CustomerManagement = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <CreditCard size={16} className="inline mr-2" /> Credit Limit
+                    <CreditCard size={16} className="inline mr-2" /> Credit
+                    Limit
                   </label>
                   <input
                     type="number"
@@ -1067,7 +1176,8 @@ const CustomerManagement = () => {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <MapPin size={16} className="inline mr-2" /> Billing Address *
+                    <MapPin size={16} className="inline mr-2" /> Billing Address
+                    *
                   </label>
                   <textarea
                     name="billingAddress"
@@ -1091,7 +1201,8 @@ const CustomerManagement = () => {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <MapPin size={16} className="inline mr-2" /> Shipping Address
+                    <MapPin size={16} className="inline mr-2" /> Shipping
+                    Address
                   </label>
                   <textarea
                     name="shippingAddress"
@@ -1127,14 +1238,16 @@ const CustomerManagement = () => {
                       <CheckCircle size={14} className="mr-1" />
                       Changes saved automatically
                     </span>
-                  ) : formData.customerName || formData.contactPerson || formData.email ? (
+                  ) : formData.customerName ||
+                    formData.contactPerson ||
+                    formData.email ? (
                     <span className="flex items-center text-amber-600">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>
                   ) : null}
                 </div>
-                
+
                 <div className="flex space-x-4">
                   <button
                     type="button"

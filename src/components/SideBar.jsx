@@ -244,24 +244,24 @@ const Sidebar = () => {
           (item) => userRole === "Admin" || userRole === "Inventory Manager"
         ),
       },
-      // {
-      //   key: "staff",
-      //   icon: <UserPlus strokeWidth={1.5} size={22} />,
-      //   text: "Staff Management",
-      //   // to: "/staff-management",
-      //   children: [
-      //     {
-      //       icon: <Users strokeWidth={1.5} size={20} />,
-      //       text: "Staff Records",
-      //       to: "/staff-records",
-      //     },
-      //     {
-      //       icon: <Shield strokeWidth={1.5} size={20} />,
-      //       text: "Staff Access",
-      //       to: "/staff-access",
-      //     },
-      //   ].filter((item) => userRole === "Admin" || userRole === "HR"),
-      // },
+      {
+        key: "staff",
+        icon: <UserPlus strokeWidth={1.5} size={22} />,
+        text: "Staff Management",
+        // to: "/staff-management",
+        children: [
+          {
+            icon: <Users strokeWidth={1.5} size={20} />,
+            text: "Staff Records",
+            to: "/staff-records",
+          },
+          // {
+          //   icon: <Shield strokeWidth={1.5} size={20} />,
+          //   text: "Staff Access",
+          //   to: "/staff-access",
+          // },
+        ].filter((item) => userRole === "Admin" || userRole === "HR"),
+      },
       // {
       //   key: "taxation",
       //   icon: <Percent strokeWidth={1.5} size={22} />,
