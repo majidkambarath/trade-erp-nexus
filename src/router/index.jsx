@@ -13,10 +13,12 @@ import NotFound from "../components/NotFound.jsx";
 import ERPLogin from "../components/Login/Login.jsx";
 import PurchaseOrderPage from "../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx";
 import SalesOrderPage from "../components/PurchaseOrder/sales/SalesOrderPage.jsx";
-import InventoryManagement from '../components/Inventory/InventoryManagement.jsx'
-import PurchaseReturnPage from "../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx"
+import InventoryManagement from "../components/Inventory/InventoryManagement.jsx";
+import PurchaseReturnPage from "../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx";
 import SalesReturnPage from "../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx";
 import CategoryManagement from "../components/Inventory/CategoryManagement.jsx";
+import ReceiptVoucherManagement from "../components/FinancialModules/receiptVoucher.jsx";
+import PaymentVoucherManagement from "../components/FinancialModules/PaymentVoucher.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
@@ -34,7 +36,13 @@ export default function AdminRouter() {
         <Route path="/inventory" element={<InventoryManagement />} />{" "}
         <Route path="/purchase-return" element={<PurchaseReturnPage />} />{" "}
         <Route path="/sales-return" element={<SalesReturnPage />} />{" "}
-        <Route path="/category-management" element={< CategoryManagement/>} />
+        <Route path="/category-management" element={<CategoryManagement />} />
+        {/* financial */}
+        <Route
+          path="/receipt-voucher"
+          element={<ReceiptVoucherManagement />}
+        />{" "}
+        <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
       </Route>
       {/* </Route> */}
       <Route path="*" element={<NotFound />} />

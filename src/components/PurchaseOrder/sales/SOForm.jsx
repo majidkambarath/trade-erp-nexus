@@ -85,7 +85,7 @@ const SOForm = React.memo(
         newItems[index][field] = value;
 
         if (field === "itemId") {
-          const item = stockItems.find((i) => i.itemId === value);
+          const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
             newItems[index].salesPrice = item.salesPrice.toString();
@@ -515,7 +515,7 @@ const SOForm = React.memo(
                       >
                         <option value="">Select Item...</option>
                         {stableStockItems.map((stock) => (
-                          <option key={stock._id} value={stock.itemId}>
+                          <option key={stock._id} value={stock._id}>
                             {stock.itemId} - {stock.itemName}
                           </option>
                         ))}
@@ -540,7 +540,7 @@ const SOForm = React.memo(
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
                       <input
                         type="text"
-                        value={item.category || ""}
+                         value={item.category?.name || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />

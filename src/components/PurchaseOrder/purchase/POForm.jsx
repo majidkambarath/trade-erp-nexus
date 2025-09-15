@@ -82,11 +82,12 @@ const POForm = React.memo(
     // Handle item field changes
     const handleItemChange = useCallback(
       (index, field, value) => {
+        console.log(field, value);
         const newItems = [...formData.items];
         newItems[index][field] = value;
 
         if (field === "itemId") {
-          const item = stockItems.find((i) => i.itemId === value);
+          const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
             newItems[index].purchasePrice = item.purchasePrice.toString();
@@ -160,6 +161,7 @@ const POForm = React.memo(
       }
 
       try {
+        console.log(formData.items)
         const totals = calculateTotals(formData.items);
         const transactionData = {
           transactionNo: formData.transactionNo,
@@ -520,7 +522,7 @@ const POForm = React.memo(
                       >
                         <option value="">Select Item...</option>
                         {stableStockItems.map((stock) => (
-                          <option key={stock._id} value={stock.itemId}>
+                          <option key={stock._id} value={stock._id}>
                             {stock.itemId} - {stock.itemName}
                           </option>
                         ))}
@@ -545,7 +547,7 @@ const POForm = React.memo(
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
                       <input
                         type="text"
-                        value={item.category || ""}
+                        value={item.category?.name || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />

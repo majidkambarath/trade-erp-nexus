@@ -54,39 +54,39 @@ const Sidebar = () => {
   // Navigation structure based on ERP requirements
   const navigationSections = useMemo(() => {
     const sections = [
-      // {
-      //   key: "financial",
-      //   icon: <DollarSign strokeWidth={1.5} size={22} />,
-      //   text: "Financial Modules",
-      //   // to: "/financial",
-      //   children: [
-      //     {
-      //       icon: <Receipt strokeWidth={1.5} size={20} />,
-      //       text: "Receipt Voucher",
-      //       to: "/receipt-voucher",
-      //     },
-      //     {
-      //       icon: <CreditCard strokeWidth={1.5} size={20} />,
-      //       text: "Payment Voucher",
-      //       to: "/payment-voucher",
-      //     },
-      //     {
-      //       icon: <Calculator strokeWidth={1.5} size={20} />,
-      //       text: "Journal Voucher",
-      //       to: "/journal-voucher",
-      //     },
-      //     {
-      //       icon: <Wallet strokeWidth={1.5} size={20} />,
-      //       text: "Contra Voucher",
-      //       to: "/contra-voucher",
-      //     },
-      //     {
-      //       icon: <TrendingUp strokeWidth={1.5} size={20} />,
-      //       text: "Expense Voucher",
-      //       to: "/expense-voucher",
-      //     },
-      //   ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
-      // },
+      {
+        key: "financial",
+        icon: <DollarSign strokeWidth={1.5} size={22} />,
+        text: "Financial Modules",
+        // to: "/financial",
+        children: [
+          {
+            icon: <Receipt strokeWidth={1.5} size={20} />,
+            text: "Receipt Voucher",
+            to: "/receipt-voucher",
+          },
+          {
+            icon: <CreditCard strokeWidth={1.5} size={20} />,
+            text: "Payment Voucher",
+            to: "/payment-voucher",
+          },
+          {
+            icon: <Calculator strokeWidth={1.5} size={20} />,
+            text: "Journal Voucher",
+            to: "/journal-voucher",
+          },
+          {
+            icon: <Wallet strokeWidth={1.5} size={20} />,
+            text: "Contra Voucher",
+            to: "/contra-voucher",
+          },
+          {
+            icon: <TrendingUp strokeWidth={1.5} size={20} />,
+            text: "Expense Voucher",
+            to: "/expense-voucher",
+          },
+        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+      },
       {
         key: "vendorModules",
         icon: <Briefcase strokeWidth={1.5} size={22} />,

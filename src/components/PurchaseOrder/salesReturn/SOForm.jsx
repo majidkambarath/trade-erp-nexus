@@ -55,8 +55,10 @@ const SalesReturnForm = React.memo(
       formData.items.forEach((item, index) => {
         if (item.itemId || item.qty) {
           if (!item.itemId) errors[`itemId_${index}`] = "Item code is required";
-          if (!item.qty || item.qty <= 0) errors[`qty_${index}`] = "Quantity must be greater than 0";
-          if (!item.taxPercent || item.taxPercent < 0) errors[`taxPercent_${index}`] = "Tax % must be non-negative";
+          if (!item.qty || item.qty <= 0)
+            errors[`qty_${index}`] = "Quantity must be greater than 0";
+          if (!item.taxPercent || item.taxPercent < 0)
+            errors[`taxPercent_${index}`] = "Tax % must be non-negative";
         }
       });
       setFormErrors(errors);
@@ -96,13 +98,15 @@ const SalesReturnForm = React.memo(
         newItems[index][field] = value;
 
         if (field === "itemId") {
-          const item = stockItems.find((i) => i.itemId === value);
+          const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
             newItems[index].salesPrice = item.salesPrice.toString();
             newItems[index].category = item.category || "";
             newItems[index].rate = newItems[index].qty
-              ? (parseFloat(item.salesPrice) * parseFloat(newItems[index].qty)).toString()
+              ? (
+                  parseFloat(item.salesPrice) * parseFloat(newItems[index].qty)
+                ).toString()
               : item.salesPrice.toString();
             if (item.currentStock < item.reorderLevel) {
               addNotification(
@@ -581,7 +585,9 @@ const SalesReturnForm = React.memo(
                     className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
                   >
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Item
+                      </label>
                       <select
                         value={item.itemId || ""}
                         onChange={(e) =>
@@ -595,7 +601,7 @@ const SalesReturnForm = React.memo(
                       >
                         <option value="">Select Item...</option>
                         {stableStockItems.map((stock) => (
-                          <option key={stock._id} value={stock.itemId}>
+                          <option key={stock._id} value={stock._id}>
                             {stock.itemId} - {stock.itemName}
                           </option>
                         ))}
@@ -608,7 +614,9 @@ const SalesReturnForm = React.memo(
                     </div>
 
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Description
+                      </label>
                       <input
                         type="text"
                         value={item.description || ""}
@@ -621,17 +629,21 @@ const SalesReturnForm = React.memo(
                     </div>
 
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Category
+                      </label>
                       <input
                         type="text"
-                        value={item.category || ""}
+                        value={item.category?.name || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
                     </div>
 
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Sales Price</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Sales Price
+                      </label>
                       <input
                         type="number"
                         value={item.salesPrice || ""}
@@ -641,7 +653,9 @@ const SalesReturnForm = React.memo(
                     </div>
 
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Quantity
+                      </label>
                       <input
                         type="number"
                         value={item.qty || ""}
@@ -664,7 +678,9 @@ const SalesReturnForm = React.memo(
                     </div>
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rate</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Rate
+                      </label>
                       <input
                         type="number"
                         value={item.rate || ""}
@@ -674,7 +690,9 @@ const SalesReturnForm = React.memo(
                     </div>
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tax %</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Tax %
+                      </label>
                       <input
                         type="number"
                         value={item.taxPercent || ""}
