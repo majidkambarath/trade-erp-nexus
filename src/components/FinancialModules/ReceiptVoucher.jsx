@@ -13,16 +13,9 @@ import {
   Trash2,
   X,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  CreditCard,
-  Building,
-  Users,
   TrendingUp,
   Clock,
   AlertTriangle,
-  UserPlus,
   Loader2,
   RefreshCw,
   Save,
@@ -32,15 +25,18 @@ import {
   Filter,
   Receipt,
   Calendar,
-  DollarSign,
+  CreditCard,
   FileText,
-  Link,
+  Link as LinkIcon,
+  DollarSign,
+  Building,
   Banknote,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 
-// Utility to apply color filter based on class
+/* -------------------------- Utilities & Helpers -------------------------- */
+
 const getColorFilter = (colorClass) => {
   switch (colorClass) {
     case "text-emerald-700":
@@ -56,53 +52,118 @@ const getColorFilter = (colorClass) => {
   }
 };
 
-// Session management utilities
+// In-memory session manager (fixed 'this' references)
+// If you want persistence across reloads, switch to localStorage safely.
 const SessionManager = {
   storage: {},
-
-  get: (key) => {
+  key: (k) => `receipt_session_${k}`,
+  get(key) {
     try {
-      return this.storage[`receipt_session_${key}`] || null;
+      return SessionManager.storage[SessionManager.key(key)] ?? null;
     } catch {
       return null;
     }
   },
-
-  set: (key, value) => {
+  set(key, value) {
     try {
-      this.storage[`receipt_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
+      SessionManager.storage[SessionManager.key(key)] = value;
+    } catch {}
   },
-
-  remove: (key) => {
+  remove(key) {
     try {
-      delete this.storage[`receipt_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
+      delete SessionManager.storage[SessionManager.key(key)];
+    } catch {}
   },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("receipt_session_")) {
-        delete this.storage[key];
-      }
+  clear() {
+    Object.keys(SessionManager.storage).forEach((k) => {
+      if (k.startsWith("receipt_session_")) delete SessionManager.storage[k];
     });
   },
 };
 
+// Safe array helper
+const asArray = (x) => (Array.isArray(x) ? x : []);
+
+// Normalize API responses that might wrap data
+const takeArray = (resp) => {
+  // supports: resp.data -> array | {data: array} | {data: {data: array}}
+  if (!resp) return [];
+  const d = resp.data;
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data.data ?? d.data; // tolerate either
+  if (Array.isArray(d?.vouchers)) return d.vouchers;
+  return [];
+};
+
+// Payment mode display helpers
+const displayMode = (mode) => {
+  // Normalize case from backend ('cash') or frontend ('Cash')
+  const m = (mode || "").toString().toLowerCase();
+  return m === "cash"
+    ? "Cash"
+    : m === "bank"
+    ? "Bank"
+    : m === "cheque"
+    ? "Cheque"
+    : m === "online"
+    ? "Online"
+    : mode || "Unknown";
+};
+
+const badgeClassForMode = (mode) => {
+  const m = displayMode(mode);
+  const badges = {
+    Cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    Bank: "bg-blue-100 text-blue-800 border border-blue-200",
+    Cheque: "bg-purple-100 text-purple-800 border border-purple-200",
+    Online: "bg-indigo-100 text-indigo-800 border border-indigo-200",
+  };
+  return badges[m] || "bg-slate-100 text-slate-800 border border-slate-200";
+};
+
+const iconForMode = (mode) => {
+  const m = displayMode(mode);
+  const map = {
+    Cash: <DollarSign size={14} className="text-emerald-600" />,
+    Bank: <Building size={14} className="text-blue-600" />,
+    Cheque: <FileText size={14} className="text-purple-600" />,
+    Online: <CreditCard size={14} className="text-indigo-600" />,
+  };
+  return map[m] || <DollarSign size={14} className="text-slate-600" />;
+};
+
+const formatCurrency = (amount, colorClass = "text-gray-900") => {
+  const numAmount = Number(amount) || 0;
+  const absAmount = Math.abs(numAmount).toFixed(2);
+  const isNegative = numAmount < 0;
+  return (
+    <span className={`inline-flex items-center ${colorClass}`}>
+      {isNegative && "-"}
+      <img
+        src={DirhamIcon}
+        alt="AED"
+        className="w-4.5 h-4.5 mr-1"
+        style={{ filter: getColorFilter(colorClass) }}
+      />
+      {absAmount}
+    </span>
+  );
+};
+
+const by = (v) => (typeof v === "string" ? v.toLowerCase() : v);
+
+/* ------------------------------ Main Component ------------------------------ */
+
 const ReceiptVoucherManagement = () => {
-  const [receipts, setReceipts] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [availableInvoices, setAvailableInvoices] = useState([]);
+  const [receipts, setReceipts] = useState([]); // always array
+  const [customers, setCustomers] = useState([]); // always array
+  const [availableInvoices, setAvailableInvoices] = useState([]); // for selected customer
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editReceiptId, setEditReceiptId] = useState(null);
   const [formData, setFormData] = useState({
     voucherNo: "",
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
     customerName: "",
     customerId: "",
     linkedInvoices: [],
@@ -119,193 +180,121 @@ const ReceiptVoucherManagement = () => {
     type: "success",
   });
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [deleteConfirmation, setDeleteConfirmation] = useState({
-    visible: false,
-    receiptId: null,
-    voucherNo: "",
-    isDeleting: false,
-  });
-
-  // New UX enhancement states
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
-  // Refs for enhanced UX
   const formRef = useRef(null);
-  const autoSaveInterval = useRef(null);
+  const autoSaveTimer = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Updated formatCurrency function using DirhamIcon
-  const formatCurrency = useCallback(
-    (amount, colorClass = "text-gray-900", textSize) => {
-      const numAmount = Number(amount) || 0;
-      const absAmount = Math.abs(numAmount).toFixed(2);
-      const isNegative = numAmount < 0;
+  /* ------------------------------ Effects: Session ------------------------------ */
 
-      return (
-        <span className={`inline-flex items-center ${colorClass} `}>
-          {isNegative && "-"}
-          <img
-            src={DirhamIcon}
-            alt="AED"
-            className={`${textSize ? "w-6.5 h-7.5" : "w-4.5 h-4.5"}  mr-1 `}
-            style={{ filter: getColorFilter(colorClass) }}
-          />
-          {absAmount}
-        </span>
-      );
-    },
-    []
-  );
-
-  // Load session data on component mount
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
 
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
+    if (savedFormData && typeof savedFormData === "object") {
+      setFormData((prev) => ({ ...prev, ...savedFormData }));
     }
-
     if (savedFilters) {
       setFilterPaymentMode(savedFilters.paymentMode || "");
-      setFilterStatus(savedFilters.status || "");
     }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
+    if (savedSearchTerm) setSearchTerm(savedSearchTerm);
   }, []);
 
-  // Auto-save form data to session
   useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
-      autoSaveInterval.current = setTimeout(() => {
+    if (showModal) {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(() => {
         SessionManager.set("formData", formData);
         SessionManager.set("lastSaveTime", new Date().toISOString());
-        setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
-      }, 2000);
+      }, 800);
     }
-
-    return () => {
-      if (autoSaveInterval.current) {
-        clearTimeout(autoSaveInterval.current);
-      }
-    };
+    return () => autoSaveTimer.current && clearTimeout(autoSaveTimer.current);
   }, [formData, showModal]);
 
-  // Save search and filter preferences
   useEffect(() => {
     SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
-
   useEffect(() => {
-    SessionManager.set("filters", {
-      paymentMode: filterPaymentMode,
-      status: filterStatus,
-    });
-  }, [filterPaymentMode, filterStatus]);
+    SessionManager.set("filters", { paymentMode: filterPaymentMode });
+  }, [filterPaymentMode]);
 
-  // Fetch receipts from backend
-  const fetchReceipts = useCallback(async (showRefreshIndicator = false) => {
-    try {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+  /* ------------------------------ Data Fetchers ------------------------------ */
 
-      const response = await axiosInstance.get("/receipts");
-      setReceipts(response.data.data || []);
-
-      if (showRefreshIndicator) {
-        showToastMessage("Data refreshed successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Failed to fetch receipts:", error);
-      showToastMessage(
-        error.response?.data?.message || "Failed to fetch receipt vouchers.",
-        "error"
-      );
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
+  const showToastMessage = useCallback((message, type = "success") => {
+    setShowToast({ visible: true, message, type });
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      2800
+    );
   }, []);
 
-  // Fetch customers from backend
+  const fetchReceipts = useCallback(
+    async (showRefreshIndicator = false) => {
+      try {
+        showRefreshIndicator ? setIsRefreshing(true) : setIsLoading(true);
+        // adjust path to match your API
+        const response = await axiosInstance.get("/vouchers/vouchers", {
+          params: { voucherType: "receipt" }, // only receipts for this screen
+        });
+        console.log(response);
+        const arr = takeArray(response);
+        setReceipts(asArray(arr));
+        if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
+      } catch (err) {
+        console.error("Failed to fetch receipts:", err);
+        showToastMessage(
+          err.response?.data?.message || "Failed to fetch receipt vouchers.",
+          "error"
+        );
+        setReceipts([]); // ensure array
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [showToastMessage]
+  );
+
   const fetchCustomers = useCallback(async () => {
     try {
       const response = await axiosInstance.get("/customers/customers");
-      setCustomers(response.data.data || []);
-    } catch (error) {
-      console.error("Failed to fetch customers:", error);
+      setCustomers(asArray(takeArray(response)));
+    } catch (err) {
+      console.error("Failed to fetch customers:", err);
       showToastMessage("Failed to fetch customers.", "error");
+      setCustomers([]);
     }
-  }, []);
+  }, [showToastMessage]);
 
-  // Fetch unpaid invoices from backend
-  // const fetchUnpaidInvoices = useCallback(async (customerId = null) => {
-  //   try {
-  //     const params = customerId 
-  //       ? `?partyId=${customerId}&partyType=customer&status=PENDING` 
-  //       : "?partyType=customer&status=PENDING";
-      
-  //     const response = await axiosInstance.get(`/transactions/transactions${params}`);
-  //     const transactions = response.data.data || [];
-      
-  //     // Filter only sales orders that are pending
-  //     const unpaidInvoices = transactions.filter(
-  //       (transaction) => 
-  //         transaction.type === "sales_order" && 
-  //         transaction.status === "PENDING" &&
-  //         transaction.invoiceGenerated === true
-  //     );
-      
-  //     setAvailableInvoices(unpaidInvoices);
-  //   } catch (error) {
-  //     console.error("Failed to fetch unpaid invoices:", error);
-  //     showToastMessage("Failed to fetch unpaid invoices.", "error");
-  //   }
-  // }, []);
+  const fetchUnpaidInvoices = useCallback(
+    async (customerId = null) => {
+      try {
+        const params = new URLSearchParams();
+        if (customerId) params.append("partyId", customerId);
+        params.append("partyType", "customer");
+        params.append("type", "sales_order");
+        params.append("status", "DRAFT");
 
-  const fetchUnpaidInvoices = useCallback(async (customerId = null) => {
-    try {
-      const params = new URLSearchParams();
-      
-      if (customerId) {
-        params.append('partyId', customerId);
+        const response = await axiosInstance.get(
+          `/transactions/transactions?${params.toString()}`
+        );
+        const transactions = asArray(takeArray(response));
+        // business rule: show only those without invoice generated
+        setAvailableInvoices(
+          transactions.filter((t) => t?.invoiceGenerated === false)
+        );
+      } catch (err) {
+        console.error("Failed to fetch available invoices:", err);
+        showToastMessage("Failed to fetch available invoices.", "error");
+        setAvailableInvoices([]);
       }
-      
-      params.append('partyType', 'customer');
-      params.append('type', 'sales_order');
-      params.append('status', 'DRAFT');
-
-      const response = await axiosInstance.get(
-        `/transactions/transactions?${params.toString()}`
-      );
-
-      const transactions = response.data.data || [];
-
-      // Filter for invoices that have been generated
-      const availableInvoices = transactions.filter(
-        (transaction) => transaction.invoiceGenerated === true
-      );
-
-      setAvailableInvoices(availableInvoices);
-    } catch (error) {
-      console.error("Failed to fetch available invoices:", error);
-      showToastMessage("Failed to fetch available invoices.", "error");
-    }
-  }, []);
+    },
+    [showToastMessage]
+  );
 
   useEffect(() => {
     fetchReceipts();
@@ -313,112 +302,113 @@ const ReceiptVoucherManagement = () => {
     fetchUnpaidInvoices();
   }, [fetchReceipts, fetchCustomers, fetchUnpaidInvoices]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+  /* ------------------------------ Handlers ------------------------------ */
 
   const handleChange = useCallback(
     (e) => {
       const { name, value } = e.target;
       setFormData((prev) => ({ ...prev, [name]: value }));
       if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-      setIsDraftSaved(false);
 
-      // When customer changes, fetch their unpaid invoices
-      if (name === "customerId" && value) {
+      if (name === "customerId") {
+        const selected = customers.find((c) => c._id === value);
+        setFormData((prev) => ({
+          ...prev,
+          customerName: selected?.customerName || "",
+        }));
         fetchUnpaidInvoices(value);
-        const selectedCustomer = customers.find(c => c._id === value);
-        if (selectedCustomer) {
-          setFormData(prev => ({
-            ...prev,
-            customerName: selectedCustomer.customerName
-          }));
-        }
       }
     },
     [errors, customers, fetchUnpaidInvoices]
   );
 
-  const handleInvoiceSelection = useCallback((invoiceId) => {
-    setFormData(prev => {
-      const currentInvoices = prev.linkedInvoices || [];
-      const isSelected = currentInvoices.includes(invoiceId);
-      
-      let newInvoices;
-      if (isSelected) {
-        newInvoices = currentInvoices.filter(id => id !== invoiceId);
-      } else {
-        newInvoices = [...currentInvoices, invoiceId];
-      }
+  const handleInvoiceSelection = useCallback(
+    (invoiceId) => {
+      setFormData((prev) => {
+        const list = asArray(prev.linkedInvoices);
+        const isSelected = list.includes(invoiceId);
+        const newList = isSelected
+          ? list.filter((id) => id !== invoiceId)
+          : [...list, invoiceId];
 
-      // Calculate total amount based on selected invoices
-      const totalAmount = newInvoices.reduce((sum, id) => {
-        const invoice = availableInvoices.find(inv => inv._id === id);
-        return sum + (invoice ? invoice.totalAmount : 0);
-      }, 0);
+        const total = newList.reduce((sum, id) => {
+          const inv = availableInvoices.find((x) => x._id === id);
+          return sum + (Number(inv?.totalAmount) || 0);
+        }, 0);
 
-      return {
-        ...prev,
-        linkedInvoices: newInvoices,
-        amount: totalAmount.toString()
-      };
-    });
-    setIsDraftSaved(false);
-  }, [availableInvoices]);
+        return { ...prev, linkedInvoices: newList, amount: String(total) };
+      });
+    },
+    [availableInvoices]
+  );
 
   const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.customerId) newErrors.customerId = "Customer is required";
-    if (!formData.date) newErrors.date = "Date is required";
-    if (!formData.paymentMode) newErrors.paymentMode = "Payment mode is required";
-    if (!formData.amount || Number(formData.amount) <= 0) 
-      newErrors.amount = "Amount must be greater than 0";
-    if (formData.linkedInvoices.length === 0) 
-      newErrors.linkedInvoices = "At least one invoice must be selected";
-    
-    return newErrors;
+    const e = {};
+    if (!formData.customerId) e.customerId = "Customer is required";
+    if (!formData.date) e.date = "Date is required";
+    if (!formData.paymentMode) e.paymentMode = "Payment mode is required";
+    if (!formData.amount || Number(formData.amount) <= 0)
+      e.amount = "Amount must be greater than 0";
+    if (!asArray(formData.linkedInvoices).length)
+      e.linkedInvoices = "At least one invoice must be selected";
+    return e;
   }, [formData]);
 
+  const resetForm = useCallback(() => {
+    setEditReceiptId(null);
+    setFormData({
+      voucherNo: "",
+      date: new Date().toISOString().split("T")[0],
+      customerName: "",
+      customerId: "",
+      linkedInvoices: [],
+      paymentMode: "Cash",
+      amount: "",
+      narration: "",
+    });
+    setErrors({});
+    setShowModal(false);
+    setAvailableInvoices([]);
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
+  }, []);
+
   const handleSubmit = useCallback(async () => {
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    const e = validateForm();
+    if (Object.keys(e).length) {
+      setErrors(e);
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // map display PaymentMode to backend lowercase mode
+      const modeLower = formData.paymentMode.toString().toLowerCase();
+
       const payload = {
         date: formData.date,
         customerId: formData.customerId,
         customerName: formData.customerName,
-        linkedInvoices: formData.linkedInvoices,
-        paymentMode: formData.paymentMode,
-        amount: Number(formData.amount),
+        linkedInvoices: asArray(formData.linkedInvoices),
+        paymentMode: modeLower, // backend expects lower-case per your service
+        totalAmount: Number(formData.amount), // FinancialService expects totalAmount
         narration: formData.narration,
+        voucherType: "receipt",
       };
 
       if (editReceiptId) {
-        await axiosInstance.put(`/receipts/${editReceiptId}`, payload);
+        await axiosInstance.put(`/vouchers/vouchers/${editReceiptId}`, payload);
         showToastMessage("Receipt voucher updated successfully!", "success");
       } else {
-        await axiosInstance.post("/receipts", payload);
+        await axiosInstance.post("/vouchers/vouchers", payload);
         showToastMessage("Receipt voucher created successfully!", "success");
       }
 
       await fetchReceipts();
       resetForm();
-
-      // Clear session data after successful submission
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
-    } catch (error) {
+    } catch (err) {
       showToastMessage(
-        error.response?.data?.message || "Failed to save receipt voucher.",
+        err.response?.data?.message || "Failed to save receipt voucher.",
         "error"
       );
     } finally {
@@ -428,34 +418,43 @@ const ReceiptVoucherManagement = () => {
     editReceiptId,
     formData,
     fetchReceipts,
-    validateForm,
+    resetForm,
     showToastMessage,
+    validateForm,
   ]);
 
-  const handleEdit = useCallback((receipt) => {
-    setEditReceiptId(receipt._id);
-    setFormData({
-      voucherNo: receipt.voucherNo,
-      date: new Date(receipt.date).toISOString().split('T')[0],
-      customerName: receipt.customerName,
-      customerId: receipt.customerId,
-      linkedInvoices: receipt.linkedInvoices || [],
-      paymentMode: receipt.paymentMode,
-      amount: receipt.amount.toString(),
-      narration: receipt.narration || "",
-    });
-    setShowModal(true);
-    setIsDraftSaved(false);
+  const handleEdit = useCallback(
+    (receipt) => {
+      setEditReceiptId(receipt._id);
+      setFormData({
+        voucherNo: receipt.voucherNo,
+        date: new Date(receipt.date).toISOString().split("T")[0],
+        customerName:
+          receipt.partyName ||
+          receipt.customerName ||
+          receipt.partyId?.customerName ||
+          "",
+        customerId:
+          typeof receipt.partyId === "object"
+            ? receipt.partyId?._id
+            : receipt.partyId || receipt.customerId || "",
+        linkedInvoices: asArray(receipt.linkedInvoices),
+        paymentMode: displayMode(receipt.paymentMode),
+        amount: String(receipt.totalAmount || receipt.amount || 0),
+        narration: receipt.narration || "",
+      });
 
-    // Fetch invoices for the selected customer
-    if (receipt.customerId) {
-      fetchUnpaidInvoices(receipt.customerId);
-    }
-
-    // Clear any existing draft when editing
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, [fetchUnpaidInvoices]);
+      setShowModal(true);
+      const customerId =
+        typeof receipt.partyId === "object"
+          ? receipt.partyId?._id
+          : receipt.partyId || receipt.customerId;
+      if (customerId) fetchUnpaidInvoices(customerId);
+      SessionManager.remove("formData");
+      SessionManager.remove("lastSaveTime");
+    },
+    [fetchUnpaidInvoices]
+  );
 
   const showDeleteConfirmation = useCallback((receipt) => {
     setDeleteConfirmation({
@@ -465,6 +464,13 @@ const ReceiptVoucherManagement = () => {
       isDeleting: false,
     });
   }, []);
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    visible: false,
+    receiptId: null,
+    voucherNo: "",
+    isDeleting: false,
+  });
 
   const hideDeleteConfirmation = useCallback(() => {
     setDeleteConfirmation({
@@ -477,20 +483,19 @@ const ReceiptVoucherManagement = () => {
 
   const confirmDelete = useCallback(async () => {
     setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
-
     try {
-      await axiosInstance.delete(`/receipts/${deleteConfirmation.receiptId}`);
+      await axiosInstance.delete(
+        `/vouchers/vouchers/${deleteConfirmation.receiptId}`
+      );
       setReceipts((prev) =>
-        prev.filter(
-          (receipt) => receipt._id !== deleteConfirmation.receiptId
-        )
+        asArray(prev).filter((r) => r._id !== deleteConfirmation.receiptId)
       );
       showToastMessage("Receipt voucher deleted successfully!", "success");
       hideDeleteConfirmation();
       await fetchReceipts();
-    } catch (error) {
+    } catch (err) {
       showToastMessage(
-        error.response?.data?.message || "Failed to delete receipt voucher.",
+        err.response?.data?.message || "Failed to delete receipt voucher.",
         "error"
       );
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
@@ -498,113 +503,62 @@ const ReceiptVoucherManagement = () => {
   }, [
     deleteConfirmation.receiptId,
     fetchReceipts,
-    showToastMessage,
     hideDeleteConfirmation,
+    showToastMessage,
   ]);
-
-  const resetForm = useCallback(() => {
-    setEditReceiptId(null);
-    setFormData({
-      voucherNo: "",
-      date: new Date().toISOString().split('T')[0],
-      customerName: "",
-      customerId: "",
-      linkedInvoices: [],
-      paymentMode: "Cash",
-      amount: "",
-      narration: "",
-    });
-    setErrors({});
-    setShowModal(false);
-    setIsDraftSaved(false);
-    setLastSaveTime(null);
-    setAvailableInvoices([]);
-
-    // Clear session draft
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
 
   const openAddModal = useCallback(() => {
     resetForm();
     setShowModal(true);
     setTimeout(() => {
       const modal = document.querySelector(".modal-container");
-      if (modal) {
-        modal.classList.add("scale-100");
-      }
-
-      // Focus first input
+      if (modal) modal.classList.add("scale-100");
       if (formRef.current) {
-        const firstSelect = formRef.current.querySelector('select[name="customerId"]');
+        const firstSelect = formRef.current.querySelector(
+          'select[name="customerId"]'
+        );
         if (firstSelect) firstSelect.focus();
       }
     }, 10);
   }, [resetForm]);
 
-  const handleRefresh = useCallback(() => {
-    fetchReceipts(true);
-  }, [fetchReceipts]);
+  const handleRefresh = useCallback(() => fetchReceipts(true), [fetchReceipts]);
 
   const handleSort = useCallback((key) => {
-    setSortConfig((prevConfig) => ({
+    setSortConfig((prev) => ({
       key,
-      direction:
-        prevConfig.key === key && prevConfig.direction === "asc"
-          ? "desc"
-          : "asc",
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
-  }, []);
-
-  const getPaymentModeBadge = useCallback((mode) => {
-    const badges = {
-      Cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      Bank: "bg-blue-100 text-blue-800 border border-blue-200",
-      Cheque: "bg-purple-100 text-purple-800 border border-purple-200",
-      Online: "bg-indigo-100 text-indigo-800 border border-indigo-200",
-    };
-    return (
-      badges[mode] || "bg-slate-100 text-slate-800 border border-slate-200"
-    );
-  }, []);
-
-  const getPaymentModeIcon = useCallback((mode) => {
-    const icons = {
-      Cash: <DollarSign size={14} className="text-emerald-600" />,
-      Bank: <Building size={14} className="text-blue-600" />,
-      Cheque: <FileText size={14} className="text-purple-600" />,
-      Online: <CreditCard size={14} className="text-indigo-600" />,
-    };
-    return (
-      icons[mode] || <DollarSign size={14} className="text-slate-600" />
-    );
   }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
-    const time = new Date(timeString);
-    const now = new Date();
-    const diffMs = now - time;
-    const diffMins = Math.floor(diffMs / 60000);
-
+    const t = new Date(timeString);
+    const diffMins = Math.floor((Date.now() - t.getTime()) / 60000);
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return t.toLocaleTimeString();
   }, []);
 
-  // Enhanced statistics calculations
-  const receiptStats = useMemo(() => {
-    const totalReceipts = receipts.length;
-    const totalAmount = receipts.reduce((sum, r) => sum + (r.amount || 0), 0);
-    const todayReceipts = receipts.filter(r => {
-      const receiptDate = new Date(r.date).toDateString();
-      const today = new Date().toDateString();
-      return receiptDate === today;
-    }).length;
-    const avgAmount = totalReceipts > 0 ? totalAmount / totalReceipts : 0;
+  /* ------------------------------ Derived Data ------------------------------ */
 
-    const paymentModeStats = receipts.reduce((acc, receipt) => {
-      const mode = receipt.paymentMode || "Unknown";
+  const safeReceipts = useMemo(() => asArray(receipts), [receipts]);
+
+  // FIX: receipts?.reduce -> safeReceipts.reduce (always an array)
+  const receiptStats = useMemo(() => {
+    const totalReceipts = safeReceipts.length;
+    const totalAmount = safeReceipts.reduce(
+      (sum, r) => sum + (Number(r.totalAmount ?? r.amount) || 0),
+      0
+    );
+    const todayStr = new Date().toDateString();
+    const todayReceipts = safeReceipts.filter(
+      (r) => new Date(r.date).toDateString() === todayStr
+    ).length;
+    const avgAmount = totalReceipts ? totalAmount / totalReceipts : 0;
+
+    const paymentModeStats = safeReceipts.reduce((acc, r) => {
+      const mode = displayMode(r.paymentMode);
       acc[mode] = (acc[mode] || 0) + 1;
       return acc;
     }, {});
@@ -616,36 +570,70 @@ const ReceiptVoucherManagement = () => {
       avgAmount,
       paymentModeStats,
     };
-  }, [receipts]);
+  }, [safeReceipts]);
 
   const sortedAndFilteredReceipts = useMemo(() => {
-    let filtered = receipts.filter(
-      (receipt) =>
-        (receipt.voucherNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          receipt.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          receipt.narration?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (filterPaymentMode ? receipt.paymentMode === filterPaymentMode : true)
-    );
+    const term = searchTerm.trim().toLowerCase();
+    let filtered = safeReceipts.filter((r) => {
+      const voucherNo = r.voucherNo?.toLowerCase() || "";
+      const customerName = (r.partyName || r.customerName || "").toLowerCase();
+      const narration = r.narration?.toLowerCase() || "";
+      const modeOk = filterPaymentMode
+        ? displayMode(r.paymentMode) === filterPaymentMode
+        : true;
+      return (
+        (voucherNo.includes(term) ||
+          customerName.includes(term) ||
+          narration.includes(term)) &&
+        modeOk
+      );
+    });
 
     if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
+      const { key, direction } = sortConfig;
+      filtered = [...filtered].sort((a, b) => {
+        const av =
+          key === "amount"
+            ? Number(a.totalAmount ?? a.amount)
+            : key === "date"
+            ? new Date(a.date).getTime()
+            : key === "linkedInvoices"
+            ? asArray(a.linkedInvoices).length
+            : by(a[key]);
+        const bv =
+          key === "amount"
+            ? Number(b.totalAmount ?? b.amount)
+            : key === "date"
+            ? new Date(b.date).getTime()
+            : key === "linkedInvoices"
+            ? asArray(b.linkedInvoices).length
+            : by(b[key]);
 
-        if (aValue < bValue) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
+        if (av < bv) return direction === "asc" ? -1 : 1;
+        if (av > bv) return direction === "asc" ? 1 : -1;
         return 0;
       });
     }
 
     return filtered;
-  }, [receipts, searchTerm, filterPaymentMode, sortConfig]);
+  }, [safeReceipts, searchTerm, filterPaymentMode, sortConfig]);
 
-  // Enhanced Empty State Component
+  /* ------------------------------ UI ------------------------------ */
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2
+            size={48}
+            className="text-purple-600 animate-spin mx-auto mb-4"
+          />
+          <p className="text-gray-600 text-lg">Loading receipt vouchers...</p>
+        </div>
+      </div>
+    );
+  }
+
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
       <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
@@ -669,23 +657,11 @@ const ReceiptVoucherManagement = () => {
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2
-            size={48}
-            className="text-purple-600 animate-spin mx-auto mb-4"
-          />
-          <p className="text-gray-600 text-lg">Loading receipt vouchers...</p>
-        </div>
-      </div>
-    );
-  }
+  const lastSaveTime = SessionManager.get("lastSaveTime");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -716,7 +692,7 @@ const ReceiptVoucherManagement = () => {
           </button>
 
           <button
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={() => setShowFilters((v) => !v)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
               showFilters
                 ? "bg-purple-100 text-purple-600"
@@ -729,7 +705,7 @@ const ReceiptVoucherManagement = () => {
         </div>
       </div>
 
-      {/* Toast Notification */}
+      {/* Toast */}
       {showToast.visible && (
         <div
           className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
@@ -747,7 +723,7 @@ const ReceiptVoucherManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Statistics Cards */}
+      {/* Stats */}
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
@@ -775,8 +751,7 @@ const ReceiptVoucherManagement = () => {
               title: "Total Amount",
               count: formatCurrency(
                 receiptStats.totalAmount,
-                "text-purple-700",
-                "w-6.5 h-7.5"
+                "text-purple-700"
               ),
               icon: <TrendingUp size={24} />,
               bgColor: "bg-purple-50",
@@ -784,15 +759,10 @@ const ReceiptVoucherManagement = () => {
               borderColor: "border-purple-200",
               iconBg: "bg-purple-100",
               iconColor: "text-purple-600",
-              textSize: "text-4xl",
             },
             {
               title: "Avg Receipt Value",
-              count: formatCurrency(
-                receiptStats.avgAmount,
-                "text-indigo-700",
-                "w-6.5 h-7.5"
-              ),
+              count: formatCurrency(receiptStats.avgAmount, "text-indigo-700"),
               icon: <Banknote size={24} />,
               bgColor: "bg-indigo-50",
               textColor: "text-indigo-700",
@@ -800,9 +770,9 @@ const ReceiptVoucherManagement = () => {
               iconBg: "bg-indigo-100",
               iconColor: "text-indigo-600",
             },
-          ].map((card, index) => (
+          ].map((card, i) => (
             <div
-              key={index}
+              key={i}
               className={`${card.bgColor} ${card.borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
             >
               <div className="flex items-center justify-between mb-4">
@@ -833,7 +803,7 @@ const ReceiptVoucherManagement = () => {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Card */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
         {/* Header */}
         <div className="p-6 border-b border-gray-100">
@@ -855,12 +825,12 @@ const ReceiptVoucherManagement = () => {
             </button>
           </div>
 
-          {/* Search and Filters */}
+          {/* Search + Filters */}
           <div className="mt-6 space-y-4">
             <div className="relative">
               <Search
                 size={18}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
               />
               <input
                 ref={searchInputRef}
@@ -873,7 +843,7 @@ const ReceiptVoucherManagement = () => {
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X size={16} />
                 </button>
@@ -908,7 +878,7 @@ const ReceiptVoucherManagement = () => {
           </div>
         </div>
 
-        {/* Table/Content */}
+        {/* Table */}
         {sortedAndFilteredReceipts.length === 0 ? (
           <EmptyState />
         ) : (
@@ -925,17 +895,15 @@ const ReceiptVoucherManagement = () => {
                     { key: "amount", label: "Amount" },
                     { key: "narration", label: "Narration" },
                     { key: null, label: "Actions" },
-                  ].map((column) => (
+                  ].map((col) => (
                     <th
-                      key={column.key || "actions"}
+                      key={col.key || "actions"}
                       className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={
-                        column.key ? () => handleSort(column.key) : undefined
-                      }
+                      onClick={col.key ? () => handleSort(col.key) : undefined}
                     >
                       <div className="flex items-center space-x-1">
-                        <span>{column.label}</span>
-                        {column.key && sortConfig.key === column.key && (
+                        <span>{col.label}</span>
+                        {col.key && sortConfig.key === col.key && (
                           <span className="text-purple-600">
                             {sortConfig.direction === "asc" ? "↑" : "↓"}
                           </span>
@@ -946,40 +914,43 @@ const ReceiptVoucherManagement = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredReceipts.map((receipt) => (
+                {sortedAndFilteredReceipts.map((r) => (
                   <tr
-                    key={receipt._id}
+                    key={r._id}
                     className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {receipt.voucherNo}
+                      {r.voucherNo}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(receipt.date).toLocaleDateString()}
+                      {new Date(r.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                        <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
                           <User size={16} className="text-purple-600" />
                         </div>
-                        <div>
-                          <div className="font-medium">
-                            {receipt.customerName}
-                          </div>
+                        <div className="font-medium">
+                          {r.partyName || r.customerName || "-"}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex flex-wrap gap-1">
-                        {(receipt.linkedInvoices || []).map((invoiceId, index) => {
-                          const invoice = availableInvoices.find(inv => inv._id === invoiceId);
+                        {asArray(r.linkedInvoices).map((invoiceId, idx) => {
+                          const inv = availableInvoices.find(
+                            (x) =>
+                              x._id === invoiceId || x.invoiceId === invoiceId
+                          );
                           return (
                             <span
-                              key={index}
+                              key={idx}
                               className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium flex items-center"
                             >
-                              <Link size={10} className="mr-1" />
-                              {invoice?.transactionNo || invoiceId}
+                              <LinkIcon size={10} className="mr-1" />
+                              {inv?.transactionNo ||
+                                inv?.invoiceNo ||
+                                String(invoiceId)}
                             </span>
                           );
                         })}
@@ -987,33 +958,33 @@ const ReceiptVoucherManagement = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {getPaymentModeIcon(receipt.paymentMode)}
+                        {iconForMode(r.paymentMode)}
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getPaymentModeBadge(
-                            receipt.paymentMode
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClassForMode(
+                            r.paymentMode
                           )}`}
                         >
-                          {receipt.paymentMode}
+                          {displayMode(r.paymentMode)}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                      {formatCurrency(receipt.amount)}
+                      {formatCurrency(r.totalAmount ?? r.amount)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                      {receipt.narration || "-"}
+                      {r.narration || "-"}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <button
-                          onClick={() => handleEdit(receipt)}
+                          onClick={() => handleEdit(r)}
                           className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
                           title="Edit receipt"
                         >
                           <Edit size={16} />
                         </button>
                         <button
-                          onClick={() => showDeleteConfirmation(receipt)}
+                          onClick={() => showDeleteConfirmation(r)}
                           className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
                           title="Delete receipt"
                         >
@@ -1029,7 +1000,7 @@ const ReceiptVoucherManagement = () => {
         )}
       </div>
 
-      {/* Enhanced Delete Confirmation Modal */}
+      {/* Delete Confirmation */}
       {deleteConfirmation.visible && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
@@ -1039,11 +1010,9 @@ const ReceiptVoucherManagement = () => {
                   <AlertTriangle size={32} className="text-red-600" />
                 </div>
               </div>
-
               <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
                 Delete Receipt Voucher
               </h3>
-
               <p className="text-gray-600 text-center mb-2">
                 Are you sure you want to delete
               </p>
@@ -1051,10 +1020,8 @@ const ReceiptVoucherManagement = () => {
                 "{deleteConfirmation.voucherNo}"?
               </p>
               <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the
-                receipt voucher from your records.
+                This action cannot be undone.
               </p>
-
               <div className="flex space-x-3">
                 <button
                   onClick={hideDeleteConfirmation}
@@ -1070,13 +1037,12 @@ const ReceiptVoucherManagement = () => {
                 >
                   {deleteConfirmation.isDeleting ? (
                     <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />
+                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
                       Deleting...
                     </>
                   ) : (
                     <>
-                      <Trash2 size={16} className="mr-2" />
-                      Delete
+                      <Trash2 size={16} className="mr-2" /> Delete
                     </>
                   )}
                 </button>
@@ -1086,15 +1052,16 @@ const ReceiptVoucherManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Modal */}
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
-                  {editReceiptId ? "Edit Receipt Voucher" : "Add Receipt Voucher"}
+                  {editReceiptId
+                    ? "Edit Receipt Voucher"
+                    : "Add Receipt Voucher"}
                 </h3>
                 <div className="flex items-center mt-1 space-x-4">
                   <p className="text-gray-600 text-sm">
@@ -1102,7 +1069,7 @@ const ReceiptVoucherManagement = () => {
                       ? "Update receipt voucher information"
                       : "Create a new receipt voucher"}
                   </p>
-                  {isDraftSaved && lastSaveTime && (
+                  {lastSaveTime && (
                     <p className="text-sm text-green-600 flex items-center">
                       <Save size={12} className="mr-1" />
                       Draft saved {formatLastSaveTime(lastSaveTime)}
@@ -1118,10 +1085,8 @@ const ReceiptVoucherManagement = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6" ref={formRef}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Voucher No - Auto-generated */}
                 {editReceiptId && (
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1174,9 +1139,9 @@ const ReceiptVoucherManagement = () => {
                     }`}
                   >
                     <option value="">Select Customer</option>
-                    {customers.map((customer) => (
-                      <option key={customer._id} value={customer._id}>
-                        {customer.customerName}
+                    {customers.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.customerName}
                       </option>
                     ))}
                   </select>
@@ -1190,47 +1155,53 @@ const ReceiptVoucherManagement = () => {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Link size={16} className="inline mr-2" /> Linked Invoice(s) *
+                    <LinkIcon size={16} className="inline mr-2" /> Linked
+                    Invoice(s) *
                   </label>
-                  <div className={`border rounded-xl p-4 max-h-48 overflow-y-auto ${
-                    errors.linkedInvoices ? "border-red-300 bg-red-50" : "border-gray-300"
-                  }`}>
+                  <div
+                    className={`border rounded-xl p-4 max-h-48 overflow-y-auto ${
+                      errors.linkedInvoices
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  >
                     {availableInvoices.length === 0 ? (
                       <p className="text-gray-500 text-sm text-center py-4">
-                        {formData.customerId 
+                        {formData.customerId
                           ? "No unpaid invoices found for selected customer"
-                          : "Please select a customer first to view unpaid invoices"
-                        }
+                          : "Please select a customer first to view unpaid invoices"}
                       </p>
                     ) : (
                       <div className="space-y-2">
-                        {availableInvoices.map((invoice) => (
+                        {availableInvoices.map((inv) => (
                           <div
-                            key={invoice._id}
+                            key={inv._id}
                             className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                           >
                             <div className="flex items-center space-x-3">
                               <input
                                 type="checkbox"
-                                checked={formData.linkedInvoices.includes(invoice._id)}
-                                onChange={() => handleInvoiceSelection(invoice._id)}
+                                checked={asArray(
+                                  formData.linkedInvoices
+                                ).includes(inv._id)}
+                                onChange={() => handleInvoiceSelection(inv._id)}
                                 className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
                               />
                               <div>
                                 <p className="font-medium text-sm text-gray-900">
-                                  {invoice.transactionNo}
+                                  {inv.transactionNo}
                                 </p>
                                 <p className="text-xs text-gray-500">
-                                  {new Date(invoice.date).toLocaleDateString()}
+                                  {new Date(inv.date).toLocaleDateString()}
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
                               <p className="font-medium text-sm text-gray-900">
-                                {formatCurrency(invoice.totalAmount)}
+                                {formatCurrency(inv.totalAmount)}
                               </p>
                               <p className="text-xs text-gray-500">
-                                {invoice.status}
+                                {inv.status}
                               </p>
                             </div>
                           </div>
@@ -1248,7 +1219,8 @@ const ReceiptVoucherManagement = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <CreditCard size={16} className="inline mr-2" /> Payment Mode *
+                    <CreditCard size={16} className="inline mr-2" /> Payment
+                    Mode *
                   </label>
                   <select
                     name="paymentMode"
@@ -1314,20 +1286,13 @@ const ReceiptVoucherManagement = () => {
                 </div>
               </div>
 
-              {/* Modal Footer */}
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                 <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.customerId ||
-                    formData.amount ||
-                    formData.narration ? (
+                  {formData.customerId ||
+                  formData.amount ||
+                  formData.narration ? (
                     <span className="flex items-center text-amber-600">
-                      <Clock size={14} className="mr-1" />
-                      Unsaved changes
+                      <Clock size={14} className="mr-1" /> Unsaved changes
                     </span>
                   ) : null}
                 </div>
@@ -1349,18 +1314,16 @@ const ReceiptVoucherManagement = () => {
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 size={16} className="animate-spin mr-2" />
+                        <Loader2 size={16} className="animate-spin mr-2" />{" "}
                         Saving...
                       </>
                     ) : editReceiptId ? (
                       <>
-                        <Save size={16} className="mr-2" />
-                        Update Receipt
+                        <Save size={16} className="mr-2" /> Update Receipt
                       </>
                     ) : (
                       <>
-                        <Plus size={16} className="mr-2" />
-                        Add Receipt
+                        <Plus size={16} className="mr-2" /> Add Receipt
                       </>
                     )}
                   </button>

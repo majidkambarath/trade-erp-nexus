@@ -13,16 +13,9 @@ import {
   Trash2,
   X,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  CreditCard,
-  Building,
-  Users,
   TrendingUp,
   Clock,
   AlertTriangle,
-  UserPlus,
   Loader2,
   RefreshCw,
   Save,
@@ -32,20 +25,20 @@ import {
   Filter,
   Receipt,
   Calendar,
-  DollarSign,
+  CreditCard,
   FileText,
-  Link,
+  Link as LinkIcon,
+  DollarSign,
+  Building,
   Banknote,
   Upload,
-  File,
-  Paperclip,
-  Download,
   Eye,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 
-// Utility to apply color filter based on class
+/* -------------------------- Utilities & Helpers -------------------------- */
+
 const getColorFilter = (colorClass) => {
   switch (colorClass) {
     case "text-emerald-700":
@@ -61,42 +54,130 @@ const getColorFilter = (colorClass) => {
   }
 };
 
-// Session management utilities
+// In-memory session manager
 const SessionManager = {
   storage: {},
-
-  get: (key) => {
+  key: (k) => `payment_session_${k}`,
+  get(key) {
     try {
-      return this.storage[`payment_session_${key}`] || null;
+      return SessionManager.storage[SessionManager.key(key)] ?? null;
     } catch {
       return null;
     }
   },
-
-  set: (key, value) => {
+  set(key, value) {
     try {
-      this.storage[`payment_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
+      SessionManager.storage[SessionManager.key(key)] = value;
+    } catch {}
   },
-
-  remove: (key) => {
+  remove(key) {
     try {
-      delete this.storage[`payment_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
+      delete SessionManager.storage[SessionManager.key(key)];
+    } catch {}
   },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("payment_session_")) {
-        delete this.storage[key];
-      }
+  clear() {
+    Object.keys(SessionManager.storage).forEach((k) => {
+      if (k.startsWith("payment_session_")) delete SessionManager.storage[k];
     });
   },
 };
+
+// Safe array helper
+const asArray = (x) => (Array.isArray(x) ? x : []);
+
+// Normalize API responses
+const takeArray = (resp) => {
+  if (!resp) return [];
+  const d = resp.data;
+  if (Array.isArray(d)) return d;
+  if (Array.isArray(d?.data)) return d.data.data ?? d.data;
+  if (Array.isArray(d?.vouchers)) return d.vouchers;
+  return [];
+};
+
+// Payment mode display helpers
+const displayMode = (mode) => {
+  const m = (mode || "").toString().toLowerCase();
+  return m === "cash"
+    ? "Cash"
+    : m === "bank transfer"
+    ? "Bank Transfer"
+    : m === "cheque"
+    ? "Cheque"
+    : m === "online"
+    ? "Online"
+    : mode || "Unknown";
+};
+
+const badgeClassForMode = (mode) => {
+  const m = displayMode(mode);
+  const badges = {
+    Cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    "Bank Transfer": "bg-blue-100 text-blue-800 border border-blue-200",
+    Cheque: "bg-purple-100 text-purple-800 border border-purple-200",
+    Online: "bg-indigo-100 text-indigo-800 border border-indigo-200",
+  };
+  return badges[m] || "bg-slate-100 text-slate-800 border border-slate-200";
+};
+
+const iconForMode = (mode) => {
+  const m = displayMode(mode);
+  const map = {
+    Cash: <DollarSign size={14} className="text-emerald-600" />,
+    "Bank Transfer": <Building size={14} className="text-blue-600" />,
+    Cheque: <FileText size={14} className="text-purple-600" />,
+    Online: <CreditCard size={14} className="text-indigo-600" />,
+  };
+  return map[m] || <DollarSign size={14} className="text-slate-600" />;
+};
+
+const formatCurrency = (amount, colorClass = "text-gray-900") => {
+  const numAmount = Number(amount) || 0;
+  const absAmount = Math.abs(numAmount).toFixed(2);
+  const isNegative = numAmount < 0;
+  return (
+    <span className={`inline-flex items-center ${colorClass}`}>
+      {isNegative && "-"}
+      <img
+        src={DirhamIcon}
+        alt="AED"
+        className="w-4.5 h-4.5 mr-1"
+        style={{ filter: getColorFilter(colorClass) }}
+      />
+      {absAmount}
+    </span>
+  );
+};
+
+const by = (v) => (typeof v === "string" ? v.toLowerCase() : v);
+
+const isImage = (fileOrFilename) => {
+  if (fileOrFilename instanceof File) {
+    return fileOrFilename.type.startsWith("image/");
+  }
+  if (typeof fileOrFilename === "string") {
+    const ext = fileOrFilename.split(".").pop()?.toLowerCase() || "";
+    return ["jpg", "jpeg", "png"].includes(ext);
+  }
+  return false;
+};
+
+const getFileName = (fileOrFilename) => {
+  if (fileOrFilename instanceof File) return fileOrFilename.name;
+  return fileOrFilename || "Unknown file";
+};
+
+const getFileSize = (file) => {
+  if (file instanceof File) {
+    return (file.size / 1024).toFixed(2) + " KB";
+  }
+  if (file?.fileSize) {
+    return (file.fileSize / 1024).toFixed(2) + " KB";
+  }
+  return "";
+};
+
+/* ------------------------------ Main Component ------------------------------ */
 
 const PaymentVoucherManagement = () => {
   const [payments, setPayments] = useState([]);
@@ -114,8 +195,10 @@ const PaymentVoucherManagement = () => {
     paymentMode: "Cash",
     amount: "",
     remarks: "",
-    attachedProof: null,
   });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [existingProof, setExistingProof] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,7 +208,9 @@ const PaymentVoucherManagement = () => {
     type: "success",
   });
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     visible: false,
     paymentId: null,
@@ -133,164 +218,124 @@ const PaymentVoucherManagement = () => {
     isDeleting: false,
   });
 
-  // New UX enhancement states
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [fileUploadProgress, setFileUploadProgress] = useState(0);
-  const [isFileUploading, setIsFileUploading] = useState(false);
-
-  // Refs for enhanced UX
   const formRef = useRef(null);
   const fileInputRef = useRef(null);
-  const autoSaveInterval = useRef(null);
+  const autoSaveTimer = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Updated formatCurrency function using DirhamIcon
-  const formatCurrency = useCallback(
-    (amount, colorClass = "text-gray-900", textSize) => {
-      const numAmount = Number(amount) || 0;
-      const absAmount = Math.abs(numAmount).toFixed(2);
-      const isNegative = numAmount < 0;
+  /* ------------------------------ Effects: Session ------------------------------ */
 
-      return (
-        <span className={`inline-flex items-center ${colorClass} `}>
-          {isNegative && "-"}
-          <img
-            src={DirhamIcon}
-            alt="AED"
-            className={`${textSize ? "w-6.5 h-7.5" : "w-4.5 h-4.5"}  mr-1 `}
-            style={{ filter: getColorFilter(colorClass) }}
-          />
-          {absAmount}
-        </span>
-      );
-    },
-    []
-  );
-
-  // Load session data on component mount
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
 
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
+    if (savedFormData && typeof savedFormData === "object") {
+      setFormData((prev) => ({ ...prev, ...savedFormData }));
     }
-
     if (savedFilters) {
       setFilterPaymentMode(savedFilters.paymentMode || "");
-      setFilterStatus(savedFilters.status || "");
     }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
+    if (savedSearchTerm) setSearchTerm(savedSearchTerm);
   }, []);
 
-  // Auto-save form data to session
   useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
-      autoSaveInterval.current = setTimeout(() => {
+    if (showModal) {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(() => {
         SessionManager.set("formData", formData);
         SessionManager.set("lastSaveTime", new Date().toISOString());
-        setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
-      }, 2000);
+      }, 800);
     }
-
-    return () => {
-      if (autoSaveInterval.current) {
-        clearTimeout(autoSaveInterval.current);
-      }
-    };
+    return () => autoSaveTimer.current && clearTimeout(autoSaveTimer.current);
   }, [formData, showModal]);
 
-  // Save search and filter preferences
   useEffect(() => {
     SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
-    SessionManager.set("filters", {
-      paymentMode: filterPaymentMode,
-      status: filterStatus,
-    });
-  }, [filterPaymentMode, filterStatus]);
+    SessionManager.set("filters", { paymentMode: filterPaymentMode });
+  }, [filterPaymentMode]);
 
-  // Fetch payment vouchers from backend
-  const fetchPayments = useCallback(async (showRefreshIndicator = false) => {
-    try {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
+  useEffect(() => {
+    return () => {
+      if (previewUrl && selectedFile) {
+        URL.revokeObjectURL(previewUrl);
       }
+    };
+  }, [previewUrl, selectedFile]);
 
-      const response = await axiosInstance.get("/vouchers/payment-vouchers");
-      setPayments(response.data.data || []);
+  /* ------------------------------ Data Fetchers ------------------------------ */
 
-      if (showRefreshIndicator) {
-        showToastMessage("Data refreshed successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Failed to fetch payment vouchers:", error);
-      showToastMessage(
-        error.response?.data?.message || "Failed to fetch payment vouchers.",
-        "error"
-      );
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
+  const showToastMessage = useCallback((message, type = "success") => {
+    setShowToast({ visible: true, message, type });
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      2800
+    );
   }, []);
 
-  // Fetch vendors from backend
+  const fetchPayments = useCallback(
+    async (showRefreshIndicator = false) => {
+      try {
+        showRefreshIndicator ? setIsRefreshing(true) : setIsLoading(true);
+        const response = await axiosInstance.get("/vouchers/vouchers", {
+          params: { voucherType: "payment" },
+        });
+        const arr = takeArray(response);
+        setPayments(asArray(arr));
+        if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
+      } catch (err) {
+        console.error("Failed to fetch payments:", err);
+        showToastMessage(
+          err.response?.data?.message || "Failed to fetch payment vouchers.",
+          "error"
+        );
+        setPayments([]);
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [showToastMessage]
+  );
+
   const fetchVendors = useCallback(async () => {
     try {
       const response = await axiosInstance.get("/vendors/vendors");
-      setVendors(response.data.data || []);
-    } catch (error) {
-      console.error("Failed to fetch vendors:", error);
+      setVendors(asArray(takeArray(response)));
+    } catch (err) {
+      console.error("Failed to fetch vendors:", err);
       showToastMessage("Failed to fetch vendors.", "error");
+      setVendors([]);
     }
-  }, []);
+  }, [showToastMessage]);
 
-  // Fetch outstanding purchase invoices from backend
- const fetchOutstandingInvoices = useCallback(async (vendorId = null) => {
-    try {
-      const params = new URLSearchParams();
-      
-      if (vendorId) {
-        params.append('partyId', vendorId);
+  const fetchOutstandingInvoices = useCallback(
+    async (vendorId = null) => {
+      try {
+        const params = new URLSearchParams();
+        if (vendorId) params.append("partyId", vendorId);
+        params.append("partyType", "vendor");
+        params.append("type", "purchase_order");
+        params.append("status", "APPROVED");
+
+        const response = await axiosInstance.get(
+          `/transactions/transactions?${params.toString()}`
+        );
+        const transactions = asArray(takeArray(response));
+        setAvailableInvoices(
+          transactions.filter((t) => t?.invoiceGenerated === false)
+        );
+      } catch (err) {
+        console.error("Failed to fetch available invoices:", err);
+        showToastMessage("Failed to fetch available invoices.", "error");
+        setAvailableInvoices([]);
       }
-      
-      params.append('partyType', 'vendor');
-      params.append('type', 'purchase_order');
-      params.append('status', 'DRAFT');
-
-      const response = await axiosInstance.get(
-        `/transactions/transactions?${params.toString()}`
-      );
-
-      const transactions = response.data.data || [];
-
-      // Filter for invoices that have been generated
-      const availableInvoices = transactions.filter(
-        (transaction) => transaction.invoiceGenerated === true
-      );
-
-      setAvailableInvoices(availableInvoices);
-    } catch (error) {
-      console.error("Failed to fetch available invoices:", error);
-      showToastMessage("Failed to fetch available invoices.", "error");
-    }
-  }, []);
+    },
+    [showToastMessage]
+  );
 
   useEffect(() => {
     fetchPayments();
@@ -298,41 +343,31 @@ const PaymentVoucherManagement = () => {
     fetchOutstandingInvoices();
   }, [fetchPayments, fetchVendors, fetchOutstandingInvoices]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+  /* ------------------------------ Handlers ------------------------------ */
 
   const handleChange = useCallback(
     (e) => {
       const { name, value } = e.target;
       setFormData((prev) => ({ ...prev, [name]: value }));
       if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-      setIsDraftSaved(false);
 
-      // When vendor changes, fetch their outstanding invoices
-      if (name === "vendorId" && value) {
+      if (name === "vendorId") {
+        const selected = vendors.find((v) => v._id === value);
+        setFormData((prev) => ({
+          ...prev,
+          vendorName: selected?.vendorName || "",
+        }));
         fetchOutstandingInvoices(value);
-        const selectedVendor = vendors.find((v) => v._id === value);
-        if (selectedVendor) {
-          setFormData((prev) => ({
-            ...prev,
-            vendorName: selectedVendor.vendorName,
-          }));
-        }
       }
     },
     [errors, vendors, fetchOutstandingInvoices]
   );
 
-  const handleFileUpload = useCallback(
-    async (file) => {
+  const handleFileSelect = useCallback(
+    (e) => {
+      const file = e.target.files[0];
       if (!file) return;
 
-      // Validate file type
       const allowedTypes = [
         "application/pdf",
         "image/jpeg",
@@ -344,116 +379,91 @@ const PaymentVoucherManagement = () => {
         return;
       }
 
-      // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
         showToastMessage("File size should be less than 5MB.", "error");
         return;
       }
 
-      setIsFileUploading(true);
-      setFileUploadProgress(0);
-
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("type", "payment_proof");
-
-        // Simulate progress for better UX
-        const progressInterval = setInterval(() => {
-          setFileUploadProgress((prev) => Math.min(prev + 10, 90));
-        }, 100);
-
-        const response = await axiosInstance.post("/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            setFileUploadProgress(percentCompleted);
-          },
-        });
-
-        clearInterval(progressInterval);
-        setFileUploadProgress(100);
-
-        setFormData((prev) => ({
-          ...prev,
-          attachedProof: response.data.data.fileName,
-        }));
-
-        showToastMessage("File uploaded successfully!", "success");
-        setIsDraftSaved(false);
-      } catch (error) {
-        console.error("File upload failed:", error);
-        showToastMessage("Failed to upload file.", "error");
-      } finally {
-        setIsFileUploading(false);
-        setFileUploadProgress(0);
+      if (previewUrl && selectedFile) {
+        URL.revokeObjectURL(previewUrl);
       }
+
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+      setExistingProof(null);
     },
-    [showToastMessage]
+    [previewUrl, selectedFile, showToastMessage]
   );
 
-  const handleFileSelect = useCallback(
-    (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        handleFileUpload(file);
-      }
-    },
-    [handleFileUpload]
-  );
+  const handleRemoveFile = useCallback(() => {
+    if (previewUrl && selectedFile) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setExistingProof(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [previewUrl, selectedFile]);
 
   const handleInvoiceSelection = useCallback(
     (invoiceId) => {
       setFormData((prev) => {
-        const currentInvoices = prev.linkedInvoices || [];
-        const isSelected = currentInvoices.includes(invoiceId);
+        const list = asArray(prev.linkedInvoices);
+        const isSelected = list.includes(invoiceId);
+        const newList = isSelected
+          ? list.filter((id) => id !== invoiceId)
+          : [...list, invoiceId];
 
-        let newInvoices;
-        if (isSelected) {
-          newInvoices = currentInvoices.filter((id) => id !== invoiceId);
-        } else {
-          newInvoices = [...currentInvoices, invoiceId];
-        }
-
-        // Calculate total amount based on selected invoices
-        const totalAmount = newInvoices.reduce((sum, id) => {
-          const invoice = availableInvoices.find((inv) => inv._id === id);
-          return sum + (invoice ? invoice.totalAmount : 0);
+        const total = newList.reduce((sum, id) => {
+          const inv = availableInvoices.find((x) => x._id === id);
+          return sum + (Number(inv?.totalAmount) || 0);
         }, 0);
 
-        return {
-          ...prev,
-          linkedInvoices: newInvoices,
-          amount: totalAmount.toString(),
-        };
+        return { ...prev, linkedInvoices: newList, amount: String(total) };
       });
-      setIsDraftSaved(false);
     },
     [availableInvoices]
   );
 
   const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
-    if (!formData.date) newErrors.date = "Date is required";
-    if (!formData.paymentMode)
-      newErrors.paymentMode = "Payment mode is required";
+    const e = {};
+    if (!formData.vendorId) e.vendorId = "Vendor is required";
+    if (!formData.date) e.date = "Date is required";
+    if (!formData.paymentMode) e.paymentMode = "Payment mode is required";
     if (!formData.amount || Number(formData.amount) <= 0)
-      newErrors.amount = "Amount must be greater than 0";
-    if (formData.linkedInvoices.length === 0)
-      newErrors.linkedInvoices = "At least one invoice must be selected";
-
-    return newErrors;
+      e.amount = "Amount must be greater than 0";
+    if (!asArray(formData.linkedInvoices).length)
+      e.linkedInvoices = "At least one invoice must be selected";
+    return e;
   }, [formData]);
 
+  const resetForm = useCallback(() => {
+    setEditPaymentId(null);
+    setFormData({
+      voucherNo: "",
+      date: new Date().toISOString().split("T")[0],
+      vendorName: "",
+      vendorId: "",
+      linkedInvoices: [],
+      paymentMode: "Cash",
+      amount: "",
+      remarks: "",
+    });
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setExistingProof(null);
+    setErrors({});
+    setShowModal(false);
+    setAvailableInvoices([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
+  }, []);
+
   const handleSubmit = useCallback(async () => {
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    const e = validateForm();
+    if (Object.keys(e).length) {
+      setErrors(e);
       return;
     }
 
@@ -462,37 +472,51 @@ const PaymentVoucherManagement = () => {
       const payload = {
         date: formData.date,
         vendorId: formData.vendorId,
-        vendorName: formData.vendorName,
-        linkedInvoices: formData.linkedInvoices,
-        paymentMode: formData.paymentMode,
-        amount: Number(formData.amount),
-        remarks: formData.remarks,
-        attachedProof: formData.attachedProof,
+        partyName: formData.vendorName,
+        linkedInvoices: asArray(formData.linkedInvoices),
+        paymentMode: formData.paymentMode.toLowerCase(),
+        totalAmount: Number(formData.amount),
+        narration: formData.remarks,
+        voucherType: "payment",
+        attachedProof: existingProof?._id || null,
       };
 
+      const fd = new FormData();
+      fd.append("data", JSON.stringify(payload));
+      if (selectedFile) fd.append("attachedProof", selectedFile);
+
       if (editPaymentId) {
-        await axiosInstance.put(`/vouchers/payment-vouchers/${editPaymentId}`, payload);
+        await axiosInstance.put(`/vouchers/vouchers/${editPaymentId}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         showToastMessage("Payment voucher updated successfully!", "success");
       } else {
-        await axiosInstance.post("/vouchers/payment-vouchers", payload);
+        await axiosInstance.post("/vouchers/vouchers", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         showToastMessage("Payment voucher created successfully!", "success");
       }
 
       await fetchPayments();
       resetForm();
-
-      // Clear session data after successful submission
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
-    } catch (error) {
+    } catch (err) {
       showToastMessage(
-        error.response?.data?.message || "Failed to save payment voucher.",
+        err.response?.data?.message || "Failed to save payment voucher.",
         "error"
       );
     } finally {
       setIsSubmitting(false);
     }
-  }, [editPaymentId, formData, fetchPayments, validateForm, showToastMessage]);
+  }, [
+    editPaymentId,
+    formData,
+    existingProof,
+    selectedFile,
+    fetchPayments,
+    resetForm,
+    showToastMessage,
+    validateForm,
+  ]);
 
   const handleEdit = useCallback(
     (payment) => {
@@ -500,23 +524,32 @@ const PaymentVoucherManagement = () => {
       setFormData({
         voucherNo: payment.voucherNo,
         date: new Date(payment.date).toISOString().split("T")[0],
-        vendorName: payment.vendorName,
-        vendorId: payment.vendorId,
-        linkedInvoices: payment.linkedInvoices || [],
-        paymentMode: payment.paymentMode,
-        amount: payment.amount.toString(),
-        remarks: payment.remarks || "",
-        attachedProof: payment.attachedProof || null,
+        vendorName:
+          payment.partyName ||
+          payment.vendorName ||
+          payment.partyId?.vendorName ||
+          "",
+        vendorId:
+          typeof payment.partyId === "object"
+            ? payment.partyId?._id
+            : payment.partyId || payment.vendorId || "",
+        linkedInvoices: asArray(payment.linkedInvoices),
+        paymentMode: displayMode(payment.paymentMode),
+        amount: String(payment.totalAmount || payment.amount || 0),
+        remarks: payment.narration || payment.remarks || "",
       });
+
+      // Handle attachments as an array
+      const proof = asArray(payment.attachments)[0] || null;
+      setExistingProof(proof);
+      setPreviewUrl(proof?.filePath || null);
+      setSelectedFile(null);
       setShowModal(true);
-      setIsDraftSaved(false);
-
-      // Fetch invoices for the selected vendor
-      if (payment.vendorId) {
-        fetchOutstandingInvoices(payment.vendorId);
-      }
-
-      // Clear any existing draft when editing
+      const vendorId =
+        typeof payment.partyId === "object"
+          ? payment.partyId?._id
+          : payment.partyId || payment.vendorId;
+      if (vendorId) fetchOutstandingInvoices(vendorId);
       SessionManager.remove("formData");
       SessionManager.remove("lastSaveTime");
     },
@@ -543,20 +576,19 @@ const PaymentVoucherManagement = () => {
 
   const confirmDelete = useCallback(async () => {
     setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
-
     try {
       await axiosInstance.delete(
-        `/vouchers/payment-vouchers/${deleteConfirmation.paymentId}`
+        `/vouchers/vouchers/${deleteConfirmation.paymentId}`
       );
       setPayments((prev) =>
-        prev.filter((payment) => payment._id !== deleteConfirmation.paymentId)
+        asArray(prev).filter((p) => p._id !== deleteConfirmation.paymentId)
       );
       showToastMessage("Payment voucher deleted successfully!", "success");
       hideDeleteConfirmation();
       await fetchPayments();
-    } catch (error) {
+    } catch (err) {
       showToastMessage(
-        error.response?.data?.message || "Failed to delete payment voucher.",
+        err.response?.data?.message || "Failed to delete payment voucher.",
         "error"
       );
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
@@ -564,49 +596,16 @@ const PaymentVoucherManagement = () => {
   }, [
     deleteConfirmation.paymentId,
     fetchPayments,
-    showToastMessage,
     hideDeleteConfirmation,
+    showToastMessage,
   ]);
-
-  const resetForm = useCallback(() => {
-    setEditPaymentId(null);
-    setFormData({
-      voucherNo: "",
-      date: new Date().toISOString().split("T")[0],
-      vendorName: "",
-      vendorId: "",
-      linkedInvoices: [],
-      paymentMode: "Cash",
-      amount: "",
-      remarks: "",
-      attachedProof: null,
-    });
-    setErrors({});
-    setShowModal(false);
-    setIsDraftSaved(false);
-    setLastSaveTime(null);
-    setAvailableInvoices([]);
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    // Clear session draft
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
 
   const openAddModal = useCallback(() => {
     resetForm();
     setShowModal(true);
     setTimeout(() => {
       const modal = document.querySelector(".modal-container");
-      if (modal) {
-        modal.classList.add("scale-100");
-      }
-
-      // Focus first input
+      if (modal) modal.classList.add("scale-100");
       if (formRef.current) {
         const firstSelect = formRef.current.querySelector(
           'select[name="vendorId"]'
@@ -616,67 +615,42 @@ const PaymentVoucherManagement = () => {
     }, 10);
   }, [resetForm]);
 
-  const handleRefresh = useCallback(() => {
-    fetchPayments(true);
-  }, [fetchPayments]);
+  const handleRefresh = useCallback(() => fetchPayments(true), [fetchPayments]);
 
   const handleSort = useCallback((key) => {
-    setSortConfig((prevConfig) => ({
+    setSortConfig((prev) => ({
       key,
-      direction:
-        prevConfig.key === key && prevConfig.direction === "asc"
-          ? "desc"
-          : "asc",
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
-  }, []);
-
-  const getPaymentModeBadge = useCallback((mode) => {
-    const badges = {
-      Cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      "Bank Transfer": "bg-blue-100 text-blue-800 border border-blue-200",
-      Cheque: "bg-purple-100 text-purple-800 border border-purple-200",
-      Online: "bg-indigo-100 text-indigo-800 border border-indigo-200",
-    };
-    return (
-      badges[mode] || "bg-slate-100 text-slate-800 border border-slate-200"
-    );
-  }, []);
-
-  const getPaymentModeIcon = useCallback((mode) => {
-    const icons = {
-      Cash: <DollarSign size={14} className="text-emerald-600" />,
-      "Bank Transfer": <Building size={14} className="text-blue-600" />,
-      Cheque: <FileText size={14} className="text-purple-600" />,
-      Online: <CreditCard size={14} className="text-indigo-600" />,
-    };
-    return icons[mode] || <DollarSign size={14} className="text-slate-600" />;
   }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
-    const time = new Date(timeString);
-    const now = new Date();
-    const diffMs = now - time;
-    const diffMins = Math.floor(diffMs / 60000);
-
+    const t = new Date(timeString);
+    const diffMins = Math.floor((Date.now() - t.getTime()) / 60000);
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return t.toLocaleTimeString();
   }, []);
 
-  // Enhanced statistics calculations
-  const paymentStats = useMemo(() => {
-    const totalPayments = payments.length;
-    const totalAmount = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const todayPayments = payments.filter((p) => {
-      const paymentDate = new Date(p.date).toDateString();
-      const today = new Date().toDateString();
-      return paymentDate === today;
-    }).length;
-    const avgAmount = totalPayments > 0 ? totalAmount / totalPayments : 0;
+  /* ------------------------------ Derived Data ------------------------------ */
 
-    const paymentModeStats = payments.reduce((acc, payment) => {
-      const mode = payment.paymentMode || "Unknown";
+  const safePayments = useMemo(() => asArray(payments), [payments]);
+
+  const paymentStats = useMemo(() => {
+    const totalPayments = safePayments.length;
+    const totalAmount = safePayments.reduce(
+      (sum, p) => sum + (Number(p.totalAmount ?? p.amount) || 0),
+      0
+    );
+    const todayStr = new Date().toDateString();
+    const todayPayments = safePayments.filter(
+      (p) => new Date(p.date).toDateString() === todayStr
+    ).length;
+    const avgAmount = totalPayments ? totalAmount / totalPayments : 0;
+
+    const paymentModeStats = safePayments.reduce((acc, p) => {
+      const mode = displayMode(p.paymentMode);
       acc[mode] = (acc[mode] || 0) + 1;
       return acc;
     }, {});
@@ -688,60 +662,56 @@ const PaymentVoucherManagement = () => {
       avgAmount,
       paymentModeStats,
     };
-  }, [payments]);
+  }, [safePayments]);
 
   const sortedAndFilteredPayments = useMemo(() => {
-    let filtered = payments.filter(
-      (payment) =>
-        (payment.voucherNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          payment.vendorName
-            ?.toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          payment.remarks?.toLowerCase().includes(searchTerm.toLowerCase())) &&
-        (filterPaymentMode ? payment.paymentMode === filterPaymentMode : true)
-    );
+    const term = searchTerm.trim().toLowerCase();
+    let filtered = safePayments.filter((p) => {
+      const voucherNo = p.voucherNo?.toLowerCase() || "";
+      const vendorName = (p.partyName || p.vendorName || "").toLowerCase();
+      const remarks =
+        p.narration?.toLowerCase() || p.remarks?.toLowerCase() || "";
+      const modeOk = filterPaymentMode
+        ? displayMode(p.paymentMode) === filterPaymentMode
+        : true;
+      return (
+        (voucherNo.includes(term) ||
+          vendorName.includes(term) ||
+          remarks.includes(term)) &&
+        modeOk
+      );
+    });
 
     if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
+      const { key, direction } = sortConfig;
+      filtered = [...filtered].sort((a, b) => {
+        const av =
+          key === "amount"
+            ? Number(a.totalAmount ?? a.amount)
+            : key === "date"
+            ? new Date(a.date).getTime()
+            : key === "linkedInvoices"
+            ? asArray(a.linkedInvoices).length
+            : by(a[key]);
+        const bv =
+          key === "amount"
+            ? Number(b.totalAmount ?? b.amount)
+            : key === "date"
+            ? new Date(b.date).getTime()
+            : key === "linkedInvoices"
+            ? asArray(b.linkedInvoices).length
+            : by(b[key]);
 
-        if (aValue < bValue) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
+        if (av < bv) return direction === "asc" ? -1 : 1;
+        if (av > bv) return direction === "asc" ? 1 : -1;
         return 0;
       });
     }
 
     return filtered;
-  }, [payments, searchTerm, filterPaymentMode, sortConfig]);
+  }, [safePayments, searchTerm, filterPaymentMode, sortConfig]);
 
-  // Enhanced Empty State Component
-  const EmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <Receipt size={40} className="text-purple-600" />
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        No payment vouchers found
-      </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm || filterPaymentMode
-          ? "No payment vouchers match your current filters. Try adjusting your search criteria."
-          : "Start recording vendor payments by creating your first payment voucher."}
-      </p>
-      <button
-        onClick={openAddModal}
-        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
-      >
-        <Plus size={20} />
-        Create First Payment
-      </button>
-    </div>
-  );
+  /* ------------------------------ UI ------------------------------ */
 
   if (isLoading) {
     return (
@@ -757,9 +727,34 @@ const PaymentVoucherManagement = () => {
     );
   }
 
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-6">
+      <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
+        <Receipt size={40} className="text-purple-600" />
+      </div>
+      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+        No payment vouchers found
+      </h3>
+      <p className="text-gray-600 text-center mb-8 max-w-md">
+        {searchTerm || filterPaymentMode
+          ? "No payment vouchers match your current filters. Try adjusting your search criteria."
+          : "Start recording payments by creating your first payment voucher."}
+      </p>
+      <button
+        onClick={openAddModal}
+        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+      >
+        <Plus size={20} />
+        Create First Payment
+      </button>
+    </div>
+  );
+
+  const lastSaveTime = SessionManager.get("lastSaveTime");
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -790,7 +785,7 @@ const PaymentVoucherManagement = () => {
           </button>
 
           <button
-            onClick={() => setShowFilters(!showFilters)}
+            onClick={() => setShowFilters((v) => !v)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
               showFilters
                 ? "bg-purple-100 text-purple-600"
@@ -803,7 +798,7 @@ const PaymentVoucherManagement = () => {
         </div>
       </div>
 
-      {/* Toast Notification */}
+      {/* Toast */}
       {showToast.visible && (
         <div
           className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
@@ -821,7 +816,7 @@ const PaymentVoucherManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Statistics Cards */}
+      {/* Stats */}
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
@@ -849,8 +844,7 @@ const PaymentVoucherManagement = () => {
               title: "Total Amount",
               count: formatCurrency(
                 paymentStats.totalAmount,
-                "text-purple-700",
-                "w-6.5 h-7.5"
+                "text-purple-700"
               ),
               icon: <TrendingUp size={24} />,
               bgColor: "bg-purple-50",
@@ -858,64 +852,83 @@ const PaymentVoucherManagement = () => {
               borderColor: "border-purple-200",
               iconBg: "bg-purple-100",
               iconColor: "text-purple-600",
-              textSize: "text-4xl",
             },
             {
               title: "Avg Payment Value",
-              count: formatCurrency(
-                paymentStats.avgAmount,
-                "text-indigo-700",
-                "w-6.5 h-7.5"
-              ),
+              count: formatCurrency(paymentStats.avgAmount, "text-indigo-700"),
               icon: <Banknote size={24} />,
               bgColor: "bg-indigo-50",
               textColor: "text-indigo-700",
               borderColor: "border-indigo-200",
               iconBg: "bg-indigo-100",
               iconColor: "text-indigo-600",
-              textSize: "text-xl",
             },
-          ].map((stat, index) => (
+          ].map((card, i) => (
             <div
-              key={index}
-              className={`${stat.bgColor} border ${stat.borderColor} rounded-2xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105`}
+              key={i}
+              className={`${card.bgColor} ${card.borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-2">
-                    {stat.title}
-                  </p>
-                  <p
-                    className={`${stat.textSize || "text-2xl"} font-bold ${
-                      stat.textColor
-                    }`}
-                  >
-                    {stat.count}
-                  </p>
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 ${card.iconBg} rounded-xl`}>
+                  <div className={card.iconColor}>{card.icon}</div>
                 </div>
-                <div className={`${stat.iconBg} p-3 rounded-xl`}>
-                  <div className={stat.iconColor}>{stat.icon}</div>
-                </div>
+                <button
+                  className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity font-medium`}
+                >
+                  View Details →
+                </button>
               </div>
+              <h3 className={`text-sm font-medium ${card.textColor} mb-2`}>
+                {card.title}
+              </h3>
+              <p className="text-3xl font-bold text-gray-900">{card.count}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {card.title.includes("Total Payments")
+                  ? "All time records"
+                  : card.title.includes("Today")
+                  ? "Current day activity"
+                  : card.title.includes("Total Amount")
+                  ? "All disbursed payments"
+                  : "Per payment average"}
+              </p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Enhanced Search and Filters */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 mb-8 overflow-hidden">
-        <div className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            {/* Search Input */}
-            <div className="flex-1 relative">
+      {/* Main Card */}
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Payment Vouchers
+              </h2>
+              <p className="text-gray-600 text-sm mt-1">
+                Manage payment vouchers and transactions
+              </p>
+            </div>
+            <button
+              onClick={openAddModal}
+              className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+            >
+              <Plus size={18} />
+              Add Payment
+            </button>
+          </div>
+
+          {/* Search + Filters */}
+          <div className="mt-6 space-y-4">
+            <div className="relative">
               <Search
-                size={20}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
               />
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search by voucher number, vendor name, or remarks..."
+                placeholder="Search by voucher number, vendor, or remarks..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
@@ -923,434 +936,280 @@ const PaymentVoucherManagement = () => {
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X size={16} />
                 </button>
               )}
             </div>
 
-            {/* Add Payment Button */}
-            <button
-              onClick={openAddModal}
-              className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
-            >
-              <Plus size={18} />
-              Add Payment
-            </button>
-          </div>
+            {showFilters && (
+              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+                <select
+                  value={filterPaymentMode}
+                  onChange={(e) => setFilterPaymentMode(e.target.value)}
+                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">All Payment Modes</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Online">Online</option>
+                </select>
 
-          {/* Collapsible Filters */}
-          {showFilters && (
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Payment Mode
-                  </label>
-                  <select
-                    value={filterPaymentMode}
-                    onChange={(e) => setFilterPaymentMode(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">All Payment Modes</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Online">Online</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date Range
-                  </label>
-                  <select className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <option value="">All Dates</option>
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    onClick={() => {
-                      setFilterPaymentMode("");
-                      setFilterStatus("");
-                      setSearchTerm("");
-                    }}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors duration-200"
-                  >
-                    Clear Filters
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setFilterPaymentMode("");
+                    setSearchTerm("");
+                  }}
+                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                >
+                  Clear Filters
+                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Payment Vouchers List */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+        {/* Table */}
         {sortedAndFilteredPayments.length === 0 ? (
           <EmptyState />
         ) : (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                <tr>
+                  {[
+                    { key: "voucherNo", label: "Voucher No" },
+                    { key: "date", label: "Date" },
+                    { key: "vendorName", label: "Vendor" },
+                    { key: "linkedInvoices", label: "Linked Invoices" },
+                    { key: "paymentMode", label: "Payment Mode" },
+                    { key: "amount", label: "Amount" },
+                    { key: "remarks", label: "Remarks" },
+                    { key: null, label: "Actions" },
+                  ].map((col) => (
                     <th
-                      className="px-6 py-4 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 transition-colors duration-200"
-                      onClick={() => handleSort("voucherNo")}
+                      key={col.key || "actions"}
+                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={col.key ? () => handleSort(col.key) : undefined}
                     >
                       <div className="flex items-center space-x-1">
-                        <span>Voucher No.</span>
-                        <ArrowLeft
-                          size={14}
-                          className={`transform transition-transform duration-200 ${
-                            sortConfig.key === "voucherNo"
-                              ? sortConfig.direction === "desc"
-                                ? "rotate-90"
-                                : "-rotate-90"
-                              : "rotate-0 opacity-0"
-                          }`}
-                        />
+                        <span>{col.label}</span>
+                        {col.key && sortConfig.key === col.key && (
+                          <span className="text-purple-600">
+                            {sortConfig.direction === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
                       </div>
                     </th>
-                    <th
-                      className="px-6 py-4 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 transition-colors duration-200"
-                      onClick={() => handleSort("date")}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>Date</span>
-                        <ArrowLeft
-                          size={14}
-                          className={`transform transition-transform duration-200 ${
-                            sortConfig.key === "date"
-                              ? sortConfig.direction === "desc"
-                                ? "rotate-90"
-                                : "-rotate-90"
-                              : "rotate-0 opacity-0"
-                          }`}
-                        />
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedAndFilteredPayments.map((p) => (
+                  <tr
+                    key={p._id}
+                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      {p.voucherNo}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {new Date(p.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                          <User size={16} className="text-purple-600" />
+                        </div>
+                        <div className="font-medium">
+                          {p.partyName || p.vendorName || "-"}
+                        </div>
                       </div>
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                      Vendor
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                      Payment Mode
-                    </th>
-                    <th
-                      className="px-6 py-4 text-right text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 transition-colors duration-200"
-                      onClick={() => handleSort("amount")}
-                    >
-                      <div className="flex items-center justify-end space-x-1">
-                        <span>Amount</span>
-                        <ArrowLeft
-                          size={14}
-                          className={`transform transition-transform duration-200 ${
-                            sortConfig.key === "amount"
-                              ? sortConfig.direction === "desc"
-                                ? "rotate-90"
-                                : "-rotate-90"
-                              : "rotate-0 opacity-0"
-                          }`}
-                        />
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex flex-wrap gap-1">
+                        {asArray(p.linkedInvoices).map((invoiceId, idx) => {
+                          const inv = availableInvoices.find(
+                            (x) => x._id === invoiceId || x.invoiceId === invoiceId
+                          );
+                          return (
+                            <span
+                              key={idx}
+                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium flex items-center"
+                            >
+                              <LinkIcon size={10} className="mr-1" />
+                              {inv?.transactionNo ||
+                                inv?.invoiceNo ||
+                                String(invoiceId)}
+                            </span>
+                          );
+                        })}
                       </div>
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                      Invoices
-                    </th>
-                    <th className="px-6 py-4 text-center text-sm font-semibold text-gray-900">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {sortedAndFilteredPayments.map((payment) => (
-                    <tr
-                      key={payment._id}
-                      className="hover:bg-gray-50 transition-colors duration-200"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg flex items-center justify-center mr-3">
-                            <Receipt size={18} className="text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {payment.voucherNo}
-                            </p>
-                            {payment.attachedProof && (
-                              <div className="flex items-center mt-1">
-                                <Paperclip
-                                  size={12}
-                                  className="text-gray-400 mr-1"
-                                />
-                                <span className="text-xs text-gray-500">
-                                  Proof attached
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center text-gray-600">
-                          <Calendar size={16} className="mr-2 text-gray-400" />
-                          {new Date(payment.date).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
-                            <User size={14} className="text-gray-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {payment.vendorName}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        {iconForMode(p.paymentMode)}
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPaymentModeBadge(
-                            payment.paymentMode
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClassForMode(
+                            p.paymentMode
                           )}`}
                         >
-                          {getPaymentModeIcon(payment.paymentMode)}
-                          <span className="ml-2">{payment.paymentMode}</span>
+                          {displayMode(p.paymentMode)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="font-semibold">
-                          {formatCurrency(payment.amount, "text-gray-900")}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <Link size={16} className="text-gray-400 mr-2" />
-                          <span className="text-sm text-gray-600">
-                            {payment.linkedInvoices?.length || 0} invoice(s)
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center space-x-2">
-                          {payment.attachedProof && (
-                            <button
-                              onClick={() =>
-                                window.open(
-                                  `/api/files/${payment.attachedProof}`,
-                                  "_blank"
-                                )
-                              }
-                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                              title="View attachment"
-                            >
-                              <Eye size={16} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleEdit(payment)}
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                            title="Edit payment"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => showDeleteConfirmation(payment)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                            title="Delete payment"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="lg:hidden">
-              {sortedAndFilteredPayments.map((payment) => (
-                <div
-                  key={payment._id}
-                  className="border-b border-gray-200 p-6 hover:bg-gray-50 transition-colors duration-200"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-blue-100 rounded-xl flex items-center justify-center mr-4">
-                        <Receipt size={20} className="text-purple-600" />
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {payment.voucherNo}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {new Date(payment.date).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEdit(payment)}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        onClick={() => showDeleteConfirmation(payment)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">Vendor:</span>
-                      <span className="font-medium text-gray-900">
-                        {payment.vendorName}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">
-                        Payment Mode:
-                      </span>
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPaymentModeBadge(
-                          payment.paymentMode
-                        )}`}
-                      >
-                        {getPaymentModeIcon(payment.paymentMode)}
-                        <span className="ml-1">{payment.paymentMode}</span>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">Amount:</span>
-                      <span className="font-semibold">
-                        {formatCurrency(payment.amount, "text-gray-900")}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">
-                        Linked Invoices:
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {payment.linkedInvoices?.length || 0} invoice(s)
-                      </span>
-                    </div>
-
-                    {payment.attachedProof && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">
-                          Attachment:
-                        </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                      {formatCurrency(p.totalAmount ?? p.amount)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                      {p.narration || p.remarks || "-"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        {asArray(p.attachments).length > 0 && (
+                          <button
+                            onClick={() =>
+                              window.open(
+                                asArray(p.attachments)[0].filePath,
+                                "_blank"
+                              )
+                            }
+                            className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            title="View attachment"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
                         <button
-                          onClick={() =>
-                            window.open(
-                              `/api/files/${payment.attachedProof}`,
-                              "_blank"
-                            )
-                          }
-                          className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                          onClick={() => handleEdit(p)}
+                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                          title="Edit payment"
                         >
-                          <Eye size={14} className="mr-1" />
-                          View
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => showDeleteConfirmation(p)}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
+                          title="Delete payment"
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </div>
-                    )}
-
-                    {payment.remarks && (
-                      <div className="pt-2 border-t border-gray-100">
-                        <span className="text-sm text-gray-500">Remarks:</span>
-                        <p className="text-sm text-gray-700 mt-1">
-                          {payment.remarks}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Add/Edit Payment Modal */}
+      {/* Delete Confirmation */}
+      {deleteConfirmation.visible && (
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
+            <div className="p-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Payment Voucher
+              </h3>
+              <p className="text-gray-600 text-center mb-2">
+                Are you sure you want to delete
+              </p>
+              <p className="text-gray-900 font-semibold text-center mb-6">
+                "{deleteConfirmation.voucherNo}"?
+              </p>
+              <p className="text-sm text-gray-500 text-center mb-8">
+                This action cannot be undone.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={hideDeleteConfirmation}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {deleteConfirmation.isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" /> Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 bg-opacity-50 flex items-center justify-center p-4 z-50 modal-container">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editPaymentId
+                    ? "Edit Payment Voucher"
+                    : "Add Payment Voucher"}
+                </h3>
+                <div className="flex items-center mt-1 space-x-4">
+                  <p className="text-gray-600 text-sm">
                     {editPaymentId
-                      ? "Edit Payment Voucher"
-                      : "Add Payment Voucher"}
-                  </h2>
-                  {isDraftSaved && lastSaveTime && (
-                    <p className="text-sm text-gray-500 mt-1 flex items-center">
-                      <Save size={14} className="mr-1" />
+                      ? "Update payment voucher information"
+                      : "Create a new payment voucher"}
+                  </p>
+                  {lastSaveTime && (
+                    <p className="text-sm text-green-600 flex items-center">
+                      <Save size={12} className="mr-1" />
                       Draft saved {formatLastSaveTime(lastSaveTime)}
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={resetForm}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
-                >
-                  <X size={20} className="text-gray-600" />
-                </button>
               </div>
+              <button
+                onClick={resetForm}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
+              >
+                <X size={22} />
+              </button>
             </div>
 
-            <form ref={formRef} className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Vendor Selection */}
-                <div className="lg:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Vendor *
-                  </label>
-                  <select
-                    name="vendorId"
-                    value={formData.vendorId}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.vendorId ? "border-red-500" : "border-gray-200"
-                    }`}
-                  >
-                    <option value="">Select Vendor</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor._id} value={vendor._id}>
-                        {vendor.vendorName}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.vendorId && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
-                      {errors.vendorId}
-                    </p>
-                  )}
-                </div>
+            <div className="p-6" ref={formRef}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {editPaymentId && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <Receipt size={16} className="inline mr-2" /> Voucher No
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.voucherNo}
+                      disabled
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-500"
+                    />
+                  </div>
+                )}
 
-                {/* Date */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Date *
+                    <Calendar size={16} className="inline mr-2" /> Date *
                   </label>
                   <input
                     type="date"
@@ -1358,28 +1217,125 @@ const PaymentVoucherManagement = () => {
                     value={formData.date}
                     onChange={handleChange}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.date ? "border-red-500" : "border-gray-200"
+                      errors.date
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.date && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
                       {errors.date}
                     </p>
                   )}
                 </div>
 
-                {/* Payment Mode */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Mode *
+                    <User size={16} className="inline mr-2" /> Vendor Name *
+                  </label>
+                  <select
+                    name="vendorId"
+                    value={formData.vendorId}
+                    onChange={handleChange}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                      errors.vendorId
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    <option value="">Select Vendor</option>
+                    {vendors.map((v) => (
+                      <option key={v._id} value={v._id}>
+                        {v.vendorName}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.vendorId && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.vendorId}
+                    </p>
+                  )}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <LinkIcon size={16} className="inline mr-2" /> Linked
+                    Invoice(s) *
+                  </label>
+                  <div
+                    className={`border rounded-xl p-4 max-h-48 overflow-y-auto ${
+                      errors.linkedInvoices
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {availableInvoices.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">
+                        {formData.vendorId
+                          ? "No outstanding invoices found for selected vendor"
+                          : "Please select a vendor first to view outstanding invoices"}
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {availableInvoices.map((inv) => (
+                          <div
+                            key={inv._id}
+                            className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="checkbox"
+                                checked={asArray(
+                                  formData.linkedInvoices
+                                ).includes(inv._id)}
+                                onChange={() => handleInvoiceSelection(inv._id)}
+                                className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                              />
+                              <div>
+                                <p className="font-medium text-sm text-gray-900">
+                                  {inv.transactionNo || inv.transactionId}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(inv.date).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium text-sm text-gray-900">
+                                {formatCurrency(inv.totalAmount)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {inv.status}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {errors.linkedInvoices && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.linkedInvoices}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <CreditCard size={16} className="inline mr-2" /> Payment
+                    Mode *
                   </label>
                   <select
                     name="paymentMode"
                     value={formData.paymentMode}
                     onChange={handleChange}
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.paymentMode ? "border-red-500" : "border-gray-200"
+                      errors.paymentMode
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   >
                     <option value="Cash">Cash</option>
@@ -1388,240 +1344,164 @@ const PaymentVoucherManagement = () => {
                     <option value="Online">Online</option>
                   </select>
                   {errors.paymentMode && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
                       {errors.paymentMode}
                     </p>
                   )}
                 </div>
 
-                {/* Amount */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Amount *
+                    <DollarSign size={16} className="inline mr-2" /> Amount *
                   </label>
-                  <div className="relative">
-                    <img
-                      src={DirhamIcon}
-                      alt="AED"
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4"
-                      style={{ filter: getColorFilter("text-gray-600") }}
-                    />
-                    <input
-                      type="number"
-                      name="amount"
-                      value={formData.amount}
-                      onChange={handleChange}
-                      placeholder="0.00"
-                      step="0.01"
-                      min="0"
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                        errors.amount ? "border-red-500" : "border-gray-200"
-                      }`}
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                      errors.amount
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
+                  />
                   {errors.amount && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={14} className="mr-1" />
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
                       {errors.amount}
                     </p>
                   )}
                 </div>
 
-                {/* File Upload */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Proof
+                    <FileText size={16} className="inline mr-2" /> Payment Proof
                   </label>
-                  <div className="relative">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isFileUploading}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50"
-                    >
-                      {isFileUploading ? (
-                        <>
-                          <Loader2 size={18} className="animate-spin" />
-                          <span>Uploading... {fileUploadProgress}%</span>
-                        </>
-                      ) : formData.attachedProof ? (
-                        <>
-                          <CheckCircle size={18} className="text-green-600" />
-                          <span>File uploaded</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload size={18} />
-                          <span>Upload proof</span>
-                        </>
-                      )}
-                    </button>
-                    {isFileUploading && (
-                      <div
-                        className="absolute bottom-0 left-0 h-1 bg-purple-600 rounded-b-xl transition-all duration-300"
-                        style={{ width: `${fileUploadProgress}%` }}
-                      ></div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Linked Invoices */}
-                {availableInvoices.length > 0 && (
-                  <div className="lg:col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Link to Outstanding Invoices *
-                    </label>
-                    <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl p-4 bg-gray-50">
-                      {availableInvoices.map((invoice) => (
-                        <label
-                          key={invoice._id}
-                          className="flex items-center p-3 hover:bg-white rounded-lg cursor-pointer transition-colors duration-200"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={formData.linkedInvoices.includes(
-                              invoice._id
-                            )}
-                            onChange={() => handleInvoiceSelection(invoice._id)}
-                            className="mr-3 w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-gray-900">
-                                Invoice #{invoice.transactionId}
-                              </span>
-                              <span className="font-semibold">
-                                {formatCurrency(
-                                  invoice.totalAmount,
-                                  "text-purple-700"
-                                )}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Date:{" "}
-                              {new Date(invoice.date).toLocaleDateString()}
+                  {!previewUrl ? (
+                    <div className="relative">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 flex items-center justify-center space-x-2"
+                      >
+                        <Upload size={18} />
+                        <span>Upload proof</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {isImage(selectedFile || existingProof?.fileName) ? (
+                            <img
+                              src={previewUrl}
+                              alt="Proof preview"
+                              className="w-12 h-12 object-cover rounded-md border border-gray-200"
+                            />
+                          ) : (
+                            <FileText size={32} className="text-blue-600" />
+                          )}
+                          <div>
+                            <p className="font-medium text-sm text-gray-900">
+                              {getFileName(selectedFile || existingProof?.fileName)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {getFileSize(selectedFile || existingProof)}
                             </p>
                           </div>
-                        </label>
-                      ))}
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => window.open(previewUrl, "_blank")}
+                            className="p-1 text-blue-600 hover:text-blue-800"
+                          >
+                            <Eye size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFile}
+                            className="p-1 text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    {errors.linkedInvoices && (
-                      <p className="text-red-500 text-sm mt-1 flex items-center">
-                        <AlertCircle size={14} className="mr-1" />
-                        {errors.linkedInvoices}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
 
-                {/* Remarks */}
-                <div className="lg:col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Remarks
+                    <FileText size={16} className="inline mr-2" /> Remarks
                   </label>
                   <textarea
                     name="remarks"
                     value={formData.remarks}
                     onChange={handleChange}
-                    placeholder="Additional notes or comments..."
-                    rows="3"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
+                    rows={3}
+                    placeholder="Enter payment details or notes (optional)"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save size={18} />
-                      <span>
-                        {editPaymentId ? "Update Payment" : "Create Payment"}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
+                <div className="flex items-center text-sm text-gray-500">
+                  {formData.vendorId ||
+                  formData.amount ||
+                  formData.remarks ||
+                  selectedFile ||
+                  (editPaymentId && !existingProof) ? (
+                    <span className="flex items-center text-amber-600">
+                      <Clock size={14} className="mr-1" /> Unsaved changes
+                    </span>
+                  ) : null}
+                </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 transform transition-all duration-300 scale-95">
-            <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mr-4">
-                <AlertTriangle size={24} className="text-red-600" />
+                <div className="flex space-x-4">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    disabled={isSubmitting}
+                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin mr-2" />{" "}
+                        Saving...
+                      </>
+                    ) : editPaymentId ? (
+                      <>
+                        <Save size={16} className="mr-2" /> Update Payment
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={16} className="mr-2" /> Add Payment
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Delete Payment Voucher
-                </h3>
-                <p className="text-gray-600">This action cannot be undone</p>
-              </div>
-            </div>
-
-            <p className="text-gray-700 mb-6">
-              Are you sure you want to delete payment voucher{" "}
-              <span className="font-semibold">
-                {deleteConfirmation.voucherNo}
-              </span>
-              ? This will permanently remove the payment record from your
-              system.
-            </p>
-
-            <div className="flex items-center justify-end space-x-3">
-              <button
-                onClick={hideDeleteConfirmation}
-                disabled={deleteConfirmation.isDeleting}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={deleteConfirmation.isDeleting}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deleteConfirmation.isDeleting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} />
-                    <span>Delete</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
