@@ -19,6 +19,7 @@ import SalesReturnPage from "../components/PurchaseOrder/salesReturn/SalesOrderP
 import CategoryManagement from "../components/Inventory/CategoryManagement.jsx";
 import ReceiptVoucherManagement from "../components/FinancialModules/receiptVoucher.jsx";
 import PaymentVoucherManagement from "../components/FinancialModules/PaymentVoucher.jsx";
+import PurchaseAccounts from "../components/AccountsModule/PurchaseAccount.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
@@ -41,6 +42,13 @@ export default function AdminRouter() {
         <Route
           path="/receipt-voucher"
           element={<ReceiptVoucherManagement />}
+        />{" "}
+        <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
+
+           {/* Accounts Module */}
+        <Route
+          path="/purchase-accounts"
+          element={<PurchaseAccounts />}
         />{" "}
         <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
       </Route>
