@@ -31,11 +31,11 @@ import {
   DollarSign,
   Building,
   Banknote,
+  Download,
+  Printer,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
-
-/* -------------------------- Utilities & Helpers -------------------------- */
 
 const getColorFilter = (colorClass) => {
   switch (colorClass) {
@@ -52,8 +52,6 @@ const getColorFilter = (colorClass) => {
   }
 };
 
-// In-memory session manager (fixed 'this' references)
-// If you want persistence across reloads, switch to localStorage safely.
 const SessionManager = {
   storage: {},
   key: (k) => `receipt_session_${k}`,
@@ -81,23 +79,18 @@ const SessionManager = {
   },
 };
 
-// Safe array helper
 const asArray = (x) => (Array.isArray(x) ? x : []);
 
-// Normalize API responses that might wrap data
 const takeArray = (resp) => {
-  // supports: resp.data -> array | {data: array} | {data: {data: array}}
   if (!resp) return [];
   const d = resp.data;
   if (Array.isArray(d)) return d;
-  if (Array.isArray(d?.data)) return d.data.data ?? d.data; // tolerate either
+  if (Array.isArray(d?.data)) return d.data.data ?? d.data;
   if (Array.isArray(d?.vouchers)) return d.vouchers;
   return [];
 };
 
-// Payment mode display helpers
 const displayMode = (mode) => {
-  // Normalize case from backend ('cash') or frontend ('Cash')
   const m = (mode || "").toString().toLowerCase();
   return m === "cash"
     ? "Cash"
@@ -152,12 +145,10 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
 
 const by = (v) => (typeof v === "string" ? v.toLowerCase() : v);
 
-/* ------------------------------ Main Component ------------------------------ */
-
 const ReceiptVoucherManagement = () => {
-  const [receipts, setReceipts] = useState([]); // always array
-  const [customers, setCustomers] = useState([]); // always array
-  const [availableInvoices, setAvailableInvoices] = useState([]); // for selected customer
+  const [receipts, setReceipts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [availableInvoices, setAvailableInvoices] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editReceiptId, setEditReceiptId] = useState(null);
@@ -183,12 +174,12 @@ const ReceiptVoucherManagement = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const formRef = useRef(null);
   const autoSaveTimer = useRef(null);
   const searchInputRef = useRef(null);
-
-  /* ------------------------------ Effects: Session ------------------------------ */
 
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
@@ -222,8 +213,6 @@ const ReceiptVoucherManagement = () => {
     SessionManager.set("filters", { paymentMode: filterPaymentMode });
   }, [filterPaymentMode]);
 
-  /* ------------------------------ Data Fetchers ------------------------------ */
-
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
     setTimeout(
@@ -236,11 +225,9 @@ const ReceiptVoucherManagement = () => {
     async (showRefreshIndicator = false) => {
       try {
         showRefreshIndicator ? setIsRefreshing(true) : setIsLoading(true);
-        // adjust path to match your API
         const response = await axiosInstance.get("/vouchers/vouchers", {
-          params: { voucherType: "receipt" }, // only receipts for this screen
+          params: { voucherType: "receipt" },
         });
-        console.log(response);
         const arr = takeArray(response);
         setReceipts(asArray(arr));
         if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
@@ -250,7 +237,7 @@ const ReceiptVoucherManagement = () => {
           err.response?.data?.message || "Failed to fetch receipt vouchers.",
           "error"
         );
-        setReceipts([]); // ensure array
+        setReceipts([]);
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -275,17 +262,16 @@ const ReceiptVoucherManagement = () => {
       try {
         const params = new URLSearchParams();
         if (customerId) params.append("partyId", customerId);
-        params.append("partyType", "customer");
+        params.append("partyType", "Customer");
         params.append("type", "sales_order");
-        params.append("status", "DRAFT");
+        params.append("status", "APPROVED");
 
         const response = await axiosInstance.get(
           `/transactions/transactions?${params.toString()}`
         );
         const transactions = asArray(takeArray(response));
-        // business rule: show only those without invoice generated
         setAvailableInvoices(
-          transactions.filter((t) => t?.invoiceGenerated === false)
+          transactions.filter((t) => t?.invoiceGenerated === true)
         );
       } catch (err) {
         console.error("Failed to fetch available invoices:", err);
@@ -301,8 +287,6 @@ const ReceiptVoucherManagement = () => {
     fetchCustomers();
     fetchUnpaidInvoices();
   }, [fetchReceipts, fetchCustomers, fetchUnpaidInvoices]);
-
-  /* ------------------------------ Handlers ------------------------------ */
 
   const handleChange = useCallback(
     (e) => {
@@ -382,16 +366,14 @@ const ReceiptVoucherManagement = () => {
 
     setIsSubmitting(true);
     try {
-      // map display PaymentMode to backend lowercase mode
       const modeLower = formData.paymentMode.toString().toLowerCase();
-
       const payload = {
         date: formData.date,
         customerId: formData.customerId,
         customerName: formData.customerName,
         linkedInvoices: asArray(formData.linkedInvoices),
-        paymentMode: modeLower, // backend expects lower-case per your service
-        totalAmount: Number(formData.amount), // FinancialService expects totalAmount
+        paymentMode: modeLower,
+        totalAmount: Number(formData.amount),
         narration: formData.narration,
         voucherType: "receipt",
       };
@@ -540,11 +522,124 @@ const ReceiptVoucherManagement = () => {
     return t.toLocaleTimeString();
   }, []);
 
-  /* ------------------------------ Derived Data ------------------------------ */
+  const handleViewReceipt = useCallback((receipt) => {
+    setSelectedReceipt(receipt);
+  }, []);
+
+  const handleBackToList = useCallback(() => {
+    setSelectedReceipt(null);
+  }, []);
+
+  const handleDownloadPDF = useCallback(async () => {
+    try {
+      setIsGeneratingPDF(true);
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const input = document.getElementById("receipt-content");
+      if (!input) {
+        showToastMessage("Receipt content not found!", "error");
+        return;
+      }
+
+      const canvas = await html2canvas(input, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: input.scrollWidth,
+        height: input.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.getElementById("receipt-content");
+          if (clonedElement) {
+            clonedElement.style.display = 'block';
+            clonedElement.style.visibility = 'visible';
+          }
+        }
+      });
+
+      const imgData = canvas.toDataURL("image/png", 1.0);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
+
+      const imgX = (pdfWidth - (imgWidth * 0.264583 * ratio)) / 2;
+      const imgY = 0;
+
+      pdf.addImage(
+        imgData,
+        'PNG',
+        imgX,
+        imgY,
+        imgWidth * 0.264583 * ratio,
+        imgHeight * 0.264583 * ratio,
+        undefined,
+        'FAST'
+      );
+
+      const filename = `Receipt_${selectedReceipt.voucherNo}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(filename);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      showToastMessage("Failed to generate PDF. Please try again or use the Print option.", "error");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  }, [selectedReceipt, showToastMessage]);
+
+  const handlePrintPDF = useCallback(() => {
+    const printWindow = window.open('', '_blank');
+    const receiptContent = document.getElementById("receipt-content");
+
+    if (!receiptContent || !printWindow) {
+      showToastMessage("Unable to open print dialog", "error");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt_${selectedReceipt.voucherNo}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { 
+              margin: 0; 
+              padding: 20px; 
+              font-family: Arial, sans-serif;
+              line-height: 1.4;
+              color: #000;
+            }
+            @media print { 
+              body { margin: 0; padding: 0; }
+              .no-print { display: none !important; }
+            }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { padding: 8px; text-align: left; border: 1px solid #000; }
+          </style>
+        </head>
+        <body>
+          ${receiptContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  }, [selectedReceipt, showToastMessage]);
 
   const safeReceipts = useMemo(() => asArray(receipts), [receipts]);
 
-  // FIX: receipts?.reduce -> safeReceipts.reduce (always an array)
   const receiptStats = useMemo(() => {
     const totalReceipts = safeReceipts.length;
     const totalAmount = safeReceipts.reduce(
@@ -618,7 +713,189 @@ const ReceiptVoucherManagement = () => {
     return filtered;
   }, [safeReceipts, searchTerm, filterPaymentMode, sortConfig]);
 
-  /* ------------------------------ UI ------------------------------ */
+  const calculateReceiptTotals = useCallback((entries) => {
+    const subtotal = entries.reduce((sum, entry) => sum + (Number(entry.debitAmount) || 0), 0);
+    const tax = entries.reduce((sum, entry) => sum + (Number(entry.taxAmount) || 0), 0);
+    const total = subtotal + tax;
+    return { subtotal: subtotal.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2) };
+  }, []);
+
+  if (selectedReceipt) {
+    const customer = customers.find((c) => c._id === (typeof selectedReceipt.partyId === "object" ? selectedReceipt.partyId._id : selectedReceipt.partyId));
+    const totals = calculateReceiptTotals(asArray(selectedReceipt.entries));
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={handleBackToList}
+              className="flex items-center space-x-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to List</span>
+            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleDownloadPDF}
+                disabled={isGeneratingPDF}
+                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingPDF ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
+              </button>
+              <button
+                onClick={handlePrintPDF}
+                className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print PDF</span>
+              </button>
+            </div>
+          </div>
+          <div
+            id="receipt-content"
+            className="bg-white shadow-lg"
+            style={{
+              width: '210mm',
+              minHeight: '297mm',
+              margin: '0 auto',
+              padding: '20mm',
+              fontSize: '12px',
+              lineHeight: '1.4',
+              fontFamily: 'Arial, sans-serif',
+              color: '#000'
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #8B5CF6', paddingBottom: '15px' }}>
+              <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0', direction: 'rtl' }}>
+                نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
+              </h1>
+              <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 15px 0', color: '#0f766e' }}>
+                NH FOODSTUFF TRADING LLC S.O.C.
+              </h2>
+              <div style={{ backgroundColor: '#c8a2c8', color: 'white', padding: '8px', margin: '0 -20mm 20px -20mm' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>RECEIPT VOUCHER</h3>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '10px' }}>
+              <div>
+                <p style={{ margin: '2px 0' }}>Dubai, UAE</p>
+                <p style={{ margin: '2px 0' }}>VAT Reg. No: 10503303</p>
+                <p style={{ margin: '2px 0' }}>Email: finance@nhfo.com</p>
+                <p style={{ margin: '2px 0' }}>Phone: +971 58 724 2111</p>
+                <p style={{ margin: '2px 0' }}>Web: www.nhfo.com</p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <img
+                  src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
+                  alt="NH Foods Logo"
+                  style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                />
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: '2px 0' }}>Date: {new Date(selectedReceipt.date).toLocaleDateString("en-GB")}</p>
+                <p style={{ margin: '2px 0' }}>Receipt No: {selectedReceipt.voucherNo}</p>
+                <p style={{ margin: '2px 0' }}>Payment Mode: {displayMode(selectedReceipt.paymentMode)}</p>
+              </div>
+            </div>
+            <div style={{ backgroundColor: '#e6d7e6', padding: '10px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>Received From:</div>
+                  <div style={{ fontSize: '10px' }}>
+                    <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{selectedReceipt.partyName || selectedReceipt.customerName}</p>
+                    <p style={{ margin: '2px 0' }}>{customer?.address?.split("\n")[0] || ''}</p>
+                    <p style={{ margin: '2px 0' }}>{customer?.address?.split("\n")[1] || ''}</p>
+                    <p style={{ margin: '2px 0' }}>Tel: {customer?.phone || '-'}</p>
+                  </div>
+                </div>
+                <div style={{ fontSize: '10px' }}>
+                  <p style={{ margin: '2px 0' }}>VAT Reg. No:</p>
+                  <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{customer?.vatNumber || '-'}</p>
+                </div>
+              </div>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#e6d7e6' }}>
+                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Account</th>
+                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Debit</th>
+                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Credit</th>
+                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Tax Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {asArray(selectedReceipt.entries).map((entry, index) => (
+                  <tr key={index}>
+                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{entry.accountName}</td>
+                    <td style={{ border: '1px solid #000', padding: '6px' }}>{entry.description}</td>
+                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{entry.debitAmount.toFixed(2)}</td>
+                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{entry.creditAmount.toFixed(2)}</td>
+                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{entry.taxAmount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div style={{ width: '45%' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '10px' }}>BANK DETAILS:-</div>
+                <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
+                  <p style={{ margin: '2px 0' }}><strong>BANK:</strong> NATIONAL BANK OF ABUDHABI</p>
+                  <p style={{ margin: '2px 0' }}><strong>ACCOUNT NO:</strong> 087989283001</p>
+                </div>
+              </div>
+              <div style={{ width: '40%' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                  <tr>
+                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Sub Total</td>
+                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{totals.subtotal}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Tax</td>
+                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{totals.tax}</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
+              <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
+                <p style={{ margin: '2px 0' }}><strong>IBAN NO:</strong> AE410547283001</p>
+                <p style={{ margin: '2px 0' }}><strong>CURRENCY:</strong> AED</p>
+                <p style={{ margin: '2px 0' }}><strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C</p>
+              </div>
+              <div style={{ border: '2px solid #000', padding: '10px 20px', backgroundColor: '#f9f9f9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>GRAND TOTAL</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{totals.total}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: '30px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                <p style={{ fontSize: '11px', margin: '0' }}>Payment received in good order.</p>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '20px' }}>
+                <div style={{ fontSize: '11px', width: '45%' }}>
+                  <p style={{ margin: '0 0 30px 0' }}>Received by:</p>
+                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
+                </div>
+                <div style={{ fontSize: '11px', width: '45%', textAlign: 'right' }}>
+                  <p style={{ margin: '0 0 30px 0' }}>Prepared by:</p>
+                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -661,7 +938,6 @@ const ReceiptVoucherManagement = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -677,7 +953,6 @@ const ReceiptVoucherManagement = () => {
             </p>
           </div>
         </div>
-
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleRefresh}
@@ -690,7 +965,6 @@ const ReceiptVoucherManagement = () => {
               className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
             />
           </button>
-
           <button
             onClick={() => setShowFilters((v) => !v)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
@@ -704,8 +978,6 @@ const ReceiptVoucherManagement = () => {
           </button>
         </div>
       </div>
-
-      {/* Toast */}
       {showToast.visible && (
         <div
           className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
@@ -722,8 +994,6 @@ const ReceiptVoucherManagement = () => {
           </div>
         </div>
       )}
-
-      {/* Stats */}
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
@@ -802,10 +1072,7 @@ const ReceiptVoucherManagement = () => {
           ))}
         </div>
       </div>
-
-      {/* Main Card */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
-        {/* Header */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -824,8 +1091,6 @@ const ReceiptVoucherManagement = () => {
               Add Receipt
             </button>
           </div>
-
-          {/* Search + Filters */}
           <div className="mt-6 space-y-4">
             <div className="relative">
               <Search
@@ -849,7 +1114,6 @@ const ReceiptVoucherManagement = () => {
                 </button>
               )}
             </div>
-
             {showFilters && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
                 <select
@@ -863,7 +1127,6 @@ const ReceiptVoucherManagement = () => {
                   <option value="Cheque">Cheque</option>
                   <option value="Online">Online</option>
                 </select>
-
                 <button
                   onClick={() => {
                     setFilterPaymentMode("");
@@ -877,8 +1140,6 @@ const ReceiptVoucherManagement = () => {
             )}
           </div>
         </div>
-
-        {/* Table */}
         {sortedAndFilteredReceipts.length === 0 ? (
           <EmptyState />
         ) : (
@@ -920,7 +1181,12 @@ const ReceiptVoucherManagement = () => {
                     className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {r.voucherNo}
+                      <button
+                        onClick={() => handleViewReceipt(r)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {r.voucherNo}
+                      </button>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {new Date(r.date).toLocaleDateString()}
@@ -937,23 +1203,15 @@ const ReceiptVoucherManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex flex-wrap gap-1">
-                        {asArray(r.linkedInvoices).map((invoiceId, idx) => {
-                          const inv = availableInvoices.find(
-                            (x) =>
-                              x._id === invoiceId || x.invoiceId === invoiceId
-                          );
-                          return (
-                            <span
-                              key={idx}
-                              className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium flex items-center"
-                            >
-                              <LinkIcon size={10} className="mr-1" />
-                              {inv?.transactionNo ||
-                                inv?.invoiceNo ||
-                                String(invoiceId)}
-                            </span>
-                          );
-                        })}
+                        {asArray(r.linkedInvoices).map((invoice, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs font-medium flex items-center"
+                          >
+                            <LinkIcon size={10} className="mr-1" />
+                            {invoice.transactionNo}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -999,8 +1257,6 @@ const ReceiptVoucherManagement = () => {
           </div>
         )}
       </div>
-
-      {/* Delete Confirmation */}
       {deleteConfirmation.visible && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
@@ -1051,8 +1307,6 @@ const ReceiptVoucherManagement = () => {
           </div>
         </div>
       )}
-
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -1084,7 +1338,6 @@ const ReceiptVoucherManagement = () => {
                 <X size={22} />
               </button>
             </div>
-
             <div className="p-6" ref={formRef}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {editReceiptId && (
@@ -1100,7 +1353,6 @@ const ReceiptVoucherManagement = () => {
                     />
                   </div>
                 )}
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Calendar size={16} className="inline mr-2" /> Date *
@@ -1123,7 +1375,6 @@ const ReceiptVoucherManagement = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <User size={16} className="inline mr-2" /> Customer Name *
@@ -1152,7 +1403,6 @@ const ReceiptVoucherManagement = () => {
                     </p>
                   )}
                 </div>
-
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <LinkIcon size={16} className="inline mr-2" /> Linked
@@ -1216,7 +1466,6 @@ const ReceiptVoucherManagement = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <CreditCard size={16} className="inline mr-2" /> Payment
@@ -1244,7 +1493,6 @@ const ReceiptVoucherManagement = () => {
                     </p>
                   )}
                 </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <DollarSign size={16} className="inline mr-2" /> Amount *
@@ -1270,7 +1518,6 @@ const ReceiptVoucherManagement = () => {
                     </p>
                   )}
                 </div>
-
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <FileText size={16} className="inline mr-2" /> Narration
@@ -1285,7 +1532,6 @@ const ReceiptVoucherManagement = () => {
                   />
                 </div>
               </div>
-
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                 <div className="flex items-center text-sm text-gray-500">
                   {formData.customerId ||
@@ -1296,7 +1542,6 @@ const ReceiptVoucherManagement = () => {
                     </span>
                   ) : null}
                 </div>
-
                 <div className="flex space-x-4">
                   <button
                     type="button"
