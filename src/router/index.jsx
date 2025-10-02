@@ -17,7 +17,7 @@ import InventoryManagement from "../components/Inventory/InventoryManagement.jsx
 import PurchaseReturnPage from "../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx";
 import SalesReturnPage from "../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx";
 import CategoryManagement from "../components/Inventory/CategoryManagement.jsx";
-import ReceiptVoucherManagement from "../components/FinancialModules/receiptVoucher.jsx";
+import ReceiptVoucherManagement from "../components/FinancialModules/Receipt/ReceiptVoucher.jsx";
 import PaymentVoucherManagement from "../components/FinancialModules/PaymentVoucher.jsx";
 import PurchaseAccounts from "../components/AccountsModule/PurchaseAccount.jsx";
 export default function AdminRouter() {
