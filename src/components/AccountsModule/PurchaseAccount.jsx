@@ -126,8 +126,10 @@ const PurchaseAccountsManagement = () => {
   const [formData, setFormData] = useState({
     vendorId: "",
     invoiceNumber: "",
+    date: new Date().toISOString().slice(0, 10),
     purchaseAmount: "",
     taxAmount: "",
+    returnAmount: "",
     total: "",
     paidAmount: "",
     balanceAmount: "",
@@ -231,8 +233,10 @@ const PurchaseAccountsManagement = () => {
         ...prev,
         [name]: value,
         invoiceNumber: "",
+        date: new Date().toISOString().slice(0, 10),
         purchaseAmount: "",
         taxAmount: "",
+        returnAmount: "",
         total: "",
         paidAmount: "",
         balanceAmount: "",
@@ -249,35 +253,38 @@ const PurchaseAccountsManagement = () => {
   const handleInvoiceSelect = useCallback(
     (selectedInvoices) => {
       if (selectedInvoices && selectedInvoices.length > 0) {
-        const totalAmount = selectedInvoices.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
-        const taxPercent = selectedInvoices[0]?.taxPercent || 5; // Use first invoice's taxPercent as a proxy
-        const purchaseAmount = totalAmount / (1 + taxPercent / 100);
-        const taxAmount = totalAmount - purchaseAmount;
-        const total = totalAmount;
+        // Compute per-invoice net and tax, then aggregate
+        let aggregateNet = 0;
+        let aggregateTax = 0;
+        let aggregateGross = 0;
 
-        // Aggregate paid and balance amounts from vouchers
-        let paidAmount = 0;
-        let balanceAmount = total;
         selectedInvoices.forEach((invoice) => {
-          const linkedVoucher = vouchers.find((voucher) =>
-            voucher.linkedInvoices?.some(
-              (link) => (link.invoiceId?._id || link.invoiceId) === invoice._id
-            )
-          );
-          if (linkedVoucher) {
-            const linkedInvoice = linkedVoucher.linkedInvoices.find(
-              (link) => (link.invoiceId?._id || link.invoiceId) === invoice._id
-            );
-            if (linkedInvoice) {
-              paidAmount += Number(linkedInvoice.amount) || 0;
-              balanceAmount -= Number(linkedInvoice.amount) || 0;
-            }
-          } else if (invoice.status === "paid") {
-            paidAmount += totalAmount; // Full amount if paid
-            balanceAmount = 0;
-          }
+          const invoiceTotal = Number(invoice.totalAmount) || 0;
+          const invoiceTaxPercent = Number(invoice.taxPercent) || 5;
+          const net = invoiceTotal / (1 + invoiceTaxPercent / 100);
+          const tax = invoiceTotal - net;
+          aggregateNet += net;
+          aggregateTax += tax;
+          aggregateGross += invoiceTotal;
         });
-        balanceAmount = Math.max(balanceAmount, 0); // Ensure non-negative balance
+
+        // Aggregate paid across ALL vouchers for these invoices
+        let paidAmount = 0;
+        selectedInvoices.forEach((invoice) => {
+          const invoiceId = invoice._id;
+          asArray(vouchers).forEach((voucher) => {
+            asArray(voucher.linkedInvoices).forEach((link) => {
+              const linkInvoiceId = link.invoiceId?._id || link.invoiceId;
+              if (linkInvoiceId === invoiceId) {
+                paidAmount += Number(link.amount) || 0;
+              }
+            });
+          });
+        });
+
+        const returnAmountNum = Number(formData.returnAmount) || 0;
+        const totalAfterReturn = Math.max(aggregateGross - returnAmountNum, 0);
+        const balanceAmount = Math.max(totalAfterReturn - paidAmount, 0);
 
         const status =
           balanceAmount <= 0 ? "Paid" : paidAmount === 0 ? "Unpaid" : "Partially Paid";
@@ -285,9 +292,9 @@ const PurchaseAccountsManagement = () => {
         setFormData((prev) => ({
           ...prev,
           invoiceNumber: selectedInvoices.map((inv) => inv.transactionNo).join(", "),
-          purchaseAmount: purchaseAmount ? purchaseAmount.toFixed(2) : "",
-          taxAmount: taxAmount ? taxAmount.toFixed(2) : "",
-          total: total ? total.toFixed(2) : "",
+          purchaseAmount: aggregateNet ? aggregateNet.toFixed(2) : "",
+          taxAmount: aggregateTax ? aggregateTax.toFixed(2) : "",
+          total: totalAfterReturn ? totalAfterReturn.toFixed(2) : "",
           paidAmount: paidAmount ? paidAmount.toFixed(2) : "",
           balanceAmount: balanceAmount ? balanceAmount.toFixed(2) : "",
           status,
@@ -305,7 +312,7 @@ const PurchaseAccountsManagement = () => {
         }));
       }
     },
-    [vouchers]
+    [vouchers, formData.returnAmount]
   );
 
   const validateForm = useCallback(() => {
@@ -318,8 +325,10 @@ const PurchaseAccountsManagement = () => {
     setFormData({
       vendorId: "",
       invoiceNumber: "",
+      date: new Date().toISOString().slice(0, 10),
       purchaseAmount: "",
       taxAmount: "",
+      returnAmount: "",
       total: "",
       paidAmount: "",
       balanceAmount: "",
@@ -343,8 +352,10 @@ const PurchaseAccountsManagement = () => {
         partyId: formData.vendorId,
         partyType: "Vendor",
         type: "purchase_order",
+        date: formData.date,
         transactionNo: formData.invoiceNumber,
         totalAmount: Number(formData.total),
+        returnAmount: Number(formData.returnAmount) || 0,
         status: formData.status,
       };
       await axiosInstance.post("/transactions/transactions", payload);
@@ -388,7 +399,22 @@ const PurchaseAccountsManagement = () => {
   const handleChange = useCallback(
     (e) => {
       const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => {
+        const next = { ...prev, [name]: value };
+        if (name === "returnAmount") {
+          // Recompute totals when return amount changes
+          const currentTotalGross = Number(prev.purchaseAmount || 0) + Number(prev.taxAmount || 0);
+          const returnAmountNum = Number(value) || 0;
+          const totalAfterReturn = Math.max(currentTotalGross - returnAmountNum, 0);
+          const paid = Number(prev.paidAmount) || 0;
+          const balance = Math.max(totalAfterReturn - paid, 0);
+          const status = balance <= 0 ? "Paid" : paid === 0 ? "Unpaid" : "Partially Paid";
+          next.total = totalAfterReturn ? totalAfterReturn.toFixed(2) : "";
+          next.balanceAmount = balance ? balance.toFixed(2) : "";
+          next.status = status;
+        }
+        return next;
+      });
       setErrors((prev) => ({ ...prev, [name]: "" }));
     },
     []
@@ -907,6 +933,15 @@ const PurchaseAccountsManagement = () => {
                   onInvoiceSelect={handleInvoiceSelect}
                 />
                 <FormInput
+                  label="Date"
+                  icon={Calendar}
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleChange}
+                  required
+                />
+                <FormInput
                   label="Invoice Number"
                   icon={Receipt}
                   type="text"
@@ -936,12 +971,21 @@ const PurchaseAccountsManagement = () => {
                   readOnly
                 />
                 <FormInput
-                  label="Total"
+                  label="Total (Net Amount + Tax)"
                   icon={DollarSign}
                   type="number"
                   value={formData.total}
                   readOnly
                   className="bg-gray-50 text-gray-500"
+                />
+                <FormInput
+                  label="Return Amount"
+                  icon={DollarSign}
+                  type="number"
+                  name="returnAmount"
+                  value={formData.returnAmount}
+                  onChange={handleChange}
+                  min="0"
                 />
                 <FormInput
                   label="Paid Amount"
