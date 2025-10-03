@@ -3,30 +3,30 @@ import { User, Receipt, CheckCircle, Loader2, Package, AlertCircle } from "lucid
 import Select from "react-select";
 import axiosInstance from "../../axios/axios";
 
-const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
+const CustomerSelect = ({ customers, value, onChange, onInvoiceSelect }) => {
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
-  const [selectedVendorName, setSelectedVendorName] = useState("");
+  const [selectedCustomerName, setSelectedCustomerName] = useState("");
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (value) {
-      fetchVendorVouchers(value);
-      const vendor = vendors.find((v) => v._id === value);
-      setSelectedVendorName(vendor ? vendor.vendorName : "");
+      fetchCustomerVouchers(value);
+      const customer = customers.find((c) => c._id === value);
+      setSelectedCustomerName(customer ? customer.customerName : "");
     } else {
       setInvoices([]);
       setSelectedInvoices([]);
-      setSelectedVendorName("");
+      setSelectedCustomerName("");
       setError(null);
       onInvoiceSelect([]);
     }
-  }, [value, vendors, onInvoiceSelect]);
+  }, [value, customers, onInvoiceSelect]);
 
-  const fetchVendorVouchers = async (vendorId) => {
-    if (!vendorId) {
-      setError("No vendor selected.");
+  const fetchCustomerVouchers = async (customerId) => {
+    if (!customerId) {
+      setError("No customer selected.");
       setInvoices([]);
       setIsLoadingInvoices(false);
       return;
@@ -36,8 +36,8 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.append("partyId", vendorId);
-      params.append("voucherType", "payment");
+      params.append("partyId", customerId);
+      params.append("voucherType", "receipt");
 
       const response = await axiosInstance.get(`/vouchers/vouchers?${params.toString()}`);
 
@@ -93,9 +93,9 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
     }
   };
 
-  const vendorOptions = vendors.map((vendor) => ({
-    value: vendor._id,
-    label: vendor.vendorName,
+  const customerOptions = customers.map((customer) => ({
+    value: customer._id,
+    label: customer.customerName,
   }));
 
   const invoiceOptions = invoices.map((invoice) => ({
@@ -111,7 +111,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       : [];
 
     if (selectedInvoiceData.length > 0) {
-      const totalPurchaseAmount = selectedInvoiceData.reduce(
+      const totalSaleAmount = selectedInvoiceData.reduce(
         (sum, inv) => sum + (inv.totalAmount || 0),
         0
       );
@@ -121,7 +121,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
         return sum + (inv.totalAmount - inv.totalAmount / (1 + itemTaxPercent / 100));
       }, 0);
 
-      const totalAmount = totalPurchaseAmount;
+      const totalAmount = totalSaleAmount;
       const paidAmount = selectedInvoiceData.reduce(
         (sum, inv) => sum + (inv.amount || 0),
         0
@@ -132,7 +132,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
         balanceAmount <= 0 ? "Paid" : paidAmount === 0 ? "Unpaid" : "Partially Paid";
 
       onInvoiceSelect(selectedInvoiceData, {
-        purchaseAmount: totalPurchaseAmount.toFixed(2),
+        saleAmount: totalSaleAmount.toFixed(2),
         taxAmount: taxAmount.toFixed(2),
         total: totalAmount.toFixed(2),
         paidAmount: paidAmount.toFixed(2),
@@ -141,7 +141,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       });
     } else {
       onInvoiceSelect([], {
-        purchaseAmount: "0.00",
+        saleAmount: "0.00",
         taxAmount: "0.00",
         total: "0.00",
         paidAmount: "0.00",
@@ -202,25 +202,25 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       <div className="group">
         <label className="block text-sm font-semibold text-gray-700 mb-2 transition-colors group-focus-within:text-purple-600">
           <User size={16} className="inline mr-2 text-purple-500" />
-          Select Vendor <span className="text-red-500">*</span>
+          Select Customer <span className="text-red-500">*</span>
         </label>
         <Select
-          value={vendorOptions.find((option) => option.value === value)}
+          value={customerOptions.find((option) => option.value === value)}
           onChange={(option) =>
             onChange({
-              target: { name: "vendorId", value: option ? option.value : "" },
+              target: { name: "customerId", value: option ? option.value : "" },
             })
           }
-          options={vendorOptions}
+          options={customerOptions}
           isSearchable
-          placeholder="Search and select vendor..."
+          placeholder="Search and select customer..."
           styles={customStyles}
           classNamePrefix="react-select"
-          isDisabled={!vendors.length}
+          isDisabled={!customers.length}
         />
         <p className="mt-1 text-xs text-gray-500 flex items-center">
           <CheckCircle size={10} className="mr-1" />
-          {vendors.length ? "Choose the vendor for this purchase" : "No vendors available"}
+          {customers.length ? "Choose the customer for this sale" : "No customers available"}
         </p>
       </div>
 
@@ -236,7 +236,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
             <p className="text-sm text-red-600 font-medium mb-1">{error}</p>
             <button
               className="text-xs text-blue-600 hover:underline"
-              onClick={() => fetchVendorVouchers(value)}
+              onClick={() => fetchCustomerVouchers(value)}
             >
               Retry
             </button>
@@ -250,7 +250,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
           <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-gray-50 to-blue-50">
             <Package size={32} className="text-gray-400 mb-2" />
             <p className="text-sm text-gray-500 text-center">
-              Please select a vendor first to view available invoices
+              Please select a customer first to view available invoices
             </p>
           </div>
         ) : invoices.length === 0 ? (
@@ -258,7 +258,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
             <Receipt size={32} className="text-orange-400 mb-2" />
             <p className="text-sm text-gray-600 font-medium mb-1">No invoices found</p>
             <p className="text-xs text-gray-500 text-center">
-              No linked invoices available for {selectedVendorName}
+              No linked invoices available for {selectedCustomerName}
             </p>
           </div>
         ) : (
@@ -278,7 +278,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
               <CheckCircle size={10} className="mr-1" />
               {selectedInvoices.length > 0
                 ? `${selectedInvoices.length} invoice(s) selected`
-                : "Select invoices to include in this purchase"}
+                : "Select invoices to include in this sale"}
             </p>
           </>
         )}
@@ -287,4 +287,4 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
   );
 };
 
-export default VendorSelect;
+export default CustomerSelect;

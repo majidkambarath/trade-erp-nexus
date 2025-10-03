@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Search, User } from "lucide-react";
+import { AlertCircle, Search, User } from "lucide-react";
 
 const vendorSelect = ({ vendor, value, onChange, error }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -9,9 +9,9 @@ const vendorSelect = ({ vendor, value, onChange, error }) => {
     c.vendorName.toLowerCase().includes(searchTerm?.toLowerCase())
   );
 
-  const handleSelect = useCallback((customer) => {
+  const handleSelect = useCallback((vendor) => {
     onChange({ target: { name: "vendorId", value: vendor._id } });
-    setSearchTerm(vendor.vendorId);
+    setSearchTerm(vendor.vendorName);
     setIsOpen(false);
   }, [onChange]);
 

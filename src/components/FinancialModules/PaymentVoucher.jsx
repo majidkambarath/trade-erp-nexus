@@ -380,7 +380,7 @@ const PaymentVoucherManagement = () => {
         if (vendorId) params.append("partyId", vendorId);
         params.append("partyType", "Vendor");
         params.append("type", "purchase_order");
-        params.append("status", "paid");
+        params.append("status", "APPROVED");
         const response = await axiosInstance.get(
           `/transactions/transactions?${params.toString()}`
         );
