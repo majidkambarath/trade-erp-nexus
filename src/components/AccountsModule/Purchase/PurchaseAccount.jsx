@@ -22,8 +22,8 @@ import {
   FileText,
 } from "lucide-react";
 import Select from "react-select";
-import axiosInstance from "../../axios/axios";
-import CustomerSelect from "./CustomerSelect";
+import axiosInstance from "../../../axios/axios";
+import VendorSelect from "./VendorSelect";
 
 const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
   <div className="group relative">
@@ -138,18 +138,18 @@ const badgeClassForStatus = (status) => {
   return badges[status] || "bg-gray-100 text-gray-800";
 };
 
-const SaleAccountsManagement = () => {
-  const [customers, setCustomers] = useState([]);
+const PurchaseAccountsManagement = () => {
+  const [vendors, setVendors] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [vouchers, setVouchers] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedVendor, setSelectedVendor] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
-    customerId: "",
+    vendorId: "",
     invoiceNumber: "",
     date: "",
-    saleAmount: "",
+    purchaseAmount: "",
     taxAmount: "",
     total: "",
     returnAmount: "",
@@ -175,7 +175,7 @@ const SaleAccountsManagement = () => {
   const modalRef = useRef(null);
 
   useEffect(() => {
-    fetchCustomers();
+    fetchVendors();
     fetchInvoices();
     fetchVouchers();
   }, []);
@@ -196,13 +196,13 @@ const SaleAccountsManagement = () => {
     setTimeout(() => setShowToast((prev) => ({ ...prev, visible: false })), 3000);
   }, []);
 
-  const fetchCustomers = useCallback(async () => {
+  const fetchVendors = useCallback(async () => {
     try {
-      const response = await axiosInstance.get("/customers/customers");
-      setCustomers(takeArray(response));
+      const response = await axiosInstance.get("/vendors/vendors");
+      setVendors(takeArray(response));
     } catch (err) {
-      showToastMessage("Failed to fetch customers.", "error");
-      setCustomers([]);
+      showToastMessage("Failed to fetch vendors.", "error");
+      setVendors([]);
     }
   }, [showToastMessage]);
 
@@ -210,8 +210,8 @@ const SaleAccountsManagement = () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams();
-      params.append("partyType", "Customer");
-      params.append("type", "sale_order");
+      params.append("partyType", "Vendor");
+      params.append("type", "purchase_order");
       params.append("status", "APPROVED");
       const response = await axiosInstance.get(
         `/transactions/transactions?${params.toString()}`
@@ -228,21 +228,21 @@ const SaleAccountsManagement = () => {
   const fetchVouchers = useCallback(async () => {
     try {
       const response = await axiosInstance.get("/vouchers/vouchers", {
-        params: { voucherType: "receipt" },
+        params: { voucherType: "payment" },
       });
       setVouchers(takeArray(response));
     } catch (err) {
-      showToastMessage("Failed to fetch receipts.", "error");
+      showToastMessage("Failed to fetch payment vouchers.", "error");
       setVouchers([]);
     }
   }, [showToastMessage]);
 
   const fetchAvailableVouchers = useCallback(
-    async (customerId = null) => {
+    async (vendorId = null) => {
       try {
         const params = new URLSearchParams();
-        if (customerId) params.append("partyId", customerId);
-        params.append("voucherType", "receipt");
+        if (vendorId) params.append("partyId", vendorId);
+        params.append("voucherType", "payment");
         const response = await axiosInstance.get(
           `/vouchers/vouchers?${params.toString()}`
         );
@@ -251,14 +251,14 @@ const SaleAccountsManagement = () => {
         );
         setAvailableVouchers(available);
       } catch (err) {
-        showToastMessage("Failed to fetch available receipts.", "error");
+        showToastMessage("Failed to fetch available vouchers.", "error");
         setAvailableVouchers([]);
       }
     },
     [showToastMessage]
   );
 
-  const handleCustomerChange = useCallback(
+  const handleVendorChange = useCallback(
     (e) => {
       const { name, value } = e.target;
       setFormData((prev) => ({
@@ -266,7 +266,7 @@ const SaleAccountsManagement = () => {
         [name]: value,
         invoiceNumber: "",
         date: "",
-        saleAmount: "",
+        purchaseAmount: "",
         taxAmount: "",
         total: "",
         returnAmount: "",
@@ -276,7 +276,7 @@ const SaleAccountsManagement = () => {
       }));
       setErrors({});
       setSelectedInvoices([]);
-      if (name === "customerId") {
+      if (name === "vendorId") {
         fetchAvailableVouchers(value);
       }
     },
@@ -287,7 +287,7 @@ const SaleAccountsManagement = () => {
     (selectedInvoicesData, autoFillData = {}) => {
       setSelectedInvoices(selectedInvoicesData);
       if (selectedInvoicesData && selectedInvoicesData.length > 0) {
-        const totalSaleAmount = selectedInvoicesData.reduce((sum, inv) => {
+        const totalPurchaseAmount = selectedInvoicesData.reduce((sum, inv) => {
           const itemTotal = inv.items.reduce(
             (itemSum, item) => itemSum + (Number(item.lineTotal) || 0),
             0
@@ -305,7 +305,7 @@ const SaleAccountsManagement = () => {
           return sum + (itemTotal - itemTotal / (1 + itemTaxPercent / 100));
         }, 0);
 
-        const totalAmount = totalSaleAmount;
+        const totalAmount = totalPurchaseAmount;
 
         const paidAmount = selectedInvoicesData.reduce((sum, inv) => {
           const linkedVoucher = vouchers.find((voucher) =>
@@ -340,7 +340,7 @@ const SaleAccountsManagement = () => {
             .map((inv) => inv.transactionNo)
             .join(", "),
           date,
-          saleAmount: totalSaleAmount.toFixed(2),
+          purchaseAmount: totalPurchaseAmount.toFixed(2),
           taxAmount: taxAmount.toFixed(2),
           total: totalAmount.toFixed(2),
           returnAmount: "0.00",
@@ -354,7 +354,7 @@ const SaleAccountsManagement = () => {
           ...prev,
           invoiceNumber: "",
           date: "",
-          saleAmount: "",
+          purchaseAmount: "",
           taxAmount: "",
           total: "",
           returnAmount: "",
@@ -372,10 +372,10 @@ const SaleAccountsManagement = () => {
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
       if (name === "returnAmount") {
-        const saleAmount = Number(prev.saleAmount) || 0;
+        const purchaseAmount = Number(prev.purchaseAmount) || 0;
         const returnAmount = Number(value) || 0;
         const total =
-          saleAmount - returnAmount + (Number(prev.taxAmount) || 0);
+          purchaseAmount - returnAmount + (Number(prev.taxAmount) || 0);
         const balanceAmount = total - (Number(prev.paidAmount) || 0);
         const status =
           balanceAmount <= 0
@@ -397,7 +397,7 @@ const SaleAccountsManagement = () => {
 
   const validateForm = useCallback(() => {
     const e = {};
-    if (!formData.customerId) e.customerId = "Please select a customer";
+    if (!formData.vendorId) e.vendorId = "Please select a vendor";
     if (!formData.invoiceNumber)
       e.invoiceNumber = "Please select at least one invoice";
     return e;
@@ -405,10 +405,10 @@ const SaleAccountsManagement = () => {
 
   const resetForm = useCallback(() => {
     setFormData({
-      customerId: "",
+      vendorId: "",
       invoiceNumber: "",
       date: "",
-      saleAmount: "",
+      purchaseAmount: "",
       taxAmount: "",
       total: "",
       returnAmount: "",
@@ -432,6 +432,7 @@ const SaleAccountsManagement = () => {
     setIsSubmitting(true);
     try {
       const selectedInvoiceIds = selectedInvoices.map((invoice) => invoice._id);
+      // Calculate balance amount for each invoice
       const invoiceBalances = selectedInvoices.map((inv) => {
         const itemTotal = inv.items.reduce(
           (sum, item) => sum + (Number(item.lineTotal) || 0),
@@ -456,27 +457,27 @@ const SaleAccountsManagement = () => {
       });
 
       const payload = {
-        partyId: formData.customerId,
-        partyType: "Customer",
-        type: "sale_order",
+        partyId: formData.vendorId,
+        partyType: "Vendor",
+        type: "purchase_order",
         invoiceIds: selectedInvoiceIds,
         transactionNo: formData.invoiceNumber,
         date: formData.date,
         totalAmount: Number(formData.total),
         returnAmount: Number(formData.returnAmount) || 0,
         paidAmount: Number(formData.paidAmount) || 0,
-        balanceAmount: Number(formData.balanceAmount) || 0,
+        balanceAmount: Number(formData.balanceAmount) || 0, // Overall balance
         status: formData.status,
-        invoiceBalances: invoiceBalances,
+        invoiceBalances: invoiceBalances, // Array of balances with explicit invoice references
       };
       console.log(payload);
       // await axiosInstance.post("/transactions/transactions", payload);
-      // showToastMessage("Sale invoice created successfully!", "success");
+      // showToastMessage("Purchase invoice created successfully!", "success");
       // fetchInvoices();
       // resetForm();
     } catch (err) {
       showToastMessage(
-        err.response?.data?.message || "Failed to create sale invoice.",
+        err.response?.data?.message || "Failed to create purchase invoice.",
         "error"
       );
     } finally {
@@ -510,7 +511,7 @@ const SaleAccountsManagement = () => {
 
   const filteredInvoices = useMemo(() => {
     let filtered = asArray(invoices).filter((inv) => {
-      if (selectedCustomer && inv.partyId !== selectedCustomer.value) return false;
+      if (selectedVendor && inv.partyId !== selectedVendor.value) return false;
       const term = searchTerm.toLowerCase();
       return inv.transactionNo?.toLowerCase().includes(term);
     });
@@ -522,8 +523,8 @@ const SaleAccountsManagement = () => {
       );
       const taxPercent =
         inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-      const saleAmount = itemTotal / (1 + taxPercent / 100);
-      const taxAmount = itemTotal - saleAmount;
+      const purchaseAmount = itemTotal / (1 + taxPercent / 100);
+      const taxAmount = itemTotal - purchaseAmount;
       const total = itemTotal;
       const linkedPayments = asArray(vouchers).reduce((acc, voucher) => {
         if (voucher.partyId?._id !== inv.partyId) return acc;
@@ -541,12 +542,12 @@ const SaleAccountsManagement = () => {
           : paidAmount === 0
           ? "Unpaid"
           : "Partially Paid";
-      const customer = customers.find((c) => c._id === inv.partyId);
+      const vendor = vendors.find((v) => v._id === inv.partyId);
 
       return {
         ...inv,
-        customerName: customer?.customerName || "",
-        saleAmount,
+        vendorName: vendor?.vendorName || "",
+        purchaseAmount,
         taxAmount,
         total,
         paidAmount,
@@ -560,13 +561,13 @@ const SaleAccountsManagement = () => {
         const av =
           sortConfig.key === "date"
             ? new Date(a.date).getTime()
-            : sortConfig.key === "customerName"
+            : sortConfig.key === "vendorName"
             ? a[sortConfig.key].toLowerCase()
             : a[sortConfig.key];
         const bv =
           sortConfig.key === "date"
             ? new Date(b.date).getTime()
-            : sortConfig.key === "customerName"
+            : sortConfig.key === "vendorName"
             ? b[sortConfig.key].toLowerCase()
             : b[sortConfig.key];
         return av < bv
@@ -582,11 +583,11 @@ const SaleAccountsManagement = () => {
     }
 
     return filtered;
-  }, [invoices, vouchers, selectedCustomer, searchTerm, sortConfig, customers]);
+  }, [invoices, vouchers, selectedVendor, searchTerm, sortConfig, vendors]);
 
   const filteredVouchers = useMemo(() => {
     let filtered = asArray(vouchers).filter((voucher) => {
-      if (selectedCustomer && voucher.partyId?._id !== selectedCustomer.value)
+      if (selectedVendor && voucher.partyId?._id !== selectedVendor.value)
         return false;
       const term = searchTerm.toLowerCase();
       return voucher.voucherNo?.toLowerCase().includes(term);
@@ -604,13 +605,13 @@ const SaleAccountsManagement = () => {
           ) || 0;
         const taxPercent =
           invoice?.items.length > 0 ? invoice.items[0].taxPercent || 5 : 5;
-        const saleAmount = itemTotal / (1 + taxPercent / 100);
-        const taxAmount = itemTotal - saleAmount;
+        const purchaseAmount = itemTotal / (1 + taxPercent / 100);
+        const taxAmount = itemTotal - purchaseAmount;
         const total = itemTotal;
         return {
           ...link,
           invoiceNo: invoice?.transactionNo || "Unknown",
-          saleAmount,
+          purchaseAmount,
           taxAmount,
           total,
           paidAmount: Number(link.amount) || 0,
@@ -626,7 +627,7 @@ const SaleAccountsManagement = () => {
 
       return {
         ...voucher,
-        customerName: voucher.partyName || "",
+        vendorName: voucher.partyName || "",
         linkedInvoices,
       };
     });
@@ -636,13 +637,13 @@ const SaleAccountsManagement = () => {
         const av =
           sortConfig.key === "date"
             ? new Date(a.date).getTime()
-            : sortConfig.key === "customerName"
+            : sortConfig.key === "vendorName"
             ? a[sortConfig.key].toLowerCase()
             : a[sortConfig.key];
         const bv =
           sortConfig.key === "date"
             ? new Date(b.date).getTime()
-            : sortConfig.key === "customerName"
+            : sortConfig.key === "vendorName"
             ? b[sortConfig.key].toLowerCase()
             : b[sortConfig.key];
         return av < bv
@@ -658,7 +659,7 @@ const SaleAccountsManagement = () => {
     }
 
     return filtered;
-  }, [vouchers, invoices, selectedCustomer, searchTerm, sortConfig]);
+  }, [vouchers, invoices, selectedVendor, searchTerm, sortConfig]);
 
   const stats = useMemo(() => {
     const totalInvoices = filteredInvoices.length;
@@ -684,12 +685,12 @@ const SaleAccountsManagement = () => {
     };
   }, [filteredInvoices, filteredVouchers]);
 
-  const customerOptions = useMemo(
+  const vendorOptions = useMemo(
     () => [
-      { value: "", label: "All Customers" },
-      ...customers.map((c) => ({ value: c._id, label: c.customerName })),
+      { value: "", label: "All Vendors" },
+      ...vendors.map((v) => ({ value: v._id, label: v.vendorName })),
     ],
-    [customers]
+    [vendors]
   );
 
   if (isLoading) {
@@ -701,7 +702,7 @@ const SaleAccountsManagement = () => {
             className="text-purple-600 animate-spin mx-auto mb-4"
           />
           <p className="text-gray-600 text-lg font-medium">
-            Loading sale accounts...
+            Loading purchase accounts...
           </p>
         </div>
       </div>
@@ -719,7 +720,7 @@ const SaleAccountsManagement = () => {
       <p className="text-gray-600 text-center mb-8 max-w-md">
         {searchTerm
           ? `No ${type} match your search.`
-          : `No ${type} available for the selected customer.`}
+          : `No ${type} available for the selected vendor.`}
       </p>
     </div>
   );
@@ -771,12 +772,12 @@ const SaleAccountsManagement = () => {
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Sale Accounts
+              Purchase Accounts
             </h1>
             <p className="text-gray-600 mt-1 font-medium">
               {activeTab === "invoices"
                 ? `${stats.totalInvoices} total invoices`
-                : `${stats.totalVouchers} total receipts`}
+                : `${stats.totalVouchers} total vouchers`}
             </p>
           </div>
         </div>
@@ -786,7 +787,7 @@ const SaleAccountsManagement = () => {
               onClick={openAddModal}
               className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
             >
-              <Plus size={18} /> Add Sale
+              <Plus size={18} /> Add Purchase
             </button>
           )}
           <button
@@ -830,7 +831,7 @@ const SaleAccountsManagement = () => {
             iconBg="bg-emerald-100"
             iconColor="text-emerald-600"
             subText={
-              activeTab === "invoices" ? "All invoices" : "All receipts"
+              activeTab === "invoices" ? "All invoices" : "All vouchers"
             }
           />
           <StatCard
@@ -842,7 +843,7 @@ const SaleAccountsManagement = () => {
             borderColor="border-purple-200"
             iconBg="bg-purple-100"
             iconColor="text-purple-600"
-            subText="Total sale value"
+            subText="Total purchase value"
           />
           <StatCard
             title="Paid Amount"
@@ -875,13 +876,13 @@ const SaleAccountsManagement = () => {
             <div>
               <h2 className="text-xl font-bold text-gray-900">
                 {activeTab === "invoices"
-                  ? "Sale Invoices"
-                  : "Receipt Vouchers"}
+                  ? "Purchase Invoices"
+                  : "Payment Vouchers"}
               </h2>
               <p className="text-gray-600 text-sm mt-1">
                 {activeTab === "invoices"
-                  ? "View sale invoices and payment status"
-                  : "View receipt vouchers linked to invoices"}
+                  ? "View purchase invoices and payment status"
+                  : "View payment vouchers linked to invoices"}
               </p>
             </div>
             <div className="flex space-x-2">
@@ -903,7 +904,7 @@ const SaleAccountsManagement = () => {
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
-                Receipts
+                Vouchers
               </button>
             </div>
           </div>
@@ -916,7 +917,7 @@ const SaleAccountsManagement = () => {
               <input
                 type="text"
                 placeholder={`Search by ${
-                  activeTab === "invoices" ? "invoice" : "receipt"
+                  activeTab === "invoices" ? "invoice" : "voucher"
                 } number...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -935,16 +936,16 @@ const SaleAccountsManagement = () => {
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-gray-200">
                 <div className="w-full">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <User size={16} className="inline mr-2" /> Customer Name
+                    <User size={16} className="inline mr-2" /> Vendor Name
                   </label>
                   <Select
-                    value={selectedCustomer}
+                    value={selectedVendor}
                     onChange={(selectedOption) =>
-                      setSelectedCustomer(selectedOption)
+                      setSelectedVendor(selectedOption)
                     }
-                    options={customerOptions}
+                    options={vendorOptions}
                     isSearchable={true}
-                    placeholder="Search and select customer..."
+                    placeholder="Search and select vendor..."
                     classNamePrefix="react-select"
                   />
                 </div>
@@ -955,14 +956,14 @@ const SaleAccountsManagement = () => {
         {activeTab === "invoices" && filteredInvoices.length === 0 ? (
           <EmptyState type="invoices" />
         ) : activeTab === "vouchers" && filteredVouchers.length === 0 ? (
-          <EmptyState type="receipts" />
+          <EmptyState type="vouchers" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   {[
-                    { key: "customerName", label: "Customer Name" },
+                    { key: "vendorName", label: "Vendor Name" },
                     {
                       key:
                         activeTab === "invoices"
@@ -971,10 +972,10 @@ const SaleAccountsManagement = () => {
                       label:
                         activeTab === "invoices"
                           ? "Invoice Number"
-                          : "Receipt Number",
+                          : "Voucher Number",
                     },
                     { key: "date", label: "Date" },
-                    { key: "saleAmount", label: "Sale Amount" },
+                    { key: "purchaseAmount", label: "Purchase Amount" },
                     { key: "taxAmount", label: "Tax Amount" },
                     { key: "total", label: "Total" },
                     { key: "paidAmount", label: "Paid Amount" },
@@ -1006,7 +1007,7 @@ const SaleAccountsManagement = () => {
                         className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                       >
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {inv.customerName}
+                          {inv.vendorName}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                           {inv.transactionNo}
@@ -1015,7 +1016,7 @@ const SaleAccountsManagement = () => {
                           {new Date(inv.date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.saleAmount)}
+                          {formatCurrency(inv.purchaseAmount)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {formatCurrency(inv.taxAmount)}
@@ -1047,7 +1048,7 @@ const SaleAccountsManagement = () => {
                           className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                         >
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            {voucher.customerName}
+                            {voucher.vendorName}
                           </td>
                           <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                             {voucher.voucherNo} (Inv: {link.invoiceNo})
@@ -1056,7 +1057,7 @@ const SaleAccountsManagement = () => {
                             {new Date(voucher.date).toLocaleDateString()}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.saleAmount)}
+                            {formatCurrency(link.purchaseAmount)}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
                             {formatCurrency(link.taxAmount)}
@@ -1098,10 +1099,10 @@ const SaleAccountsManagement = () => {
               <div>
                 <h3 className="text-2xl font-bold text-white flex items-center gap-2">
                   <Package size={28} />
-                  Add Sale Invoice
+                  Add Purchase Invoice
                 </h3>
                 <p className="text-purple-100 text-sm mt-1">
-                  Create a new sale invoice with automatic calculations
+                  Create a new purchase invoice with automatic calculations
                 </p>
               </div>
               <button
@@ -1121,7 +1122,7 @@ const SaleAccountsManagement = () => {
                       Smart Auto-Fill
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Select a customer and invoices to automatically calculate amounts,
+                      Select a vendor and invoices to automatically calculate amounts,
                       taxes, and payment status
                     </p>
                   </div>
@@ -1130,10 +1131,10 @@ const SaleAccountsManagement = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
-                  <CustomerSelect
-                    customers={customers}
-                    value={formData.customerId}
-                    onChange={handleCustomerChange}
+                  <VendorSelect
+                    vendors={vendors}
+                    value={formData.vendorId}
+                    onChange={handleVendorChange}
                     onInvoiceSelect={handleInvoiceSelect}
                   />
                 </div>
@@ -1163,11 +1164,11 @@ const SaleAccountsManagement = () => {
                 />
 
                 <FormInput
-                  label="Sale Amount"
+                  label="Purchase Amount"
                   icon={DollarSign}
                   type="number"
-                  name="saleAmount"
-                  value={formData.saleAmount}
+                  name="purchaseAmount"
+                  value={formData.purchaseAmount}
                   onChange={handleChange}
                   readOnly
                   required
@@ -1193,7 +1194,7 @@ const SaleAccountsManagement = () => {
                   value={formData.total}
                   onChange={handleChange}
                   readOnly
-                  hint="Sale + Tax - Return"
+                  hint="Purchase + Tax - Return"
                 />
 
                 <FormInput
@@ -1216,7 +1217,7 @@ const SaleAccountsManagement = () => {
                   name="paidAmount"
                   value={formData.paidAmount}
                   readOnly
-                  hint="Calculated from receipts"
+                  hint="Calculated from vouchers"
                 />
 
                 <FormInput
@@ -1248,9 +1249,9 @@ const SaleAccountsManagement = () => {
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-xs text-gray-600 mb-1">Sale</p>
+                    <p className="text-xs text-gray-600 mb-1">Purchase</p>
                     <p className="font-semibold text-gray-900">
-                      {formatCurrency(formData.saleAmount || 0)}
+                      {formatCurrency(formData.purchaseAmount || 0)}
                     </p>
                   </div>
                   <div>
@@ -1272,37 +1273,7 @@ const SaleAccountsManagement = () => {
                     </p>
                   </div>
                 </div>
-                {/* {selectedInvoices.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-sm font-medium text-gray-700 mb-2">
-                      Balance by Invoice:
-                    </h5>
-                    <ul className="list-disc list-inside text-sm text-gray-600">
-                      {selectedInvoices.map((inv) => {
-                        const itemTotal = inv.items.reduce(
-                          (sum, item) => sum + (Number(item.lineTotal) || 0),
-                          0
-                        );
-                        const taxPercent =
-                          inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-                        const total = itemTotal;
-                        const linkedPayments = vouchers.reduce((acc, voucher) => {
-                          const link = voucher.linkedInvoices?.find(
-                            (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
-                          );
-                          if (link) acc += Number(link.amount) || 0;
-                          return acc;
-                        }, 0);
-                        const balance = total - linkedPayments - (Number(formData.returnAmount) || 0);
-                        return (
-                          <li key={inv._id} className="ml-2">
-                            {inv.transactionNo}: {formatCurrency(balance, "text-red-600")}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )} */}
+              
               </div>
             </div>
 
@@ -1337,4 +1308,4 @@ const SaleAccountsManagement = () => {
   );
 };
 
-export default SaleAccountsManagement;
+export default PurchaseAccountsManagement;

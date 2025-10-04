@@ -106,6 +106,11 @@ const Sidebar = () => {
             text: "Transactions",
             to: "/transactions",
           },
+          {
+            icon: <Users strokeWidth={1.5} size={20} />,
+            text: "Transactors",
+            to: "/transactors",
+          },
         ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
       },
       {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User, Receipt, CheckCircle, Loader2, Package, AlertCircle } from "lucide-react";
 import Select from "react-select";
-import axiosInstance from "../../axios/axios";
+import axiosInstance from "../../../axios/axios";
 
 const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
   const [invoices, setInvoices] = useState([]);
