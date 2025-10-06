@@ -148,7 +148,7 @@ const PurchaseAccountsManagement = () => {
   const [formData, setFormData] = useState({
     vendorId: "",
     invoiceNumber: "",
-    date: "",
+    date: new Date().toISOString().split("T")[0], // Set default to current date
     purchaseAmount: "",
     taxAmount: "",
     total: "",
@@ -265,7 +265,7 @@ const PurchaseAccountsManagement = () => {
         ...prev,
         [name]: value,
         invoiceNumber: "",
-        date: "",
+        date: new Date().toISOString().split("T")[0], // Reset to current date
         purchaseAmount: "",
         taxAmount: "",
         total: "",
@@ -332,7 +332,7 @@ const PurchaseAccountsManagement = () => {
 
         const date = selectedInvoicesData[0]?.date
           ? new Date(selectedInvoicesData[0].date).toISOString().split("T")[0]
-          : "";
+          : new Date().toISOString().split("T")[0]; // Default to current date if no invoice date
 
         setFormData((prev) => ({
           ...prev,
@@ -353,7 +353,7 @@ const PurchaseAccountsManagement = () => {
         setFormData((prev) => ({
           ...prev,
           invoiceNumber: "",
-          date: "",
+          date: new Date().toISOString().split("T")[0], // Reset to current date
           purchaseAmount: "",
           taxAmount: "",
           total: "",
@@ -369,6 +369,18 @@ const PurchaseAccountsManagement = () => {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    if (name === "date") {
+      const selectedDate = new Date(value);
+      const currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      if (selectedDate > currentDate) {
+        setErrors((prev) => ({
+          ...prev,
+          date: "Future dates are not allowed",
+        }));
+        return;
+      }
+    }
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
       if (name === "returnAmount") {
@@ -400,6 +412,13 @@ const PurchaseAccountsManagement = () => {
     if (!formData.vendorId) e.vendorId = "Please select a vendor";
     if (!formData.invoiceNumber)
       e.invoiceNumber = "Please select at least one invoice";
+    if (!formData.date) e.date = "Please select a date";
+    const selectedDate = new Date(formData.date);
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    if (selectedDate > currentDate) {
+      e.date = "Future dates are not allowed";
+    }
     return e;
   }, [formData]);
 
@@ -407,7 +426,7 @@ const PurchaseAccountsManagement = () => {
     setFormData({
       vendorId: "",
       invoiceNumber: "",
-      date: "",
+      date: new Date().toISOString().split("T")[0], // Reset to current date
       purchaseAmount: "",
       taxAmount: "",
       total: "",
@@ -432,6 +451,15 @@ const PurchaseAccountsManagement = () => {
     setIsSubmitting(true);
     try {
       const selectedInvoiceIds = selectedInvoices.map((invoice) => invoice._id);
+      // Collect voucher IDs associated with selected invoices
+      const voucherIds = vouchers
+        .filter((voucher) =>
+          voucher.linkedInvoices?.some((link) =>
+            selectedInvoiceIds.includes(link.invoiceId?._id || link.invoiceId)
+          )
+        )
+        .map((voucher) => voucher._id);
+
       // Calculate balance amount for each invoice
       const invoiceBalances = selectedInvoices.map((inv) => {
         const itemTotal = inv.items.reduce(
@@ -459,8 +487,9 @@ const PurchaseAccountsManagement = () => {
       const payload = {
         partyId: formData.vendorId,
         partyType: "Vendor",
-        type: "purchase_order",
+        voucherType: "purchase",
         invoiceIds: selectedInvoiceIds,
+        voucherIds: voucherIds, // Include voucher IDs
         transactionNo: formData.invoiceNumber,
         date: formData.date,
         totalAmount: Number(formData.total),
@@ -471,10 +500,10 @@ const PurchaseAccountsManagement = () => {
         invoiceBalances: invoiceBalances, // Array of balances with explicit invoice references
       };
       console.log(payload);
-      // await axiosInstance.post("/transactions/transactions", payload);
-      // showToastMessage("Purchase invoice created successfully!", "success");
-      // fetchInvoices();
-      // resetForm();
+      await axiosInstance.post("/account/account-vouchers", payload);
+      showToastMessage("Purchase invoice created successfully!", "success");
+      fetchInvoices();
+      resetForm();
     } catch (err) {
       showToastMessage(
         err.response?.data?.message || "Failed to create purchase invoice.",
@@ -1159,8 +1188,9 @@ const PurchaseAccountsManagement = () => {
                   name="date"
                   value={formData.date}
                   onChange={handleChange}
-                  readOnly
-                  hint="Invoice date"
+                  required
+                  error={errors.date}
+                  hint="Select invoice date"
                 />
 
                 <FormInput

@@ -14,15 +14,14 @@ const SOForm = React.memo(
     setSelectedSO,
     setActiveView,
     setSalesOrders,
-    activeView = "create", // Default to "create" if not provided
+    activeView = "create",
     resetForm,
     calculateTotals,
     onSOSuccess,
+    formErrors,
+    setFormErrors,
   }) => {
     const isEditing = activeView === "edit";
-
-    // Local state for form errors
-    const [formErrors, setFormErrors] = useState({});
 
     // Log renders for debugging
     useEffect(() => {
@@ -41,19 +40,27 @@ const SOForm = React.memo(
       if (!formData.deliveryDate) {
         errors.deliveryDate = "Delivery date is required";
       }
-      if (!formData.items.some((item) => item.itemId && item.qty && item.rate)) {
+      if (
+        !formData.items.some(
+          (item) => item.itemId && item.qty && item.salesPrice
+        )
+      ) {
         errors.items = "At least one valid item is required";
       }
       formData.items.forEach((item, index) => {
-        if (item.itemId || item.qty) {
+        if (item.itemId || item.qty || item.salesPrice) {
           if (!item.itemId) errors[`itemId_${index}`] = "Item code is required";
-          if (!item.qty || item.qty <= 0) errors[`qty_${index}`] = "Quantity must be greater than 0";
-          if (!item.taxPercent || item.taxPercent < 0) errors[`taxPercent_${index}`] = "Tax % must be non-negative";
+          if (!item.qty || parseFloat(item.qty) <= 0)
+            errors[`qty_${index}`] = "Quantity must be greater than 0";
+          if (!item.salesPrice || parseFloat(item.salesPrice) <= 0)
+            errors[`salesPrice_${index}`] = "Sales price must be greater than 0";
+          if (!item.taxPercent || parseFloat(item.taxPercent) < 0)
+            errors[`taxPercent_${index}`] = "Tax % must be non-negative";
         }
       });
       setFormErrors(errors);
       return Object.keys(errors).length === 0;
-    }, [formData]);
+    }, [formData, setFormErrors]);
 
     // Handle input changes for text fields and textareas
     const handleInputChange = useCallback(
@@ -62,7 +69,7 @@ const SOForm = React.memo(
         setFormData((prev) => ({ ...prev, [name]: value }));
         setFormErrors((prev) => ({ ...prev, [name]: null }));
       },
-      [setFormData]
+      [setFormData, setFormErrors]
     );
 
     // Handle customer selection
@@ -75,41 +82,55 @@ const SOForm = React.memo(
           addNotification(`Customer ${customer.customerName} selected`, "success");
         }
       },
-      [customers, setFormData, addNotification]
+      [customers, setFormData, addNotification, setFormErrors]
     );
 
     // Handle item field changes
     const handleItemChange = useCallback(
       (index, field, value) => {
         const newItems = [...formData.items];
-        newItems[index][field] = value;
+        newItems[index] = { ...newItems[index], [field]: value };
 
         if (field === "itemId") {
           const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].salesPrice = item.salesPrice.toString();
-            newItems[index].category = item.category || "";
-            newItems[index].rate = newItems[index].qty
-              ? (parseFloat(item.salesPrice) * parseFloat(newItems[index].qty)).toString()
-              : item.salesPrice.toString();
+            newItems[index].salesPrice = item.salesPrice; // Store as number
+            newItems[index].category = item.category?.name || item.category || "";
+            newItems[index].taxPercent =
+              item.taxPercent !== undefined
+                ? item.taxPercent.toString()
+                : newItems[index].taxPercent || "5";
+            const qty = parseFloat(newItems[index].qty) || 0;
+            newItems[index].rate = qty
+              ? (item.salesPrice * qty).toFixed(2)
+              : "0.00";
             if (item.currentStock < item.reorderLevel) {
               addNotification(
                 `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
                 "warning"
               );
             }
+          } else {
+            newItems[index].description = "";
+            newItems[index].salesPrice = 0;
+            newItems[index].category = "";
+            newItems[index].rate = "0.00";
+            newItems[index].taxPercent = "5";
           }
         } else if (field === "qty") {
           const qty = parseFloat(value) || 0;
           const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
-          newItems[index].rate = (qty * salesPrice).toString();
+          newItems[index].rate = (qty * salesPrice).toFixed(2);
+        } else if (field === "taxPercent") {
+          newItems[index].taxPercent =
+            parseFloat(value) >= 0 ? parseFloat(value).toFixed(2) : "0.00";
         }
 
         setFormData((prev) => ({ ...prev, items: newItems }));
         setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: null }));
       },
-      [formData.items, stockItems, setFormData, addNotification]
+      [formData.items, stockItems, setFormData, addNotification, setFormErrors]
     );
 
     // Add a new item
@@ -122,9 +143,9 @@ const SOForm = React.memo(
             itemId: "",
             description: "",
             qty: "",
-            rate: "",
+            rate: "0.00",
             taxPercent: "5",
-            salesPrice: "",
+            salesPrice: 0,
             category: "",
           },
         ],
@@ -148,7 +169,7 @@ const SOForm = React.memo(
           });
         }
       },
-      [formData.items, setFormData]
+      [formData.items, setFormData, setFormErrors]
     );
 
     // Save or update the sales order
@@ -170,20 +191,25 @@ const SOForm = React.memo(
           status: formData.status,
           totalAmount: parseFloat(totals.total),
           items: formData.items
-            .filter((item) => item.itemId && item.qty && item.rate)
-            .map((item) => ({
-              itemId: item.itemId,
-              description: item.description,
-              qty: parseFloat(item.qty) || 0,
-              rate: parseFloat(item.rate) || 0,
-              taxPercent: parseFloat(item.taxPercent) || 0,
-              salesPrice: parseFloat(item.salesPrice) || 0,
-              category: item.category || "",
-              lineTotal:
-                parseFloat(item.qty || 0) *
-                parseFloat(item.rate || 0) *
-                (1 + parseFloat(item.taxPercent || 0) / 100),
-            })),
+            .filter((item) => item.itemId && item.qty && item.salesPrice)
+            .map((item) => {
+              const qty = parseFloat(item.qty) || 0;
+              const salesPrice = parseFloat(item.salesPrice) || 0;
+              const taxPercent = parseFloat(item.taxPercent) || 0;
+              const lineSubtotal = qty * salesPrice;
+              const lineTotal = (lineSubtotal * (1 + taxPercent / 100)).toFixed(2);
+
+              return {
+                itemId: item.itemId,
+                description: item.description,
+                qty,
+                rate: parseFloat(item.rate) || 0,
+                taxPercent,
+                price:salesPrice,
+                category: item.category || "",
+                lineTotal: parseFloat(lineTotal),
+              };
+            }),
           terms: formData.terms,
           notes: formData.notes,
           createdBy: "Current User",
@@ -233,7 +259,6 @@ const SOForm = React.memo(
           setSalesOrders((prev) => [newSO, ...prev]);
         }
 
-        // Call onSOSuccess for both create and edit to handle navigation
         onSOSuccess(newSO);
       } catch (error) {
         addNotification(
@@ -249,6 +274,7 @@ const SOForm = React.memo(
       setSalesOrders,
       addNotification,
       onSOSuccess,
+      calculateTotals,
     ]);
 
     // Stabilize customers and stockItems props
@@ -540,7 +566,7 @@ const SOForm = React.memo(
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
                       <input
                         type="text"
-                         value={item.category?.name || ""}
+                        value={item.category || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
@@ -552,8 +578,13 @@ const SOForm = React.memo(
                         type="number"
                         value={item.salesPrice || ""}
                         readOnly
-                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                        className={`w-full px-4 py-3 bg-slate-100 rounded-lg border ${
+                          formErrors[`salesPrice_${index}`] ? "border-red-500" : "border-slate-200"
+                        } text-sm cursor-not-allowed`}
                       />
+                      {formErrors[`salesPrice_${index}`] && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors[`salesPrice_${index}`]}</p>
+                      )}
                     </div>
 
                     <div className="col-span-2">
@@ -621,7 +652,6 @@ const SOForm = React.memo(
     );
   },
   (prevProps, nextProps) => {
-    // Custom comparison to prevent re-renders
     return (
       prevProps.formData === nextProps.formData &&
       prevProps.customers === nextProps.customers &&
@@ -634,7 +664,9 @@ const SOForm = React.memo(
       prevProps.activeView === nextProps.activeView &&
       prevProps.resetForm === nextProps.resetForm &&
       prevProps.calculateTotals === nextProps.calculateTotals &&
-      prevProps.onSOSuccess === nextProps.onSOSuccess
+      prevProps.onSOSuccess === nextProps.onSOSuccess &&
+      prevProps.formErrors === nextProps.formErrors &&
+      prevProps.setFormErrors === nextProps.setFormErrors
     );
   }
 );

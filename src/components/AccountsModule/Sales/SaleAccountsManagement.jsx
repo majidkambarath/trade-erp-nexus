@@ -148,7 +148,7 @@ const SaleAccountsManagement = () => {
   const [formData, setFormData] = useState({
     customerId: "",
     invoiceNumber: "",
-    date: "",
+    date: new Date().toISOString().split("T")[0], // Set default to current date
     saleAmount: "",
     taxAmount: "",
     total: "",
@@ -265,7 +265,7 @@ const SaleAccountsManagement = () => {
         ...prev,
         [name]: value,
         invoiceNumber: "",
-        date: "",
+        date: new Date().toISOString().split("T")[0], // Reset to current date
         saleAmount: "",
         taxAmount: "",
         total: "",
@@ -332,7 +332,7 @@ const SaleAccountsManagement = () => {
 
         const date = selectedInvoicesData[0]?.date
           ? new Date(selectedInvoicesData[0].date).toISOString().split("T")[0]
-          : "";
+          : new Date().toISOString().split("T")[0]; // Default to current date if no invoice date
 
         setFormData((prev) => ({
           ...prev,
@@ -353,7 +353,7 @@ const SaleAccountsManagement = () => {
         setFormData((prev) => ({
           ...prev,
           invoiceNumber: "",
-          date: "",
+          date: new Date().toISOString().split("T")[0], // Reset to current date
           saleAmount: "",
           taxAmount: "",
           total: "",
@@ -369,6 +369,18 @@ const SaleAccountsManagement = () => {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+    if (name === "date") {
+      const selectedDate = new Date(value);
+      const currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+      if (selectedDate > currentDate) {
+        setErrors((prev) => ({
+          ...prev,
+          date: "Future dates are not allowed",
+        }));
+        return;
+      }
+    }
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
       if (name === "returnAmount") {
@@ -400,6 +412,13 @@ const SaleAccountsManagement = () => {
     if (!formData.customerId) e.customerId = "Please select a customer";
     if (!formData.invoiceNumber)
       e.invoiceNumber = "Please select at least one invoice";
+    if (!formData.date) e.date = "Please select a date";
+    const selectedDate = new Date(formData.date);
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    if (selectedDate > currentDate) {
+      e.date = "Future dates are not allowed";
+    }
     return e;
   }, [formData]);
 
@@ -407,7 +426,7 @@ const SaleAccountsManagement = () => {
     setFormData({
       customerId: "",
       invoiceNumber: "",
-      date: "",
+      date: new Date().toISOString().split("T")[0], // Reset to current date
       saleAmount: "",
       taxAmount: "",
       total: "",
@@ -467,7 +486,7 @@ const SaleAccountsManagement = () => {
         paidAmount: Number(formData.paidAmount) || 0,
         balanceAmount: Number(formData.balanceAmount) || 0,
         status: formData.status,
-        invoiceBalances: invoiceBalances,
+        invoiceBalances,
       };
       console.log(payload);
       // await axiosInstance.post("/transactions/transactions", payload);
@@ -1158,8 +1177,9 @@ const SaleAccountsManagement = () => {
                   name="date"
                   value={formData.date}
                   onChange={handleChange}
-                  readOnly
-                  hint="Invoice date"
+                  required
+                  error={errors.date}
+                  hint="Select invoice date (cannot be future date)"
                 />
 
                 <FormInput
@@ -1272,37 +1292,6 @@ const SaleAccountsManagement = () => {
                     </p>
                   </div>
                 </div>
-                {/* {selectedInvoices.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-sm font-medium text-gray-700 mb-2">
-                      Balance by Invoice:
-                    </h5>
-                    <ul className="list-disc list-inside text-sm text-gray-600">
-                      {selectedInvoices.map((inv) => {
-                        const itemTotal = inv.items.reduce(
-                          (sum, item) => sum + (Number(item.lineTotal) || 0),
-                          0
-                        );
-                        const taxPercent =
-                          inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-                        const total = itemTotal;
-                        const linkedPayments = vouchers.reduce((acc, voucher) => {
-                          const link = voucher.linkedInvoices?.find(
-                            (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
-                          );
-                          if (link) acc += Number(link.amount) || 0;
-                          return acc;
-                        }, 0);
-                        const balance = total - linkedPayments - (Number(formData.returnAmount) || 0);
-                        return (
-                          <li key={inv._id} className="ml-2">
-                            {inv.transactionNo}: {formatCurrency(balance, "text-red-600")}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )} */}
               </div>
             </div>
 

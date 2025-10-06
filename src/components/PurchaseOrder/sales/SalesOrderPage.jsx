@@ -39,7 +39,7 @@ import {
   Users,
   Archive,
 } from "lucide-react";
-import axiosInstance from "../../../axios/axios"; // Import the configured Axios instance
+import axiosInstance from "../../../axios/axios"; // Adjust path as needed
 import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
@@ -62,7 +62,6 @@ const SalesOrderManagement = () => {
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
-  console.log(salesOrders);
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [createdSO, setCreatedSO] = useState(null); // Track newly created SO
@@ -79,8 +78,10 @@ const SalesOrderManagement = () => {
         itemId: "",
         description: "",
         qty: "",
-        rate: "",
+        rate: "0.00",
         taxPercent: "5",
+        salesPrice: 0,
+        category: "",
       },
     ],
     terms: "",
@@ -105,7 +106,6 @@ const SalesOrderManagement = () => {
     setIsLoading(true);
     try {
       const response = await axiosInstance.get("/customers/customers");
-      console.log("Customers Response:", response.data); // Debug
       setCustomers(response.data.data || []);
     } catch (error) {
       console.error("Fetch Customers Error:", error);
@@ -124,7 +124,6 @@ const SalesOrderManagement = () => {
     setIsLoading(true);
     try {
       const response = await axiosInstance.get("/stock/stock");
-      console.log("Stock Items Response:", response.data); // Debug
       const stocks = response.data.data?.stocks || response.data.data || [];
       setStockItems(
         stocks.map((item) => ({
@@ -139,6 +138,7 @@ const SalesOrderManagement = () => {
           salesPrice: item.salesPrice,
           reorderLevel: item.reorderLevel,
           status: item.status,
+          taxPercent: item.taxPercent, // Include item-specific tax if available
         }))
       );
     } catch (error) {
@@ -166,7 +166,6 @@ const SalesOrderManagement = () => {
           dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
         },
       });
-      console.log("Transactions Response:", response.data); // Debug
       setSalesOrders(
         response.data?.data.map((transaction) => ({
           id: transaction._id,
@@ -209,10 +208,7 @@ const SalesOrderManagement = () => {
   const generateTransactionNumber = () => {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
-      3,
-      "0"
-    );
+    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
       transactionNo: `SO-${dateStr}-${sequence}`,
@@ -227,7 +223,7 @@ const SalesOrderManagement = () => {
     }, 5000);
   };
 
-  // Handle successful SO save - redirect to invoice without resetting selectedSO prematurely
+  // Handle successful SO save
   const handleSOSuccess = (newSO) => {
     setCreatedSO(newSO);
     setSelectedSO(newSO);
@@ -236,8 +232,8 @@ const SalesOrderManagement = () => {
       "Sales Order saved successfully! Showing invoice...",
       "success"
     );
-    // Reset form after navigation to avoid conflicting with invoice view
-    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
+    // Reset form after navigation
+    setTimeout(resetForm, 0);
   };
 
   // Statistics calculations
@@ -245,12 +241,8 @@ const SalesOrderManagement = () => {
     () => () => {
       const total = salesOrders.length;
       const draft = salesOrders.filter((so) => so.status === "DRAFT").length;
-      const confirmed = salesOrders.filter(
-        (so) => so.status === "CONFIRMED"
-      ).length;
-      const invoiced = salesOrders.filter(
-        (so) => so.status === "INVOICED"
-      ).length;
+      const confirmed = salesOrders.filter((so) => so.status === "CONFIRMED").length;
+      const invoiced = salesOrders.filter((so) => so.status === "INVOICED").length;
 
       const totalValue = salesOrders.reduce(
         (sum, so) => sum + parseFloat(so.totalAmount),
@@ -264,19 +256,14 @@ const SalesOrderManagement = () => {
       const thisYear = new Date().getFullYear();
       const thisMonthSOs = salesOrders.filter((so) => {
         const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear
-        );
+        return soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear;
       }).length;
 
       const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
       const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
       const lastMonthSOs = salesOrders.filter((so) => {
         const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === lastMonth &&
-          soDate.getFullYear() === lastMonthYear
-        );
+        return soDate.getMonth() === lastMonth && soDate.getFullYear() === lastMonthYear;
       }).length;
 
       const growthRate =
@@ -309,10 +296,8 @@ const SalesOrderManagement = () => {
           so.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           so.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus =
-          statusFilter === "ALL" || so.status === statusFilter;
-        const matchesCustomer =
-          customerFilter === "ALL" || so.customerId === customerFilter;
+        const matchesStatus = statusFilter === "ALL" || so.status === statusFilter;
+        const matchesCustomer = customerFilter === "ALL" || so.customerId === customerFilter;
 
         let matchesDate = true;
         if (dateFilter !== "ALL") {
@@ -324,17 +309,11 @@ const SalesOrderManagement = () => {
               matchesDate = soDate.toDateString() === today.toDateString();
               break;
             case "WEEK":
-              const weekAgo = new Date(
-                today.getTime() - 7 * 24 * 60 * 60 * 1000
-              );
+              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = soDate >= weekAgo;
               break;
             case "MONTH":
-              const monthAgo = new Date(
-                today.getFullYear(),
-                today.getMonth() - 1,
-                today.getDate()
-              );
+              const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
               matchesDate = soDate >= monthAgo;
               break;
           }
@@ -375,15 +354,7 @@ const SalesOrderManagement = () => {
 
       return filtered;
     },
-    [
-      salesOrders,
-      searchTerm,
-      statusFilter,
-      customerFilter,
-      dateFilter,
-      sortBy,
-      sortOrder,
-    ]
+    [salesOrders, searchTerm, statusFilter, customerFilter, dateFilter, sortBy, sortOrder]
   );
 
   const filteredSOs = filteredAndSortedSOs();
@@ -444,25 +415,18 @@ const SalesOrderManagement = () => {
 
   const handleBulkAction = async (action) => {
     if (selectedSOs.length === 0) {
-      addNotification(
-        "Please select orders to perform bulk actions",
-        "warning"
-      );
+      addNotification("Please select orders to perform bulk actions", "warning");
       return;
     }
 
     try {
       if (action === "confirm") {
         for (const soId of selectedSOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${soId}/process`,
-            { action: "confirm" }
-          );
+          await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
+            action: "confirm",
+          });
         }
-        addNotification(
-          `${selectedSOs.length} orders confirmed successfully`,
-          "success"
-        );
+        addNotification(`${selectedSOs.length} orders confirmed successfully`, "success");
         fetchTransactions();
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedSOs.length} selected orders?`)) {
@@ -492,10 +456,131 @@ const SalesOrderManagement = () => {
     } catch (error) {
       console.error("Bulk Action Error:", error);
       addNotification(
-        "Bulk action failed: " +
+        "Bulk action failed: " + (error.response?.data?.message || error.message),
+        "error"
+      );
+    }
+  };
+
+  // Reset form
+  const resetForm = useCallback(() => {
+    setFormData({
+      transactionNo: "",
+      partyId: "",
+      date: new Date().toISOString().slice(0, 10),
+      deliveryDate: "",
+      status: "DRAFT",
+      items: [
+        {
+          itemId: "",
+          description: "",
+          qty: "",
+          rate: "0.00",
+          taxPercent: "5",
+          salesPrice: 0,
+          category: "",
+        },
+      ],
+      terms: "",
+      notes: "",
+      priority: "Medium",
+    });
+    setFormErrors({});
+  }, []);
+
+  // Calculate totals for items
+  const calculateTotals = (items) => {
+    let subtotal = 0;
+    let tax = 0;
+
+    const validItems = items.filter(
+      (item) => item.itemId && parseFloat(item.qty) > 0 && parseFloat(item.salesPrice) > 0
+    );
+
+    validItems.forEach((item) => {
+      const qty = parseFloat(item.qty) || 0;
+      const salesPrice = parseFloat(item.salesPrice) || 0;
+      const taxPercent = parseFloat(item.taxPercent) || 0;
+
+      const lineSubtotal = qty * salesPrice;
+      const lineTax = lineSubtotal * (taxPercent / 100);
+      const lineTotal = (lineSubtotal + lineTax).toFixed(2);
+
+      subtotal += lineSubtotal;
+      tax += lineTax;
+
+      // Optionally update item.lineTotal for backend consistency
+      item.lineTotal = lineTotal;
+    });
+
+    const total = (subtotal + tax).toFixed(2);
+    subtotal = subtotal.toFixed(2);
+    tax = tax.toFixed(2);
+
+    return { subtotal, tax, total, validItems };
+  };
+
+  // Edit SO
+  const editSO = (so) => {
+    setFormData({
+      transactionNo: so.transactionNo,
+      partyId: so.customerId,
+      date: new Date(so.date).toISOString().slice(0, 10),
+      deliveryDate: so.deliveryDate
+        ? new Date(so.deliveryDate).toISOString().slice(0, 10)
+        : "",
+      status: so.status,
+      items: so.items.map((item) => ({
+        itemId: item.itemId,
+        description: item.description,
+        qty: item.qty.toString(),
+        rate: item.rate.toString(),
+        taxPercent: item.taxPercent.toString(),
+        salesPrice: item.salesPrice ? item.salesPrice.toString() : "0",
+        category: item.category || "",
+        lineTotal: item.lineTotal ? item.lineTotal.toString() : "",
+      })),
+      terms: so.terms || "",
+      notes: so.notes || "",
+      priority: so.priority || "Medium",
+    });
+    setSelectedSO(so);
+    setActiveView("edit");
+  };
+
+  // Confirm SO
+  const confirmSO = async (id) => {
+    try {
+      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
+        action: "confirm",
+      });
+      addNotification("Sales Order confirmed successfully", "success");
+      fetchTransactions();
+    } catch (error) {
+      console.error("Confirm SO Error:", error);
+      addNotification(
+        "Failed to confirm sales order: " +
           (error.response?.data?.message || error.message),
         "error"
       );
+    }
+  };
+
+  // Delete SO
+  const deleteSO = async (id) => {
+    if (window.confirm("Are you sure you want to delete this sales order?")) {
+      try {
+        await axiosInstance.delete(`/transactions/transactions/${id}`);
+        addNotification("Sales Order deleted successfully", "success");
+        fetchTransactions();
+      } catch (error) {
+        console.error("Delete SO Error:", error);
+        addNotification(
+          "Failed to delete sales order: " +
+            (error.response?.data?.message || error.message),
+          "error"
+        );
+      }
     }
   };
 
@@ -516,15 +601,9 @@ const SalesOrderManagement = () => {
           } animate-slide-in border border-white/20`}
         >
           <div className="flex items-center space-x-2">
-            {notification.type === "success" && (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            {notification.type === "warning" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
-            {notification.type === "error" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
+            {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
+            {notification.type === "warning" && <AlertCircle className="w-4 h-4" />}
+            {notification.type === "error" && <AlertCircle className="w-4 h-4" />}
             <span className="text-sm font-medium">{notification.message}</span>
           </div>
         </div>
@@ -540,9 +619,7 @@ const SalesOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Orders</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {statistics.total}
-              </p>
+              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -551,9 +628,7 @@ const SalesOrderManagement = () => {
                 )}
                 <span
                   className={`text-sm font-medium ${
-                    statistics.growthRate >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
+                    statistics.growthRate >= 0 ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {Math.abs(statistics.growthRate).toFixed(1)}% from last month
@@ -569,9 +644,7 @@ const SalesOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Confirmed</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {statistics.confirmed}
-              </p>
+              <p className="text-3xl font-bold text-blue-600">{statistics.confirmed}</p>
               <p className="text-sm text-slate-500 mt-2">Ready for dispatch</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
@@ -599,9 +672,7 @@ const SalesOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">
-                {statistics.thisMonthSOs}
-              </p>
+              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthSOs}</p>
               <p className="text-sm text-slate-500 mt-2">New orders created</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
@@ -613,9 +684,7 @@ const SalesOrderManagement = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Recent Sales Orders
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Sales Orders</h3>
           <div className="space-y-3">
             {salesOrders.slice(0, 5).map((so) => (
               <div
@@ -623,15 +692,9 @@ const SalesOrderManagement = () => {
                 className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center space-x-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${getPriorityColor(
-                      so.priority
-                    )}`}
-                  ></div>
+                  <div className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`}></div>
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {so.transactionNo}
-                    </p>
+                    <p className="font-medium text-slate-900">{so.transactionNo}</p>
                     <p className="text-sm text-slate-600">{so.customerName}</p>
                   </div>
                 </div>
@@ -660,61 +723,41 @@ const SalesOrderManagement = () => {
         </div>
 
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Status Overview
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Confirmed</span>
-                <span className="text-xs font-medium text-blue-600">
-                  {statistics.confirmed}
-                </span>
+                <span className="text-xs font-medium text-blue-600">{statistics.confirmed}</span>
               </div>
               <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.confirmed / statistics.total) * 100 || 0
-                    }%`,
-                  }}
+                  style={{ width: `${(statistics.confirmed / statistics.total) * 100 || 0}%` }}
                 ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Invoiced</span>
-                <span className="text-xs font-medium text-purple-600">
-                  {statistics.invoiced}
-                </span>
+                <span className="text-xs font-medium text-purple-600">{statistics.invoiced}</span>
               </div>
               <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-purple-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.invoiced / statistics.total) * 100 || 0
-                    }%`,
-                  }}
+                  style={{ width: `${(statistics.invoiced / statistics.total) * 100 || 0}%` }}
                 ></div>
               </div>
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Draft</span>
-                <span className="text-xs font-medium text-slate-600">
-                  {statistics.draft}
-                </span>
+                <span className="text-xs font-medium text-slate-600">{statistics.draft}</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-slate-400 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.draft / statistics.total) * 100 || 0
-                    }%`,
-                  }}
+                  style={{ width: `${(statistics.draft / statistics.total) * 100 || 0}%` }}
                 ></div>
               </div>
             </div>
@@ -789,9 +832,7 @@ const SalesOrderManagement = () => {
           </div>
 
           <button
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -800,115 +841,6 @@ const SalesOrderManagement = () => {
         </div>
       </div>
     );
-  };
-
-  const resetForm = useCallback(() => {
-    setFormData({
-      transactionNo: "",
-      partyId: "",
-      date: new Date().toISOString().slice(0, 10),
-      deliveryDate: "",
-      status: "DRAFT",
-      items: [
-        {
-          itemId: "",
-          description: "",
-          qty: "",
-          rate: "",
-          taxPercent: "5",
-        },
-      ],
-      terms: "",
-      notes: "",
-      priority: "Medium",
-    });
-    setFormErrors({});
-    // Removed setSelectedSO(null) to prevent clearing during navigation to invoice
-  }, []);
-
-  // Calculate totals for items
-  const calculateTotals = (items) => {
-    let subtotal = 0;
-    let tax = 0;
-
-    items.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0;
-      const rate = parseFloat(item.rate) || 0;
-      const taxPercent = parseFloat(item.taxPercent) || 0;
-
-      const lineSubtotal = qty * rate;
-      const lineTax = lineSubtotal * (taxPercent / 100);
-
-      subtotal += lineSubtotal;
-      tax += lineTax;
-    });
-
-    const total = (subtotal + tax).toFixed(2);
-    subtotal = subtotal.toFixed(2);
-    tax = tax.toFixed(2);
-
-    return { subtotal, tax, total };
-  };
-
-  // Edit SO
-  const editSO = (so) => {
-    setFormData({
-      transactionNo: so.transactionNo,
-      partyId: so.customerId,
-      date: new Date(so.date).toISOString().slice(0, 10),
-      deliveryDate: so.deliveryDate
-        ? new Date(so.deliveryDate).toISOString().slice(0, 10)
-        : "",
-      status: so.status,
-      items: so.items.map((item) => ({
-        itemId: item.itemId,
-        description: item.description,
-        qty: item.qty.toString(),
-        rate: item.rate.toString(),
-        taxPercent: item.taxPercent.toString(),
-      })),
-      terms: so.terms || "",
-      notes: so.notes || "",
-      priority: so.priority || "Medium",
-    });
-    setSelectedSO(so);
-    setActiveView("edit");
-  };
-
-  // Confirm SO
-  const confirmSO = async (id) => {
-    try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "confirm",
-      });
-      addNotification("Sales Order confirmed successfully", "success");
-      fetchTransactions();
-    } catch (error) {
-      console.error("Confirm SO Error:", error);
-      addNotification(
-        "Failed to confirm sales order: " +
-          (error.response?.data?.message || error.message),
-        "error"
-      );
-    }
-  };
-
-  // Delete SO
-  const deleteSO = async (id) => {
-    if (window.confirm("Are you sure you want to delete this sales order?")) {
-      try {
-        await axiosInstance.delete(`/transactions/transactions/${id}`);
-        addNotification("Sales Order deleted successfully", "success");
-        fetchTransactions();
-      } catch (error) {
-        console.error("Delete SO Error:", error);
-        addNotification(
-          "Failed to delete sales order: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      }
-    }
   };
 
   return (
@@ -920,19 +852,15 @@ const SalesOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">
-                  Sales Order Management
-                </h1>
-                <p className="text-slate-600 mt-1">
-                  Manage your sales orders efficiently
-                </p>
+                <h1 className="text-3xl font-bold text-slate-800">Sales Order Management</h1>
+                <p className="text-slate-600 mt-1">Manage your sales orders efficiently</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => {
                   resetForm();
-                  setSelectedSO(null); // Clear selectedSO when starting new create
+                  setSelectedSO(null);
                   setActiveView("create");
                   generateTransactionNumber();
                 }}

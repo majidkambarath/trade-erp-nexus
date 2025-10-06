@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { User, Receipt, CheckCircle, Loader2, Package, AlertCircle } from "lucide-react";
+import {
+  User,
+  Receipt,
+  CheckCircle,
+  Loader2,
+  Package,
+  AlertCircle,
+} from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
 
@@ -38,9 +45,9 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       const params = new URLSearchParams();
       params.append("partyId", vendorId);
       params.append("voucherType", "payment");
-
+      params.append("status", "approved");
       const response = await axiosInstance.get(`/vouchers/vouchers?${params.toString()}`);
-
+      console.log(response.data.data);
       const vouchers = Array.isArray(response.data)
         ? response.data
         : response.data?.data?.data || response.data?.data || [];
@@ -58,25 +65,58 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
 
           if (!uniqueInvoices.some((inv) => (inv._id || inv.invoiceId) === invoiceId)) {
             const invoiceItems = link.invoiceId?.items || [];
-            const totalLineTotal = invoiceItems.reduce(
-              (sum, item) => sum + (Number(item.lineTotal) || 0),
-              0
-            );
-            const taxPercent = invoiceItems.length > 0 ? invoiceItems[0].taxPercent || 5 : 5;
-            const taxAmount = totalLineTotal - totalLineTotal / (1 + taxPercent / 100);
+
+            // Calculate totals for the invoice
+            const totalLineTotal = invoiceItems.reduce((sum, item) => {
+              const rate = Number(item.rate) || 0; // Total base amount for the item
+              const qty = Number(item.qty) || 1;
+              const taxPercent = Number(item.taxPercent) || 0;
+              // Per-unit purchase value
+              const unitPurchaseValue = rate / qty;
+              // Tax for the item: (unitPurchaseValue * taxPercent/100) * qty
+              const taxAmount = unitPurchaseValue * (taxPercent / 100) * qty;
+              // Line total: rate + tax
+              const lineTotal = rate + taxAmount;
+              return sum + lineTotal;
+            }, 0);
+
+            // Calculate total tax amount for the invoice
+            const taxAmount = invoiceItems.reduce((sum, item) => {
+              const rate = Number(item.rate) || 0;
+              const qty = Number(item.qty) || 1;
+              const taxPercent = Number(item.taxPercent) || 0;
+              const unitPurchaseValue = rate / qty;
+              return sum + (unitPurchaseValue * (taxPercent / 100) * qty);
+            }, 0);
+
+            // Average tax percent for display (optional)
+            const taxPercent =
+              invoiceItems.length > 0
+                ? invoiceItems.reduce((sum, item) => sum + (Number(item.taxPercent) || 0), 0) /
+                  invoiceItems.length
+                : 0;
 
             const invoiceDetails = {
               _id: invoiceId,
               transactionNo: link.invoiceId?.transactionNo || "Unknown",
-              totalAmount: totalLineTotal,
-              taxPercent: taxPercent,
+              totalAmount: totalLineTotal.toFixed(2),
+              taxPercent: taxPercent.toFixed(2),
               taxAmount: taxAmount.toFixed(2),
               status: link.invoiceId?.status || "unpaid",
-              items: invoiceItems,
+              items: invoiceItems.map((item) => {
+                const rate = Number(item.rate) || 0;
+                const qty = Number(item.qty) || 1;
+                const taxPercent = Number(item.taxPercent) || 0;
+                const unitPurchaseValue = rate / qty; // Per-unit purchase value
+                const tax = unitPurchaseValue * (taxPercent / 100) * qty; // Total tax for the item
+                return {
+                  ...item,
+                  lineTotal: (rate + tax).toFixed(2), // Total for the item including tax
+                  unitPurchaseValue: unitPurchaseValue.toFixed(2), // Optional
+                };
+              }),
               amount: link.amount || 0,
-              balance:
-                (totalLineTotal - (link.amount || 0)) ||
-                (link.invoiceId?.totalAmount || 0) - (link.amount || 0),
+              balance: (totalLineTotal - (link.amount || 0)).toFixed(2),
             };
             uniqueInvoices.push(invoiceDetails);
           }
@@ -100,7 +140,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
 
   const invoiceOptions = invoices.map((invoice) => ({
     value: invoice._id,
-    label: `${invoice.transactionNo} - AED ${invoice.totalAmount.toFixed(2)}`,
+    label: `${invoice.transactionNo} - AED ${invoice.totalAmount}`,
     invoice,
   }));
 
@@ -111,28 +151,33 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       : [];
 
     if (selectedInvoiceData.length > 0) {
+      // Aggregate totals from selected invoices
       const totalPurchaseAmount = selectedInvoiceData.reduce(
-        (sum, inv) => sum + (inv.totalAmount || 0),
+        (sum, inv) => sum + (Number(inv.totalAmount) || 0),
         0
       );
 
-      const taxAmount = selectedInvoiceData.reduce((sum, inv) => {
-        const itemTaxPercent = inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-        return sum + (inv.totalAmount - inv.totalAmount / (1 + itemTaxPercent / 100));
-      }, 0);
+      const taxAmount = selectedInvoiceData.reduce(
+        (sum, inv) => sum + (Number(inv.taxAmount) || 0),
+        0
+      );
 
       const totalAmount = totalPurchaseAmount;
       const paidAmount = selectedInvoiceData.reduce(
-        (sum, inv) => sum + (inv.amount || 0),
+        (sum, inv) => sum + (Number(inv.amount) || 0),
         0
       );
       const balanceAmount = totalAmount - paidAmount;
 
       const status =
-        balanceAmount <= 0 ? "Paid" : paidAmount === 0 ? "Unpaid" : "Partially Paid";
+        balanceAmount <= 0
+          ? "Paid"
+          : paidAmount === 0
+          ? "Unpaid"
+          : "Partially Paid";
 
       onInvoiceSelect(selectedInvoiceData, {
-        purchaseAmount: totalPurchaseAmount.toFixed(2),
+        purchaseAmount: (totalPurchaseAmount - taxAmount).toFixed(2), // Base amount excluding tax
         taxAmount: taxAmount.toFixed(2),
         total: totalAmount.toFixed(2),
         paidAmount: paidAmount.toFixed(2),
@@ -220,7 +265,9 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
         />
         <p className="mt-1 text-xs text-gray-500 flex items-center">
           <CheckCircle size={10} className="mr-1" />
-          {vendors.length ? "Choose the vendor for this purchase" : "No vendors available"}
+          {vendors.length
+            ? "Choose the vendor for this purchase"
+            : "No vendors available"}
         </p>
       </div>
 
@@ -244,7 +291,9 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
         ) : isLoadingInvoices ? (
           <div className="flex items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
             <Loader2 size={24} className="text-purple-600 animate-spin mr-2" />
-            <span className="text-gray-600 font-medium">Loading invoices...</span>
+            <span className="text-gray-600 font-medium">
+              Loading invoices...
+            </span>
           </div>
         ) : !value ? (
           <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-gray-50 to-blue-50">
@@ -256,7 +305,9 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
         ) : invoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50">
             <Receipt size={32} className="text-orange-400 mb-2" />
-            <p className="text-sm text-gray-600 font-medium mb-1">No invoices found</p>
+            <p className="text-sm text-gray-600 font-medium mb-1">
+              No invoices found
+            </p>
             <p className="text-xs text-gray-500 text-center">
               No linked invoices available for {selectedVendorName}
             </p>

@@ -39,15 +39,15 @@ import {
   Users,
   Archive,
 } from "lucide-react";
-import axiosInstance from "../../../axios/axios"; // Import the configured Axios instance
+import axiosInstance from "../../../axios/axios";
 import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
 
 const PurchaseOrderManagement = () => {
-  const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
-  const [viewMode, setViewMode] = useState("table"); // table, grid
+  const [activeView, setActiveView] = useState("dashboard");
+  const [viewMode, setViewMode] = useState("table");
   const [selectedPO, setSelectedPO] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -62,10 +62,9 @@ const PurchaseOrderManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
-  console.log(purchaseOrders)
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
-  const [createdPO, setCreatedPO] = useState(null); // Track newly created PO
+  const [createdPO, setCreatedPO] = useState(null);
 
   // Form state for creating/editing PO
   const [formData, setFormData] = useState({
@@ -79,8 +78,10 @@ const PurchaseOrderManagement = () => {
         itemId: "",
         description: "",
         qty: "",
-        rate: "",
+        rate: "0.00",
         taxPercent: "5",
+        purchasePrice: 0,
+        category: "",
       },
     ],
     terms: "",
@@ -105,7 +106,7 @@ const PurchaseOrderManagement = () => {
     setIsLoading(true);
     try {
       const response = await axiosInstance.get("/vendors/vendors");
-      console.log("Vendors Response:", response.data); // Debug
+      console.log("Vendors Response:", response.data);
       setVendors(response.data.data || []);
     } catch (error) {
       console.error("Fetch Vendors Error:", error);
@@ -123,8 +124,8 @@ const PurchaseOrderManagement = () => {
   const fetchStockItems = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/stock/stock"); // Corrected endpoint
-      console.log("Stock Items Response:", response.data); // Debug
+      const response = await axiosInstance.get("/stock/stock");
+      console.log("Stock Items Response:", response.data);
       const stocks = response.data.data?.stocks || response.data.data || [];
       setStockItems(
         stocks.map((item) => ({
@@ -166,7 +167,7 @@ const PurchaseOrderManagement = () => {
           dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
         },
       });
-      console.log("Transactions Response:", response.data); // Debug
+      console.log("Transactions Response:", response.data);
       setPurchaseOrders(
         response.data.data.map((transaction) => ({
           id: transaction._id,
@@ -210,10 +211,7 @@ const PurchaseOrderManagement = () => {
   const generateTransactionNumber = () => {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
-      3,
-      "0"
-    );
+    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
       transactionNo: `PO-${dateStr}-${sequence}`,
@@ -228,7 +226,7 @@ const PurchaseOrderManagement = () => {
     }, 5000);
   };
 
-  // Handle successful PO save - redirect to invoice without resetting selectedPO prematurely
+  // Handle successful PO save
   const handlePOSuccess = (newPO) => {
     setCreatedPO(newPO);
     setSelectedPO(newPO);
@@ -237,24 +235,17 @@ const PurchaseOrderManagement = () => {
       "Purchase Order saved successfully! Showing invoice...",
       "success"
     );
-    // Reset form after navigation to avoid conflicting with invoice view
-    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
+    setTimeout(resetForm, 0);
   };
 
   // Statistics calculations
   const getStatistics = useMemo(
     () => () => {
       const total = purchaseOrders.length;
-      const pending = purchaseOrders.filter(
-        (po) => po.status === "PENDING"
-      ).length;
-      const approved = purchaseOrders.filter(
-        (po) => po.status === "APPROVED"
-      ).length;
+      const pending = purchaseOrders.filter((po) => po.status === "PENDING").length;
+      const approved = purchaseOrders.filter((po) => po.status === "APPROVED").length;
       const draft = purchaseOrders.filter((po) => po.status === "DRAFT").length;
-      const rejected = purchaseOrders.filter(
-        (po) => po.status === "REJECTED"
-      ).length;
+      const rejected = purchaseOrders.filter((po) => po.status === "REJECTED").length;
 
       const totalValue = purchaseOrders.reduce(
         (sum, po) => sum + parseFloat(po.totalAmount),
@@ -268,19 +259,14 @@ const PurchaseOrderManagement = () => {
       const thisYear = new Date().getFullYear();
       const thisMonthPOs = purchaseOrders.filter((po) => {
         const poDate = new Date(po.date);
-        return (
-          poDate.getMonth() === thisMonth && poDate.getFullYear() === thisYear
-        );
+        return poDate.getMonth() === thisMonth && poDate.getFullYear() === thisYear;
       }).length;
 
       const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
       const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
       const lastMonthPOs = purchaseOrders.filter((po) => {
         const poDate = new Date(po.date);
-        return (
-          poDate.getMonth() === lastMonth &&
-          poDate.getFullYear() === lastMonthYear
-        );
+        return poDate.getMonth() === lastMonth && poDate.getFullYear() === lastMonthYear;
       }).length;
 
       const growthRate =
@@ -314,10 +300,8 @@ const PurchaseOrderManagement = () => {
           po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           po.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus =
-          statusFilter === "ALL" || po.status === statusFilter;
-        const matchesVendor =
-          vendorFilter === "ALL" || po.vendorId === vendorFilter;
+        const matchesStatus = statusFilter === "ALL" || po.status === statusFilter;
+        const matchesVendor = vendorFilter === "ALL" || po.vendorId === vendorFilter;
 
         let matchesDate = true;
         if (dateFilter !== "ALL") {
@@ -329,17 +313,11 @@ const PurchaseOrderManagement = () => {
               matchesDate = poDate.toDateString() === today.toDateString();
               break;
             case "WEEK":
-              const weekAgo = new Date(
-                today.getTime() - 7 * 24 * 60 * 60 * 1000
-              );
+              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = poDate >= weekAgo;
               break;
             case "MONTH":
-              const monthAgo = new Date(
-                today.getFullYear(),
-                today.getMonth() - 1,
-                today.getDate()
-              );
+              const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
               matchesDate = poDate >= monthAgo;
               break;
           }
@@ -380,15 +358,7 @@ const PurchaseOrderManagement = () => {
 
       return filtered;
     },
-    [
-      purchaseOrders,
-      searchTerm,
-      statusFilter,
-      vendorFilter,
-      dateFilter,
-      sortBy,
-      sortOrder,
-    ]
+    [purchaseOrders, searchTerm, statusFilter, vendorFilter, dateFilter, sortBy, sortOrder]
   );
 
   const filteredPOs = filteredAndSortedPOs();
@@ -453,27 +423,18 @@ const PurchaseOrderManagement = () => {
 
   const handleBulkAction = async (action) => {
     if (selectedPOs.length === 0) {
-      addNotification(
-        "Please select orders to perform bulk actions",
-        "warning"
-      );
+      addNotification("Please select orders to perform bulk actions", "warning");
       return;
     }
 
     try {
       if (action === "approve") {
         for (const poId of selectedPOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${poId}/process`,
-            {
-              action: "approve",
-            }
-          );
+          await axiosInstance.patch(`/transactions/transactions/${poId}/process`, {
+            action: "approve",
+          });
         }
-        addNotification(
-          `${selectedPOs.length} orders approved successfully`,
-          "success"
-        );
+        addNotification(`${selectedPOs.length} orders approved successfully`, "success");
         fetchTransactions();
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
@@ -485,7 +446,6 @@ const PurchaseOrderManagement = () => {
         }
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
-        // Implement export logic
         const csv = [
           "TransactionNo,Vendor,Date,DeliveryDate,Status,TotalAmount,Priority",
           ...selectedPOs.map((poId) => {
@@ -504,8 +464,7 @@ const PurchaseOrderManagement = () => {
     } catch (error) {
       console.error("Bulk Action Error:", error);
       addNotification(
-        "Bulk action failed: " +
-          (error.response?.data?.message || error.message),
+        "Bulk action failed: " + (error.response?.data?.message || error.message),
         "error"
       );
     }
@@ -528,15 +487,9 @@ const PurchaseOrderManagement = () => {
           } animate-slide-in border border-white/20`}
         >
           <div className="flex items-center space-x-2">
-            {notification.type === "success" && (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            {notification.type === "warning" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
-            {notification.type === "error" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
+            {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
+            {notification.type === "warning" && <AlertCircle className="w-4 h-4" />}
+            {notification.type === "error" && <AlertCircle className="w-4 h-4" />}
             <span className="text-sm font-medium">{notification.message}</span>
           </div>
         </div>
@@ -552,9 +505,7 @@ const PurchaseOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Orders</p>
-              <p className="text-3xl font-bold text-slate-900">
-                {statistics.total}
-              </p>
+              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -563,9 +514,7 @@ const PurchaseOrderManagement = () => {
                 )}
                 <span
                   className={`text-sm font-medium ${
-                    statistics.growthRate >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
+                    statistics.growthRate >= 0 ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {Math.abs(statistics.growthRate).toFixed(1)}% from last month
@@ -577,16 +526,11 @@ const PurchaseOrderManagement = () => {
             </div>
           </div>
         </div>
-        {/* Other statistic cards remain unchanged */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Pending Approval
-              </p>
-              <p className="text-3xl font-bold text-amber-600">
-                {statistics.pending}
-              </p>
+              <p className="text-sm font-medium text-slate-600">Pending Approval</p>
+              <p className="text-3xl font-bold text-amber-600">{statistics.pending}</p>
               <p className="text-sm text-slate-500 mt-2">Requires attention</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
@@ -614,9 +558,7 @@ const PurchaseOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">
-                {statistics.thisMonthPOs}
-              </p>
+              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
               <p className="text-sm text-slate-500 mt-2">New orders created</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
@@ -628,9 +570,7 @@ const PurchaseOrderManagement = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Recent Purchase Orders
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Purchase Orders</h3>
           <div className="space-y-3">
             {purchaseOrders.slice(0, 5).map((po) => (
               <div
@@ -638,15 +578,9 @@ const PurchaseOrderManagement = () => {
                 className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center space-x-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${getPriorityColor(
-                      po.priority
-                    )}`}
-                  ></div>
+                  <div className={`w-2 h-2 rounded-full ${getPriorityColor(po.priority)}`}></div>
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {po.transactionNo}
-                    </p>
+                    <p className="font-medium text-slate-900">{po.transactionNo}</p>
                     <p className="text-sm text-slate-600">{po.vendorName}</p>
                   </div>
                 </div>
@@ -675,24 +609,18 @@ const PurchaseOrderManagement = () => {
         </div>
 
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Status Overview
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Approved</span>
-                <span className="text-xs font-medium text-emerald-600">
-                  {statistics.approved}
-                </span>
+                <span className="text-xs font-medium text-emerald-600">{statistics.approved}</span>
               </div>
               <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.approved / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.approved / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -700,17 +628,13 @@ const PurchaseOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Pending</span>
-                <span className="text-xs font-medium text-amber-600">
-                  {statistics.pending}
-                </span>
+                <span className="text-xs font-medium text-amber-600">{statistics.pending}</span>
               </div>
               <div className="h-2 bg-amber-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-amber-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.pending / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.pending / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -718,17 +642,13 @@ const PurchaseOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Draft</span>
-                <span className="text-xs font-medium text-slate-600">
-                  {statistics.draft}
-                </span>
+                <span className="text-xs font-medium text-slate-600">{statistics.draft}</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-slate-400 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.draft / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.draft / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -736,17 +656,13 @@ const PurchaseOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Rejected</span>
-                <span className="text-xs font-medium text-rose-600">
-                  {statistics.rejected}
-                </span>
+                <span className="text-xs font-medium text-rose-600">{statistics.rejected}</span>
               </div>
               <div className="h-2 bg-rose-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-rose-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.rejected / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.rejected / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -822,9 +738,7 @@ const PurchaseOrderManagement = () => {
           </div>
 
           <button
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -847,8 +761,10 @@ const PurchaseOrderManagement = () => {
           itemId: "",
           description: "",
           qty: "",
-          rate: "",
+          rate: "0.00",
           taxPercent: "5",
+          purchasePrice: 0,
+          category: "",
         },
       ],
       terms: "",
@@ -856,7 +772,6 @@ const PurchaseOrderManagement = () => {
       priority: "Medium",
     });
     setFormErrors({});
-    // Removed setSelectedPO(null) to prevent clearing during navigation to invoice
   }, []);
 
   // Calculate totals for items
@@ -864,16 +779,23 @@ const PurchaseOrderManagement = () => {
     let subtotal = 0;
     let tax = 0;
 
-    items.forEach((item) => {
+    const validItems = items.filter(
+      (item) => item.itemId && parseFloat(item.qty) > 0 && parseFloat(item.purchasePrice) > 0
+    );
+
+    validItems.forEach((item) => {
       const qty = parseFloat(item.qty) || 0;
-      const rate = parseFloat(item.rate) || 0;
+      const purchasePrice = parseFloat(item.purchasePrice) || 0;
       const taxPercent = parseFloat(item.taxPercent) || 0;
 
-      const lineSubtotal = qty * rate;
+      const lineSubtotal = qty * purchasePrice;
       const lineTax = lineSubtotal * (taxPercent / 100);
+      const lineTotal = (lineSubtotal + lineTax).toFixed(2);
 
       subtotal += lineSubtotal;
       tax += lineTax;
+
+      item.lineTotal = lineTotal;
     });
 
     const total = (subtotal + tax).toFixed(2);
@@ -899,6 +821,9 @@ const PurchaseOrderManagement = () => {
         qty: item.qty.toString(),
         rate: item.rate.toString(),
         taxPercent: item.taxPercent.toString(),
+        purchasePrice: item.purchasePrice,
+        category: item.category || "",
+        lineTotal: item.lineTotal ? item.lineTotal.toString() : undefined,
       })),
       terms: po.terms || "",
       notes: po.notes || "",
@@ -946,9 +871,7 @@ const PurchaseOrderManagement = () => {
 
   // Delete PO
   const deletePO = async (id) => {
-    if (
-      window.confirm("Are you sure you want to delete this purchase order?")
-    ) {
+    if (window.confirm("Are you sure you want to delete this purchase order?")) {
       try {
         await axiosInstance.delete(`/transactions/transactions/${id}`);
         addNotification("Purchase Order deleted successfully", "success");
@@ -973,19 +896,15 @@ const PurchaseOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">
-                  Purchase Order Management
-                </h1>
-                <p className="text-slate-600 mt-1">
-                  Manage your purchase orders efficiently
-                </p>
+                <h1 className="text-3xl font-bold text-slate-800">Purchase Order Management</h1>
+                <p className="text-slate-600 mt-1">Manage your purchase orders efficiently</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => {
                   resetForm();
-                  setSelectedPO(null); // Clear selectedPO when starting new create
+                  setSelectedPO(null);
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
