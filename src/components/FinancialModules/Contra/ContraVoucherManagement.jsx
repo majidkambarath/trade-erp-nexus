@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -22,15 +28,11 @@ import {
   Filter,
   Receipt,
   AlertTriangle,
-  Link as LinkIcon,
-  Loader2,
-  Upload,
-  Eye,
-  Download,
-  Printer,
 } from "lucide-react";
+import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
 import DirhamIcon from "../../../assets/dirham.svg";
+import ContraVoucherView from "./ContraVoucherView";
 
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
@@ -39,33 +41,10 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"
-        }`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     />
-    {error && (
-      <p className="mt-1 text-sm text-red-600 flex items-center">
-        <AlertCircle size={12} className="mr-1" /> {error}
-      </p>
-    )}
-  </div>
-);
-
-const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      <Icon size={16} className="inline mr-2" /> {label} *
-    </label>
-    <select
-      {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"
-        }`}
-    >
-      {options.map(({ value, label }) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </select>
     {error && (
       <p className="mt-1 text-sm text-red-600 flex items-center">
         <AlertCircle size={12} className="mr-1" /> {error}
@@ -77,8 +56,9 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${type === "success" ? "bg-emerald-500" : "bg-red-500"
-        }`}
+      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${
+        type === "success" ? "bg-emerald-500" : "bg-red-500"
+      }`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -130,12 +110,12 @@ const SessionManager = {
   set(key, value) {
     try {
       SessionManager.storage[SessionManager.key(key)] = value;
-    } catch { }
+    } catch {}
   },
   remove(key) {
     try {
       delete SessionManager.storage[SessionManager.key(key)];
-    } catch { }
+    } catch {}
   },
   clear() {
     Object.keys(SessionManager.storage).forEach((k) => {
@@ -149,40 +129,82 @@ const asArray = (x) => (Array.isArray(x) ? x : []);
 const takeArray = (resp) => {
   if (!resp) return [];
   const d = resp.data;
-  if (Array.isArray(d)) return d;
-  if (Array.isArray(d?.data)) return d.data.data ?? d.data;
-  if (Array.isArray(d?.vouchers)) return d.vouchers;
-  return [];
+  let vouchers = Array.isArray(d)
+    ? d
+    : Array.isArray(d?.data)
+    ? d.data.data ?? d.data
+    : Array.isArray(d?.vouchers)
+    ? d.vouchers
+    : [];
+
+  // Map entries to include fromAccount and toAccount
+  return vouchers.map((voucher) => {
+    const entries = Array.isArray(voucher.entries) ? voucher.entries : [];
+    const fromEntry = entries.find((e) => e.creditAmount > 0); // Credit entry is "from" account
+    const toEntry = entries.find((e) => e.debitAmount > 0); // Debit entry is "to" account
+
+    return {
+      ...voucher,
+      fromAccount: fromEntry
+        ? {
+            accountCode: fromEntry.accountCode,
+            accountName: fromEntry.accountName,
+            accountId: fromEntry.accountId,
+          }
+        : null,
+      toAccount: toEntry
+        ? {
+            accountCode: toEntry.accountCode,
+            accountName: toEntry.accountName,
+            accountId: toEntry.accountId,
+          }
+        : null,
+    };
+  });
 };
 
-const displayAccount = (account) => {
+const displayAccount = (account, transactors) => {
+  if (typeof account === "object" && account)
+    return account.accountName || "Unknown";
+  const trans = transactors.find((t) => t.accountCode === account);
+  if (trans) return trans.accountName;
   const a = (account || "").toString().toLowerCase();
-  return a === "cash"
-    ? "Cash"
-    : a === "bank"
-      ? "Bank"
-      : account || "Unknown";
+  return a === "cash" ? "Cash" : a === "bank" ? "Bank" : account || "Unknown";
 };
 
-const badgeClassForAccount = (account) => {
-  const a = displayAccount(account);
+const badgeClassForAccount = (account, transactors) => {
+  const a = displayAccount(account, transactors).toLowerCase();
   const badges = {
-    Cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-    Bank: "bg-blue-100 text-blue-800 border border-blue-200",
+    cash: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    "cash in hand": "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    bank: "bg-blue-100 text-blue-800 border border-blue-200",
+    "petty cash": "bg-emerald-100 text-emerald-800 border border-emerald-200",
   };
   return badges[a] || "bg-slate-100 text-slate-800 border border-slate-200";
 };
 
-const iconForAccount = (account) => {
-  const a = displayAccount(account);
-  const map = {
-    Cash: <DollarSign size={14} className="text-emerald-600" />,
-    Bank: <Building size={14} className="text-blue-600" />,
-  };
-  return map[a] || <DollarSign size={14} className="text-slate-600" />;
+const iconForAccount = (account, transactors) => {
+  let a;
+  if (typeof account === "string") {
+    const trans = transactors.find((t) => t.accountCode === account);
+    a = trans ? trans.accountName.toLowerCase() : account.toLowerCase();
+  } else if (typeof account === "object") {
+    a = account.accountName.toLowerCase();
+  } else {
+    a = "";
+  }
+  if (a.includes("cash"))
+    return <DollarSign size={14} className="text-emerald-600" />;
+  if (a.includes("bank"))
+    return <Building size={14} className="text-blue-600" />;
+  return <DollarSign size={14} className="text-slate-600" />;
 };
 
-const formatCurrency = (amount, colorClass = "text-gray-900", isSummaryCard = false) => {
+const formatCurrency = (
+  amount,
+  colorClass = "text-gray-900",
+  isSummaryCard = false
+) => {
   const numAmount = Number(amount) || 0;
   const absAmount = Math.abs(numAmount).toFixed(2);
   const isNegative = numAmount < 0;
@@ -198,6 +220,7 @@ const formatCurrency = (amount, colorClass = "text-gray-900", isSummaryCard = fa
 
 const ContraVoucherManagement = () => {
   const [contras, setContras] = useState([]);
+  const [transactors, setTransactors] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState(
     SessionManager.get("searchTerm") || ""
@@ -206,8 +229,8 @@ const ContraVoucherManagement = () => {
   const [formData, setFormData] = useState({
     voucherNo: "",
     date: new Date().toISOString().split("T")[0],
-    fromAccount: "Cash",
-    toAccount: "Bank",
+    fromAccount: null,
+    toAccount: null,
     amount: "",
     narration: "",
   });
@@ -229,23 +252,41 @@ const ContraVoucherManagement = () => {
     voucherNo: "",
     isDeleting: false,
   });
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const formRef = useRef(null);
 
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
-    if (savedFormData && typeof savedFormData === "object") {
-      setFormData((prev) => ({ ...prev, ...savedFormData }));
-    }
     fetchContras();
+    fetchTransactors();
   }, []);
+
+  useEffect(() => {
+    if (transactors.length > 0) {
+      const savedFormData = SessionManager.get("formData");
+      if (savedFormData && typeof savedFormData === "object") {
+        setFormData((prev) => ({
+          ...prev,
+          ...savedFormData,
+          fromAccount:
+            transactors.find((t) => t._id === savedFormData.fromAccount) ||
+            prev.fromAccount,
+          toAccount:
+            transactors.find((t) => t._id === savedFormData.toAccount) ||
+            prev.toAccount,
+        }));
+      }
+    }
+  }, [transactors]);
 
   useEffect(() => {
     let timer;
     if (showModal) {
       timer = setTimeout(() => {
-        SessionManager.set("formData", formData);
+        SessionManager.set("formData", {
+          ...formData,
+          fromAccount: formData.fromAccount?._id,
+          toAccount: formData.toAccount?._id,
+        });
         SessionManager.set("lastSaveTime", new Date().toISOString());
       }, 800);
     }
@@ -271,6 +312,7 @@ const ContraVoucherManagement = () => {
         const response = await axiosInstance.get("/vouchers/vouchers", {
           params: { voucherType: "contra" },
         });
+        console.log(response.data)
         setContras(takeArray(response));
         if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
       } catch (err) {
@@ -287,24 +329,48 @@ const ContraVoucherManagement = () => {
     [showToastMessage]
   );
 
-  const handleChange = useCallback(
-    (e) => {
-      const { name, value } = e.target;
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    },
-    []
-  );
+  const fetchTransactors = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/account-v2/Transactor");
+      const data = takeArray(res);
+      setTransactors(
+        data.map((t) => ({
+          _id: t._id,
+          accountCode: t.accountCode,
+          accountName: t.accountName,
+          type: t.type || "Transactor",
+          openingBalance: t.openingBalance || 0,
+          currentBalance: t.currentBalance || 0,
+          accountType: t.accountType,
+          status: t.status,
+          isTransactor: true,
+        }))
+      );
+    } catch (err) {
+      showToastMessage("Failed to fetch transactors.", "error");
+      setTransactors([]);
+    }
+  }, [showToastMessage]);
+
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  }, []);
 
   const validateForm = useCallback(() => {
     const e = {};
     if (!formData.date) e.date = "Date is required";
     if (!formData.fromAccount) e.fromAccount = "From account is required";
     if (!formData.toAccount) e.toAccount = "To account is required";
-    if (formData.fromAccount === formData.toAccount)
+    if (
+      formData.fromAccount &&
+      formData.toAccount &&
+      formData.fromAccount._id === formData.toAccount._id
+    )
       e.toAccount = "From and To accounts must be different";
     if (!formData.amount || Number(formData.amount) <= 0)
       e.amount = "Amount must be greater than 0";
@@ -316,8 +382,8 @@ const ContraVoucherManagement = () => {
     setFormData({
       voucherNo: "",
       date: new Date().toISOString().split("T")[0],
-      fromAccount: "Cash",
-      toAccount: "Bank",
+      fromAccount: null,
+      toAccount: null,
       amount: "",
       narration: "",
     });
@@ -337,8 +403,8 @@ const ContraVoucherManagement = () => {
     try {
       const payload = {
         date: formData.date,
-        fromAccount: formData.fromAccount.toLowerCase(),
-        toAccount: formData.toAccount.toLowerCase(),
+        fromAccount: formData.fromAccount.accountCode,
+        toAccount: formData.toAccount.accountCode,
         totalAmount: Number(formData.amount),
         narration: formData.narration,
         voucherType: "contra",
@@ -378,8 +444,14 @@ const ContraVoucherManagement = () => {
         date: contra.date
           ? new Date(contra.date).toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0],
-        fromAccount: displayAccount(contra.fromAccount) || "Cash",
-        toAccount: displayAccount(contra.toAccount) || "Bank",
+        fromAccount:
+          transactors.find(
+            (t) => t.accountCode === contra.fromAccount?.accountCode
+          ) || null,
+        toAccount:
+          transactors.find(
+            (t) => t.accountCode === contra.toAccount?.accountCode
+          ) || null,
         amount: String(contra.totalAmount || contra.amount || 0),
         narration: contra.narration || contra.remarks || "",
       });
@@ -387,7 +459,7 @@ const ContraVoucherManagement = () => {
       SessionManager.remove("formData");
       SessionManager.remove("lastSaveTime");
     },
-    []
+    [transactors]
   );
 
   const showDeleteConfirmation = useCallback((contra) => {
@@ -461,126 +533,13 @@ const ContraVoucherManagement = () => {
     return diffMins < 1
       ? "just now"
       : diffMins < 60
-        ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
-        : t.toLocaleTimeString();
+      ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
+      : t.toLocaleTimeString();
   }, []);
 
   const handleViewContra = useCallback((contra) => {
     setSelectedContra(contra);
   }, []);
-
-  const handleBackToList = useCallback(() => {
-    setSelectedContra(null);
-  }, []);
-
-  const handleDownloadPDF = useCallback(async () => {
-    try {
-      setIsGeneratingPDF(true);
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      const input = document.getElementById("contra-content");
-      if (!input) {
-        showToastMessage("Contra content not found!", "error");
-        return;
-      }
-
-      const canvas = await html2canvas(input, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: input.scrollWidth,
-        height: input.scrollHeight,
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById("contra-content");
-          if (clonedElement) {
-            clonedElement.style.display = 'block';
-            clonedElement.style.visibility = 'visible';
-          }
-        }
-      });
-
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
-
-      const imgX = (pdfWidth - (imgWidth * 0.264583 * ratio)) / 2;
-      const imgY = 0;
-
-      pdf.addImage(
-        imgData,
-        'PNG',
-        imgX,
-        imgY,
-        imgWidth * 0.264583 * ratio,
-        imgHeight * 0.264583 * ratio,
-        undefined,
-        'FAST'
-      );
-
-      const filename = `Contra_${selectedContra.voucherNo}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(filename);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      showToastMessage("Failed to generate PDF. Please try again or use the Print option.", "error");
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  }, [selectedContra, showToastMessage]);
-
-  const handlePrintPDF = useCallback(() => {
-    const printWindow = window.open('', '_blank');
-    const contraContent = document.getElementById("contra-content");
-
-    if (!contraContent || !printWindow) {
-      showToastMessage("Unable to open print dialog", "error");
-      return;
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Contra_${selectedContra.voucherNo}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body { 
-              margin: 0; 
-              padding: 20px; 
-              font-family: Arial, sans-serif;
-              line-height: 1.4;
-              color: #000;
-            }
-            @media print { 
-              body { margin: 0; padding: 0; }
-              .no-print { display: none !important; }
-            }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { padding: 8px; text-align: left; border: 1px solid #000; }
-            .dirham-icon { width: 10px; height: 10px; vertical-align: middle; margin-right: 2px; }
-          </style>
-        </head>
-        <body>
-          ${contraContent.innerHTML.replace(/<img[^>]*src="${DirhamIcon}"[^>]*>/g, `<img src="${DirhamIcon}" class="dirham-icon" alt="AED">`)}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  }, [selectedContra, showToastMessage, DirhamIcon]);
 
   const safeContras = useMemo(() => asArray(contras), [contras]);
 
@@ -602,10 +561,7 @@ const ContraVoucherManagement = () => {
     let filtered = safeContras.filter((p) => {
       const voucherNo = p.voucherNo?.toLowerCase() || "";
       const narration = p.narration?.toLowerCase() || "";
-      return (
-        voucherNo.includes(term) ||
-        narration.includes(term)
-      );
+      return voucherNo.includes(term) || narration.includes(term);
     });
     if (sortConfig.key) {
       filtered = [...filtered].sort((a, b) => {
@@ -613,182 +569,36 @@ const ContraVoucherManagement = () => {
           sortConfig.key === "amount"
             ? Number(a.totalAmount ?? a.amount)
             : sortConfig.key === "date"
-              ? new Date(a.date).getTime()
-              : by(a[sortConfig.key]);
+            ? new Date(a.date).getTime()
+            : a[sortConfig.key];
         const bv =
           sortConfig.key === "amount"
             ? Number(b.totalAmount ?? b.amount)
             : sortConfig.key === "date"
-              ? new Date(b.date).getTime()
-              : by(b[sortConfig.key]);
+            ? new Date(b.date).getTime()
+            : b[sortConfig.key];
         return av < bv
           ? sortConfig.direction === "asc"
             ? -1
             : 1
           : av > bv
-            ? sortConfig.direction === "asc"
-              ? 1
-              : -1
-            : 0;
+          ? sortConfig.direction === "asc"
+            ? 1
+            : -1
+          : 0;
       });
     }
     return filtered;
   }, [safeContras, searchTerm, sortConfig]);
 
   if (selectedContra) {
-    const totals = { total: Number(selectedContra.totalAmount || selectedContra.amount || 0) };
-
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={handleBackToList}
-              className="flex items-center space-x-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to List</span>
-            </button>
-            <div className="flex space-x-3">
-              <button
-                onClick={handleDownloadPDF}
-                disabled={isGeneratingPDF}
-                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGeneratingPDF ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
-              </button>
-              <button
-                onClick={handlePrintPDF}
-                className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print PDF</span>
-              </button>
-            </div>
-          </div>
-          <div
-            id="contra-content"
-            className="bg-white shadow-lg"
-            style={{
-              width: '210mm',
-              minHeight: '297mm',
-              margin: '0 auto',
-              padding: '20mm',
-              fontSize: '12px',
-              lineHeight: '1.4',
-              fontFamily: 'Arial, sans-serif',
-              color: '#000'
-            }}
-          >
-            <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #8B5CF6', paddingBottom: '15px' }}>
-              <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0', direction: 'rtl' }}>
-                نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
-              </h1>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 15px 0', color: '#0f766e' }}>
-                NH FOODSTUFF TRADING LLC S.O.C.
-              </h2>
-              <div style={{ backgroundColor: '#c8a2c8', color: 'white', padding: '8px', margin: '0 -20mm 20px -20mm' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>CONTRA VOUCHER</h3>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '10px' }}>
-              <div>
-                <p style={{ margin: '2px 0' }}>Dubai, UAE</p>
-                <p style={{ margin: '2px 0' }}>VAT Reg. No: 10503303</p>
-                <p style={{ margin: '2px 0' }}>Email: finance@nhfo.com</p>
-                <p style={{ margin: '2px 0' }}>Phone: +971 58 724 2111</p>
-                <p style={{ margin: '2px 0' }}>Web: www.nhfo.com</p>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                  alt="NH Foods Logo"
-                  style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-                />
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: '2px 0' }}>Date: {new Date(selectedContra.date).toLocaleDateString("en-GB")}</p>
-                <p style={{ margin: '2px 0' }}>Voucher No: {selectedContra.voucherNo}</p>
-              </div>
-            </div>
-            <div style={{ backgroundColor: '#e6d7e6', padding: '10px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>Transfer Details:</div>
-                  <div style={{ fontSize: '10px' }}>
-                    <p style={{ margin: '2px 0' }}><strong>From Account:</strong> {displayAccount(selectedContra.fromAccount)}</p>
-                    <p style={{ margin: '2px 0' }}><strong>To Account:</strong> {displayAccount(selectedContra.toAccount)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#e6d7e6' }}>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Description</th>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ border: '1px solid #000', padding: '6px' }}>{selectedContra.narration || "-"}</td>
-                  <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{formatCurrency(totals.total, "text-black")}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div style={{ width: '45%' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '10px' }}>BANK DETAILS:-</div>
-                <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                  <p style={{ margin: '2px 0' }}><strong>BANK:</strong> NATIONAL BANK OF ABUDHABI</p>
-                  <p style={{ margin: '2px 0' }}><strong>ACCOUNT NO:</strong> 087989283001</p>
-                </div>
-              </div>
-              <div style={{ width: '40%' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-                  <tr>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Total</td>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{formatCurrency(totals.total, "text-black")}</td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
-              <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                <p style={{ margin: '2px 0' }}><strong>IBAN NO:</strong> AE410547283001</p>
-                <p style={{ margin: '2px 0' }}><strong>CURRENCY:</strong> AED</p>
-                <p style={{ margin: '2px 0' }}><strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C</p>
-              </div>
-              <div style={{ border: '2px solid #000', padding: '10px 20px', backgroundColor: '#f9f9f9' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>GRAND TOTAL</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{formatCurrency(totals.total, "text-black")}</span>
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: '30px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <p style={{ fontSize: '11px', margin: '0' }}>Transfer issued in good order.</p>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '20px' }}>
-                <div style={{ fontSize: '11px', width: '45%' }}>
-                  <p style={{ margin: '0 0 30px 0' }}>Approved by:</p>
-                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
-                </div>
-                <div style={{ fontSize: '11px', width: '45%', textAlign: 'right' }}>
-                  <p style={{ margin: '0 0 30px 0' }}>Prepared by:</p>
-                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ContraVoucherView
+        selectedContra={selectedContra}
+        transactors={transactors}
+        setSelectedContra={setSelectedContra}
+        showToastMessage={showToastMessage}
+      />
     );
   }
 
@@ -796,7 +606,7 @@ const ContraVoucherManagement = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <Loader2
+          <AlertCircle
             size={48}
             className="text-purple-600 animate-spin mx-auto mb-4"
           />
@@ -864,10 +674,11 @@ const ContraVoucherManagement = () => {
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${showFilters
-              ? "bg-purple-100 text-purple-600"
-              : "bg-white text-gray-600"
-              }`}
+            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+              showFilters
+                ? "bg-purple-100 text-purple-600"
+                : "bg-white text-gray-600"
+            }`}
             title="Toggle filters"
           >
             <Filter size={16} />
@@ -900,7 +711,11 @@ const ContraVoucherManagement = () => {
           />
           <StatCard
             title="Total Amount"
-            count={formatCurrency(contraStats.totalAmount, "text-purple-700", true)}
+            count={formatCurrency(
+              contraStats.totalAmount,
+              "text-purple-700",
+              true
+            )}
             icon={<TrendingUp size={24} />}
             bgColor="bg-purple-50"
             textColor="text-purple-700"
@@ -911,7 +726,11 @@ const ContraVoucherManagement = () => {
           />
           <StatCard
             title="Avg Transfer Value"
-            count={formatCurrency(contraStats.avgAmount, "text-indigo-700", true)}
+            count={formatCurrency(
+              contraStats.avgAmount,
+              "text-indigo-700",
+              true
+            )}
             icon={<Banknote size={24} />}
             bgColor="bg-indigo-50"
             textColor="text-indigo-700"
@@ -1016,25 +835,27 @@ const ContraVoucherManagement = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {iconForAccount(p.fromAccount)}
+                        {iconForAccount(p.fromAccount, transactors)}
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClassForAccount(
-                            p.fromAccount
+                            p.fromAccount,
+                            transactors
                           )}`}
                         >
-                          {displayAccount(p.fromAccount)}
+                          {displayAccount(p.fromAccount, transactors)}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
-                        {iconForAccount(p.toAccount)}
+                        {iconForAccount(p.toAccount, transactors)}
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${badgeClassForAccount(
-                            p.toAccount
+                            p.toAccount,
+                            transactors
                           )}`}
                         >
-                          {displayAccount(p.toAccount)}
+                          {displayAccount(p.toAccount, transactors)}
                         </span>
                       </div>
                     </td>
@@ -1105,7 +926,7 @@ const ContraVoucherManagement = () => {
                 >
                   {deleteConfirmation.isDeleting ? (
                     <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      <AlertCircle size={16} className="mr-2 animate-spin" />{" "}
                       Deleting...
                     </>
                   ) : (
@@ -1125,9 +946,7 @@ const ContraVoucherManagement = () => {
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
-                  {editContraId
-                    ? "Edit Contra Voucher"
-                    : "Add Contra Voucher"}
+                  {editContraId ? "Edit Contra Voucher" : "Add Contra Voucher"}
                 </h3>
                 <div className="flex items-center mt-1 space-x-4">
                   <p className="text-gray-600 text-sm">
@@ -1171,30 +990,85 @@ const ContraVoucherManagement = () => {
                   error={errors.date}
                   required
                 />
-                <FormSelect
-                  label="From Account"
-                  icon={Building}
-                  name="fromAccount"
-                  value={formData.fromAccount}
-                  onChange={handleChange}
-                  error={errors.fromAccount}
-                  options={[
-                    { value: "Cash", label: "Cash" },
-                    { value: "Bank", label: "Bank" },
-                  ]}
-                />
-                <FormSelect
-                  label="To Account"
-                  icon={Building}
-                  name="toAccount"
-                  value={formData.toAccount}
-                  onChange={handleChange}
-                  error={errors.toAccount}
-                  options={[
-                    { value: "Cash", label: "Cash" },
-                    { value: "Bank", label: "Bank" },
-                  ]}
-                />
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Building size={16} className="inline mr-2" /> From Account
+                    *
+                  </label>
+                  <Select
+                    options={transactors}
+                    getOptionLabel={(option) => option.accountName}
+                    getOptionValue={(option) => option._id}
+                    value={formData.fromAccount}
+                    onChange={(selected) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        fromAccount: selected,
+                      }));
+                      setErrors((prev) => ({
+                        ...prev,
+                        fromAccount: "",
+                        toAccount:
+                          formData.toAccount &&
+                          formData.toAccount._id === selected?._id
+                            ? "From and To accounts must be different"
+                            : prev.toAccount,
+                      }));
+                    }}
+                    placeholder="Search and select from account..."
+                    isSearchable
+                  />
+                  {errors.fromAccount && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />{" "}
+                      {errors.fromAccount}
+                    </p>
+                  )}
+                  {formData.fromAccount && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      Current Balance:{" "}
+                      {formatCurrency(formData.fromAccount.currentBalance)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Building size={16} className="inline mr-2" /> To Account *
+                  </label>
+                  <Select
+                    options={transactors.filter(
+                      (t) => t._id !== formData.fromAccount?._id
+                    )}
+                    getOptionLabel={(option) => option.accountName}
+                    getOptionValue={(option) => option._id}
+                    value={formData.toAccount}
+                    onChange={(selected) => {
+                      setFormData((prev) => ({ ...prev, toAccount: selected }));
+                      setErrors((prev) => ({
+                        ...prev,
+                        toAccount:
+                          formData.fromAccount &&
+                          formData.fromAccount._id === selected?._id
+                            ? "From and To accounts must be different"
+                            : "",
+                      }));
+                    }}
+                    placeholder="Search and select to account..."
+                    isSearchable
+                  />
+                  {errors.toAccount && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />{" "}
+                      {errors.toAccount}
+                    </p>
+                  )}
+                  {formData.toAccount && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      Current Balance:{" "}
+                      {formatCurrency(formData.toAccount.currentBalance)}
+                    </p>
+                  )}
+                </div>
                 <FormInput
                   label="Amount"
                   icon={DollarSign}
@@ -1233,7 +1107,7 @@ const ContraVoucherManagement = () => {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      <AlertCircle size={16} className="mr-2 animate-spin" />{" "}
                       Saving...
                     </>
                   ) : (

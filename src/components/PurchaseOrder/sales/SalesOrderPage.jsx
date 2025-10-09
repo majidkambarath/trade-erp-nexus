@@ -423,7 +423,7 @@ const SalesOrderManagement = () => {
       if (action === "confirm") {
         for (const soId of selectedSOs) {
           await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
-            action: "confirm",
+            action: "approve",
           });
         }
         addNotification(`${selectedSOs.length} orders confirmed successfully`, "success");

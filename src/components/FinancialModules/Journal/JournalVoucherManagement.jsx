@@ -18,7 +18,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Filter,
   Receipt,
   Loader2,
   Sparkles,
@@ -29,50 +28,9 @@ import {
   BarChart3,
   Clock,
 } from "lucide-react";
-import DirhamIcon from "../../../assets/dirham.svg"; // AED currency icon
-
-// Mock data for demonstration
-const mockAccounts = [
-  { _id: "1", name: "Cash Account" },
-  { _id: "2", name: "Bank Account" },
-  { _id: "3", name: "Accounts Receivable" },
-  { _id: "4", name: "Accounts Payable" },
-  { _id: "5", name: "Revenue Account" },
-  { _id: "6", name: "Expense Account" },
-];
-
-const mockVouchers = [
-  {
-    _id: "V001",
-    id: "V001",
-    debitAccount: "1",
-    creditAccount: "2",
-    amount: 5000,
-    reason: "Initial cash deposit",
-    date: "2025-10-01",
-    status: "Approved",
-  },
-  {
-    _id: "V002",
-    id: "V002",
-    debitAccount: "3",
-    creditAccount: "5",
-    amount: 3500,
-    reason: "Service revenue recognition",
-    date: "2025-10-02",
-    status: "Pending",
-  },
-  {
-    _id: "V003",
-    id: "V003",
-    debitAccount: "6",
-    creditAccount: "4",
-    amount: 1200,
-    reason: "Office supplies purchase",
-    date: "2025-10-03",
-    status: "Approved",
-  },
-];
+import DirhamIcon from "../../../assets/dirham.svg";
+import axiosInstance from "../../../axios/axios";
+import JournalVoucherView from "./JournalVoucherView";
 
 const FormInput = ({
   label,
@@ -166,12 +124,16 @@ const StatCard = ({
         <div className={iconColor}>{icon}</div>
       </div>
       {trend && (
-        <div className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold flex items-center`}>
+        <div
+          className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold flex items-center`}
+        >
           <TrendingUp size={12} className="mr-1" /> {trend}
         </div>
       )}
     </div>
-    <h3 className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}>
+    <h3
+      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
+    >
       {title}
     </h3>
     <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
@@ -179,7 +141,15 @@ const StatCard = ({
   </div>
 );
 
-const SelectDropdown = ({ label, value, onChange, options, error, hint, icon: Icon }) => {
+const SelectDropdown = ({
+  label,
+  value,
+  onChange,
+  options,
+  error,
+  hint,
+  icon: Icon,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -210,7 +180,9 @@ const SelectDropdown = ({ label, value, onChange, options, error, hint, icon: Ic
         }`}
       >
         <span className={selectedOption ? "text-gray-900" : "text-gray-400"}>
-          {selectedOption ? selectedOption.label : `Select ${label.toLowerCase()}...`}
+          {selectedOption
+            ? selectedOption.label
+            : `Select ${label.toLowerCase()}...`}
         </span>
         <ChevronDown
           size={18}
@@ -262,25 +234,57 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
   );
 };
 
+const formatCurrencyText = (amount) => {
+  const numAmount = Number(amount) || 0;
+  const absAmount = Math.abs(numAmount).toFixed(2).toLocaleString();
+  const isNegative = numAmount < 0;
+  return `${isNegative ? "-" : ""}AED ${absAmount}`;
+};
+
 const badgeClassForStatus = (status) => {
   const badges = {
-    Approved: "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
-    Pending: "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
-    Rejected: "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300",
+    Approved:
+      "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
+    Pending:
+      "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
+    Rejected:
+      "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300",
   };
   return badges[status] || "bg-gray-100 text-gray-800 border border-gray-300";
 };
 
+const asArray = (x) => (Array.isArray(x) ? x : []);
+
+const takeArray = (resp) => {
+  if (!resp) return [];
+  const d = resp.data;
+  let vouchers = Array.isArray(d)
+    ? d
+    : Array.isArray(d?.data)
+    ? d.data.data ?? d.data
+    : Array.isArray(d?.vouchers)
+    ? d.vouchers
+    : [];
+  return vouchers;
+};
+
 const JournalVoucherManagement = () => {
-  const [accounts, setAccounts] = useState(mockAccounts);
-  const [vouchers, setVouchers] = useState(mockVouchers);
+  const [transactors, setTransactors] = useState([]);
+  const [vouchers, setVouchers] = useState([]);
+  console.log(vouchers);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     debitAccount: "",
     creditAccount: "",
     amount: "",
-    reason: "",
+    narration: "",
     date: new Date().toISOString().split("T")[0],
   });
   const [errors, setErrors] = useState({});
@@ -293,7 +297,13 @@ const JournalVoucherManagement = () => {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
   const modalRef = useRef(null);
+
+  useEffect(() => {
+    fetchTransactors();
+    fetchVouchers();
+  }, [pagination.current, searchTerm, sortConfig]);
 
   useEffect(() => {
     if (showModal) {
@@ -313,8 +323,66 @@ const JournalVoucherManagement = () => {
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast((prev) => ({ ...prev, visible: false })), 3000);
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
   }, []);
+
+  const fetchTransactors = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await axiosInstance.get("/account-v2/Transactor");
+      setTransactors(
+        res.data.data.map((t) => ({
+          _id: t._id,
+          accountCode: t.accountCode,
+          accountName: t.accountName,
+          type: t.type || "Transactor",
+          openingBalance: t.openingBalance || 0,
+          currentBalance: t.currentBalance || 0,
+          accountType: t.accountType,
+          status: t.status,
+          isTransactor: true,
+        }))
+      );
+    } catch (err) {
+      showToastMessage("Failed to fetch transactors.", "error");
+      setTransactors([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToastMessage]);
+
+  const fetchVouchers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const params = {
+        voucherType: "journal",
+        search: searchTerm,
+        page: pagination.current,
+        limit: pagination.limit,
+        sort: sortConfig.key
+          ? `${sortConfig.key}:${sortConfig.direction}`
+          : "createdAt:desc",
+      };
+      const response = await axiosInstance.get("/vouchers/vouchers", {
+        params,
+      });
+      setVouchers(response.data.data);
+      setPagination({
+        current: response.data.pagination.current,
+        pages: response.data.pagination.pages,
+        total: response.data.pagination.total,
+        limit: response.data.pagination.limit,
+      });
+    } catch (error) {
+      showToastMessage("Failed to fetch vouchers", "error");
+      console.error("Error fetching vouchers:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.current, searchTerm, sortConfig, showToastMessage]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -333,8 +401,9 @@ const JournalVoucherManagement = () => {
     if (!formData.creditAccount) e.creditAccount = "Credit account is required";
     if (formData.debitAccount === formData.creditAccount)
       e.creditAccount = "Credit account must be different from debit account";
-    if (!formData.amount || Number(formData.amount) <= 0) e.amount = "Amount must be greater than 0";
-    if (!formData.reason) e.reason = "Reason is required";
+    if (!formData.amount || Number(formData.amount) <= 0)
+      e.amount = "Amount must be greater than 0";
+    if (!formData.narration) e.narration = "Narration is required";
     if (!formData.date) e.date = "Date is required";
     return e;
   }, [formData]);
@@ -344,7 +413,7 @@ const JournalVoucherManagement = () => {
       debitAccount: "",
       creditAccount: "",
       amount: "",
-      reason: "",
+      narration: "",
       date: new Date().toISOString().split("T")[0],
     });
     setErrors({});
@@ -359,30 +428,47 @@ const JournalVoucherManagement = () => {
       return;
     }
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const newVoucher = {
-        _id: `V${String(vouchers.length + 1).padStart(3, "0")}`,
-        id: `V${String(vouchers.length + 1).padStart(3, "0")}`,
-        ...formData,
-        amount: Number(formData.amount),
-        status: "Pending",
+
+    try {
+      const debitAccount = transactors.find(
+        (acc) => acc._id === formData.debitAccount
+      );
+      const creditAccount = transactors.find(
+        (acc) => acc._id === formData.creditAccount
+      );
+
+      const payload = {
+        voucherType: "journal",
+        date: formData.date,
+        totalAmount: Number(formData.amount),
+        narration: formData.narration,
+        debitAccount: debitAccount?.accountCode || "",
+        creditAccount: creditAccount?.accountCode || "",
       };
-      setVouchers((prev) => [newVoucher, ...prev]);
+
+      const response = await axiosInstance.post("/vouchers/vouchers", payload);
+      setVouchers((prev) => [response.data.data, ...prev]);
       showToastMessage("Journal voucher created successfully!", "success");
       resetForm();
+      fetchTransactors()
+    } catch (error) {
+      showToastMessage(
+        error.response?.data?.message || "Failed to create voucher",
+        "error"
+      );
+      console.error("Error creating voucher:", error);
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
-  }, [formData, vouchers, resetForm, showToastMessage, validateForm]);
+    }
+  }, [formData, transactors, resetForm, showToastMessage, validateForm]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    fetchVouchers().then(() => {
       setIsRefreshing(false);
       showToastMessage("Data refreshed successfully", "success");
-    }, 1000);
-  }, [showToastMessage]);
+    });
+  }, [fetchVouchers, showToastMessage]);
 
   const handleSort = useCallback((key) => {
     setSortConfig((prev) => ({
@@ -391,56 +477,40 @@ const JournalVoucherManagement = () => {
     }));
   }, []);
 
-  const filteredVouchers = useMemo(() => {
-    let filtered = vouchers.filter((v) => {
-      const term = searchTerm.toLowerCase();
-      return v.reason?.toLowerCase().includes(term) || v.id?.toLowerCase().includes(term);
-    });
+  const handlePageChange = useCallback((newPage) => {
+    setPagination((prev) => ({ ...prev, current: newPage }));
+  }, []);
 
-    filtered = filtered.map((v) => {
-      const debitAcc = accounts.find((acc) => acc._id === v.debitAccount)?.name || "Unknown";
-      const creditAcc = accounts.find((acc) => acc._id === v.creditAccount)?.name || "Unknown";
+  const handleViewVoucher = useCallback((voucher) => {
+    setSelectedVoucher(voucher);
+  }, []);
+
+  const filteredVouchers = useMemo(() => {
+    return vouchers.map((v) => {
+      // Find debit and credit entries from the entries array
+      const debitEntry = v.entries?.find((entry) => entry.debitAmount > 0);
+      const creditEntry = v.entries?.find((entry) => entry.creditAmount > 0);
+      
       return {
         ...v,
-        debitAccountName: debitAcc,
-        creditAccountName: creditAcc,
+        debitAccountName: debitEntry?.accountName || "Unknown",
+        creditAccountName: creditEntry?.accountName || "Unknown",
       };
     });
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const av =
-          sortConfig.key === "date"
-            ? new Date(a.date).getTime()
-            : sortConfig.key === "amount"
-            ? Number(a.amount)
-            : a[sortConfig.key]?.toLowerCase();
-        const bv =
-          sortConfig.key === "date"
-            ? new Date(b.date).getTime()
-            : sortConfig.key === "amount"
-            ? Number(b.amount)
-            : b[sortConfig.key]?.toLowerCase();
-        return av < bv
-          ? sortConfig.direction === "asc"
-            ? -1
-            : 1
-          : av > bv
-          ? sortConfig.direction === "asc"
-            ? 1
-            : -1
-          : 0;
-      });
-    }
-
-    return filtered;
-  }, [vouchers, accounts, searchTerm, sortConfig]);
+  }, [vouchers]);
 
   const stats = useMemo(() => {
     const totalVouchers = filteredVouchers.length;
-    const totalAmount = filteredVouchers.reduce((sum, v) => sum + Number(v.amount), 0);
-    const approvedCount = filteredVouchers.filter((v) => v.status === "Approved").length;
-    const pendingCount = filteredVouchers.filter((v) => v.status === "Pending").length;
+    const totalAmount = filteredVouchers.reduce(
+      (sum, v) => sum + Number(v.totalAmount),
+      0
+    );
+    const approvedCount = filteredVouchers.filter(
+      (v) => v.approvalStatus === "Approved"
+    ).length;
+    const pendingCount = filteredVouchers.filter(
+      (v) => v.approvalStatus === "Pending"
+    ).length;
     return {
       totalVouchers,
       totalAmount,
@@ -451,11 +521,13 @@ const JournalVoucherManagement = () => {
 
   const accountOptions = useMemo(
     () =>
-      accounts.map((acc) => ({
+      transactors.map((acc) => ({
         value: acc._id,
-        label: acc.name || "Unknown",
+        label: `${acc.accountName || "Unknown"} (${
+          acc.accountCode || ""
+        }) - Balance: ${formatCurrencyText(acc.currentBalance)}`,
       })),
-    [accounts]
+    [transactors]
   );
 
   if (isLoading) {
@@ -474,14 +546,23 @@ const JournalVoucherManagement = () => {
     );
   }
 
+  if (selectedVoucher) {
+    return (
+      <JournalVoucherView
+        selectedVoucher={selectedVoucher}
+        transactors={transactors}
+        setSelectedVoucher={setSelectedVoucher}
+        showToastMessage={showToastMessage}
+      />
+    );
+  }
+
   const EmptyState = ({ type }) => (
     <div className="flex flex-col items-center justify-center py-20 px-6">
       <div className="w-32 h-32 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse shadow-lg">
         <Receipt size={48} className="text-purple-600" />
       </div>
-      <h3 className="text-2xl font-bold text-gray-900 mb-2">
-        No {type} found
-      </h3>
+      <h3 className="text-2xl font-bold text-gray-900 mb-2">No {type} found</h3>
       <p className="text-gray-600 text-center mb-8 max-w-md">
         {searchTerm
           ? `No ${type} match your search criteria.`
@@ -531,19 +612,21 @@ const JournalVoucherManagement = () => {
           to { opacity: 1; }
         }
       `}</style>
-      
+
       <Toast
         show={showToast.visible}
         message={showToast.message}
         type={showToast.type}
       />
-      
-      {/* Header Section */}
+
       <div className="mb-8">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="flex items-center space-x-4">
             <button className="p-3 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group">
-              <ArrowLeft size={20} className="text-gray-600 group-hover:text-purple-600 transition-colors" />
+              <ArrowLeft
+                size={20}
+                className="text-gray-600 group-hover:text-purple-600 transition-colors"
+              />
             </button>
             <div>
               <h1 className="text-3xl font-bold text-black bg-clip-text">
@@ -551,7 +634,8 @@ const JournalVoucherManagement = () => {
               </h1>
               <p className="text-gray-600 mt-2 font-medium flex items-center gap-2">
                 <Clock size={16} className="text-purple-500" />
-                {stats.totalVouchers} total vouchers · Last updated: {new Date().toLocaleDateString()}
+                {stats.totalVouchers} total vouchers · Last updated:{" "}
+                {new Date().toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -570,20 +654,50 @@ const JournalVoucherManagement = () => {
             >
               <RefreshCw
                 size={20}
-                className={`text-gray-600 group-hover:text-purple-600 transition-colors ${isRefreshing ? "animate-spin" : ""}`}
+                className={`text-gray-600 group-hover:text-purple-600 transition-colors ${
+                  isRefreshing ? "animate-spin" : ""
+                }`}
               />
             </button>
             <button
               className="p-3.5 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 group"
               title="Export data"
+              onClick={async () => {
+                try {
+                  const response = await axiosInstance.get(
+                    "/vouchers/export/data",
+                    {
+                      params: { voucherType: "journal", format: "excel" },
+                    }
+                  );
+                  const blob = new Blob(
+                    [JSON.stringify(response.data.data.exportData)],
+                    {
+                      type: "application/vnd.ms-excel",
+                    }
+                  );
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.setAttribute("download", "vouchers.xlsx");
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  showToastMessage("Export successful", "success");
+                } catch (error) {
+                  showToastMessage("Export failed", "error");
+                }
+              }}
             >
-              <Download size={20} className="text-gray-600 group-hover:text-purple-600 transition-colors" />
+              <Download
+                size={20}
+                className="text-gray-600 group-hover:text-purple-600 transition-colors"
+              />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
@@ -635,7 +749,6 @@ const JournalVoucherManagement = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -674,101 +787,188 @@ const JournalVoucherManagement = () => {
         {filteredVouchers.length === 0 ? (
           <EmptyState type="vouchers" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <tr>
-                  {[
-                    { key: "id", label: "Voucher ID" },
-                    { key: "date", label: "Date" },
-                    { key: "debitAccountName", label: "Debit Account" },
-                    { key: "creditAccountName", label: "Credit Account" },
-                    { key: "amount", label: "Amount" },
-                    { key: "reason", label: "Reason" },
-                    { key: "status", label: "Status" },
-                    { key: "actions", label: "Actions" },
-                  ].map((col) => (
-                    <th
-                      key={col.key}
-                      className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${
-                        col.key === "actions" ? "cursor-default" : ""
-                      }`}
-                      onClick={col.key !== "actions" ? () => handleSort(col.key) : undefined}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{col.label}</span>
-                        {sortConfig.key === col.key && col.key !== "actions" && (
-                          <span className="text-purple-600 font-bold">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredVouchers.map((v, idx) => (
-                  <tr
-                    key={v.id || v._id}
-                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {v.id || v._id}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(v.date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {v.debitAccountName}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {v.creditAccountName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {formatCurrency(v.amount)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title={v.reason}>
-                      {v.reason}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
-                          v.status
-                        )}`}
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                  <tr>
+                    {[
+                      { key: "voucherNo", label: "Voucher ID" },
+                      { key: "date", label: "Date" },
+                      { key: "debitAccountName", label: "Debit Account" },
+                      { key: "creditAccountName", label: "Credit Account" },
+                      { key: "totalAmount", label: "Amount" },
+                      { key: "narration", label: "Reason" },
+                      { key: "approvalStatus", label: "Status" },
+                      { key: "actions", label: "Actions" },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${
+                          col.key === "actions" ? "cursor-default" : ""
+                        }`}
+                        onClick={
+                          col.key !== "actions"
+                            ? () => handleSort(col.key)
+                            : undefined
+                        }
                       >
-                        {v.status || "Pending"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <button
-                          className="p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-600 transition-colors"
-                          title="View details"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
-                          title="Download voucher"
-                        >
-                          <Download size={16} />
-                        </button>
-                      </div>
-                    </td>
+                        <div className="flex items-center space-x-1">
+                          <span>{col.label}</span>
+                          {sortConfig.key === col.key &&
+                            col.key !== "actions" && (
+                              <span className="text-purple-600 font-bold">
+                                {sortConfig.direction === "asc" ? "↑" : "↓"}
+                              </span>
+                            )}
+                        </div>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredVouchers.map((v) => (
+                    <tr
+                      key={v._id}
+                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                    >
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        <button
+                          onClick={() => handleViewVoucher(v)}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {v.voucherNo}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(v.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {v.debitAccountName}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {v.creditAccountName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(v.totalAmount)}
+                      </td>
+                      <td
+                        className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate"
+                        title={v.narration}
+                      >
+                        {v.narration}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
+                            v.approvalStatus
+                          )}`}
+                        >
+                          {v.approvalStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <button
+                            onClick={() => handleViewVoucher(v)}
+                            className="p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-600 transition-colors"
+                            title="View details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                            title="Download voucher"
+                            onClick={async () => {
+                              try {
+                                const response = await axiosInstance.get(
+                                  `/vouchers/${v._id}/export`,
+                                  {
+                                    responseType: "blob",
+                                  }
+                                );
+                                const url = window.URL.createObjectURL(
+                                  new Blob([response.data])
+                                );
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.setAttribute(
+                                  "download",
+                                  `Journal_${v.voucherNo}.pdf`
+                                );
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                showToastMessage(
+                                  "Voucher downloaded successfully",
+                                  "success"
+                                );
+                              } catch (error) {
+                                showToastMessage(
+                                  "Failed to download voucher",
+                                  "error"
+                                );
+                              }
+                            }}
+                          >
+                            <Download size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-6 flex justify-between items-center border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                Showing {(pagination.current - 1) * pagination.limit + 1} to{" "}
+                {Math.min(
+                  pagination.current * pagination.limit,
+                  pagination.total
+                )}{" "}
+                of {pagination.total} vouchers
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(pagination.current - 1)}
+                  disabled={pagination.current === 1}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(
+                  (page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-4 py-2 border rounded-lg ${
+                        pagination.current === page
+                          ? "bg-purple-600 text-white"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => handlePageChange(pagination.current + 1)}
+                  disabled={pagination.current === pagination.pages}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50">
           <div
@@ -806,7 +1006,9 @@ const JournalVoucherManagement = () => {
                       Smart Journal Entry
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Select accounts from your chart of accounts and enter the transaction details. The system ensures balanced entries automatically.
+                      Select accounts from your chart of accounts and enter the
+                      transaction details. The system ensures balanced entries
+                      automatically.
                     </p>
                   </div>
                 </div>
@@ -817,7 +1019,9 @@ const JournalVoucherManagement = () => {
                   label="Debit Account"
                   icon={DollarSign}
                   value={formData.debitAccount}
-                  onChange={(value) => handleSelectChange(value, "debitAccount")}
+                  onChange={(value) =>
+                    handleSelectChange(value, "debitAccount")
+                  }
                   options={accountOptions}
                   error={errors.debitAccount}
                   hint="Account to be debited"
@@ -827,7 +1031,9 @@ const JournalVoucherManagement = () => {
                   label="Credit Account"
                   icon={DollarSign}
                   value={formData.creditAccount}
-                  onChange={(value) => handleSelectChange(value, "creditAccount")}
+                  onChange={(value) =>
+                    handleSelectChange(value, "creditAccount")
+                  }
                   options={accountOptions}
                   error={errors.creditAccount}
                   hint="Account to be credited"
@@ -864,48 +1070,73 @@ const JournalVoucherManagement = () => {
                   <FormInput
                     label="Reason / Description"
                     icon={FileText}
-                    name="reason"
-                    value={formData.reason}
+                    name="narration"
+                    value={formData.narration}
                     onChange={handleChange}
                     required
                     isTextarea={true}
                     rows="4"
                     placeholder="Enter the purpose of this journal entry (e.g., Depreciation adjustment, Accrued expenses, etc.)"
                     hint="Provide a clear description of the transaction"
-                    error={errors.reason}
+                    error={errors.narration}
                   />
                 </div>
               </div>
 
-              {/* Preview Section */}
-              {formData.debitAccount && formData.creditAccount && formData.amount && (
-                <div className="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
-                  <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <CheckCircle size={18} className="text-emerald-600" />
-                    Entry Preview
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-600 font-medium mb-1">Debit</p>
-                      <p className="text-gray-900 font-bold">
-                        {accountOptions.find(opt => opt.value === formData.debitAccount)?.label}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 font-medium mb-1">Credit</p>
-                      <p className="text-gray-900 font-bold">
-                        {accountOptions.find(opt => opt.value === formData.creditAccount)?.label}
-                      </p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-gray-600 font-medium mb-1">Amount</p>
-                      <p className="text-2xl font-bold text-emerald-600">
-                        {formatCurrency(formData.amount, "text-emerald-600")}
-                      </p>
+              {/* {formData.debitAccount &&
+                formData.creditAccount &&
+                formData.amount && (
+                  <div className="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200">
+                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <CheckCircle size={18} className="text-emerald-600" />
+                      Entry Preview
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-600 font-medium mb-1">
+                          Debit Account
+                        </p>
+                        <p className="text-gray-900 font-bold">
+                          {transactors.find(
+                            (acc) => acc._id === formData.debitAccount
+                          )?.accountName || "Unknown"}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Current Balance:{" "}
+                          {formatCurrency(
+                            transactors.find(
+                              (acc) => acc._id === formData.debitAccount
+                            )?.currentBalance || 0
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 font-medium mb-1">
+                          Credit Account
+                        </p>
+                        <p className="text-gray-900 font-bold">
+                          {transactors.find(
+                            (acc) => acc._id === formData.creditAccount
+                          )?.accountName || "Unknown"}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Current Balance:{" "}
+                          {formatCurrency(
+                            transactors.find(
+                              (acc) => acc._id === formData.creditAccount
+                            )?.currentBalance || 0
+                          )}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-gray-600 font-medium mb-1">Amount</p>
+                        <p className="text-2xl font-bold text-emerald-600">
+                          {formatCurrency(formData.amount, "text-emerald-600")}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )} */}
             </div>
 
             <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white sticky bottom-0">
@@ -923,7 +1154,8 @@ const JournalVoucherManagement = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={18} className="mr-2 animate-spin" /> Creating...
+                    <Loader2 size={18} className="mr-2 animate-spin" />{" "}
+                    Creating...
                   </>
                 ) : (
                   <>

@@ -191,7 +191,7 @@ const POForm = React.memo(
               qty: parseFloat(item.qty) || 0,
               rate: parseFloat(item.rate) || 0,
               taxPercent: parseFloat(item.taxPercent) || 0,
-              purchasePrice: parseFloat(item.purchasePrice) || 0,
+              price: parseFloat(item.purchasePrice) || 0,
               category: item.category || "",
               lineTotal:
                 parseFloat(item.qty || 0) *

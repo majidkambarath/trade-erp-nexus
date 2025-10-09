@@ -436,6 +436,7 @@ const PurchaseOrderManagement = () => {
         }
         addNotification(`${selectedPOs.length} orders approved successfully`, "success");
         fetchTransactions();
+        fetchStockItems()
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
           for (const poId of selectedPOs) {
@@ -841,6 +842,7 @@ const PurchaseOrderManagement = () => {
       });
       addNotification("Purchase Order approved successfully", "success");
       fetchTransactions();
+      fetchStockItems()
     } catch (error) {
       console.error("Approve PO Error:", error);
       addNotification(

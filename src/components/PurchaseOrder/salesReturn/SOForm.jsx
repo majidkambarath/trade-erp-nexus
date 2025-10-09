@@ -189,10 +189,10 @@ const SalesReturnForm = React.memo(
             .map((item) => ({
               itemId: item.itemId,
               description: item.description,
-              qty: -Math.abs(parseFloat(item.qty) || 0), // Negative for returns
+              qty: Math.abs(parseFloat(item.qty) || 0), // Negative for returns
               rate: parseFloat(item.rate) || 0,
               taxPercent: parseFloat(item.taxPercent) || 0,
-              salesPrice: parseFloat(item.salesPrice) || 0,
+              price: parseFloat(item.salesPrice) || 0,
               category: item.category || "",
               lineTotal:
                 -Math.abs(parseFloat(item.qty || 0)) *

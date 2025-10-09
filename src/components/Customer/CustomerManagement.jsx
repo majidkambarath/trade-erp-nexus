@@ -671,35 +671,35 @@ const CustomerManagement = () => {
               iconBg: "bg-slate-100",
               iconColor: "text-slate-600",
             },
-            {
-              title: "Total Revenue",
-              count: formatCurrency(
-                customerStats.totalRevenue,
-                "text-blue-700",
-                "w-6.5 h-7.5"
-              ),
-              icon: <TrendingUp size={24} />,
-              bgColor: "bg-blue-50",
-              textColor: "text-blue-700",
-              borderColor: "border-blue-200",
-              iconBg: "bg-blue-100",
-              iconColor: "text-blue-600",
-              textSize: "text-4xl",
-            },
-            {
-              title: "Avg Order Value",
-              count: formatCurrency(
-                customerStats.avgOrderValue,
-                "text-indigo-700",
-                "w-6.5 h-7.5"
-              ),
-              icon: <CreditCard size={24} />,
-              bgColor: "bg-indigo-50",
-              textColor: "text-indigo-700",
-              borderColor: "border-indigo-200",
-              iconBg: "bg-indigo-100",
-              iconColor: "text-indigo-600",
-            },
+            // {
+            //   title: "Total Revenue",
+            //   count: formatCurrency(
+            //     customerStats.totalRevenue,
+            //     "text-blue-700",
+            //     "w-6.5 h-7.5"
+            //   ),
+            //   icon: <TrendingUp size={24} />,
+            //   bgColor: "bg-blue-50",
+            //   textColor: "text-blue-700",
+            //   borderColor: "border-blue-200",
+            //   iconBg: "bg-blue-100",
+            //   iconColor: "text-blue-600",
+            //   textSize: "text-4xl",
+            // },
+            // {
+            //   title: "Avg Order Value",
+            //   count: formatCurrency(
+            //     customerStats.avgOrderValue,
+            //     "text-indigo-700",
+            //     "w-6.5 h-7.5"
+            //   ),
+            //   icon: <CreditCard size={24} />,
+            //   bgColor: "bg-indigo-50",
+            //   textColor: "text-indigo-700",
+            //   borderColor: "border-indigo-200",
+            //   iconBg: "bg-indigo-100",
+            //   iconColor: "text-indigo-600",
+            // },
           ].map((card, index) => (
             <div
               key={index}

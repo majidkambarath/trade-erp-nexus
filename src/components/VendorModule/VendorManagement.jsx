@@ -554,7 +554,7 @@ const VendorManagement = () => {
       )}
 
       {/* Statistics Cards */}
-      <div className="mb-6 sm:mb-8">
+      {/* <div className="mb-6 sm:mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
@@ -620,7 +620,7 @@ const VendorManagement = () => {
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* Main Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">

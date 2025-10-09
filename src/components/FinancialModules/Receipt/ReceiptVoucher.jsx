@@ -252,10 +252,9 @@ const ReceiptVoucherManagement = () => {
         const response = await axios.get(
           `/transactions/transactions?${params.toString()}`
         );
-        const invoices = takeArray(response).filter(
-          (t) =>
-            t?.invoiceGenerated && t._id && t.transactionNo && t.totalAmount
-        );
+        console.log("object")
+        console.log(response.data)
+        const invoices = takeArray(response)
         setAvailableInvoices(invoices);
       } catch (err) {
         showToastMessage("Failed to fetch available invoices.", "error");

@@ -461,7 +461,7 @@ const SalesReturnOrderManagement = () => {
         for (const soId of selectedSOs) {
           await axiosInstance.patch(
             `/transactions/transactions/${soId}/process`,
-            { action: "confirm" }
+            { action: "approve" }
           );
         }
         addNotification(
@@ -851,20 +851,27 @@ const SalesReturnOrderManagement = () => {
   }, []);
 
   // Calculate totals for items (handles negative quantities for returns)
-  const calculateTotals = (items) => {
+ const calculateTotals = (items) => {
     let subtotal = 0;
     let tax = 0;
 
-    items.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0; // qty could be negative for returns
-      const rate = parseFloat(item.rate) || 0;
+    const validItems = items.filter(
+      (item) => item.itemId && parseFloat(item.qty) > 0 && parseFloat(item.salesPrice) > 0
+    );
+
+    validItems.forEach((item) => {
+      const qty = parseFloat(item.qty) || 0;
+      const salesPrice = parseFloat(item.salesPrice) || 0;
       const taxPercent = parseFloat(item.taxPercent) || 0;
 
-      const lineSubtotal = qty * rate;
+      const lineSubtotal = qty * salesPrice;
       const lineTax = lineSubtotal * (taxPercent / 100);
+      const lineTotal = (lineSubtotal + lineTax).toFixed(2);
 
       subtotal += lineSubtotal;
       tax += lineTax;
+
+      item.lineTotal = lineTotal;
     });
 
     const total = (subtotal + tax).toFixed(2);

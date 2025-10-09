@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { Package, Plus, Trash2, Calendar, User, Save, ArrowLeft, Hash } from "lucide-react";
+import Select from "react-select";
 import axiosInstance from "../../../axios/axios"; // Adjust path as needed
 
 // Memoize the SOForm component to prevent unnecessary re-renders
@@ -95,7 +96,8 @@ const SOForm = React.memo(
           const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].salesPrice = item.salesPrice; // Store as number
+            newItems[index].salesPrice = item.salesPrice; // Editable sales price
+            newItems[index].purchasePrice = item.purchasePrice; // Read-only purchase price
             newItems[index].category = item.category?.name || item.category || "";
             newItems[index].taxPercent =
               item.taxPercent !== undefined
@@ -114,6 +116,7 @@ const SOForm = React.memo(
           } else {
             newItems[index].description = "";
             newItems[index].salesPrice = 0;
+            newItems[index].purchasePrice = 0;
             newItems[index].category = "";
             newItems[index].rate = "0.00";
             newItems[index].taxPercent = "5";
@@ -121,6 +124,10 @@ const SOForm = React.memo(
         } else if (field === "qty") {
           const qty = parseFloat(value) || 0;
           const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
+          newItems[index].rate = (qty * salesPrice).toFixed(2);
+        } else if (field === "salesPrice") {
+          const salesPrice = parseFloat(value) || 0;
+          const qty = parseFloat(newItems[index].qty) || 0;
           newItems[index].rate = (qty * salesPrice).toFixed(2);
         } else if (field === "taxPercent") {
           newItems[index].taxPercent =
@@ -146,6 +153,7 @@ const SOForm = React.memo(
             rate: "0.00",
             taxPercent: "5",
             salesPrice: 0,
+            purchasePrice: 0,
             category: "",
           },
         ],
@@ -205,7 +213,8 @@ const SOForm = React.memo(
                 qty,
                 rate: parseFloat(item.rate) || 0,
                 taxPercent,
-                price:salesPrice,
+                price: salesPrice,
+                purchasePrice: item.purchasePrice || 0,
                 category: item.category || "",
                 lineTotal: parseFloat(lineTotal),
               };
@@ -280,6 +289,16 @@ const SOForm = React.memo(
     // Stabilize customers and stockItems props
     const stableCustomers = useMemo(() => customers || [], [customers]);
     const stableStockItems = useMemo(() => stockItems || [], [stockItems]);
+
+    // Memoize item options for react-select
+    const itemOptions = useMemo(
+      () =>
+        stableStockItems.map((stock) => ({
+          value: stock._id,
+          label: `${stock.itemId} - ${stock.itemName}`,
+        })),
+      [stableStockItems]
+    );
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -532,20 +551,20 @@ const SOForm = React.memo(
                   >
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
-                      <select
-                        value={item.itemId || ""}
-                        onChange={(e) => handleItemChange(index, "itemId", e.target.value)}
-                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`itemId_${index}`] ? "border-red-500" : "border-slate-200"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
-                      >
-                        <option value="">Select Item...</option>
-                        {stableStockItems.map((stock) => (
-                          <option key={stock._id} value={stock._id}>
-                            {stock.itemId} - {stock.itemName}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        options={itemOptions}
+                        value={itemOptions.find((opt) => opt.value === item.itemId) || null}
+                        onChange={(selected) =>
+                          handleItemChange(index, "itemId", selected ? selected.value : "")
+                        }
+                        placeholder="Select Item..."
+                        isClearable
+                        isSearchable
+                        classNamePrefix="select"
+                        className={`text-sm ${
+                          formErrors[`itemId_${index}`] ? "border-red-500 rounded-lg" : ""
+                        }`}
+                      />
                       {formErrors[`itemId_${index}`] && (
                         <p className="text-red-500 text-xs mt-1">{formErrors[`itemId_${index}`]}</p>
                       )}
@@ -572,15 +591,28 @@ const SOForm = React.memo(
                       />
                     </div>
 
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price</label>
+                      <input
+                        type="number"
+                        value={item.purchasePrice || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Sales Price</label>
                       <input
                         type="number"
                         value={item.salesPrice || ""}
-                        readOnly
-                        className={`w-full px-4 py-3 bg-slate-100 rounded-lg border ${
+                        onChange={(e) => handleItemChange(index, "salesPrice", e.target.value)}
+                        placeholder="Price"
+                        min="0"
+                        step="0.01"
+                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
                           formErrors[`salesPrice_${index}`] ? "border-red-500" : "border-slate-200"
-                        } text-sm cursor-not-allowed`}
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`salesPrice_${index}`] && (
                         <p className="text-red-500 text-xs mt-1">{formErrors[`salesPrice_${index}`]}</p>

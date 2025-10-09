@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -20,10 +26,13 @@ import {
   Sparkles,
   CreditCard,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
 import CustomerSelect from "./CustomerSelect";
+import InvoiceView from "../Layouts/InvoiceView";
 
 const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
   <div className="group relative">
@@ -93,11 +102,15 @@ const StatCard = ({
       <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
         <div className={iconColor}>{icon}</div>
       </div>
-      <button className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}>
+      <button
+        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}
+      >
         View Details →
       </button>
     </div>
-    <h3 className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}>
+    <h3
+      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
+    >
       {title}
     </h3>
     <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
@@ -105,37 +118,102 @@ const StatCard = ({
   </div>
 );
 
-const asArray = (x) => (Array.isArray(x) ? x : []);
-
-const takeArray = (resp) => {
-  if (!resp) return [];
-  const d = resp.data;
-  if (Array.isArray(d)) return d;
-  if (Array.isArray(d?.data)) return d.data.data ?? d.data;
-  if (Array.isArray(d?.vouchers)) return d.vouchers;
-  return [];
-};
-
-const formatCurrency = (amount, colorClass = "text-gray-900") => {
-  const numAmount = Number(amount) || 0;
-  const absAmount = Math.abs(numAmount).toFixed(2);
-  const isNegative = numAmount < 0;
+const badgeClassForStatus = (status) => {
+  const badges = {
+    approved:
+      "bg-gradient-to-r from-green-400 to-teal-500 text-white border border-green-300 shadow-md",
+    pending:
+      "bg-gradient-to-r from-yellow-400 to-orange-500 text-white border border-yellow-300 shadow-md",
+    rejected:
+      "bg-gradient-to-r from-red-400 to-pink-500 text-white border border-red-300 shadow-md",
+    settled:
+      "bg-gradient-to-r from-blue-400 to-indigo-500 text-white border border-blue-300 shadow-md",
+    Unpaid:
+      "bg-gradient-to-r from-red-400 to-red-600 text-white border border-red-300 shadow-md",
+    Paid: "bg-gradient-to-r from-emerald-400 to-emerald-600 text-white border border-emerald-300 shadow-md",
+    "Partially Paid":
+      "bg-gradient-to-r from-yellow-400 to-amber-500 text-white border border-yellow-300 shadow-md",
+  };
   return (
-    <span className={`inline-flex items-center font-semibold ${colorClass}`}>
-      {isNegative && <span className="text-red-600">-</span>}
-      <span className="text-xs mr-1 opacity-70">AED</span>
-      {absAmount.toLocaleString()}
-    </span>
+    badges[status] ||
+    "bg-gradient-to-r from-gray-400 to-gray-600 text-white border border-gray-300 shadow-md"
   );
 };
 
-const badgeClassForStatus = (status) => {
-  const badges = {
-    Paid: "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
-    Unpaid: "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300",
-    "Partially Paid": "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
-  };
-  return badges[status] || "bg-gray-100 text-gray-800";
+const Pagination = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+  itemsPerPage,
+  onItemsPerPageChange,
+}) => {
+  const pageNumbers = useMemo(() => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  }, [currentPage, totalPages]);
+
+  const itemsPerPageOptions = [
+    { value: 10, label: "10 per page" },
+    { value: 25, label: "25 per page" },
+    { value: 50, label: "50 per page" },
+  ];
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-gray-50 border-t border-gray-200">
+      <div className="flex items-center space-x-2 mb-4 sm:mb-0">
+        <span className="text-sm text-gray-600">Items per page:</span>
+        <Select
+          value={itemsPerPageOptions.find(
+            (option) => option.value === itemsPerPage
+          )}
+          onChange={(option) => onItemsPerPageChange(option.value)}
+          options={itemsPerPageOptions}
+          className="w-32"
+          classNamePrefix="react-select"
+        />
+      </div>
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        {pageNumbers.map((page) => (
+          <button
+            key={page}
+            onClick={() => onPageChange(page)}
+            className={`px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium transition-all duration-200 ${
+              currentPage === page
+                ? "bg-purple-600 text-white border-purple-600"
+                : "bg-white text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="p-2 rounded-lg bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const SaleAccountsManagement = () => {
@@ -144,11 +222,14 @@ const SaleAccountsManagement = () => {
   const [vouchers, setVouchers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateFilter, setDateFilter] = useState({ startDate: "", endDate: "" });
   const [showModal, setShowModal] = useState(false);
+  const [activeView, setActiveView] = useState("list");
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [formData, setFormData] = useState({
     customerId: "",
     invoiceNumber: "",
-    date: new Date().toISOString().split("T")[0], // Set default to current date
+    date: new Date().toISOString().split("T")[0],
     saleAmount: "",
     taxAmount: "",
     total: "",
@@ -171,18 +252,143 @@ const SaleAccountsManagement = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [activeTab, setActiveTab] = useState("invoices");
   const [selectedInvoices, setSelectedInvoices] = useState([]);
-  const formRef = useRef(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
   const modalRef = useRef(null);
 
+  const showToastMessage = useCallback((message, type = "success") => {
+    setShowToast({ visible: true, message, type });
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
+  }, []);
+
+  const fetchData = useCallback(
+    async (
+      endpoint,
+      setter,
+      errorMessage,
+      isPaginated = false,
+      params = {}
+    ) => {
+      try {
+        const response = await axiosInstance.get(endpoint, { params });
+        const data = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data?.data ||
+            response.data?.data ||
+            response.data?.vouchers ||
+            [];
+        setter(data);
+        if (isPaginated) {
+          const total = response.data?.pagination?.totalItems || data.length;
+          setTotalItems(total);
+        }
+      } catch (err) {
+        showToastMessage(errorMessage, "error");
+        setter([]);
+        if (isPaginated) setTotalItems(0);
+      }
+    },
+    [showToastMessage]
+  );
+
+  const fetchInvoices = useCallback(async () => {
+    setIsLoading(true);
+    const params = new URLSearchParams({
+      voucherType: "sale",
+      page: currentPage,
+      limit: itemsPerPage,
+    });
+    if (selectedCustomer) params.append("partyId", selectedCustomer.value);
+    if (dateFilter.startDate) params.append("startDate", dateFilter.startDate);
+    if (dateFilter.endDate) params.append("endDate", dateFilter.endDate);
+    if (searchTerm) params.append("search", searchTerm);
+    await fetchData(
+      `/vouchers/vouchers`,
+      setInvoices,
+      "Failed to fetch invoices.",
+      true,
+      params
+    );
+    setIsLoading(false);
+  }, [
+    selectedCustomer,
+    dateFilter,
+    searchTerm,
+    currentPage,
+    itemsPerPage,
+    fetchData,
+  ]);
+
+  const fetchVouchers = useCallback(async () => {
+    const params = new URLSearchParams({
+      voucherType: "receipt",
+      page: currentPage,
+      limit: itemsPerPage,
+    });
+    if (selectedCustomer) params.append("partyId", selectedCustomer.value);
+    if (dateFilter.startDate) params.append("startDate", dateFilter.startDate);
+    if (dateFilter.endDate) params.append("endDate", dateFilter.endDate);
+    if (searchTerm) params.append("search", searchTerm);
+    await fetchData(
+      `/vouchers/vouchers`,
+      setVouchers,
+      "Failed to fetch receipts.",
+      true,
+      params
+    );
+  }, [
+    selectedCustomer,
+    dateFilter,
+    searchTerm,
+    currentPage,
+    itemsPerPage,
+    fetchData,
+  ]);
+
+  const fetchCustomers = useCallback(() => {
+    fetchData(
+      "/customers/customers",
+      setCustomers,
+      "Failed to fetch customers."
+    );
+  }, [fetchData]);
+
+  const fetchAvailableVouchers = useCallback(
+    async (customerId) => {
+      const params = new URLSearchParams({ voucherType: "receipt" });
+      if (customerId) params.append("partyId", customerId);
+      await fetchData(
+        `/vouchers/vouchers`,
+        (data) => {
+          setAvailableVouchers(
+            data.filter((v) => v._id && v.voucherNo && v.totalAmount)
+          );
+        },
+        "Failed to fetch available receipts."
+      );
+    },
+    [fetchData]
+  );
+
   useEffect(() => {
-    fetchCustomers();
+    Promise.all([fetchCustomers(), fetchInvoices(), fetchVouchers()]).then(() =>
+      setIsLoading(false)
+    );
+  }, [fetchCustomers, fetchInvoices, fetchVouchers]);
+
+  useEffect(() => {
     fetchInvoices();
     fetchVouchers();
-  }, []);
+  }, [currentPage, itemsPerPage, fetchInvoices, fetchVouchers]);
 
   useEffect(() => {
     if (showModal) {
       document.body.style.overflow = "hidden";
+      modalRef.current?.classList.add("scale-100", "opacity-100");
     } else {
       document.body.style.overflow = "unset";
     }
@@ -191,73 +397,6 @@ const SaleAccountsManagement = () => {
     };
   }, [showModal]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast((prev) => ({ ...prev, visible: false })), 3000);
-  }, []);
-
-  const fetchCustomers = useCallback(async () => {
-    try {
-      const response = await axiosInstance.get("/customers/customers");
-      setCustomers(takeArray(response));
-    } catch (err) {
-      showToastMessage("Failed to fetch customers.", "error");
-      setCustomers([]);
-    }
-  }, [showToastMessage]);
-
-  const fetchInvoices = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const params = new URLSearchParams();
-      params.append("partyType", "Customer");
-      params.append("type", "sale_order");
-      params.append("status", "APPROVED");
-      const response = await axiosInstance.get(
-        `/transactions/transactions?${params.toString()}`
-      );
-      setInvoices(takeArray(response));
-    } catch (err) {
-      showToastMessage("Failed to fetch invoices.", "error");
-      setInvoices([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [showToastMessage]);
-
-  const fetchVouchers = useCallback(async () => {
-    try {
-      const response = await axiosInstance.get("/vouchers/vouchers", {
-        params: { voucherType: "receipt" },
-      });
-      setVouchers(takeArray(response));
-    } catch (err) {
-      showToastMessage("Failed to fetch receipts.", "error");
-      setVouchers([]);
-    }
-  }, [showToastMessage]);
-
-  const fetchAvailableVouchers = useCallback(
-    async (customerId = null) => {
-      try {
-        const params = new URLSearchParams();
-        if (customerId) params.append("partyId", customerId);
-        params.append("voucherType", "receipt");
-        const response = await axiosInstance.get(
-          `/vouchers/vouchers?${params.toString()}`
-        );
-        const available = takeArray(response).filter(
-          (v) => v._id && v.voucherNo && v.totalAmount
-        );
-        setAvailableVouchers(available);
-      } catch (err) {
-        showToastMessage("Failed to fetch available receipts.", "error");
-        setAvailableVouchers([]);
-      }
-    },
-    [showToastMessage]
-  );
-
   const handleCustomerChange = useCallback(
     (e) => {
       const { name, value } = e.target;
@@ -265,7 +404,7 @@ const SaleAccountsManagement = () => {
         ...prev,
         [name]: value,
         invoiceNumber: "",
-        date: new Date().toISOString().split("T")[0], // Reset to current date
+        date: new Date().toISOString().split("T")[0],
         saleAmount: "",
         taxAmount: "",
         total: "",
@@ -276,130 +415,73 @@ const SaleAccountsManagement = () => {
       }));
       setErrors({});
       setSelectedInvoices([]);
-      if (name === "customerId") {
-        fetchAvailableVouchers(value);
-      }
+      if (name === "customerId") fetchAvailableVouchers(value);
     },
     [fetchAvailableVouchers]
   );
 
-  const handleInvoiceSelect = useCallback(
-    (selectedInvoicesData, autoFillData = {}) => {
-      setSelectedInvoices(selectedInvoicesData);
-      if (selectedInvoicesData && selectedInvoicesData.length > 0) {
-        const totalSaleAmount = selectedInvoicesData.reduce((sum, inv) => {
-          const itemTotal = inv.items.reduce(
-            (itemSum, item) => itemSum + (Number(item.lineTotal) || 0),
-            0
-          );
-          return sum + itemTotal;
-        }, 0);
-
-        const taxAmount = selectedInvoicesData.reduce((sum, inv) => {
-          const itemTaxPercent =
-            inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-          const itemTotal = inv.items.reduce(
-            (itemSum, item) => itemSum + (Number(item.lineTotal) || 0),
-            0
-          );
-          return sum + (itemTotal - itemTotal / (1 + itemTaxPercent / 100));
-        }, 0);
-
-        const totalAmount = totalSaleAmount;
-
-        const paidAmount = selectedInvoicesData.reduce((sum, inv) => {
-          const linkedVoucher = vouchers.find((voucher) =>
-            voucher.linkedInvoices?.some(
-              (link) => (link.invoiceId?._id || link.invoiceId) === inv._id
-            )
-          );
-          if (linkedVoucher) {
-            const linkedInvoice = linkedVoucher.linkedInvoices.find(
-              (link) => (link.invoiceId?._id || link.invoiceId) === inv._id
-            );
-            return sum + (Number(linkedInvoice?.amount) || 0);
-          }
-          return sum;
-        }, 0);
-
-        const balanceAmount = totalAmount - paidAmount;
-        const status =
-          balanceAmount <= 0
-            ? "Paid"
-            : paidAmount === 0
-            ? "Unpaid"
-            : "Partially Paid";
-
-        const date = selectedInvoicesData[0]?.date
-          ? new Date(selectedInvoicesData[0].date).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0]; // Default to current date if no invoice date
-
-        setFormData((prev) => ({
-          ...prev,
-          invoiceNumber: selectedInvoicesData
-            .map((inv) => inv.transactionNo)
-            .join(", "),
-          date,
-          saleAmount: totalSaleAmount.toFixed(2),
-          taxAmount: taxAmount.toFixed(2),
-          total: totalAmount.toFixed(2),
-          returnAmount: "0.00",
-          paidAmount: paidAmount.toFixed(2),
-          balanceAmount: balanceAmount.toFixed(2),
-          status,
-          ...autoFillData,
-        }));
-      } else {
-        setFormData((prev) => ({
-          ...prev,
-          invoiceNumber: "",
-          date: new Date().toISOString().split("T")[0], // Reset to current date
-          saleAmount: "",
-          taxAmount: "",
-          total: "",
-          returnAmount: "",
-          paidAmount: "",
-          balanceAmount: "",
-          status: "Unpaid",
-        }));
-      }
-    },
-    [vouchers]
-  );
+  const handleInvoiceSelect = useCallback((selectedInvoicesData) => {
+    setSelectedInvoices(selectedInvoicesData);
+    const totals = selectedInvoicesData.reduce(
+      (acc, inv) => {
+        const total = Number(inv.totalAmount) || 0;
+        const tax = Number(inv.taxAmount) || 0;
+        const paid = Number(inv.paidAmount) || 0;
+        return {
+          saleAmount: acc.saleAmount + (total - tax),
+          taxAmount: acc.taxAmount + tax,
+          total: acc.total + total,
+          paidAmount: acc.paidAmount + paid,
+        };
+      },
+      { saleAmount: 0, taxAmount: 0, total: 0, paidAmount: 0 }
+    );
+    const balanceAmount = totals.total - totals.paidAmount;
+    const status =
+      balanceAmount <= 0
+        ? "Paid"
+        : totals.paidAmount === 0
+        ? "Unpaid"
+        : "Partially Paid";
+    setFormData((prev) => ({
+      ...prev,
+      invoiceNumber: selectedInvoicesData
+        .map((inv) => inv.voucherNo)
+        .join(", "),
+      date:
+        selectedInvoicesData[0]?.date?.split("T")[0] ||
+        new Date().toISOString().split("T")[0],
+      saleAmount: totals.saleAmount.toFixed(2),
+      taxAmount: totals.taxAmount.toFixed(2),
+      total: totals.total.toFixed(2),
+      paidAmount: totals.paidAmount.toFixed(2),
+      balanceAmount: balanceAmount.toFixed(2),
+      status,
+    }));
+  }, []);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    if (name === "date") {
-      const selectedDate = new Date(value);
-      const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
-      if (selectedDate > currentDate) {
-        setErrors((prev) => ({
-          ...prev,
-          date: "Future dates are not allowed",
-        }));
-        return;
-      }
+    if (name === "date" && new Date(value) > new Date()) {
+      setErrors((prev) => ({ ...prev, date: "Future dates are not allowed" }));
+      return;
     }
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
       if (name === "returnAmount") {
-        const saleAmount = Number(prev.saleAmount) || 0;
-        const returnAmount = Number(value) || 0;
         const total =
-          saleAmount - returnAmount + (Number(prev.taxAmount) || 0);
-        const balanceAmount = total - (Number(prev.paidAmount) || 0);
-        const status =
-          balanceAmount <= 0
-            ? "Paid"
-            : (Number(prev.paidAmount) || 0) === 0
-            ? "Unpaid"
-            : "Partially Paid";
+          Number(prev.saleAmount) + Number(prev.taxAmount) - Number(value);
+        const balanceAmount = total - Number(prev.paidAmount);
         return {
           ...newData,
           total: total.toFixed(2),
           balanceAmount: balanceAmount.toFixed(2),
-          status,
+          status:
+            balanceAmount <= 0
+              ? "Paid"
+              : Number(prev.paidAmount) === 0
+              ? "Unpaid"
+              : "Partially Paid",
         };
       }
       return newData;
@@ -408,25 +490,21 @@ const SaleAccountsManagement = () => {
   }, []);
 
   const validateForm = useCallback(() => {
-    const e = {};
-    if (!formData.customerId) e.customerId = "Please select a customer";
+    const errors = {};
+    if (!formData.customerId) errors.customerId = "Please select a customer";
     if (!formData.invoiceNumber)
-      e.invoiceNumber = "Please select at least one invoice";
-    if (!formData.date) e.date = "Please select a date";
-    const selectedDate = new Date(formData.date);
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Normalize to start of day
-    if (selectedDate > currentDate) {
-      e.date = "Future dates are not allowed";
-    }
-    return e;
+      errors.invoiceNumber = "Please select at least one invoice";
+    if (!formData.date) errors.date = "Please select a date";
+    if (new Date(formData.date) > new Date())
+      errors.date = "Future dates are not allowed";
+    return errors;
   }, [formData]);
 
   const resetForm = useCallback(() => {
     setFormData({
       customerId: "",
       invoiceNumber: "",
-      date: new Date().toISOString().split("T")[0], // Reset to current date
+      date: new Date().toISOString().split("T")[0],
       saleAmount: "",
       taxAmount: "",
       total: "",
@@ -442,43 +520,28 @@ const SaleAccountsManagement = () => {
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    const e = validateForm();
-    if (Object.keys(e).length) {
-      setErrors(e);
+    const errors = validateForm();
+    if (Object.keys(errors).length) {
+      setErrors(errors);
       showToastMessage("Please fill all required fields", "error");
       return;
     }
     setIsSubmitting(true);
     try {
-      const selectedInvoiceIds = selectedInvoices.map((invoice) => invoice._id);
-      const invoiceBalances = selectedInvoices.map((inv) => {
-        const itemTotal = inv.items.reduce(
-          (sum, item) => sum + (Number(item.lineTotal) || 0),
-          0
-        );
-        const taxPercent =
-          inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-        const total = itemTotal;
-        const linkedPayments = vouchers.reduce((acc, voucher) => {
-          const link = voucher.linkedInvoices?.find(
-            (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
-          );
-          if (link) acc += Number(link.amount) || 0;
-          return acc;
-        }, 0);
-        const balance = total - linkedPayments - (Number(formData.returnAmount) || 0);
-        return {
-          invoiceId: inv._id,
-          transactionNo: inv.transactionNo,
-          balanceAmount: balance.toFixed(2),
-        };
-      });
-
       const payload = {
         partyId: formData.customerId,
         partyType: "Customer",
-        type: "sale_order",
-        invoiceIds: selectedInvoiceIds,
+        voucherType: "sale",
+        invoiceIds: selectedInvoices.map((inv) => inv._id),
+        voucherIds: vouchers
+          .filter((v) =>
+            v.linkedInvoices?.some((link) =>
+              selectedInvoices.some(
+                (inv) => inv._id === (link.invoiceId?._id || link.invoiceId)
+              )
+            )
+          )
+          .map((v) => v._id),
         transactionNo: formData.invoiceNumber,
         date: formData.date,
         totalAmount: Number(formData.total),
@@ -486,13 +549,25 @@ const SaleAccountsManagement = () => {
         paidAmount: Number(formData.paidAmount) || 0,
         balanceAmount: Number(formData.balanceAmount) || 0,
         status: formData.status,
-        invoiceBalances,
+        invoiceBalances: selectedInvoices.map((inv) => ({
+          invoiceId: inv._id,
+          transactionNo: inv.voucherNo,
+          balanceAmount: (
+            Number(inv.totalAmount) -
+            vouchers.reduce((acc, v) => {
+              const link = v.linkedInvoices?.find(
+                (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
+              );
+              return acc + (Number(link?.amount) || 0);
+            }, 0) -
+            (Number(formData.returnAmount) || 0)
+          ).toFixed(2),
+        })),
       };
-      console.log(payload);
-      // await axiosInstance.post("/transactions/transactions", payload);
-      // showToastMessage("Sale invoice created successfully!", "success");
-      // fetchInvoices();
-      // resetForm();
+      await axiosInstance.post("/account/account-vouchers", payload);
+      showToastMessage("Sale invoice created successfully!", "success");
+      fetchInvoices();
+      resetForm();
     } catch (err) {
       showToastMessage(
         err.response?.data?.message || "Failed to create sale invoice.",
@@ -501,19 +576,19 @@ const SaleAccountsManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, fetchInvoices, resetForm, showToastMessage, validateForm, selectedInvoices, vouchers]);
-
-  const openAddModal = useCallback(() => {
-    setShowModal(true);
-    setTimeout(() => {
-      if (modalRef.current) {
-        modalRef.current.classList.add("scale-100", "opacity-100");
-      }
-    }, 10);
-  }, []);
+  }, [
+    formData,
+    selectedInvoices,
+    vouchers,
+    fetchInvoices,
+    resetForm,
+    showToastMessage,
+    validateForm,
+  ]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
+    setCurrentPage(1);
     Promise.all([fetchInvoices(), fetchVouchers()]).finally(() => {
       setIsRefreshing(false);
       showToastMessage("Data refreshed successfully", "success");
@@ -527,181 +602,139 @@ const SaleAccountsManagement = () => {
     }));
   }, []);
 
+  const handleViewInvoice = useCallback((invoice) => {
+    setSelectedInvoice(invoice);
+    setActiveView("view");
+  }, []);
+
+  const handlePageChange = useCallback((page) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handleItemsPerPageChange = useCallback((newItemsPerPage) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  }, []);
+
   const filteredInvoices = useMemo(() => {
-    let filtered = asArray(invoices).filter((inv) => {
-      if (selectedCustomer && inv.partyId !== selectedCustomer.value) return false;
-      const term = searchTerm.toLowerCase();
-      return inv.transactionNo?.toLowerCase().includes(term);
-    });
-
-    filtered = filtered.map((inv) => {
-      const itemTotal = inv.items.reduce(
-        (sum, item) => sum + (Number(item.lineTotal) || 0),
-        0
-      );
-      const taxPercent =
-        inv.items.length > 0 ? inv.items[0].taxPercent || 5 : 5;
-      const saleAmount = itemTotal / (1 + taxPercent / 100);
-      const taxAmount = itemTotal - saleAmount;
-      const total = itemTotal;
-      const linkedPayments = asArray(vouchers).reduce((acc, voucher) => {
-        if (voucher.partyId?._id !== inv.partyId) return acc;
-        const link = asArray(voucher.linkedInvoices).find(
-          (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
-        );
-        if (link) acc += Number(link.amount) || 0;
-        return acc;
-      }, 0);
-      const paidAmount = linkedPayments;
-      const balanceAmount = total - paidAmount;
-      const status =
-        balanceAmount <= 0
-          ? "Paid"
-          : paidAmount === 0
-          ? "Unpaid"
-          : "Partially Paid";
-      const customer = customers.find((c) => c._id === inv.partyId);
-
-      return {
-        ...inv,
-        customerName: customer?.customerName || "",
-        saleAmount,
-        taxAmount,
-        total,
-        paidAmount,
-        balanceAmount,
-        status,
-      };
-    });
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const av =
-          sortConfig.key === "date"
-            ? new Date(a.date).getTime()
-            : sortConfig.key === "customerName"
-            ? a[sortConfig.key].toLowerCase()
-            : a[sortConfig.key];
-        const bv =
-          sortConfig.key === "date"
-            ? new Date(b.date).getTime()
-            : sortConfig.key === "customerName"
-            ? b[sortConfig.key].toLowerCase()
-            : b[sortConfig.key];
-        return av < bv
-          ? sortConfig.direction === "asc"
-            ? -1
-            : 1
-          : av > bv
-          ? sortConfig.direction === "asc"
-            ? 1
-            : -1
-          : 0;
-      });
-    }
-
-    return filtered;
-  }, [invoices, vouchers, selectedCustomer, searchTerm, sortConfig, customers]);
-
-  const filteredVouchers = useMemo(() => {
-    let filtered = asArray(vouchers).filter((voucher) => {
-      if (selectedCustomer && voucher.partyId?._id !== selectedCustomer.value)
-        return false;
-      const term = searchTerm.toLowerCase();
-      return voucher.voucherNo?.toLowerCase().includes(term);
-    });
-
-    filtered = filtered.map((voucher) => {
-      const linkedInvoices = asArray(voucher.linkedInvoices).map((link) => {
-        const invoice = invoices.find(
-          (inv) => inv._id === link.invoiceId?._id || inv._id === link.invoiceId
-        );
-        const itemTotal =
-          invoice?.items.reduce(
-            (sum, item) => sum + (Number(item.lineTotal) || 0),
-            0
-          ) || 0;
-        const taxPercent =
-          invoice?.items.length > 0 ? invoice.items[0].taxPercent || 5 : 5;
-        const saleAmount = itemTotal / (1 + taxPercent / 100);
-        const taxAmount = itemTotal - saleAmount;
-        const total = itemTotal;
+    const filtered = invoices
+      .filter((inv) =>
+        (inv.voucherNo || "").toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .map((inv) => {
+        const customer = customers.find((c) => c._id === inv.partyId);
+        const total = Number(inv.totalAmount) || 0;
+        const taxAmount = Number(inv.taxAmount) || 0;
+        const saleAmount = total - taxAmount;
+        const paidAmount = Number(inv.paidAmount) || 0;
+        const balanceAmount = total - paidAmount;
         return {
-          ...link,
-          invoiceNo: invoice?.transactionNo || "Unknown",
+          ...inv,
+          customerName: customer?.customerName || "Unknown",
           saleAmount,
           taxAmount,
           total,
-          paidAmount: Number(link.amount) || 0,
-          balanceAmount: Number(link.balance) || 0,
+          paidAmount,
+          balanceAmount,
           status:
-            Number(link.balance) <= 0
+            inv.status ||
+            (balanceAmount <= 0
               ? "Paid"
-              : Number(link.amount) === 0
+              : paidAmount === 0
               ? "Unpaid"
-              : "Partially Paid",
+              : "Partially Paid"),
         };
       });
-
-      return {
-        ...voucher,
-        customerName: voucher.partyName || "",
-        linkedInvoices,
-      };
-    });
 
     if (sortConfig.key) {
       filtered.sort((a, b) => {
         const av =
           sortConfig.key === "date"
-            ? new Date(a.date).getTime()
-            : sortConfig.key === "customerName"
-            ? a[sortConfig.key].toLowerCase()
+            ? new Date(a[sortConfig.key]).getTime()
             : a[sortConfig.key];
         const bv =
           sortConfig.key === "date"
-            ? new Date(b.date).getTime()
-            : sortConfig.key === "customerName"
-            ? b[sortConfig.key].toLowerCase()
+            ? new Date(b[sortConfig.key]).getTime()
             : b[sortConfig.key];
-        return av < bv
-          ? sortConfig.direction === "asc"
-            ? -1
-            : 1
-          : av > bv
-          ? sortConfig.direction === "asc"
-            ? 1
-            : -1
-          : 0;
+        return (av < bv ? -1 : 1) * (sortConfig.direction === "asc" ? 1 : -1);
       });
     }
 
     return filtered;
-  }, [vouchers, invoices, selectedCustomer, searchTerm, sortConfig]);
+  }, [invoices, searchTerm, sortConfig, customers]);
 
-  const stats = useMemo(() => {
-    const totalInvoices = filteredInvoices.length;
-    const totalVouchers = filteredVouchers.length;
-    const totalAmount = filteredInvoices.reduce(
-      (sum, inv) => sum + inv.total,
-      0
-    );
-    const paidAmount = filteredInvoices.reduce(
-      (sum, inv) => sum + inv.paidAmount,
-      0
-    );
-    const balanceAmount = filteredInvoices.reduce(
-      (sum, inv) => sum + inv.balanceAmount,
-      0
-    );
-    return {
-      totalInvoices,
-      totalVouchers,
-      totalAmount,
-      paidAmount,
-      balanceAmount,
-    };
-  }, [filteredInvoices, filteredVouchers]);
+  const filteredVouchers = useMemo(() => {
+    const filtered = vouchers
+      .filter((v) =>
+        (v.voucherNo || "").toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .map((v) => ({
+        ...v,
+        customerName: v.partyName || "Unknown",
+        linkedInvoices: (v.linkedInvoices || []).map((link) => {
+          const invoice = invoices.find(
+            (inv) => inv._id === (link.invoiceId?._id || link.invoiceId)
+          );
+          const total = Number(invoice?.totalAmount) || 0;
+          const taxAmount = Number(invoice?.taxAmount) || 0;
+          return {
+            ...link,
+            invoiceNo: invoice?.voucherNo || "Unknown",
+            saleAmount: total - taxAmount,
+            taxAmount,
+            total,
+            paidAmount: Number(link.amount) || 0,
+            balanceAmount: Number(link.balance) || 0,
+            status:
+              Number(link.balance) <= 0
+                ? "Paid"
+                : Number(link.amount) === 0
+                ? "Unpaid"
+                : "Partially Paid",
+          };
+        }),
+      }));
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        const av =
+          sortConfig.key === "date"
+            ? new Date(a[sortConfig.key]).getTime()
+            : a[sortConfig.key];
+        const bv =
+          sortConfig.key === "date"
+            ? new Date(b[sortConfig.key]).getTime()
+            : b[sortConfig.key];
+        return (av < bv ? -1 : 1) * (sortConfig.direction === "asc" ? 1 : -1);
+      });
+    }
+
+    return filtered;
+  }, [vouchers, invoices, searchTerm, sortConfig]);
+
+  const paginatedData = useMemo(() => {
+    const data = activeTab === "invoices" ? filteredInvoices : filteredVouchers;
+    return data;
+  }, [activeTab, filteredInvoices, filteredVouchers]);
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+  const stats = useMemo(
+    () => ({
+      totalInvoices: filteredInvoices.length,
+      totalVouchers: filteredVouchers.length,
+      totalAmount: filteredInvoices.reduce((sum, inv) => sum + inv.total, 0),
+      paidAmount: filteredInvoices.reduce(
+        (sum, inv) => sum + inv.paidAmount,
+        0
+      ),
+      balanceAmount: filteredInvoices.reduce(
+        (sum, inv) => sum + inv.balanceAmount,
+        0
+      ),
+    }),
+    [filteredInvoices, filteredVouchers]
+  );
 
   const customerOptions = useMemo(
     () => [
@@ -710,6 +743,17 @@ const SaleAccountsManagement = () => {
     ],
     [customers]
   );
+
+  const formatCurrency = (amount, colorClass = "text-gray-900") => {
+    const numAmount = Number(amount) || 0;
+    return (
+      <span className={`inline-flex items-center font-semibold ${colorClass}`}>
+        {numAmount < 0 && <span className="text-red-600">-</span>}
+        <span className="text-xs mr-1 opacity-70">AED</span>
+        {Math.abs(numAmount).toFixed(2)}
+      </span>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -727,62 +771,35 @@ const SaleAccountsManagement = () => {
     );
   }
 
-  const EmptyState = ({ type }) => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <Receipt size={40} className="text-purple-600" />
-      </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        No {type} found
-      </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm
-          ? `No ${type} match your search.`
-          : `No ${type} available for the selected customer.`}
-      </p>
-    </div>
-  );
+  if (activeView === "view") {
+    return (
+      <InvoiceView
+        selectedInvoice={selectedInvoice}
+        parties={customers}
+        setActiveView={setActiveView}
+        setSelectedInvoice={setSelectedInvoice}
+        voucherType="sale"
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
       <style>{`
-        @keyframes slide-in {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-        .animate-shake {
-          animation: shake 0.3s ease-in-out;
-        }
-        .modal-backdrop {
-          backdrop-filter: blur(8px);
-          animation: fadeIn 0.2s ease-out;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        .animate-shake { animation: shake 0.3s ease-in-out; }
+        .modal-backdrop { backdrop-filter: blur(8px); animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
-      
+
       <Toast
         show={showToast.visible}
         message={showToast.message}
         type={showToast.type}
       />
-      
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -802,7 +819,7 @@ const SaleAccountsManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           {activeTab === "invoices" && (
             <button
-              onClick={openAddModal}
+              onClick={() => setShowModal(true)}
               className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
             >
               <Plus size={18} /> Add Sale
@@ -848,9 +865,7 @@ const SaleAccountsManagement = () => {
             borderColor="border-emerald-200"
             iconBg="bg-emerald-100"
             iconColor="text-emerald-600"
-            subText={
-              activeTab === "invoices" ? "All invoices" : "All receipts"
-            }
+            subText={activeTab === "invoices" ? "All invoices" : "All receipts"}
           />
           <StatCard
             title="Total Amount"
@@ -905,7 +920,10 @@ const SaleAccountsManagement = () => {
             </div>
             <div className="flex space-x-2">
               <button
-                onClick={() => setActiveTab("invoices")}
+                onClick={() => {
+                  setActiveTab("invoices");
+                  setCurrentPage(1);
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   activeTab === "invoices"
                     ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md"
@@ -915,7 +933,10 @@ const SaleAccountsManagement = () => {
                 Invoices
               </button>
               <button
-                onClick={() => setActiveTab("vouchers")}
+                onClick={() => {
+                  setActiveTab("vouchers");
+                  setCurrentPage(1);
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                   activeTab === "vouchers"
                     ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md"
@@ -938,12 +959,18 @@ const SaleAccountsManagement = () => {
                   activeTab === "invoices" ? "invoice" : "receipt"
                 } number...`}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 hover:border-gray-300"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm("")}
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCurrentPage(1);
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <X size={16} />
@@ -952,159 +979,218 @@ const SaleAccountsManagement = () => {
             </div>
             {showFilters && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-gray-200">
-                <div className="w-full">
+                <div className="w-full sm:w-1/3">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <User size={16} className="inline mr-2" /> Customer Name
                   </label>
                   <Select
                     value={selectedCustomer}
-                    onChange={(selectedOption) =>
-                      setSelectedCustomer(selectedOption)
-                    }
+                    onChange={(value) => {
+                      setSelectedCustomer(value);
+                      setCurrentPage(1);
+                    }}
                     options={customerOptions}
                     isSearchable={true}
                     placeholder="Search and select customer..."
                     classNamePrefix="react-select"
                   />
                 </div>
+                <div className="w-full sm:w-1/3">
+                  <FormInput
+                    label="Start Date"
+                    icon={Calendar}
+                    type="date"
+                    name="startDate"
+                    value={dateFilter.startDate}
+                    onChange={(e) => {
+                      setDateFilter((prev) => ({
+                        ...prev,
+                        startDate: e.target.value,
+                      }));
+                      setCurrentPage(1);
+                    }}
+                    hint="Filter by start date"
+                  />
+                </div>
+                <div className="w-full sm:w-1/3">
+                  <FormInput
+                    label="End Date"
+                    icon={Calendar}
+                    type="date"
+                    name="endDate"
+                    value={dateFilter.endDate}
+                    onChange={(e) => {
+                      setDateFilter((prev) => ({
+                        ...prev,
+                        endDate: e.target.value,
+                      }));
+                      setCurrentPage(1);
+                    }}
+                    hint="Filter by end date"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      fetchInvoices();
+                      fetchVouchers();
+                      setCurrentPage(1);
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
-        {activeTab === "invoices" && filteredInvoices.length === 0 ? (
-          <EmptyState type="invoices" />
-        ) : activeTab === "vouchers" && filteredVouchers.length === 0 ? (
-          <EmptyState type="receipts" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  {[
-                    { key: "customerName", label: "Customer Name" },
-                    {
-                      key:
-                        activeTab === "invoices"
-                          ? "transactionNo"
-                          : "voucherNo",
-                      label:
-                        activeTab === "invoices"
-                          ? "Invoice Number"
-                          : "Receipt Number",
-                    },
-                    { key: "date", label: "Date" },
-                    { key: "saleAmount", label: "Sale Amount" },
-                    { key: "taxAmount", label: "Tax Amount" },
-                    { key: "total", label: "Total" },
-                    { key: "paidAmount", label: "Paid Amount" },
-                    { key: "balanceAmount", label: "Balance Amount" },
-                    { key: "status", label: "Status" },
-                  ].map((col) => (
-                    <th
-                      key={col.key}
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleSort(col.key)}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+              <tr>
+                {[
+                  { key: "customerName", label: "Customer Name" },
+                  {
+                    key: activeTab === "invoices" ? "voucherNo" : "voucherNo",
+                    label:
+                      activeTab === "invoices"
+                        ? "Invoice Number"
+                        : "Receipt Number",
+                  },
+                  { key: "date", label: "Date" },
+                  { key: "saleAmount", label: "Sale Amount" },
+                  { key: "taxAmount", label: "Tax Amount" },
+                  { key: "total", label: "Total" },
+                  { key: "paidAmount", label: "Paid Amount" },
+                  { key: "balanceAmount", label: "Balance Amount" },
+                  { key: "status", label: "Status" },
+                  { key: "actions", label: "Actions" },
+                ].map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={
+                      col.key !== "actions" ? () => handleSort(col.key) : null
+                    }
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>{col.label}</span>
+                      {sortConfig.key === col.key && col.key !== "actions" && (
+                        <span className="text-purple-600 font-bold">
+                          {sortConfig.direction === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {activeTab === "invoices"
+                ? paginatedData.map((inv) => (
+                    <tr
+                      key={inv._id}
+                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                     >
-                      <div className="flex items-center space-x-1">
-                        <span>{col.label}</span>
-                        {sortConfig.key === col.key && (
-                          <span className="text-purple-600 font-bold">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {activeTab === "invoices"
-                  ? filteredInvoices.map((inv) => (
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {inv.partyName}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        {inv.voucherNo}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(inv.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(inv.saleAmount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(inv.taxAmount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(inv.total)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(inv.paidAmount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(inv.balanceAmount)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
+                            inv.approvalStatus || inv.status
+                          )}`}
+                        >
+                          {inv.approvalStatus || inv.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleViewInvoice(inv)}
+                          className="text-purple-600 hover:text-purple-800 font-semibold"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                : paginatedData.flatMap((voucher) =>
+                    voucher.linkedInvoices.map((link) => (
                       <tr
-                        key={inv._id}
+                        key={`${voucher._id}-${
+                          link.invoiceId?._id || link.invoiceId
+                        }`}
                         className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
                       >
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {inv.customerName}
+                          {voucher.customerName}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                          {inv.transactionNo}
+                          {voucher.voucherNo} (Inv: {link.invoiceNo})
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {new Date(inv.date).toLocaleDateString()}
+                          {new Date(voucher.date).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.saleAmount)}
+                          {formatCurrency(link.saleAmount)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.taxAmount)}
+                          {formatCurrency(link.taxAmount)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.total)}
+                          {formatCurrency(link.total)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.paidAmount)}
+                          {formatCurrency(link.paidAmount)}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
-                          {formatCurrency(inv.balanceAmount)}
+                          {formatCurrency(link.balanceAmount)}
                         </td>
                         <td className="px-6 py-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
-                              inv.status
+                              link.status
                             )}`}
                           >
-                            {inv.status}
+                            {link.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4">----</td>
                       </tr>
                     ))
-                  : filteredVouchers.map((voucher) =>
-                      voucher.linkedInvoices.map((link) => (
-                        <tr
-                          key={`${voucher._id}-${link.invoiceId?._id || link.invoiceId}`}
-                          className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                        >
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            {voucher.customerName}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                            {voucher.voucherNo} (Inv: {link.invoiceNo})
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">
-                            {new Date(voucher.date).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.saleAmount)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.taxAmount)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.total)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.paidAmount)}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-900">
-                            {formatCurrency(link.balanceAmount)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
-                                link.status
-                              )}`}
-                            >
-                              {link.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          itemsPerPage={itemsPerPage}
+          onItemsPerPageChange={handleItemsPerPageChange}
+        />
       </div>
 
       {showModal && (
@@ -1130,8 +1216,7 @@ const SaleAccountsManagement = () => {
                 <X size={24} />
               </button>
             </div>
-
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]" ref={formRef}>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
               <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-l-4 border-purple-500">
                 <div className="flex items-start gap-3">
                   <Sparkles size={20} className="text-purple-600 mt-0.5" />
@@ -1140,13 +1225,12 @@ const SaleAccountsManagement = () => {
                       Smart Auto-Fill
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Select a customer and invoices to automatically calculate amounts,
-                      taxes, and payment status
+                      Select a customer and invoices to automatically calculate
+                      amounts, taxes, and payment status
                     </p>
                   </div>
                 </div>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <CustomerSelect
@@ -1156,7 +1240,6 @@ const SaleAccountsManagement = () => {
                     onInvoiceSelect={handleInvoiceSelect}
                   />
                 </div>
-
                 <FormInput
                   label="Invoice Number"
                   icon={Receipt}
@@ -1169,7 +1252,6 @@ const SaleAccountsManagement = () => {
                   error={errors.invoiceNumber}
                   hint="Auto-filled from selected invoices"
                 />
-
                 <FormInput
                   label="Date"
                   icon={Calendar}
@@ -1181,41 +1263,33 @@ const SaleAccountsManagement = () => {
                   error={errors.date}
                   hint="Select invoice date (cannot be future date)"
                 />
-
                 <FormInput
                   label="Sale Amount"
                   icon={DollarSign}
                   type="number"
                   name="saleAmount"
                   value={formData.saleAmount}
-                  onChange={handleChange}
                   readOnly
-                  required
                   hint="Calculated excluding tax"
                 />
-
                 <FormInput
                   label="Tax Amount"
                   icon={DollarSign}
                   type="number"
                   name="taxAmount"
                   value={formData.taxAmount}
-                  onChange={handleChange}
                   readOnly
                   hint="VAT/Tax calculation"
                 />
-
                 <FormInput
                   label="Total Amount"
                   icon={DollarSign}
                   type="number"
                   name="total"
                   value={formData.total}
-                  onChange={handleChange}
                   readOnly
                   hint="Sale + Tax - Return"
                 />
-
                 <FormInput
                   label="Return Amount"
                   icon={DollarSign}
@@ -1228,7 +1302,6 @@ const SaleAccountsManagement = () => {
                   step="0.01"
                   hint="Enter any return amount"
                 />
-
                 <FormInput
                   label="Paid Amount"
                   icon={CreditCard}
@@ -1238,7 +1311,6 @@ const SaleAccountsManagement = () => {
                   readOnly
                   hint="Calculated from receipts"
                 />
-
                 <FormInput
                   label="Balance Amount"
                   icon={DollarSign}
@@ -1248,7 +1320,6 @@ const SaleAccountsManagement = () => {
                   readOnly
                   hint="Remaining to be paid"
                 />
-
                 <div className="md:col-span-2">
                   <FormInput
                     label="Payment Status"
@@ -1260,7 +1331,6 @@ const SaleAccountsManagement = () => {
                   />
                 </div>
               </div>
-
               <div className="mt-8 p-4 bg-gray-50 rounded-xl">
                 <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                   <FileText size={18} className="text-purple-600" />
@@ -1288,13 +1358,15 @@ const SaleAccountsManagement = () => {
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Balance</p>
                     <p className="font-semibold text-red-600">
-                      {formatCurrency(formData.balanceAmount || 0, "text-red-600")}
+                      {formatCurrency(
+                        formData.balanceAmount || 0,
+                        "text-red-600"
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
-
             <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={resetForm}
@@ -1310,7 +1382,8 @@ const SaleAccountsManagement = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={18} className="mr-2 animate-spin" /> Saving...
+                    <Loader2 size={18} className="mr-2 animate-spin" />{" "}
+                    Saving...
                   </>
                 ) : (
                   <>

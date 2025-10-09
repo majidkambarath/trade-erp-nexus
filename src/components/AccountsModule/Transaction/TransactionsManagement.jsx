@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -22,6 +28,8 @@ import {
   FileText,
   Users,
   Banknote,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
@@ -94,11 +102,15 @@ const StatCard = ({
       <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
         <div className={iconColor}>{icon}</div>
       </div>
-      <button className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}>
+      <button
+        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}
+      >
         View Details →
       </button>
     </div>
-    <h3 className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}>
+    <h3
+      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
+    >
       {title}
     </h3>
     <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
@@ -132,13 +144,14 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
 
 const badgeClassForStatus = (status) => {
   const badges = {
-    Settled: "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
-    Pending: "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
+    Settled:
+      "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
+    Pending:
+      "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
   };
   return badges[status] || "bg-gray-100 text-gray-800";
 };
 
-// Custom AccountSelect Component (modeled after VendorSelect)
 const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [error, setError] = useState(null);
@@ -147,10 +160,11 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
   useEffect(() => {
     if (value) {
       const account = accounts.find((a) => a._id === value);
-      setSelectedAccountName(account ? account.accountName || account.name : "");
-      // Optional: Trigger auto-fill callback (e.g., fetch recent balance)
+      setSelectedAccountName(
+        account ? account.accountName || account.name : ""
+      );
       if (onAccountSelect && account) {
-        onAccountSelect(account, { balance: account.currentBalance || "0.00" }); // Example auto-fill
+        onAccountSelect(account, { balance: account.currentBalance || "0.00" });
       }
     } else {
       setSelectedAccountName("");
@@ -159,21 +173,6 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
     }
   }, [value, accounts, onAccountSelect]);
 
-  const fetchAccounts = async () => {
-    setIsLoadingAccounts(true);
-    setError(null);
-    try {
-      // If needed, refetch accounts here (but assuming they're passed as prop)
-      // const response = await axiosInstance.get("/accounts/accounts");
-      // ... process response
-    } catch (err) {
-      console.error("Failed to fetch accounts:", err);
-      setError("Failed to load accounts. Please try again.");
-    } finally {
-      setIsLoadingAccounts(false);
-    }
-  };
-
   const accountOptions = accounts.map((account) => ({
     value: account._id,
     label: account.accountName || account.name || "Unknown Account",
@@ -181,7 +180,10 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
 
   const handleAccountChange = (selectedOption) => {
     onChange({
-      target: { name: "accountId", value: selectedOption ? selectedOption.value : "" },
+      target: {
+        name: "accountId",
+        value: selectedOption ? selectedOption.value : "",
+      },
     });
   };
 
@@ -218,17 +220,10 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
         <Users size={16} className="inline mr-2 text-purple-500" />
         Select Account <span className="text-red-500">*</span>
       </label>
-
       {error ? (
         <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-red-300 rounded-xl bg-red-50">
           <AlertCircle size={32} className="text-red-400 mb-2" />
           <p className="text-sm text-red-600 font-medium mb-1">{error}</p>
-          <button
-            className="text-xs text-blue-600 hover:underline"
-            onClick={fetchAccounts}
-          >
-            Retry
-          </button>
         </div>
       ) : isLoadingAccounts ? (
         <div className="flex items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
@@ -238,8 +233,12 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
       ) : accounts.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50">
           <Users size={32} className="text-orange-400 mb-2" />
-          <p className="text-sm text-gray-600 font-medium mb-1">No accounts found</p>
-          <p className="text-xs text-gray-500 text-center">No accounts available</p>
+          <p className="text-sm text-gray-600 font-medium mb-1">
+            No accounts found
+          </p>
+          <p className="text-xs text-gray-500 text-center">
+            No accounts available
+          </p>
         </div>
       ) : (
         <>
@@ -255,7 +254,9 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
           />
           <p className="mt-1 text-xs text-gray-500 flex items-center">
             <CheckCircle size={10} className="mr-1" />
-            {accounts.length ? "Choose the account for this transaction" : "No accounts available"}
+            {accounts.length
+              ? "Choose the account for this transaction"
+              : "No accounts available"}
           </p>
         </>
       )}
@@ -264,21 +265,35 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
 };
 
 const TransactionsManagement = () => {
-  const [accounts, setAccounts] = useState([]); // e.g., Banks, Cash, Vendors, Customers
+  const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     accountId: "",
-    accountName: "", // Added for display
-    transactionId: "",
+    accountName: "",
+    voucherId: "",
     date: new Date().toISOString().split("T")[0],
     amount: "",
     type: "Debit",
-    description: "",
+    narration: "",
     balance: "",
     status: "Pending",
+    voucherType: "contra",
+  });
+  const [filters, setFilters] = useState({
+    voucherType: "",
+    partyId: "",
+    partyType: "",
+    dateFrom: "",
+    dateTo: "",
+  });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    totalRecords: 0,
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -290,14 +305,17 @@ const TransactionsManagement = () => {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "date",
+    direction: "desc",
+  });
   const formRef = useRef(null);
   const modalRef = useRef(null);
 
   useEffect(() => {
     fetchAccounts();
     fetchTransactions();
-  }, []);
+  }, [filters, pagination.page, pagination.limit, sortConfig]);
 
   useEffect(() => {
     if (showModal) {
@@ -312,12 +330,15 @@ const TransactionsManagement = () => {
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast((prev) => ({ ...prev, visible: false })), 3000);
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
   }, []);
 
   const fetchAccounts = useCallback(async () => {
     try {
-      const response = await axiosInstance.get("/accounts/accounts"); // Adjust endpoint as needed
+      const response = await axiosInstance.get("/accounts/accounts"); // Adjust endpoint if needed
       setAccounts(takeArray(response));
     } catch (err) {
       showToastMessage("Failed to fetch accounts.", "error");
@@ -330,21 +351,50 @@ const TransactionsManagement = () => {
       setIsLoading(true);
       const params = new URLSearchParams();
       if (selectedAccount) params.append("accountId", selectedAccount.value);
-      const response = await axiosInstance.get(`/transactions/transactions?${params.toString()}`);
-      setTransactions(takeArray(response));
+      if (filters.voucherType)
+        params.append("voucherType", filters.voucherType);
+      if (filters.partyId) params.append("partyId", filters.partyId);
+      if (filters.partyType) params.append("partyType", filters.partyType);
+      if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.append("dateTo", filters.dateTo);
+      if (searchTerm) params.append("search", searchTerm);
+      params.append("page", pagination.page);
+      params.append("limit", pagination.limit);
+      params.append("sortBy", sortConfig.key);
+      params.append("sortOrder", sortConfig.direction);
+
+      const response = await axiosInstance.get(
+        `/vouchers/ledger-entries?${params.toString()}`
+      );
+      const data = takeArray(response);
+      const totalRecords = response.data?.totalRecords || data.length;
+      setTransactions(data);
+      setPagination((prev) => ({
+        ...prev,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / prev.limit),
+      }));
     } catch (err) {
-      showToastMessage("Failed to fetch transactions.", "error");
+      showToastMessage("Failed to fetch ledger entries.", "error");
       setTransactions([]);
     } finally {
       setIsLoading(false);
     }
-  }, [showToastMessage, selectedAccount]);
+  }, [
+    showToastMessage,
+    selectedAccount,
+    filters,
+    pagination.page,
+    pagination.limit,
+    sortConfig,
+    searchTerm,
+  ]);
 
   const handleAccountSelect = useCallback((account, autoFillData = {}) => {
     setFormData((prev) => ({
       ...prev,
       accountName: account?.accountName || account?.name || "",
-      description: autoFillData.description || prev.description, // Example auto-fill
+      narration: autoFillData.narration || prev.narration,
       balance: autoFillData.balance || prev.balance,
       ...autoFillData,
     }));
@@ -356,16 +406,13 @@ const TransactionsManagement = () => {
       setFormData((prev) => ({
         ...prev,
         [name]: value,
-        transactionId: "",
-        description: "",
+        voucherId: "",
+        narration: "",
         amount: "",
         balance: "",
         status: "Pending",
       }));
       setErrors({});
-      if (name === "accountId") {
-        // AccountSelect handles the rest via onAccountSelect
-      }
     },
     [handleAccountSelect]
   );
@@ -377,9 +424,10 @@ const TransactionsManagement = () => {
       if (name === "amount") {
         const numAmount = Number(value) || 0;
         const currentBalance = Number(prev.balance) || 0;
-        const newBalance = prev.type === "Credit" 
-          ? currentBalance + numAmount 
-          : currentBalance - numAmount;
+        const newBalance =
+          prev.type === "Credit"
+            ? currentBalance + numAmount
+            : currentBalance - numAmount;
         return {
           ...newData,
           balance: newBalance.toFixed(2),
@@ -389,9 +437,10 @@ const TransactionsManagement = () => {
       if (name === "type") {
         const numAmount = Number(prev.amount) || 0;
         const currentBalance = Number(prev.balance) || 0;
-        const newBalance = value === "Credit" 
-          ? currentBalance + numAmount 
-          : currentBalance - numAmount;
+        const newBalance =
+          value === "Credit"
+            ? currentBalance + numAmount
+            : currentBalance - numAmount;
         return {
           ...newData,
           balance: newBalance.toFixed(2),
@@ -403,11 +452,18 @@ const TransactionsManagement = () => {
     setErrors((prev) => ({ ...prev, [name]: "" }));
   }, []);
 
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({ ...prev, [name]: value }));
+    setPagination((prev) => ({ ...prev, page: 1 })); // Reset to first page on filter change
+  };
+
   const validateForm = useCallback(() => {
     const e = {};
     if (!formData.accountId) e.accountId = "Please select an account";
-    if (!formData.amount || Number(formData.amount) <= 0) e.amount = "Please enter a valid amount";
-    if (!formData.description) e.description = "Please enter a description";
+    if (!formData.amount || Number(formData.amount) <= 0)
+      e.amount = "Please enter a valid amount";
+    if (!formData.narration) e.narration = "Please enter a narration";
     return e;
   }, [formData]);
 
@@ -415,13 +471,14 @@ const TransactionsManagement = () => {
     setFormData({
       accountId: "",
       accountName: "",
-      transactionId: "",
+      voucherId: "",
       date: new Date().toISOString().split("T")[0],
       amount: "",
       type: "Debit",
-      description: "",
+      narration: "",
       balance: "",
       status: "Pending",
+      voucherType: "contra",
     });
     setErrors({});
     setShowModal(false);
@@ -441,18 +498,18 @@ const TransactionsManagement = () => {
         date: formData.date,
         amount: Number(formData.amount),
         type: formData.type,
-        description: formData.description,
+        narration: formData.narration,
         balance: Number(formData.balance),
         status: formData.status,
+        voucherType: formData.voucherType,
       };
-      console.log(payload);
-      // await axiosInstance.post("/transactions/transactions", payload);
-      // showToastMessage("Transaction created successfully!", "success");
-      // fetchTransactions();
-      // resetForm();
+      await axiosInstance.post("/vouchers/ledger-entries", payload);
+      showToastMessage("Ledger entry created successfully!", "success");
+      fetchTransactions();
+      resetForm();
     } catch (err) {
       showToastMessage(
-        err.response?.data?.message || "Failed to create transaction.",
+        err.response?.data?.message || "Failed to create ledger entry.",
         "error"
       );
     } finally {
@@ -484,48 +541,35 @@ const TransactionsManagement = () => {
     }));
   }, []);
 
+  const handlePageChange = (newPage) => {
+    setPagination((prev) => ({ ...prev, page: newPage }));
+  };
+
   const filteredTransactions = useMemo(() => {
-    let filtered = asArray(transactions).filter((trans) => {
-      if (selectedAccount && trans.accountId !== selectedAccount.value) return false;
-      const term = searchTerm.toLowerCase();
-      return trans.transactionId?.toLowerCase().includes(term) || 
-             trans.description?.toLowerCase().includes(term);
-    });
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const av = sortConfig.key === "date" 
-          ? new Date(a.date).getTime() 
-          : sortConfig.key === "accountName" 
-          ? a[sortConfig.key].toLowerCase() 
-          : a[sortConfig.key];
-        const bv = sortConfig.key === "date" 
-          ? new Date(b.date).getTime() 
-          : sortConfig.key === "accountName" 
-          ? b[sortConfig.key].toLowerCase() 
-          : b[sortConfig.key];
-        return av < bv
-          ? sortConfig.direction === "asc" ? -1 : 1
-          : av > bv
-          ? sortConfig.direction === "asc" ? 1 : -1
-          : 0;
-      });
-    }
-
-    // Enrich with account names
-    return filtered.map((trans) => ({
+    let filtered = asArray(transactions).map((trans) => ({
       ...trans,
-      accountName: accounts.find((acc) => acc._id === trans.accountId)?.accountName || "Unknown",
+      accountName:
+        accounts.find((acc) => acc._id === trans.accountId)?.accountName ||
+        trans.accountName ||
+        "Unknown",
+      amount: trans.debitAmount > 0 ? trans.debitAmount : trans.creditAmount,
+      type: trans.debitAmount > 0 ? "Debit" : "Credit",
     }));
-  }, [transactions, selectedAccount, searchTerm, sortConfig, accounts]);
+
+    return filtered;
+  }, [transactions, accounts]);
 
   const stats = useMemo(() => {
     const totalTransactions = filteredTransactions.length;
-    const totalDebits = filteredTransactions.reduce((sum, trans) => 
-      trans.type === "Debit" ? sum + (Number(trans.amount) || 0) : sum, 0
+    const totalDebits = filteredTransactions.reduce(
+      (sum, trans) =>
+        trans.type === "Debit" ? sum + (Number(trans.amount) || 0) : sum,
+      0
     );
-    const totalCredits = filteredTransactions.reduce((sum, trans) => 
-      trans.type === "Credit" ? sum + (Number(trans.amount) || 0) : sum, 0
+    const totalCredits = filteredTransactions.reduce(
+      (sum, trans) =>
+        trans.type === "Credit" ? sum + (Number(trans.amount) || 0) : sum,
+      0
     );
     const netBalance = totalCredits - totalDebits;
     return {
@@ -539,10 +583,26 @@ const TransactionsManagement = () => {
   const accountOptions = useMemo(
     () => [
       { value: "", label: "All Accounts" },
-      ...accounts.map((acc) => ({ value: acc._id, label: acc.accountName || acc.name })),
+      ...accounts.map((acc) => ({
+        value: acc._id,
+        label: acc.accountName || acc.name,
+      })),
     ],
     [accounts]
   );
+
+  const voucherTypeOptions = [
+    { value: "", label: "All Voucher Types" },
+    { value: "contra", label: "Contra" },
+    { value: "receipt", label: "Receipt" },
+    { value: "payment", label: "Payment" },
+  ];
+
+  const partyTypeOptions = [
+    { value: "", label: "All Party Types" },
+    { value: "Customer", label: "Customer" },
+    { value: "Vendor", label: "Vendor" },
+  ];
 
   if (isLoading) {
     return (
@@ -553,7 +613,7 @@ const TransactionsManagement = () => {
             className="text-purple-600 animate-spin mx-auto mb-4"
           />
           <p className="text-gray-600 text-lg font-medium">
-            Loading transactions...
+            Loading ledger entries...
           </p>
         </div>
       </div>
@@ -571,7 +631,7 @@ const TransactionsManagement = () => {
       <p className="text-gray-600 text-center mb-8 max-w-md">
         {searchTerm
           ? `No ${type} match your search.`
-          : `No ${type} available for the selected account.`}
+          : `No ${type} available for the selected filters.`}
       </p>
     </div>
   );
@@ -609,13 +669,13 @@ const TransactionsManagement = () => {
           to { opacity: 1; }
         }
       `}</style>
-      
+
       <Toast
         show={showToast.visible}
         message={showToast.message}
         type={showToast.type}
       />
-      
+
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
@@ -623,10 +683,10 @@ const TransactionsManagement = () => {
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              Transactions
+              Ledger Entries
             </h1>
             <p className="text-gray-600 mt-1 font-medium">
-              {stats.totalTransactions} total transactions
+              {stats.totalTransactions} total entries
             </p>
           </div>
         </div>
@@ -635,7 +695,7 @@ const TransactionsManagement = () => {
             onClick={openAddModal}
             className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
           >
-            <Plus size={18} /> Add Transaction
+            <Plus size={18} /> Add Ledger Entry
           </button>
           <button
             onClick={handleRefresh}
@@ -665,7 +725,7 @@ const TransactionsManagement = () => {
       <div className="mb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
-            title="Total Transactions"
+            title="Total Entries"
             count={stats.totalTransactions}
             icon={<Receipt size={24} />}
             bgColor="bg-emerald-50"
@@ -677,35 +737,35 @@ const TransactionsManagement = () => {
           />
           <StatCard
             title="Total Debits"
-            count={formatCurrency(stats.totalDebits, "text-purple-700")}
+            count={formatCurrency(stats.totalDebits, "text-red-700")}
             icon={<TrendingUp size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
-            subText="Debit outflows"
-          />
-          <StatCard
-            title="Total Credits"
-            count={formatCurrency(stats.totalCredits, "text-blue-700")}
-            icon={<DollarSign size={24} />}
-            bgColor="bg-blue-50"
-            textColor="text-blue-700"
-            borderColor="border-blue-200"
-            iconBg="bg-blue-100"
-            iconColor="text-blue-600"
-            subText="Credit inflows"
-          />
-          <StatCard
-            title="Net Balance"
-            count={formatCurrency(stats.netBalance, "text-red-700")}
-            icon={<DollarSign size={24} />}
             bgColor="bg-red-50"
             textColor="text-red-700"
             borderColor="border-red-200"
             iconBg="bg-red-100"
             iconColor="text-red-600"
+            subText="Debit outflows"
+          />
+          <StatCard
+            title="Total Credits"
+            count={formatCurrency(stats.totalCredits, "text-green-700")}
+            icon={<DollarSign size={24} />}
+            bgColor="bg-green-50"
+            textColor="text-green-700"
+            borderColor="border-green-200"
+            iconBg="bg-green-100"
+            iconColor="text-green-600"
+            subText="Credit inflows"
+          />
+          <StatCard
+            title="Net Balance"
+            count={formatCurrency(stats.netBalance, "text-purple-700")}
+            icon={<DollarSign size={24} />}
+            bgColor="bg-purple-50"
+            textColor="text-purple-700"
+            borderColor="border-purple-200"
+            iconBg="bg-purple-100"
+            iconColor="text-purple-600"
             subText="Overall balance"
           />
         </div>
@@ -716,10 +776,10 @@ const TransactionsManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-xl font-bold text-gray-900">
-                Transaction Ledger
+                Ledger Entries
               </h2>
               <p className="text-gray-600 text-sm mt-1">
-                View all debit and credit transactions with account details
+                View all debit and credit ledger entries with details
               </p>
             </div>
           </div>
@@ -731,14 +791,20 @@ const TransactionsManagement = () => {
               />
               <input
                 type="text"
-                placeholder="Search by transaction ID or description..."
+                placeholder="Search by voucher ID or narration..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
                 className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 hover:border-gray-300"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm("")}
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPagination((prev) => ({ ...prev, page: 1 }));
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <X size={16} />
@@ -746,8 +812,8 @@ const TransactionsManagement = () => {
               )}
             </div>
             {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-gray-200">
-                <div className="w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl border border-gray-200">
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Users size={16} className="inline mr-2" /> Account
                   </label>
@@ -755,101 +821,219 @@ const TransactionsManagement = () => {
                     value={selectedAccount}
                     onChange={(selectedOption) => {
                       setSelectedAccount(selectedOption);
-                      fetchTransactions(); // Refetch on filter change
+                      setPagination((prev) => ({ ...prev, page: 1 }));
                     }}
                     options={accountOptions}
                     isSearchable={true}
-                    placeholder="Search and select account..."
+                    placeholder="Select account..."
                     classNamePrefix="react-select"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Receipt size={16} className="inline mr-2" /> Voucher Type
+                  </label>
+                  <Select
+                    name="voucherType"
+                    value={voucherTypeOptions.find(
+                      (opt) => opt.value === filters.voucherType
+                    )}
+                    onChange={(selectedOption) =>
+                      handleFilterChange({
+                        target: {
+                          name: "voucherType",
+                          value: selectedOption.value,
+                        },
+                      })
+                    }
+                    options={voucherTypeOptions}
+                    isSearchable={true}
+                    placeholder="Select voucher type..."
+                    classNamePrefix="react-select"
+                  />
+                </div>
+                <FormInput
+                  label="Party ID"
+                  icon={User}
+                  type="text"
+                  name="partyId"
+                  value={filters.partyId}
+                  onChange={handleFilterChange}
+                  placeholder="Enter party ID..."
+                />
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Users size={16} className="inline mr-2" /> Party Type
+                  </label>
+                  <Select
+                    name="partyType"
+                    value={partyTypeOptions.find(
+                      (opt) => opt.value === filters.partyType
+                    )}
+                    onChange={(selectedOption) =>
+                      handleFilterChange({
+                        target: {
+                          name: "partyType",
+                          value: selectedOption.value,
+                        },
+                      })
+                    }
+                    options={partyTypeOptions}
+                    isSearchable={true}
+                    placeholder="Select party type..."
+                    classNamePrefix="react-select"
+                  />
+                </div>
+                <FormInput
+                  label="Date From"
+                  icon={Calendar}
+                  type="date"
+                  name="dateFrom"
+                  value={filters.dateFrom}
+                  onChange={handleFilterChange}
+                />
+                <FormInput
+                  label="Date To"
+                  icon={Calendar}
+                  type="date"
+                  name="dateTo"
+                  value={filters.dateTo}
+                  onChange={handleFilterChange}
+                />
               </div>
             )}
           </div>
         </div>
         {filteredTransactions.length === 0 ? (
-          <EmptyState type="transactions" />
+          <EmptyState type="ledger entries" />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  {[
-                    { key: "transactionId", label: "Transaction ID" },
-                    { key: "date", label: "Date" },
-                    { key: "accountName", label: "Account" },
-                    { key: "amount", label: "Amount" },
-                    { key: "type", label: "Type" },
-                    { key: "description", label: "Description" },
-                    { key: "balance", label: "Balance" },
-                    { key: "status", label: "Status" },
-                  ].map((col) => (
-                    <th
-                      key={col.key}
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleSort(col.key)}
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{col.label}</span>
-                        {sortConfig.key === col.key && (
-                          <span className="text-purple-600 font-bold">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTransactions.map((trans) => (
-                  <tr
-                    key={trans._id || trans.transactionId}
-                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      {trans.transactionId}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(trans.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {trans.accountName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {formatCurrency(trans.amount, trans.type === "Credit" ? "text-blue-600" : "text-red-600")}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          trans.type === "Credit"
-                            ? "bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800"
-                            : "bg-gradient-to-r from-red-100 to-red-200 text-red-800"
-                        }`}
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <tr>
+                    {[
+                      { key: "voucherNo", label: "Voucher No" },
+                      { key: "date", label: "Date" },
+                      { key: "accountName", label: "Account" },
+                      { key: "amount", label: "Amount" },
+                      { key: "type", label: "Type" },
+                      { key: "narration", label: "Narration" },
+                      { key: "voucherType", label: "Voucher Type" },
+                      { key: "partyName", label: "Party" },
+                    ].map((col) => (
+                      <th
+                        key={col.key}
+                        className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort(col.key)}
                       >
-                        {trans.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {trans.description}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {formatCurrency(trans.balance)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${badgeClassForStatus(
-                          trans.status
-                        )}`}
-                      >
-                        {trans.status}
-                      </span>
-                    </td>
+                        <div className="flex items-center space-x-1">
+                          <span>{col.label}</span>
+                          {sortConfig.key === col.key && (
+                            <span className="text-purple-600 font-bold">
+                              {sortConfig.direction === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredTransactions.map((trans) => (
+                    <tr
+                      key={trans._id}
+                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                    >
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        {trans.voucherNo}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(trans.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {trans.accountName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {formatCurrency(
+                          trans.amount,
+                          trans.type === "Credit"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            trans.type === "Credit"
+                              ? "bg-gradient-to-r from-green-100 to-green-200 text-green-800"
+                              : "bg-gradient-to-r from-red-100 to-red-200 text-red-800"
+                          }`}
+                        >
+                          {trans.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {trans.narration}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {trans.voucherType}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {trans.partyName || "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-6 flex items-center justify-between border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
+                {Math.min(
+                  pagination.page * pagination.limit,
+                  pagination.totalRecords
+                )}{" "}
+                of {pagination.totalRecords} entries
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page === 1}
+                  className="p-2 rounded-xl bg-white border border-gray-200 disabled:opacity-50 hover:bg-gray-100 transition-all"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="text-sm font-semibold">
+                  Page {pagination.page} of {pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="p-2 rounded-xl bg-white border border-gray-200 disabled:opacity-50 hover:bg-gray-100 transition-all"
+                >
+                  <ChevronRight size={18} />
+                </button>
+                <select
+                  value={pagination.limit}
+                  onChange={(e) =>
+                    setPagination((prev) => ({
+                      ...prev,
+                      limit: Number(e.target.value),
+                      page: 1,
+                    }))
+                  }
+                  className="px-2 py-1 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500"
+                >
+                  {[10, 25, 50, 100].map((limit) => (
+                    <option key={limit} value={limit}>
+                      {limit} per page
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -863,10 +1047,11 @@ const TransactionsManagement = () => {
               <div>
                 <h3 className="text-2xl font-bold text-white flex items-center gap-2">
                   <Banknote size={28} />
-                  Add New Transaction
+                  Add New Ledger Entry
                 </h3>
                 <p className="text-purple-100 text-sm mt-1">
-                  Record a debit or credit transaction with automatic balance updates
+                  Record a debit or credit ledger entry with automatic balance
+                  updates
                 </p>
               </div>
               <button
@@ -877,7 +1062,10 @@ const TransactionsManagement = () => {
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]" ref={formRef}>
+            <div
+              className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]"
+              ref={formRef}
+            >
               <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-l-4 border-purple-500">
                 <div className="flex items-start gap-3">
                   <Sparkles size={20} className="text-purple-600 mt-0.5" />
@@ -886,7 +1074,8 @@ const TransactionsManagement = () => {
                       Smart Balance Tracking
                     </h4>
                     <p className="text-sm text-gray-600">
-                      Select account and type to automatically calculate balance and status
+                      Select account and type to automatically calculate balance
+                      and status
                     </p>
                   </div>
                 </div>
@@ -903,14 +1092,14 @@ const TransactionsManagement = () => {
                 </div>
 
                 <FormInput
-                  label="Transaction ID"
+                  label="Voucher ID"
                   icon={Receipt}
                   type="text"
-                  name="transactionId"
-                  value={formData.transactionId}
+                  name="voucherId"
+                  value={formData.voucherId}
                   onChange={handleChange}
                   placeholder="Auto-generated or manual"
-                  hint="Unique identifier"
+                  hint="Unique voucher identifier"
                 />
 
                 <FormInput
@@ -939,7 +1128,11 @@ const TransactionsManagement = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <DollarSign size={16} className="inline mr-2 text-purple-500" /> Type
+                    <DollarSign
+                      size={16}
+                      className="inline mr-2 text-purple-500"
+                    />{" "}
+                    Type
                   </label>
                   <select
                     name="type"
@@ -952,19 +1145,20 @@ const TransactionsManagement = () => {
                     <option value="Credit">Credit</option>
                   </select>
                   <p className="mt-1 text-xs text-gray-500 flex items-center">
-                    <Sparkles size={10} className="mr-1" /> Debit decreases balance, Credit increases
+                    <Sparkles size={10} className="mr-1" /> Debit decreases
+                    balance, Credit increases
                   </p>
                 </div>
 
                 <FormInput
-                  label="Description"
+                  label="Narration"
                   icon={FileText}
                   type="text"
-                  name="description"
-                  value={formData.description}
+                  name="narration"
+                  value={formData.narration}
                   onChange={handleChange}
                   required
-                  placeholder="e.g., Payment for Invoice #12345"
+                  placeholder="e.g., Transfer to cash in hand"
                   hint="Brief note or reference"
                 />
 
@@ -988,6 +1182,29 @@ const TransactionsManagement = () => {
                     hint="Auto-updated based on balance"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Receipt
+                      size={16}
+                      className="inline mr-2 text-purple-500"
+                    />{" "}
+                    Voucher Type
+                  </label>
+                  <select
+                    name="voucherType"
+                    value={formData.voucherType}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200"
+                    required
+                  >
+                    {voucherTypeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="mt-8 p-4 bg-gray-50 rounded-xl">
@@ -998,17 +1215,36 @@ const TransactionsManagement = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Account</p>
-                    <p className="font-semibold text-gray-900">{formData.accountName}</p>
+                    <p className="font-semibold text-gray-900">
+                      {formData.accountName}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Amount</p>
-                    <p className={`font-semibold ${formData.type === "Credit" ? "text-blue-600" : "text-red-600"}`}>
-                      {formatCurrency(formData.amount || 0, formData.type === "Credit" ? "text-blue-600" : "text-red-600")}
+                    <p
+                      className={`font-semibold ${
+                        formData.type === "Credit"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {formatCurrency(
+                        formData.amount || 0,
+                        formData.type === "Credit"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      )}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Type</p>
-                    <p className={`font-semibold ${formData.type === "Credit" ? "text-blue-600" : "text-red-600"}`}>
+                    <p
+                      className={`font-semibold ${
+                        formData.type === "Credit"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
                       {formData.type}
                     </p>
                   </div>
@@ -1037,11 +1273,12 @@ const TransactionsManagement = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={18} className="mr-2 animate-spin" /> Saving...
+                    <Loader2 size={18} className="mr-2 animate-spin" />{" "}
+                    Saving...
                   </>
                 ) : (
                   <>
-                    <Save size={18} className="mr-2" /> Save Transaction
+                    <Save size={18} className="mr-2" /> Save Ledger Entry
                   </>
                 )}
               </button>
