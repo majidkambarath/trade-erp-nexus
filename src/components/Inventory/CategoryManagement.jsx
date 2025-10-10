@@ -75,7 +75,7 @@ const CategoryManagement = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    status: "ACTIVE",
+    status: "Active",
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -241,7 +241,7 @@ const CategoryManagement = () => {
     setFormData({
       name: "",
       description: "",
-      status: "ACTIVE",
+      status: "Active",
     });
     setErrors({});
     setShowModal(false);
@@ -596,7 +596,7 @@ const CategoryManagement = () => {
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${
-                          category.status === "ACTIVE"
+                          category.status === "Active"
                             ? "bg-green-100 text-green-800 border-green-200"
                             : "bg-red-100 text-red-800 border-red-200"
                         }`}
@@ -755,8 +755,8 @@ const CategoryManagement = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                   >
-                    <option value="ACTIVE">Active</option>
-                    <option value="INACTIVE">Inactive</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
               </div>

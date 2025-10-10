@@ -137,6 +137,15 @@ const StockManagement = () => {
   const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: "",
+    description: "",
+    status: "Active",
+  });
+  const [categoryErrors, setCategoryErrors] = useState({});
+  const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
+
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
@@ -629,6 +638,20 @@ const StockManagement = () => {
     return { color: "text-green-600", icon: TrendingUp, label: "Good Stock" };
   }, []);
 
+  const getExpiryStatus = useCallback((expiryDate) => {
+    if (!expiryDate) return { color: "text-gray-600", label: "N/A" };
+    const today = new Date();
+    const expiry = new Date(expiryDate);
+    const diffDays = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return { color: "text-red-600 bg-red-100", label: "Expired" };
+    } else if (diffDays <= 30) {
+      return { color: "text-yellow-600 bg-yellow-100", label: "Expiring Soon" };
+    }
+    return { color: "text-green-600", label: "Valid" };
+  }, []);
+
   const formatCurrency = useCallback((amount, colorClass = "text-gray-900") => {
     const numAmount = Number(amount) || 0;
     const absAmount = Math.abs(numAmount).toFixed(2);
@@ -680,6 +703,64 @@ const StockManagement = () => {
       totalValue,
     };
   }, [stockItems]);
+
+  const handleCategoryChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setCategoryFormData((prev) => ({ ...prev, [name]: value }));
+    if (categoryErrors[name]) setCategoryErrors((prev) => ({ ...prev, [name]: "" }));
+  }, [categoryErrors]);
+
+  const validateCategoryForm = useCallback(() => {
+    const newErrors = {};
+    if (!categoryFormData.name.trim()) newErrors.name = "Category name is required";
+    return newErrors;
+  }, [categoryFormData]);
+
+  const handleCreateCategory = useCallback(async () => {
+    const newErrors = validateCategoryForm();
+    if (Object.keys(newErrors).length > 0) {
+      setCategoryErrors(newErrors);
+      return;
+    }
+
+    setIsCategorySubmitting(true);
+    try {
+      const payload = {
+        name: categoryFormData.name,
+        description: categoryFormData.name, // Default description to name
+        status: categoryFormData.status,
+      };
+
+      const response = await axiosInstance.post("/categories/categories", payload);
+      const newCategory = response.data.data; // Assuming response has the new category with _id
+
+      // Refresh categories
+      await fetchCategories();
+
+      // Set the new category in the stock form
+      setFormData((prev) => ({ ...prev, category: newCategory._id }));
+
+      showToastMessage("Category created successfully!", "success");
+
+      // Close category modal
+      setShowCategoryModal(false);
+
+      // Reset category form
+      setCategoryFormData({
+        name: "",
+        description: "",
+        status: "Active",
+      });
+      setCategoryErrors({});
+    } catch (error) {
+      showToastMessage(
+        error.response?.data?.message || "Failed to create category.",
+        "error"
+      );
+    } finally {
+      setIsCategorySubmitting(false);
+    }
+  }, [categoryFormData, validateCategoryForm, fetchCategories, showToastMessage]);
 
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
@@ -1006,6 +1087,7 @@ const StockManagement = () => {
                     { key: "vendor", label: "Vendor" },
                     { key: "currentStock", label: "Stock Level" },
                     { key: "purchasePrice", label: "Pricing" },
+                    { key: "expiryDate", label: "Expiry Date" },
                     { key: "status", label: "Status" },
                     { key: null, label: "Actions" },
                   ].map((column) => (
@@ -1034,12 +1116,18 @@ const StockManagement = () => {
                     item.currentStock,
                     item.reorderLevel
                   );
+                  const expiryStatus = getExpiryStatus(item.expiryDate);
                   const StockIcon = stockStatus.icon;
+                  const rowClass = item.currentStock <= item.reorderLevel
+                    ? "bg-red-50 border-l-4 border-red-500"
+                    : expiryStatus.label === "Expired" || expiryStatus.label === "Expiring Soon"
+                    ? "bg-yellow-50 border-l-4 border-yellow-500"
+                    : "";
 
                   return (
                     <tr
                       key={item._id}
-                      className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200"
+                      className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 ${rowClass}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
@@ -1100,6 +1188,17 @@ const StockManagement = () => {
                           <p className="text-xs text-gray-500">
                             Cost: {formatCurrency(item.purchasePrice)}
                           </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                          <Calendar size={16} className={expiryStatus.color} />
+                          <span className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}>
+                            {item.expiryDate
+                              ? new Date(item.expiryDate).toLocaleDateString()
+                              : "N/A"}
+                            {expiryStatus.label !== "N/A" && ` (${expiryStatus.label})`}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -1296,7 +1395,7 @@ const StockManagement = () => {
                       name="category"
                       value={formData.category}
                       onChange={handleChange}
-                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                      className={`flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
                         errors.category
                           ? "border-red-300 bg-red-50"
                           : "border-gray-300"
@@ -1317,6 +1416,13 @@ const StockManagement = () => {
                       title="Manage Category"
                     >
                       <Tag size={16} />
+                    </button>
+                    <button
+                      onClick={() => setShowCategoryModal(true)}
+                      className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 hover:text-green-700 transition-all duration-200"
+                      title="Add New Category"
+                    >
+                      <Plus size={16} />
                     </button>
                   </div>
                   {errors.category && (
@@ -1611,6 +1717,91 @@ const StockManagement = () => {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <h3 className="text-xl font-bold text-gray-900">Add New Category</h3>
+              <button
+                onClick={() => setShowCategoryModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={categoryFormData.name}
+                    onChange={handleCategoryChange}
+                    placeholder="Enter category name"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                      categoryErrors.name ? "border-red-300 bg-red-50" : "border-gray-300"
+                    }`}
+                  />
+                  {categoryErrors.name && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {categoryErrors.name}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Status
+                  </label>
+                  <select
+                    name="status"
+                    value={categoryFormData.status}
+                    onChange={handleCategoryChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(false)}
+                  disabled={isCategorySubmitting}
+                  className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={isCategorySubmitting}
+                  className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
+                >
+                  {isCategorySubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} className="mr-2" />
+                      Create Category
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
