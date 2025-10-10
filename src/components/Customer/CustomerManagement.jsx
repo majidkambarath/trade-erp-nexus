@@ -298,10 +298,7 @@ const CustomerManagement = () => {
         showToastMessage("Customer updated successfully!", "success");
       } else {
         const response = await axiosInstance.post("/customers", payload);
-        setCustomers((prev) => [
-          ...prev,
-          { id: response.data.data.id, ...payload },
-        ]);
+        fetchCustomers();
         showToastMessage("Customer created successfully!", "success");
       }
 
