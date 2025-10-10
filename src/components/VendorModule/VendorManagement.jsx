@@ -228,7 +228,7 @@ const VendorManagement = () => {
 
     setIsSubmitting(true);
     try {
-      const payload = { ...formData, status: formData.status || "Pending" };
+      const payload = { ...formData, status: formData.status || "Compliant" };
       delete payload.vendorId;
 
       if (editVendorId) {
