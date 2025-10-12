@@ -22,7 +22,7 @@ const SalesReturnForm = React.memo(
     selectedSO,
     setSelectedSO,
     setActiveView,
-    setSalesOrders,
+    setSalesReturnOrders,
     activeView = "create", // Default to "create" if not provided
     resetForm,
     calculateTotals,
@@ -242,11 +242,11 @@ const SalesReturnForm = React.memo(
         };
 
         if (selectedSO) {
-          setSalesOrders((prev) =>
+          setSalesReturnOrders((prev) =>
             prev.map((so) => (so.id === selectedSO.id ? newSO : so))
           );
         } else {
-          setSalesOrders((prev) => [newSO, ...prev]);
+          setSalesReturnOrders((prev) => [newSO, ...prev]);
         }
 
         onSOSuccess(newSO);
@@ -263,7 +263,7 @@ const SalesReturnForm = React.memo(
       formData,
       selectedSO,
       customers,
-      setSalesOrders,
+      setSalesReturnOrders,
       addNotification,
       onSOSuccess,
     ]);
@@ -744,7 +744,7 @@ const SalesReturnForm = React.memo(
       prevProps.selectedSO === nextProps.selectedSO &&
       prevProps.setSelectedSO === nextProps.setSelectedSO &&
       prevProps.setActiveView === nextProps.setActiveView &&
-      prevProps.setSalesOrders === nextProps.setSalesOrders &&
+      prevProps.setSalesReturnOrders === nextProps.setSalesReturnOrders &&
       prevProps.activeView === nextProps.activeView &&
       prevProps.resetForm === nextProps.resetForm &&
       prevProps.calculateTotals === nextProps.calculateTotals &&

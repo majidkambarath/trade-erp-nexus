@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
+import axiosInstance from "../../../axios/axios";
 
-const SalesReturnInvoiceView = ({
+const SaleInvoiceView = ({
   selectedSO,
   createdSO,
   customers,
@@ -11,18 +12,78 @@ const SalesReturnInvoiceView = ({
   setCreatedSO,
 }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [profileData, setProfileData] = useState({
+    companyName: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    stateProvince: "",
+    country: "United Arab Emirates",
+    postalCode: "",
+    phoneNumber: "",
+    email: "",
+    website: "",
+    logo: null,
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    ibanNumber: "",
+    currency: "AED",
+  });
+  const adminId = sessionStorage.getItem("adminId");
+  const token = sessionStorage.getItem("accessToken");
 
-  // Use createdSO if it exists, otherwise fall back to selectedSO
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!adminId || !token) {
+        alert("Authentication required");
+        return;
+      }
+
+      try {
+        const response = await axiosInstance.get("/profile/me");
+        if (response.data.success) {
+          const data = response.data.data;
+          setProfileData({
+            companyName: data.companyInfo?.companyName || "",
+            addressLine1: data.companyInfo?.addressLine1 || "",
+            addressLine2: data.companyInfo?.addressLine2 || "",
+            city: data.companyInfo?.city || "",
+            stateProvince: data.companyInfo?.state || "",
+            country: data.companyInfo?.country || "United Arab Emirates",
+            postalCode: data.companyInfo?.postalCode || "",
+            phoneNumber: data.companyInfo?.phoneNumber || "",
+            email: data.companyInfo?.emailAddress || data.email || "",
+            website: data.companyInfo?.website || "",
+            logo: data.companyInfo?.companyLogo?.url || null,
+            bankName: data.companyInfo?.bankDetails?.bankName || "",
+            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
+            accountName: data.companyInfo?.bankDetails?.accountName || "",
+            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
+            currency: data.companyInfo?.bankDetails?.currency || "AED",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load profile data:", error);
+        alert(
+          `Failed to load profile data: ${
+            error.response?.data?.message || error.message
+          }`
+        );
+      }
+    };
+
+    loadProfileData();
+  }, [adminId, token]);
+
   const so = createdSO || selectedSO;
-
-  // Validate sales return order data
   if (!so || !so.items || !Array.isArray(so.items)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
           <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
           <p className="text-gray-600 mb-4">
-            Invalid sales return order data. Please try again or contact support.
+            Invalid sales order data. Please try again or contact support.
           </p>
           <button
             onClick={() => setActiveView("list")}
@@ -36,25 +97,10 @@ const SalesReturnInvoiceView = ({
     );
   }
 
-  // Find customer details with fallback
-  const customer = customers?.find((c) => c._id === so.customerId) || {
-    customerName: "Unknown Customer",
-    address: "N/A",
-    phone: "N/A",
-    vatNumber: "N/A",
-  };
 
-  // Calculate totals safely, using absolute values for display
-  const totals = calculateTotals(so.items) || {
-    subtotal: "0.00",
-    tax: "0.00",
-    total: "0.00",
-  };
-  const displayTotals = {
-    subtotal: Math.abs(parseFloat(totals.subtotal)).toFixed(2),
-    tax: Math.abs(parseFloat(totals.tax)).toFixed(2),
-    total: Math.abs(parseFloat(totals.total)).toFixed(2),
-  };
+
+  const subtotal = so.items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const tax = so.items.reduce((sum, item) => sum +  item.taxPercent, 0);
 
   const handleDownloadPDF = async () => {
     try {
@@ -82,7 +128,7 @@ const SalesReturnInvoiceView = ({
             clonedElement.style.visibility = "visible";
             const img = clonedElement.querySelector("img");
             if (img) {
-              img.src = img.src; // Force reload to ensure CORS compliance
+              img.src = img.src;
             }
           }
         },
@@ -114,7 +160,7 @@ const SalesReturnInvoiceView = ({
         "FAST"
       );
 
-      const filename = `SR_${so.transactionNo || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `SO_${so.transactionNo || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
       pdf.save(filename);
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -137,7 +183,7 @@ const SalesReturnInvoiceView = ({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>SR_${so.transactionNo || "Unknown"}</title>
+          <title>SO_${so.transactionNo || "Unknown"}</title>
           <style>
             * { box-sizing: border-box; }
             body { 
@@ -171,8 +217,7 @@ const SalesReturnInvoiceView = ({
   };
 
   const handleSendToCustomer = () => {
-    alert("Sales Return Invoice sent to customer!");
-    // TODO: Implement actual email integration here
+    alert("Sales Order invoice sent to customer!");
   };
 
   const handleBackClick = () => {
@@ -184,7 +229,6 @@ const SalesReturnInvoiceView = ({
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        {/* Action Buttons */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={handleBackClick}
@@ -226,7 +270,6 @@ const SalesReturnInvoiceView = ({
           </div>
         </div>
 
-        {/* Invoice Content */}
         <div
           id="invoice-content"
           className="bg-white shadow-lg"
@@ -241,7 +284,6 @@ const SalesReturnInvoiceView = ({
             color: "#000",
           }}
         >
-          {/* Header Section */}
           <div
             style={{
               textAlign: "center",
@@ -268,7 +310,7 @@ const SalesReturnInvoiceView = ({
                 color: "#0f766e",
               }}
             >
-              NH FOODSTUFF TRADING LLC S.O.C.
+              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
             </h2>
 
             <div
@@ -285,7 +327,6 @@ const SalesReturnInvoiceView = ({
             </div>
           </div>
 
-          {/* Company Details and Invoice Info */}
           <div
             style={{
               display: "flex",
@@ -295,17 +336,23 @@ const SalesReturnInvoiceView = ({
             }}
           >
             <div>
-              <p style={{ margin: "2px 0" }}>Dubai, UAE</p>
-              <p style={{ margin: "2px 0" }}>VAT Reg. No: 10503303</p>
-              <p style={{ margin: "2px 0" }}>Email: finance@nhfo.com</p>
-              <p style={{ margin: "2px 0" }}>Phone: +971 58 724 2111</p>
-              <p style={{ margin: "2px 0" }}>Web: www.nhfo.com</p>
+              <p style={{ margin: "2px 0" }}>
+                {profileData.city || "Dubai"}, {profileData.country}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                VAT Reg. No: {profileData.vatNumber || "N/A"}
+              </p>
+              <p style={{ margin: "2px 0" }}>Email: {profileData.email || "finance@nhfo.com"}</p>
+              <p style={{ margin: "2px 0" }}>
+                Phone: {profileData.phoneNumber || "+971 58 724 2111"}
+              </p>
+              <p style={{ margin: "2px 0" }}>Web: {profileData.website || "www.nhfo.com"}</p>
             </div>
 
             <div style={{ textAlign: "center" }}>
               <img
-                src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                alt="NH Foods Logo"
+                src={profileData.logo || "https://via.placeholder.com/80"}
+                alt="Company Logo"
                 style={{ width: "80px", height: "80px", objectFit: "contain" }}
                 onError={(e) => (e.target.src = "/path/to/fallback-logo.png")}
               />
@@ -316,14 +363,10 @@ const SalesReturnInvoiceView = ({
                 Date: {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
               </p>
               <p style={{ margin: "2px 0" }}>Invoice: {so.transactionNo || "N/A"}</p>
-              <p style={{ margin: "2px 0" }}>SR: {so.transactionNo || "N/A"}</p>
-              <p style={{ margin: "2px 0" }}>
-                Return Date: {new Date(so.deliveryDate || Date.now()).toLocaleDateString("en-GB")}
-              </p>
+              <p style={{ margin: "2px 0" }}>SO: {so.transactionNo || "N/A"}</p>
             </div>
           </div>
 
-          {/* Bill To and Reason Section */}
           <div
             style={{
               backgroundColor: "#e6d7e6",
@@ -344,35 +387,26 @@ const SalesReturnInvoiceView = ({
                 </div>
                 <div style={{ fontSize: "10px" }}>
                   <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                    {customer.customerName || "N/A"}
+                    {so.customerName}
                   </p>
-                  <p style={{ margin: "2px 0" }}>
+                  {/* <p style={{ margin: "2px 0" }}>
                     {customer.address?.split("\n")[0] || "N/A"}
                   </p>
                   <p style={{ margin: "2px 0" }}>
                     {customer.address?.split("\n")[1] || ""}
                   </p>
-                  <p style={{ margin: "2px 0" }}>
-                    Tel: {customer.phone || "N/A"}
-                  </p>
+                  <p style={{ margin: "2px 0" }}>Tel: {customer.phone}</p> */}
                 </div>
               </div>
               <div style={{ fontSize: "10px" }}>
                 <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
                 <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                  {customer.vatNumber || "N/A"}
-                </p>
-                <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                  Reason for Return:
-                </p>
-                <p style={{ margin: "2px 0" }}>
-                  {so.reason || "N/A"}
+                  {/* {customer.vatNumber} */}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Items Table */}
           <table
             style={{
               width: "100%",
@@ -461,18 +495,18 @@ const SalesReturnInvoiceView = ({
                     fontWeight: "bold",
                   }}
                 >
-                  Refund Amount
+                  Amount
                 </th>
               </tr>
             </thead>
             <tbody>
               {so.items.map((item, index) => {
                 const qty = parseFloat(item.qty) || 0;
-                const rate = parseFloat(item.rate) || 0;
+                const rate = parseFloat(item.rate) / qty || 0;
                 const taxPercent = parseFloat(item.taxPercent) || 0;
-                const value = Math.abs(qty * rate); // Display as positive
-                const vat = Math.abs((value * taxPercent) / 100); // Display as positive
-                const amount = Math.abs(value + vat); // Display as positive
+                const value =  item.rate;
+                const vat =  taxPercent;
+                const amount = value + vat;
                 return (
                   <tr key={index}>
                     <td
@@ -490,7 +524,7 @@ const SalesReturnInvoiceView = ({
                         padding: "6px",
                       }}
                     >
-                      {item.itemId || "N/A"}
+                      {item.itemCode || "N/A"}
                     </td>
                     <td
                       style={{
@@ -507,7 +541,7 @@ const SalesReturnInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {Math.abs(qty).toFixed(2)} {/* Display as positive */}
+                      {qty.toFixed(2)}
                     </td>
                     <td
                       style={{
@@ -542,10 +576,9 @@ const SalesReturnInvoiceView = ({
                         padding: "6px",
                         textAlign: "center",
                         fontWeight: "bold",
-                        color: "#e11d48", // Red to indicate refund
                       }}
                     >
-                      {amount.toFixed(2)}
+                      {item.lineTotal.toFixed(2)}
                     </td>
                   </tr>
                 );
@@ -553,7 +586,6 @@ const SalesReturnInvoiceView = ({
             </tbody>
           </table>
 
-          {/* Bank Details and Totals */}
           <div
             style={{
               display: "flex",
@@ -573,10 +605,10 @@ const SalesReturnInvoiceView = ({
               </div>
               <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>BANK:</strong> NATIONAL BANK OF ABUDHABI
+                  <strong>BANK:</strong> {profileData.bankName || "NATIONAL BANK OF ABU DHABI"}
                 </p>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>ACCOUNT NO:</strong> 087989283001
+                  <strong>ACCOUNT NO:</strong> {profileData.accountNumber || "087989283001"}
                 </p>
               </div>
             </div>
@@ -607,7 +639,7 @@ const SalesReturnInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {displayTotals.subtotal}
+                    {subtotal.toFixed(2)}
                   </td>
                 </tr>
                 <tr>
@@ -628,14 +660,13 @@ const SalesReturnInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {displayTotals.tax}
+                    {tax.toFixed(2)}
                   </td>
                 </tr>
               </table>
             </div>
           </div>
 
-          {/* IBAN Details and Grand Total */}
           <div
             style={{
               display: "flex",
@@ -646,13 +677,13 @@ const SalesReturnInvoiceView = ({
           >
             <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
               <p style={{ margin: "2px 0" }}>
-                <strong>IBAN NO:</strong> AE410547283001
+                <strong>IBAN NO:</strong> {profileData.ibanNumber || "AE410547283001"}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> AED
+                <strong>CURRENCY:</strong> {profileData.currency}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C
+                <strong>ACCOUNT NAME:</strong> {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
               </p>
             </div>
 
@@ -671,20 +702,19 @@ const SalesReturnInvoiceView = ({
                 }}
               >
                 <span style={{ fontSize: "12px", fontWeight: "bold" }}>
-                  TOTAL REFUNDED
+                  GRAND TOTAL
                 </span>
-                <span style={{ fontSize: "14px", fontWeight: "bold", color: "#e11d48" }}>
-                  {displayTotals.total}
+                <span style={{ fontSize: "14px", fontWeight: "bold" }}>
+                  {subtotal}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Footer Section */}
           <div style={{ marginTop: "30px" }}>
             <div style={{ textAlign: "center", marginBottom: "30px" }}>
               <p style={{ fontSize: "11px", margin: "0" }}>
-                Returned the above goods in accordance with the return policy.
+                Received the above goods in good order and condition.
               </p>
             </div>
 
@@ -696,7 +726,7 @@ const SalesReturnInvoiceView = ({
               }}
             >
               <div style={{ fontSize: "11px", width: "45%" }}>
-                <p style={{ margin: "0 0 30px 0" }}>Returned by:</p>
+                <p style={{ margin: "0 0 30px 0" }}>Received by:</p>
                 <div
                   style={{
                     borderBottom: "1px solid #000",
@@ -727,4 +757,4 @@ const SalesReturnInvoiceView = ({
   );
 };
 
-export default SalesReturnInvoiceView;
+export default SaleInvoiceView;

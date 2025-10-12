@@ -1,13 +1,8 @@
 import React from "react";
 import {
-  ChevronUp,
-  ChevronDown,
   Eye,
   Edit3,
   CheckSquare,
-  MoreVertical,
-  FileText,
-  CheckSquare as ConfirmIcon,
   Trash2,
   User,
 } from "lucide-react";
@@ -28,7 +23,10 @@ const GridView = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {paginatedSOs.map((so) => (
-        <div key={so.id} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group hover:scale-105">
+        <div
+          key={so.id}
+          className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group hover:scale-105"
+        >
           {/* Card Header */}
           <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
             <div className="flex justify-between items-start">
@@ -39,20 +37,27 @@ const GridView = ({
                   checked={selectedSOs.includes(so.id)}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedSOs(prev => [...prev, so.id]);
+                      setSelectedSOs((prev) => [...prev, so.id]);
                     } else {
-                      setSelectedSOs(prev => prev.filter(id => id !== so.id));
+                      setSelectedSOs((prev) => prev.filter((id) => id !== so.id));
                     }
                   }}
                 />
                 <div>
                   <h3 className="text-lg font-bold text-slate-800">{so.transactionNo}</h3>
-                  <p className="text-sm text-slate-600">{so.customerName}</p>
+                  <p className="text-sm text-slate-600">{so.customerName || "Unknown"}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`} title={`${so.priority} Priority`}></div>
-                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(so.status)}`}>
+                <div
+                  className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`}
+                  title={`${so.priority} Priority`}
+                ></div>
+                <div
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                    so.status
+                  )}`}
+                >
                   {getStatusIcon(so.status)}
                   <span className="ml-1">{so.status}</span>
                 </div>
@@ -65,11 +70,15 @@ const GridView = ({
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Date</p>
-                <p className="text-sm font-medium text-slate-800">{new Date(so.date).toLocaleDateString("en-GB")}</p>
+                <p className="text-sm font-medium text-slate-800">
+                  {new Date(so.date).toLocaleDateString("en-GB")}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Dispatch</p>
-                <p className="text-sm font-medium text-slate-800">{new Date(so.deliveryDate).toLocaleDateString("en-GB")}</p>
+                <p className="text-sm font-medium text-slate-800">
+                  {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Items</p>
@@ -77,7 +86,9 @@ const GridView = ({
               </div>
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total</p>
-                <p className="text-lg font-bold text-emerald-600">AED {parseFloat(so.totalAmount).toLocaleString()}</p>
+                <p className="text-lg font-bold text-emerald-600">
+                  AED {Math.abs(parseFloat(so.totalAmount)).toLocaleString()}
+                </p>
               </div>
             </div>
 
@@ -88,7 +99,9 @@ const GridView = ({
                 {so.items.slice(0, 2).map((item, index) => (
                   <div key={index} className="flex justify-between text-xs">
                     <span className="text-slate-600 truncate">{item.description}</span>
-                    <span className="text-slate-800 font-medium ml-2">{item.qty} × {item.rate}</span>
+                    <span className="text-slate-800 font-medium ml-2">
+                      {item.qty} × {item.rate}
+                    </span>
                   </div>
                 ))}
                 {so.items.length > 2 && (
@@ -135,7 +148,7 @@ const GridView = ({
                     onClick={() => confirmSO(so.id)}
                     className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                   >
-                    <ConfirmIcon className="w-4 h-4" />
+                    <CheckSquare className="w-4 h-4" />
                     <span className="text-sm">Confirm</span>
                   </button>
                 )}

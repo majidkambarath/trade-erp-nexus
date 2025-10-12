@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
+import axiosInstance from "../../../axios/axios";
 
 const SaleInvoiceView = ({
   selectedSO,
@@ -11,11 +12,71 @@ const SaleInvoiceView = ({
   setCreatedSO,
 }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [profileData, setProfileData] = useState({
+    companyName: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    stateProvince: "",
+    country: "United Arab Emirates",
+    postalCode: "",
+    phoneNumber: "",
+    email: "",
+    website: "",
+    logo: null,
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    ibanNumber: "",
+    currency: "AED",
+  });
+  const adminId = sessionStorage.getItem("adminId");
+  const token = sessionStorage.getItem("accessToken");
 
-  // Use createdSO if it exists, otherwise fall back to selectedSO
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!adminId || !token) {
+        alert("Authentication required");
+        return;
+      }
+
+      try {
+        const response = await axiosInstance.get("/profile/me");
+        if (response.data.success) {
+          const data = response.data.data;
+          setProfileData({
+            companyName: data.companyInfo?.companyName || "",
+            addressLine1: data.companyInfo?.addressLine1 || "",
+            addressLine2: data.companyInfo?.addressLine2 || "",
+            city: data.companyInfo?.city || "",
+            stateProvince: data.companyInfo?.state || "",
+            country: data.companyInfo?.country || "United Arab Emirates",
+            postalCode: data.companyInfo?.postalCode || "",
+            phoneNumber: data.companyInfo?.phoneNumber || "",
+            email: data.companyInfo?.emailAddress || data.email || "",
+            website: data.companyInfo?.website || "",
+            logo: data.companyInfo?.companyLogo?.url || null,
+            bankName: data.companyInfo?.bankDetails?.bankName || "",
+            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
+            accountName: data.companyInfo?.bankDetails?.accountName || "",
+            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
+            currency: data.companyInfo?.bankDetails?.currency || "AED",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load profile data:", error);
+        alert(
+          `Failed to load profile data: ${
+            error.response?.data?.message || error.message
+          }`
+        );
+      }
+    };
+
+    loadProfileData();
+  }, [adminId, token]);
+
   const so = createdSO || selectedSO;
-
-  // Validate sales order data
   if (!so || !so.items || !Array.isArray(so.items)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -36,20 +97,10 @@ const SaleInvoiceView = ({
     );
   }
 
-  // Find customer details with fallback
-  const customer = customers?.find((c) => c._id === so.customerId) || {
-    customerName: "Unknown Customer",
-    address: "N/A",
-    phone: "N/A",
-    vatNumber: "N/A",
-  };
 
-  // Calculate totals safely
-  const totals = calculateTotals(so.items) || {
-    subtotal: "0.00",
-    tax: "0.00",
-    total: "0.00",
-  };
+
+  const subtotal = so.items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const tax = so.items.reduce((sum, item) => sum +  item.taxPercent, 0);
 
   const handleDownloadPDF = async () => {
     try {
@@ -75,10 +126,9 @@ const SaleInvoiceView = ({
           if (clonedElement) {
             clonedElement.style.display = "block";
             clonedElement.style.visibility = "visible";
-            // Ensure logo is loaded in the cloned document
             const img = clonedElement.querySelector("img");
             if (img) {
-              img.src = img.src; // Force reload to ensure CORS compliance
+              img.src = img.src;
             }
           }
         },
@@ -168,7 +218,6 @@ const SaleInvoiceView = ({
 
   const handleSendToCustomer = () => {
     alert("Sales Order invoice sent to customer!");
-    // TODO: Implement actual email integration here
   };
 
   const handleBackClick = () => {
@@ -180,7 +229,6 @@ const SaleInvoiceView = ({
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        {/* Action Buttons */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={handleBackClick}
@@ -222,7 +270,6 @@ const SaleInvoiceView = ({
           </div>
         </div>
 
-        {/* Invoice Content */}
         <div
           id="invoice-content"
           className="bg-white shadow-lg"
@@ -237,7 +284,6 @@ const SaleInvoiceView = ({
             color: "#000",
           }}
         >
-          {/* Header Section */}
           <div
             style={{
               textAlign: "center",
@@ -264,7 +310,7 @@ const SaleInvoiceView = ({
                 color: "#0f766e",
               }}
             >
-              NH FOODSTUFF TRADING LLC S.O.C.
+              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
             </h2>
 
             <div
@@ -281,7 +327,6 @@ const SaleInvoiceView = ({
             </div>
           </div>
 
-          {/* Company Details and Invoice Info */}
           <div
             style={{
               display: "flex",
@@ -291,17 +336,23 @@ const SaleInvoiceView = ({
             }}
           >
             <div>
-              <p style={{ margin: "2px 0" }}>Dubai, UAE</p>
-              <p style={{ margin: "2px 0" }}>VAT Reg. No: 10503303</p>
-              <p style={{ margin: "2px 0" }}>Email: finance@nhfo.com</p>
-              <p style={{ margin: "2px 0" }}>Phone: +971 58 724 2111</p>
-              <p style={{ margin: "2px 0" }}>Web: www.nhfo.com</p>
+              <p style={{ margin: "2px 0" }}>
+                {profileData.city || "Dubai"}, {profileData.country}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                VAT Reg. No: {profileData.vatNumber || "N/A"}
+              </p>
+              <p style={{ margin: "2px 0" }}>Email: {profileData.email || "finance@nhfo.com"}</p>
+              <p style={{ margin: "2px 0" }}>
+                Phone: {profileData.phoneNumber || "+971 58 724 2111"}
+              </p>
+              <p style={{ margin: "2px 0" }}>Web: {profileData.website || "www.nhfo.com"}</p>
             </div>
 
             <div style={{ textAlign: "center" }}>
               <img
-                src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                alt="NH Foods Logo"
+                src={profileData.logo || "https://via.placeholder.com/80"}
+                alt="Company Logo"
                 style={{ width: "80px", height: "80px", objectFit: "contain" }}
                 onError={(e) => (e.target.src = "/path/to/fallback-logo.png")}
               />
@@ -316,7 +367,6 @@ const SaleInvoiceView = ({
             </div>
           </div>
 
-          {/* Bill To Section */}
           <div
             style={{
               backgroundColor: "#e6d7e6",
@@ -337,29 +387,26 @@ const SaleInvoiceView = ({
                 </div>
                 <div style={{ fontSize: "10px" }}>
                   <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                    {customer.customerName || "N/A"}
+                    {so.customerName}
                   </p>
-                  <p style={{ margin: "2px 0" }}>
+                  {/* <p style={{ margin: "2px 0" }}>
                     {customer.address?.split("\n")[0] || "N/A"}
                   </p>
                   <p style={{ margin: "2px 0" }}>
                     {customer.address?.split("\n")[1] || ""}
                   </p>
-                  <p style={{ margin: "2px 0" }}>
-                    Tel: {customer.phone || "N/A"}
-                  </p>
+                  <p style={{ margin: "2px 0" }}>Tel: {customer.phone}</p> */}
                 </div>
               </div>
               <div style={{ fontSize: "10px" }}>
                 <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
                 <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                  {customer.vatNumber || "N/A"}
+                  {/* {customer.vatNumber} */}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Items Table */}
           <table
             style={{
               width: "100%",
@@ -455,11 +502,11 @@ const SaleInvoiceView = ({
             <tbody>
               {so.items.map((item, index) => {
                 const qty = parseFloat(item.qty) || 0;
-                const rate = parseFloat(item.rate) || 0;
+                const rate = parseFloat(item.rate) / qty || 0;
                 const taxPercent = parseFloat(item.taxPercent) || 0;
-                const value = qty * rate;
-                const vat = (value * taxPercent) / 100;
-                const amount = value + vat; // Always calculate to ensure consistency
+                const value =  item.rate;
+                const vat =  taxPercent;
+                const amount = value + vat;
                 return (
                   <tr key={index}>
                     <td
@@ -477,7 +524,7 @@ const SaleInvoiceView = ({
                         padding: "6px",
                       }}
                     >
-                      {item.itemId || "N/A"}
+                      {item.itemCode || "N/A"}
                     </td>
                     <td
                       style={{
@@ -531,7 +578,7 @@ const SaleInvoiceView = ({
                         fontWeight: "bold",
                       }}
                     >
-                      {amount.toFixed(2)}
+                      {item.lineTotal.toFixed(2)}
                     </td>
                   </tr>
                 );
@@ -539,7 +586,6 @@ const SaleInvoiceView = ({
             </tbody>
           </table>
 
-          {/* Bank Details and Totals */}
           <div
             style={{
               display: "flex",
@@ -559,10 +605,10 @@ const SaleInvoiceView = ({
               </div>
               <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>BANK:</strong> NATIONAL BANK OF ABUDHABI
+                  <strong>BANK:</strong> {profileData.bankName || "NATIONAL BANK OF ABU DHABI"}
                 </p>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>ACCOUNT NO:</strong> 087989283001
+                  <strong>ACCOUNT NO:</strong> {profileData.accountNumber || "087989283001"}
                 </p>
               </div>
             </div>
@@ -593,7 +639,7 @@ const SaleInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {totals.subtotal}
+                    {subtotal.toFixed(2)}
                   </td>
                 </tr>
                 <tr>
@@ -614,14 +660,13 @@ const SaleInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {totals.tax}
+                    {tax.toFixed(2)}
                   </td>
                 </tr>
               </table>
             </div>
           </div>
 
-          {/* IBAN Details and Grand Total */}
           <div
             style={{
               display: "flex",
@@ -632,13 +677,13 @@ const SaleInvoiceView = ({
           >
             <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
               <p style={{ margin: "2px 0" }}>
-                <strong>IBAN NO:</strong> AE410547283001
+                <strong>IBAN NO:</strong> {profileData.ibanNumber || "AE410547283001"}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> AED
+                <strong>CURRENCY:</strong> {profileData.currency}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C
+                <strong>ACCOUNT NAME:</strong> {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
               </p>
             </div>
 
@@ -660,13 +705,12 @@ const SaleInvoiceView = ({
                   GRAND TOTAL
                 </span>
                 <span style={{ fontSize: "14px", fontWeight: "bold" }}>
-                  {totals.total}
+                  {subtotal}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Footer Section */}
           <div style={{ marginTop: "30px" }}>
             <div style={{ textAlign: "center", marginBottom: "30px" }}>
               <p style={{ fontSize: "11px", margin: "0" }}>

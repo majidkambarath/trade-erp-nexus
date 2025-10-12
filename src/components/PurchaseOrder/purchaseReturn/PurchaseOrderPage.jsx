@@ -170,7 +170,7 @@ const PurchaseReturnOrderManagement = () => {
         response.data.data.map((transaction) => ({
           id: transaction._id,
           transactionNo: transaction.transactionNo,
-          vendorId: transaction.partyId,
+          vendorId: transaction.partyId._id || transaction.partyId, // Ensure vendorId is a string
           vendorName: transaction.partyName,
           date: transaction.date,
           deliveryDate: transaction.deliveryDate,
@@ -209,10 +209,7 @@ const PurchaseReturnOrderManagement = () => {
   const generateTransactionNumber = () => {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
-      3,
-      "0"
-    );
+    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
       transactionNo: `PR-${dateStr}-${sequence}`,
@@ -227,7 +224,7 @@ const PurchaseReturnOrderManagement = () => {
     }, 5000);
   };
 
-  // Handle successful PO save - redirect to invoice without resetting selectedPO prematurely
+  // Handle successful PO save
   const handlePOSuccess = (newPO) => {
     setCreatedPO(newPO);
     setSelectedPO(newPO);
@@ -236,24 +233,17 @@ const PurchaseReturnOrderManagement = () => {
       "Purchase Return Order saved successfully! Showing invoice...",
       "success"
     );
-    // Reset form after navigation to avoid conflicting with invoice view
-    setTimeout(resetForm, 0); // Delay to ensure state updates are processed
+    setTimeout(resetForm, 0); // Delay to ensure state updates
   };
 
   // Statistics calculations
   const getStatistics = useMemo(
     () => () => {
       const total = purchaseOrders.length;
-      const pending = purchaseOrders.filter(
-        (po) => po.status === "PENDING"
-      ).length;
-      const approved = purchaseOrders.filter(
-        (po) => po.status === "APPROVED"
-      ).length;
+      const pending = purchaseOrders.filter((po) => po.status === "PENDING").length;
+      const approved = purchaseOrders.filter((po) => po.status === "APPROVED").length;
       const draft = purchaseOrders.filter((po) => po.status === "DRAFT").length;
-      const rejected = purchaseOrders.filter(
-        (po) => po.status === "REJECTED"
-      ).length;
+      const rejected = purchaseOrders.filter((po) => po.status === "REJECTED").length;
 
       const totalValue = purchaseOrders.reduce(
         (sum, po) => sum + parseFloat(po.totalAmount),
@@ -267,19 +257,14 @@ const PurchaseReturnOrderManagement = () => {
       const thisYear = new Date().getFullYear();
       const thisMonthPOs = purchaseOrders.filter((po) => {
         const poDate = new Date(po.date);
-        return (
-          poDate.getMonth() === thisMonth && poDate.getFullYear() === thisYear
-        );
+        return poDate.getMonth() === thisMonth && poDate.getFullYear() === thisYear;
       }).length;
 
       const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
       const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
       const lastMonthPOs = purchaseOrders.filter((po) => {
         const poDate = new Date(po.date);
-        return (
-          poDate.getMonth() === lastMonth &&
-          poDate.getFullYear() === lastMonthYear
-        );
+        return poDate.getMonth() === lastMonth && poDate.getFullYear() === lastMonthYear;
       }).length;
 
       const growthRate =
@@ -313,10 +298,8 @@ const PurchaseReturnOrderManagement = () => {
           po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           po.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus =
-          statusFilter === "ALL" || po.status === statusFilter;
-        const matchesVendor =
-          vendorFilter === "ALL" || po.vendorId === vendorFilter;
+        const matchesStatus = statusFilter === "ALL" || po.status === statusFilter;
+        const matchesVendor = vendorFilter === "ALL" || po.vendorId === vendorFilter;
 
         let matchesDate = true;
         if (dateFilter !== "ALL") {
@@ -328,9 +311,7 @@ const PurchaseReturnOrderManagement = () => {
               matchesDate = poDate.toDateString() === today.toDateString();
               break;
             case "WEEK":
-              const weekAgo = new Date(
-                today.getTime() - 7 * 24 * 60 * 60 * 1000
-              );
+              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = poDate >= weekAgo;
               break;
             case "MONTH":
@@ -379,15 +360,7 @@ const PurchaseReturnOrderManagement = () => {
 
       return filtered;
     },
-    [
-      purchaseOrders,
-      searchTerm,
-      statusFilter,
-      vendorFilter,
-      dateFilter,
-      sortBy,
-      sortOrder,
-    ]
+    [purchaseOrders, searchTerm, statusFilter, vendorFilter, dateFilter, sortBy, sortOrder]
   );
 
   const filteredPOs = filteredAndSortedPOs();
@@ -452,32 +425,25 @@ const PurchaseReturnOrderManagement = () => {
 
   const handleBulkAction = async (action) => {
     if (selectedPOs.length === 0) {
-      addNotification(
-        "Please select orders to perform bulk actions",
-        "warning"
-      );
+      addNotification("Please select orders to perform bulk actions", "warning");
       return;
     }
 
     try {
       if (action === "approve") {
         for (const poId of selectedPOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${poId}/process`,
-            {
-              action: "approve",
-            }
-          );
+          await axiosInstance.patch(`/transactions/transactions/${poId}/process`, {
+            action: "approve",
+          });
         }
-        addNotification(
-          `${selectedPOs.length} orders approved successfully`,
-          "success"
-        );
+        addNotification(`${selectedPOs.length} orders approved successfully`, "success");
         fetchTransactions();
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
           for (const poId of selectedPOs) {
-            await axiosInstance.delete(`/transactions/transactions/${poId}`);
+              await axiosInstance.patch(`/transactions/transactions/${poId}/process`, {
+            action: "reject",
+          });
           }
           addNotification(`${selectedPOs.length} orders deleted`, "success");
           fetchTransactions();
@@ -502,8 +468,7 @@ const PurchaseReturnOrderManagement = () => {
     } catch (error) {
       console.error("Bulk Action Error:", error);
       addNotification(
-        "Bulk action failed: " +
-          (error.response?.data?.message || error.message),
+        "Bulk action failed: " + (error.response?.data?.message || error.message),
         "error"
       );
     }
@@ -526,15 +491,9 @@ const PurchaseReturnOrderManagement = () => {
           } animate-slide-in border border-white/20`}
         >
           <div className="flex items-center space-x-2">
-            {notification.type === "success" && (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            {notification.type === "warning" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
-            {notification.type === "error" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
+            {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
+            {notification.type === "warning" && <AlertCircle className="w-4 h-4" />}
+            {notification.type === "error" && <AlertCircle className="w-4 h-4" />}
             <span className="text-sm font-medium">{notification.message}</span>
           </div>
         </div>
@@ -549,12 +508,8 @@ const PurchaseReturnOrderManagement = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Total Return Orders
-              </p>
-              <p className="text-3xl font-bold text-slate-900">
-                {statistics.total}
-              </p>
+              <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
+              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -563,9 +518,7 @@ const PurchaseReturnOrderManagement = () => {
                 )}
                 <span
                   className={`text-sm font-medium ${
-                    statistics.growthRate >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
+                    statistics.growthRate >= 0 ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {Math.abs(statistics.growthRate).toFixed(1)}% from last month
@@ -580,12 +533,8 @@ const PurchaseReturnOrderManagement = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Pending Approval
-              </p>
-              <p className="text-3xl font-bold text-amber-600">
-                {statistics.pending}
-              </p>
+              <p className="text-sm font-medium text-slate-600">Pending Approval</p>
+              <p className="text-3xl font-bold text-amber-600">{statistics.pending}</p>
               <p className="text-sm text-slate-500 mt-2">Requires attention</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
@@ -613,12 +562,8 @@ const PurchaseReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">
-                {statistics.thisMonthPOs}
-              </p>
-              <p className="text-sm text-slate-500 mt-2">
-                New return orders created
-              </p>
+              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
+              <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-white" />
@@ -639,15 +584,9 @@ const PurchaseReturnOrderManagement = () => {
                 className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center space-x-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${getPriorityColor(
-                      po.priority
-                    )}`}
-                  ></div>
+                  <div className={`w-2 h-2 rounded-full ${getPriorityColor(po.priority)}`}></div>
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {po.transactionNo}
-                    </p>
+                    <p className="font-medium text-slate-900">{po.transactionNo}</p>
                     <p className="text-sm text-slate-600">{po.vendorName}</p>
                   </div>
                 </div>
@@ -676,9 +615,7 @@ const PurchaseReturnOrderManagement = () => {
         </div>
 
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Status Overview
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
@@ -691,9 +628,7 @@ const PurchaseReturnOrderManagement = () => {
                 <div
                   className="h-full bg-emerald-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.approved / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.approved / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -709,9 +644,7 @@ const PurchaseReturnOrderManagement = () => {
                 <div
                   className="h-full bg-amber-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.pending / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.pending / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -727,9 +660,7 @@ const PurchaseReturnOrderManagement = () => {
                 <div
                   className="h-full bg-slate-400 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.draft / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.draft / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -745,9 +676,7 @@ const PurchaseReturnOrderManagement = () => {
                 <div
                   className="h-full bg-rose-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.rejected / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.rejected / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -823,9 +752,7 @@ const PurchaseReturnOrderManagement = () => {
           </div>
 
           <button
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -857,7 +784,6 @@ const PurchaseReturnOrderManagement = () => {
       priority: "Medium",
     });
     setFormErrors({});
-    // Removed setSelectedPO(null) to prevent clearing during navigation to invoice
   }, []);
 
   // Calculate totals for items
@@ -870,7 +796,7 @@ const PurchaseReturnOrderManagement = () => {
       const rate = parseFloat(item.rate) || 0;
       const taxPercent = parseFloat(item.taxPercent) || 0;
 
-      const lineSubtotal = qty * rate;
+      const lineSubtotal = rate;
       const lineTax = lineSubtotal * (taxPercent / 100);
 
       subtotal += lineSubtotal;
@@ -947,17 +873,10 @@ const PurchaseReturnOrderManagement = () => {
 
   // Delete PO
   const deletePO = async (id) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this purchase return order?"
-      )
-    ) {
+    if (window.confirm("Are you sure you want to delete this purchase return order?")) {
       try {
         await axiosInstance.delete(`/transactions/transactions/${id}`);
-        addNotification(
-          "Purchase Return Order deleted successfully",
-          "success"
-        );
+        addNotification("Purchase Return Order deleted successfully", "success");
         fetchTransactions();
       } catch (error) {
         console.error("Delete PO Error:", error);
@@ -991,7 +910,7 @@ const PurchaseReturnOrderManagement = () => {
               <button
                 onClick={() => {
                   resetForm();
-                  setSelectedPO(null); // Clear selectedPO when starting new create
+                  setSelectedPO(null);
                   setActiveView("create");
                   generateTransactionNumber();
                 }}

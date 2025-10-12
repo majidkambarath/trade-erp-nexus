@@ -7,9 +7,7 @@ import {
   CheckSquare,
   MoreVertical,
   FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
+  CheckSquare as ConfirmIcon,
 } from "lucide-react";
 
 const TableView = ({
@@ -38,10 +36,7 @@ const TableView = ({
                 <input
                   type="checkbox"
                   className="rounded border-slate-300"
-                  checked={
-                    selectedSOs.length === paginatedSOs.length &&
-                    paginatedSOs.length > 0
-                  }
+                  checked={selectedSOs.length === paginatedSOs.length && paginatedSOs.length > 0}
                   onChange={(e) => {
                     if (e.target.checked) {
                       setSelectedSOs(paginatedSOs.map((so) => so.id));
@@ -94,9 +89,7 @@ const TableView = ({
                 </button>
               </th>
               <th className="px-4 py-4 text-left">
-                <span className="text-sm font-semibold text-slate-700">
-                  Status
-                </span>
+                <span className="text-sm font-semibold text-slate-700">Status</span>
               </th>
               <th className="px-4 py-4 text-right">
                 <button
@@ -113,18 +106,13 @@ const TableView = ({
                 </button>
               </th>
               <th className="px-4 py-4 text-center">
-                <span className="text-sm font-semibold text-slate-700">
-                  Actions
-                </span>
+                <span className="text-sm font-semibold text-slate-700">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {paginatedSOs.map((so) => (
-              <tr
-                key={so.id}
-                className="hover:bg-slate-50/50 transition-colors"
-              >
+              <tr key={so.id} className="hover:bg-slate-50/50 transition-colors">
                 <td className="px-4 py-4">
                   <input
                     type="checkbox"
@@ -134,33 +122,23 @@ const TableView = ({
                       if (e.target.checked) {
                         setSelectedSOs((prev) => [...prev, so.id]);
                       } else {
-                        setSelectedSOs((prev) =>
-                          prev.filter((id) => id !== so.id)
-                        );
+                        setSelectedSOs((prev) => prev.filter((id) => id !== so.id));
                       }
                     }}
                   />
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex items-center space-x-3">
-                    <div
-                      className={`w-2 h-8 rounded-full ${getPriorityColor(
-                        so.priority
-                      )}`}
-                    ></div>
+                    <div className={`w-2 h-8 rounded-full ${getPriorityColor(so.priority)}`}></div>
                     <div>
-                      <p className="font-medium text-slate-900">
-                        {so.transactionNo}
-                      </p>
+                      <p className="font-medium text-slate-900">{so.transactionNo}</p>
                       <p className="text-xs text-slate-500">{so.createdBy}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-4">
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {so.customerName}
-                    </p>
+                    <p className="font-medium text-slate-900">{so.customerName || "Unknown"}</p>
                     <p className="text-xs text-slate-500">{so.customerId}</p>
                   </div>
                 </td>
@@ -170,8 +148,7 @@ const TableView = ({
                       {new Date(so.date).toLocaleDateString("en-GB")}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Delivery:{" "}
-                      {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
+                      Delivery: {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
                     </p>
                   </div>
                 </td>
@@ -183,9 +160,7 @@ const TableView = ({
                       )}`}
                     >
                       {getStatusIcon(so.status)}
-                      <span className="ml-1">
-                        {so.status.replace("_", " ")}
-                      </span>
+                      <span className="ml-1">{so.status.replace("_", " ")}</span>
                     </div>
                     <div className="flex space-x-1">
                       {so.invoiceGenerated && (
@@ -200,11 +175,9 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      AED {parseFloat(so.totalAmount).toLocaleString()}
+                      AED {Math.abs(parseFloat(so.totalAmount)).toLocaleString()}
                     </p>
-                    <p className="text-xs text-slate-500">
-                      {so.items.length} items
-                    </p>
+                    <p className="text-xs text-slate-500">{so.items.length} items</p>
                   </div>
                 </td>
                 <td className="px-4 py-4">
@@ -234,7 +207,7 @@ const TableView = ({
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Confirm"
                       >
-                        <CheckSquare className="w-4 h-4" />
+                        <ConfirmIcon className="w-4 h-4" />
                       </button>
                     )}
                     <div className="relative group">

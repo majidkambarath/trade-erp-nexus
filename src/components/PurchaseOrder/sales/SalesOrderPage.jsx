@@ -166,6 +166,7 @@ const SalesOrderManagement = () => {
           dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
         },
       });
+      console.log(response.data)
       setSalesOrders(
         response.data?.data.map((transaction) => ({
           id: transaction._id,
@@ -241,7 +242,7 @@ const SalesOrderManagement = () => {
     () => () => {
       const total = salesOrders.length;
       const draft = salesOrders.filter((so) => so.status === "DRAFT").length;
-      const confirmed = salesOrders.filter((so) => so.status === "CONFIRMED").length;
+      const confirmed = salesOrders.filter((so) => so.status === "APPROVED").length;
       const invoiced = salesOrders.filter((so) => so.status === "INVOICED").length;
 
       const totalValue = salesOrders.reduce(
@@ -431,7 +432,9 @@ const SalesOrderManagement = () => {
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedSOs.length} selected orders?`)) {
           for (const soId of selectedSOs) {
-            await axiosInstance.delete(`/transactions/transactions/${soId}`);
+             await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
+            action: "reject",
+          });
           }
           addNotification(`${selectedSOs.length} orders deleted`, "success");
           fetchTransactions();

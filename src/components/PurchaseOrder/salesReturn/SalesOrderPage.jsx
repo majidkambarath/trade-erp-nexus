@@ -62,6 +62,7 @@ const SalesReturnOrderManagement = () => {
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesReturnOrders, setSalesReturnOrders] = useState([]);
+  console.log(salesReturnOrders)
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [createdSO, setCreatedSO] = useState(null); // Track newly created return order
@@ -168,26 +169,31 @@ const SalesReturnOrderManagement = () => {
       });
       console.log("Transactions Response:", response.data); // Debug
       setSalesReturnOrders(
-        response.data?.data.map((transaction) => ({
-          id: transaction._id,
-          transactionNo: transaction.transactionNo,
-          customerId: transaction.partyId,
-          customerId: transaction.partyId,
-
-          date: transaction.date,
-          deliveryDate: transaction.deliveryDate,
-          status: transaction.status,
-          approvalStatus: transaction.status,
-          totalAmount: transaction.totalAmount.toFixed(2),
-          items: transaction.items,
-          terms: transaction.terms,
-          notes: transaction.notes,
-          createdBy: transaction.createdBy,
-          createdAt: transaction.createdAt,
-          invoiceGenerated: transaction.invoiceGenerated,
-          priority: transaction.priority,
-          reason: transaction.reason || "", // Added for return reason
-        }))
+        response.data?.data.map((transaction) => {
+          // Find the customer to get the customerName
+          const customer = customers.find(
+            (c) => c._id === (transaction.partyId._id || transaction.partyId)
+          );
+          return {
+            id: transaction._id,
+            transactionNo: transaction.transactionNo,
+            customerId: transaction.partyId._id || transaction.partyId,
+            customerName: transaction.partyName || "Unknown Customer",
+            date: transaction.date,
+            deliveryDate: transaction.deliveryDate,
+            status: transaction.status,
+            approvalStatus: transaction.status,
+            totalAmount: transaction.totalAmount.toFixed(2),
+            items: transaction.items,
+            terms: transaction.terms,
+            notes: transaction.notes,
+            createdBy: transaction.createdBy,
+            createdAt: transaction.createdAt,
+            invoiceGenerated: transaction.invoiceGenerated,
+            priority: transaction.priority,
+            reason: transaction.reason || "",
+          };
+        })
       );
     } catch (error) {
       console.error("Fetch Transactions Error:", error);
@@ -211,10 +217,7 @@ const SalesReturnOrderManagement = () => {
   const generateTransactionNumber = () => {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
-      3,
-      "0"
-    );
+    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
       transactionNo: `SR-${dateStr}-${sequence}`,
@@ -246,15 +249,9 @@ const SalesReturnOrderManagement = () => {
   const getStatistics = useMemo(
     () => () => {
       const total = salesReturnOrders.length;
-      const draft = salesReturnOrders.filter(
-        (so) => so.status === "DRAFT"
-      ).length;
-      const confirmed = salesReturnOrders.filter(
-        (so) => so.status === "CONFIRMED"
-      ).length;
-      const invoiced = salesReturnOrders.filter(
-        (so) => so.status === "INVOICED"
-      ).length;
+      const draft = salesReturnOrders.filter((so) => so.status === "DRAFT").length;
+      const confirmed = salesReturnOrders.filter((so) => so.status === "APPROVED").length;
+      const invoiced = salesReturnOrders.filter((so) => so.status === "INVOICED").length;
 
       const totalValue = salesReturnOrders.reduce(
         (sum, so) => sum + parseFloat(so.totalAmount),
@@ -268,25 +265,18 @@ const SalesReturnOrderManagement = () => {
       const thisYear = new Date().getFullYear();
       const thisMonthSOs = salesReturnOrders.filter((so) => {
         const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear
-        );
+        return soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear;
       }).length;
 
       const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
       const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
       const lastMonthSOs = salesReturnOrders.filter((so) => {
         const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === lastMonth &&
-          soDate.getFullYear() === lastMonthYear
-        );
+        return soDate.getMonth() === lastMonth && soDate.getFullYear() === lastMonthYear;
       }).length;
 
       const growthRate =
-        lastMonthSOs === 0
-          ? 0
-          : ((thisMonthSOs - lastMonthSOs) / lastMonthSOs) * 100;
+        lastMonthSOs === 0 ? 0 : ((thisMonthSOs - lastMonthSOs) / lastMonthSOs) * 100;
 
       return {
         total,
@@ -310,14 +300,12 @@ const SalesReturnOrderManagement = () => {
       let filtered = salesReturnOrders.filter((so) => {
         const matchesSearch =
           so.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          so.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (so.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
           so.createdBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
           so.reason.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const matchesStatus =
-          statusFilter === "ALL" || so.status === statusFilter;
-        const matchesCustomer =
-          customerFilter === "ALL" || so.customerId === customerFilter;
+        const matchesStatus = statusFilter === "ALL" || so.status === statusFilter;
+        const matchesCustomer = customerFilter === "ALL" || so.customerId === customerFilter;
 
         let matchesDate = true;
         if (dateFilter !== "ALL") {
@@ -329,17 +317,11 @@ const SalesReturnOrderManagement = () => {
               matchesDate = soDate.toDateString() === today.toDateString();
               break;
             case "WEEK":
-              const weekAgo = new Date(
-                today.getTime() - 7 * 24 * 60 * 60 * 1000
-              );
+              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = soDate >= weekAgo;
               break;
             case "MONTH":
-              const monthAgo = new Date(
-                today.getFullYear(),
-                today.getMonth() - 1,
-                today.getDate()
-              );
+              const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
               matchesDate = soDate >= monthAgo;
               break;
           }
@@ -361,8 +343,8 @@ const SalesReturnOrderManagement = () => {
             bVal = parseFloat(b.totalAmount);
             break;
           case "customer":
-            aVal = a.customerName;
-            bVal = b.customerName;
+            aVal = a.customerName || "";
+            bVal = b.customerName || "";
             break;
           case "status":
             aVal = a.status;
@@ -380,15 +362,7 @@ const SalesReturnOrderManagement = () => {
 
       return filtered;
     },
-    [
-      salesReturnOrders,
-      searchTerm,
-      statusFilter,
-      customerFilter,
-      dateFilter,
-      sortBy,
-      sortOrder,
-    ]
+    [salesReturnOrders, searchTerm, statusFilter, customerFilter, dateFilter, sortBy, sortOrder]
   );
 
   const filteredSOs = filteredAndSortedSOs();
@@ -449,20 +423,16 @@ const SalesReturnOrderManagement = () => {
 
   const handleBulkAction = async (action) => {
     if (selectedSOs.length === 0) {
-      addNotification(
-        "Please select return orders to perform bulk actions",
-        "warning"
-      );
+      addNotification("Please select return orders to perform bulk actions", "warning");
       return;
     }
 
     try {
       if (action === "confirm") {
         for (const soId of selectedSOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${soId}/process`,
-            { action: "approve" }
-          );
+          await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
+            action: "approve",
+          });
         }
         addNotification(
           `${selectedSOs.length} return orders confirmed successfully`,
@@ -470,28 +440,22 @@ const SalesReturnOrderManagement = () => {
         );
         fetchTransactions();
       } else if (action === "delete") {
-        if (
-          window.confirm(`Delete ${selectedSOs.length} selected return orders?`)
-        ) {
+        if (window.confirm(`Delete ${selectedSOs.length} selected return orders?`)) {
           for (const soId of selectedSOs) {
-            await axiosInstance.delete(`/transactions/transactions/${soId}`);
+              await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
+            action: "reject",
+          });
           }
-          addNotification(
-            `${selectedSOs.length} return orders deleted`,
-            "success"
-          );
+          addNotification(`${selectedSOs.length} return orders deleted`, "success");
           fetchTransactions();
         }
       } else if (action === "export") {
-        addNotification(
-          `Exporting ${selectedSOs.length} return orders...`,
-          "info"
-        );
+        addNotification(`Exporting ${selectedSOs.length} return orders...`, "info");
         const csv = [
           "TransactionNo,Customer,Date,DeliveryDate,Status,TotalAmount,Priority,Reason",
           ...selectedSOs.map((soId) => {
             const so = salesReturnOrders.find((s) => s.id === soId);
-            return `${so.transactionNo},${so.customerName},${so.date},${so.deliveryDate},${so.status},${so.totalAmount},${so.priority},${so.reason}`;
+            return `${so.transactionNo},${so.customerName || "Unknown"},${so.date},${so.deliveryDate},${so.status},${so.totalAmount},${so.priority},${so.reason}`;
           }),
         ].join("\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -505,8 +469,7 @@ const SalesReturnOrderManagement = () => {
     } catch (error) {
       console.error("Bulk Action Error:", error);
       addNotification(
-        "Bulk action failed: " +
-          (error.response?.data?.message || error.message),
+        "Bulk action failed: " + (error.response?.data?.message || error.message),
         "error"
       );
     }
@@ -529,15 +492,9 @@ const SalesReturnOrderManagement = () => {
           } animate-slide-in border border-white/20`}
         >
           <div className="flex items-center space-x-2">
-            {notification.type === "success" && (
-              <CheckCircle className="w-4 h-4" />
-            )}
-            {notification.type === "warning" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
-            {notification.type === "error" && (
-              <AlertCircle className="w-4 h-4" />
-            )}
+            {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
+            {notification.type === "warning" && <AlertCircle className="w-4 h-4" />}
+            {notification.type === "error" && <AlertCircle className="w-4 h-4" />}
             <span className="text-sm font-medium">{notification.message}</span>
           </div>
         </div>
@@ -552,12 +509,8 @@ const SalesReturnOrderManagement = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Total Return Orders
-              </p>
-              <p className="text-3xl font-bold text-slate-900">
-                {statistics.total}
-              </p>
+              <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
+              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -566,9 +519,7 @@ const SalesReturnOrderManagement = () => {
                 )}
                 <span
                   className={`text-sm font-medium ${
-                    statistics.growthRate >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
+                    statistics.growthRate >= 0 ? "text-emerald-600" : "text-rose-600"
                   }`}
                 >
                   {Math.abs(statistics.growthRate).toFixed(1)}% from last month
@@ -584,12 +535,8 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Confirmed</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {statistics.confirmed}
-              </p>
-              <p className="text-sm text-slate-500 mt-2">
-                Ready for processing
-              </p>
+              <p className="text-3xl font-bold text-blue-600">{statistics.confirmed}</p>
+              <p className="text-sm text-slate-500 mt-2">Ready for processing</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
               <CheckSquare className="w-6 h-6 text-white" />
@@ -599,15 +546,12 @@ const SalesReturnOrderManagement = () => {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">
-                Total Refund Value
-              </p>
+              <p className="text-sm font-medium text-slate-600">Total Refund Value</p>
               <p className="text-3xl font-bold text-emerald-600">
                 AED {Math.abs(statistics.totalValue).toLocaleString()}
               </p>
               <p className="text-sm text-slate-500 mt-2">
-                Invoiced: AED{" "}
-                {Math.abs(statistics.invoicedValue).toLocaleString()}
+                Invoiced: AED {Math.abs(statistics.invoicedValue).toLocaleString()}
               </p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
@@ -619,12 +563,8 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">
-                {statistics.thisMonthSOs}
-              </p>
-              <p className="text-sm text-slate-500 mt-2">
-                New return orders created
-              </p>
+              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthSOs}</p>
+              <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
             <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-white" />
@@ -646,15 +586,11 @@ const SalesReturnOrderManagement = () => {
               >
                 <div className="flex items-center space-x-3">
                   <div
-                    className={`w-2 h-2 rounded-full ${getPriorityColor(
-                      so.priority
-                    )}`}
+                    className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`}
                   ></div>
                   <div>
-                    <p className="font-medium text-slate-900">
-                      {so.transactionNo}
-                    </p>
-                    <p className="text-sm text-slate-600">{so.customerName}</p>
+                    <p className="font-medium text-slate-900">{so.transactionNo}</p>
+                    <p className="text-sm text-slate-600">{so.customerName || "Unknown"}</p>
                     <p className="text-xs text-slate-500">{so.reason}</p>
                   </div>
                 </div>
@@ -683,24 +619,18 @@ const SalesReturnOrderManagement = () => {
         </div>
 
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Status Overview
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
           <div className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Confirmed</span>
-                <span className="text-xs font-medium text-blue-600">
-                  {statistics.confirmed}
-                </span>
+                <span className="text-xs font-medium text-blue-600">{statistics.confirmed}</span>
               </div>
               <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.confirmed / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.confirmed / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -708,17 +638,13 @@ const SalesReturnOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Invoiced</span>
-                <span className="text-xs font-medium text-purple-600">
-                  {statistics.invoiced}
-                </span>
+                <span className="text-xs font-medium text-purple-600">{statistics.invoiced}</span>
               </div>
               <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-purple-500 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.invoiced / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.invoiced / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -726,17 +652,13 @@ const SalesReturnOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Draft</span>
-                <span className="text-xs font-medium text-slate-600">
-                  {statistics.draft}
-                </span>
+                <span className="text-xs font-medium text-slate-600">{statistics.draft}</span>
               </div>
               <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-slate-400 transition-all duration-500 ease-out"
                   style={{
-                    width: `${
-                      (statistics.draft / statistics.total) * 100 || 0
-                    }%`,
+                    width: `${(statistics.draft / statistics.total) * 100 || 0}%`,
                   }}
                 ></div>
               </div>
@@ -756,8 +678,7 @@ const SalesReturnOrderManagement = () => {
       <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/20">
         <div className="flex items-center space-x-4">
           <span className="text-sm text-slate-600">
-            Showing {startItem} to {endItem} of {filteredSOs.length} return
-            orders
+            Showing {startItem} to {endItem} of {filteredSOs.length} return orders
           </span>
           <select
             value={itemsPerPage}
@@ -813,9 +734,7 @@ const SalesReturnOrderManagement = () => {
           </div>
 
           <button
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -851,27 +770,20 @@ const SalesReturnOrderManagement = () => {
   }, []);
 
   // Calculate totals for items (handles negative quantities for returns)
- const calculateTotals = (items) => {
+  const calculateTotals = (items) => {
     let subtotal = 0;
     let tax = 0;
 
-    const validItems = items.filter(
-      (item) => item.itemId && parseFloat(item.qty) > 0 && parseFloat(item.salesPrice) > 0
-    );
-
-    validItems.forEach((item) => {
+    items.forEach((item) => {
       const qty = parseFloat(item.qty) || 0;
-      const salesPrice = parseFloat(item.salesPrice) || 0;
+      const rate = parseFloat(item.rate) || 0;
       const taxPercent = parseFloat(item.taxPercent) || 0;
 
-      const lineSubtotal = qty * salesPrice;
+      const lineSubtotal =  rate;
       const lineTax = lineSubtotal * (taxPercent / 100);
-      const lineTotal = (lineSubtotal + lineTax).toFixed(2);
 
       subtotal += lineSubtotal;
       tax += lineTax;
-
-      item.lineTotal = lineTotal;
     });
 
     const total = (subtotal + tax).toFixed(2);
@@ -927,9 +839,7 @@ const SalesReturnOrderManagement = () => {
 
   // Delete sales return order
   const deleteSO = async (id) => {
-    if (
-      window.confirm("Are you sure you want to delete this sales return order?")
-    ) {
+    if (window.confirm("Are you sure you want to delete this sales return order?")) {
       try {
         await axiosInstance.delete(`/transactions/transactions/${id}`);
         addNotification("Sales Return Order deleted successfully", "success");
@@ -1172,7 +1082,7 @@ const SalesReturnOrderManagement = () => {
                 selectedSO={selectedSO}
                 setSelectedSO={setSelectedSO}
                 setActiveView={setActiveView}
-                setSalesOrders={setSalesReturnOrders}
+                setSalesReturnOrders={setSalesReturnOrders}
                 resetForm={resetForm}
                 calculateTotals={calculateTotals}
                 onSOSuccess={handleSOSuccess}
