@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -30,8 +36,8 @@ import {
   Printer,
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
-// import DirhamIcon from "../../assets/dirham.svg";
-import VendorSelect from './PartySelect'
+import VendorSelect from "./PartySelect";
+import PaymentInvoiceView from "./PaymentInvoiceView";
 
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
@@ -40,8 +46,9 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"
-        }`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     />
     {error && (
       <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -58,8 +65,9 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
     </label>
     <select
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"
-        }`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     >
       {options.map(({ value, label }) => (
         <option key={value} value={value}>
@@ -78,8 +86,9 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${type === "success" ? "bg-emerald-500" : "bg-red-500"
-        }`}
+      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${
+        type === "success" ? "bg-emerald-500" : "bg-red-500"
+      }`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -146,12 +155,12 @@ const SessionManager = {
   set(key, value) {
     try {
       SessionManager.storage[SessionManager.key(key)] = value;
-    } catch { }
+    } catch {}
   },
   remove(key) {
     try {
       delete SessionManager.storage[SessionManager.key(key)];
-    } catch { }
+    } catch {}
   },
   clear() {
     Object.keys(SessionManager.storage).forEach((k) => {
@@ -176,12 +185,12 @@ const displayMode = (mode) => {
   return m === "cash"
     ? "Cash"
     : m === "bank"
-      ? "Bank"
-      : m === "cheque"
-        ? "Cheque"
-        : m === "online"
-          ? "Online"
-          : mode || "Unknown";
+    ? "Bank"
+    : m === "cheque"
+    ? "Cheque"
+    : m === "online"
+    ? "Online"
+    : mode || "Unknown";
 };
 
 const badgeClassForMode = (mode) => {
@@ -212,10 +221,12 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
   const isNegative = numAmount < 0;
   return (
     <span className={`inline-flex items-center ${colorClass}`}>
-      {isNegative && "-"}<span className="mr-1">AED</span>{absAmount}
+      {isNegative && "-"}
+      <span className="mr-1">AED</span>
+      {absAmount}
     </span>
   );
-}
+};
 
 const by = (v) => (typeof v === "string" ? v.toLowerCase() : v);
 
@@ -292,7 +303,6 @@ const PaymentVoucherManagement = () => {
     voucherNo: "",
     isDeleting: false,
   });
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const formRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -346,7 +356,7 @@ const PaymentVoucherManagement = () => {
         const response = await axiosInstance.get("/vouchers/vouchers", {
           params: { voucherType: "payment" },
         });
-        console.log(response)
+        console.log(response);
         setPayments(takeArray(response));
         if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
       } catch (err) {
@@ -384,11 +394,8 @@ const PaymentVoucherManagement = () => {
         const response = await axiosInstance.get(
           `/transactions/transactions?${params.toString()}`
         );
-        console.log(response)
-        const invoices = takeArray(response).filter(
-          (t) =>
-            t?.invoiceGenerated === false && t._id && t.transactionNo && t.totalAmount
-        );
+        console.log(response);
+        const invoices = takeArray(response);
         setAvailableInvoices(invoices);
       } catch (err) {
         showToastMessage("Failed to fetch available invoices.", "error");
@@ -474,9 +481,9 @@ const PaymentVoucherManagement = () => {
       const newList = isSelected
         ? list.filter((inv) => inv.invoiceId !== invoiceId)
         : [
-          ...list,
-          { invoiceId, amount: String(totalAmount), balance: String(0) },
-        ];
+            ...list,
+            { invoiceId, amount: String(totalAmount), balance: String(0) },
+          ];
       const total = newList.reduce(
         (sum, inv) => sum + (Number(inv.amount) || 0),
         0
@@ -496,10 +503,10 @@ const PaymentVoucherManagement = () => {
         const newList = list.map((inv) =>
           inv.invoiceId === invoiceId
             ? {
-              ...inv,
-              amount: String(amount),
-              balance: String(balance >= 0 ? balance : 0),
-            }
+                ...inv,
+                amount: String(amount),
+                balance: String(balance >= 0 ? balance : 0),
+              }
             : inv
         );
         const total = newList.reduce(
@@ -645,9 +652,9 @@ const PaymentVoucherManagement = () => {
         amount: String(inv.amount || payment.totalAmount || 0),
         balance: String(
           inv.balance ||
-          ((typeof inv.invoiceId === "object"
-            ? inv.invoiceId?.totalAmount
-            : payment.totalAmount) || 0) - (inv.amount || 0)
+            ((typeof inv.invoiceId === "object"
+              ? inv.invoiceId?.totalAmount
+              : payment.totalAmount) || 0) - (inv.amount || 0)
         ),
       }));
       const paymentDetails = payment.paymentDetails || {};
@@ -772,8 +779,8 @@ const PaymentVoucherManagement = () => {
     return diffMins < 1
       ? "just now"
       : diffMins < 60
-        ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
-        : t.toLocaleTimeString();
+      ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
+      : t.toLocaleTimeString();
   }, []);
 
   const handleViewPayment = useCallback((payment) => {
@@ -784,113 +791,6 @@ const PaymentVoucherManagement = () => {
     setSelectedPayment(null);
   }, []);
 
-  const handleDownloadPDF = useCallback(async () => {
-    try {
-      setIsGeneratingPDF(true);
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      const input = document.getElementById("payment-content");
-      if (!input) {
-        showToastMessage("Payment content not found!", "error");
-        return;
-      }
-
-      const canvas = await html2canvas(input, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: input.scrollWidth,
-        height: input.scrollHeight,
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById("payment-content");
-          if (clonedElement) {
-            clonedElement.style.display = 'block';
-            clonedElement.style.visibility = 'visible';
-          }
-        }
-      });
-
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
-
-      const imgX = (pdfWidth - (imgWidth * 0.264583 * ratio)) / 2;
-      const imgY = 0;
-
-      pdf.addImage(
-        imgData,
-        'PNG',
-        imgX,
-        imgY,
-        imgWidth * 0.264583 * ratio,
-        imgHeight * 0.264583 * ratio,
-        undefined,
-        'FAST'
-      );
-
-      const filename = `Payment_${selectedPayment.voucherNo}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(filename);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      showToastMessage("Failed to generate PDF. Please try again or use the Print option.", "error");
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  }, [selectedPayment, showToastMessage]);
-
-  const handlePrintPDF = useCallback(() => {
-    const printWindow = window.open('', '_blank');
-    const paymentContent = document.getElementById("payment-content");
-
-    if (!paymentContent || !printWindow) {
-      showToastMessage("Unable to open print dialog", "error");
-      return;
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Payment_${selectedPayment.voucherNo}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body { 
-              margin: 0; 
-              padding: 20px; 
-              font-family: Arial, sans-serif;
-              line-height: 1.4;
-              color: #000;
-            }
-            @media print { 
-              body { margin: 0; padding: 0; }
-              .no-print { display: none !important; }
-            }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { padding: 8px; text-align: left; border: 1px solid #000; }
-          </style>
-        </head>
-        <body>
-          ${paymentContent.innerHTML}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 250);
-  }, [selectedPayment, showToastMessage]);
 
   const safePayments = useMemo(() => asArray(payments), [payments]);
 
@@ -929,209 +829,41 @@ const PaymentVoucherManagement = () => {
           sortConfig.key === "amount"
             ? Number(a.totalAmount ?? a.amount)
             : sortConfig.key === "date"
-              ? new Date(a.date).getTime()
-              : sortConfig.key === "linkedInvoices"
-                ? asArray(a.linkedInvoices).length
-                : by(a[sortConfig.key]);
+            ? new Date(a.date).getTime()
+            : sortConfig.key === "linkedInvoices"
+            ? asArray(a.linkedInvoices).length
+            : by(a[sortConfig.key]);
         const bv =
           sortConfig.key === "amount"
             ? Number(b.totalAmount ?? b.amount)
             : sortConfig.key === "date"
-              ? new Date(b.date).getTime()
-              : sortConfig.key === "linkedInvoices"
-                ? asArray(b.linkedInvoices).length
-                : by(b[sortConfig.key]);
+            ? new Date(b.date).getTime()
+            : sortConfig.key === "linkedInvoices"
+            ? asArray(b.linkedInvoices).length
+            : by(b[sortConfig.key]);
         return av < bv
           ? sortConfig.direction === "asc"
             ? -1
             : 1
           : av > bv
-            ? sortConfig.direction === "asc"
-              ? 1
-              : -1
-            : 0;
+          ? sortConfig.direction === "asc"
+            ? 1
+            : -1
+          : 0;
       });
     }
     return filtered;
   }, [safePayments, searchTerm, filterPaymentMode, sortConfig]);
 
   if (selectedPayment) {
-    const vendor = vendors.find(
-      (v) => v._id === (typeof selectedPayment.partyId === "object" ? selectedPayment.partyId._id : selectedPayment.partyId)
-    );
-    const totals = asArray(selectedPayment.linkedInvoices).reduce(
-      (acc, inv) => ({
-        total: acc.total + (Number(inv.amount) || 0),
-      }),
-      { total: 0 }
-    );
-
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={handleBackToList}
-              className="flex items-center space-x-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to List</span>
-            </button>
-            <div className="flex space-x-3">
-              <button
-                onClick={handleDownloadPDF}
-                disabled={isGeneratingPDF}
-                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGeneratingPDF ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
-              </button>
-              <button
-                onClick={handlePrintPDF}
-                className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Print PDF</span>
-              </button>
-            </div>
-          </div>
-          <div
-            id="payment-content"
-            className="bg-white shadow-lg"
-            style={{
-              width: '210mm',
-              minHeight: '297mm',
-              margin: '0 auto',
-              padding: '20mm',
-              fontSize: '12px',
-              lineHeight: '1.4',
-              fontFamily: 'Arial, sans-serif',
-              color: '#000'
-            }}
-          >
-            <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #8B5CF6', paddingBottom: '15px' }}>
-              <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0', direction: 'rtl' }}>
-                نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
-              </h1>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 15px 0', color: '#0f766e' }}>
-                NH FOODSTUFF TRADING LLC S.O.C.
-              </h2>
-              <div style={{ backgroundColor: '#c8a2c8', color: 'white', padding: '8px', margin: '0 -20mm 20px -20mm' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>PAYMENT VOUCHER</h3>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '10px' }}>
-              <div>
-                <p style={{ margin: '2px 0' }}>Dubai, UAE</p>
-                <p style={{ margin: '2px 0' }}>VAT Reg. No: 10503303</p>
-                <p style={{ margin: '2px 0' }}>Email: finance@nhfo.com</p>
-                <p style={{ margin: '2px 0' }}>Phone: +971 58 724 2111</p>
-                <p style={{ margin: '2px 0' }}>Web: www.nhfo.com</p>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <img
-                  src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                  alt="NH Foods Logo"
-                  style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-                />
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: '2px 0' }}>Date: {new Date(selectedPayment.date).toLocaleDateString("en-GB")}</p>
-                <p style={{ margin: '2px 0' }}>Voucher No: {selectedPayment.voucherNo}</p>
-                <p style={{ margin: '2px 0' }}>Payment Mode: {displayMode(selectedPayment.paymentMode)}</p>
-              </div>
-            </div>
-            <div style={{ backgroundColor: '#e6d7e6', padding: '10px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>Paid To:</div>
-                  <div style={{ fontSize: '10px' }}>
-                    <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{selectedPayment.partyName || selectedPayment.vendorName}</p>
-                    <p style={{ margin: '2px 0' }}>{vendor?.address?.split("\n")[0] || ''}</p>
-                    <p style={{ margin: '2px 0' }}>{vendor?.address?.split("\n")[1] || ''}</p>
-                    <p style={{ margin: '2px 0' }}>Tel: {vendor?.phone || '-'}</p>
-                  </div>
-                </div>
-                <div style={{ fontSize: '10px' }}>
-                  <p style={{ margin: '2px 0' }}>VAT Reg. No:</p>
-                  <p style={{ margin: '2px 0', fontWeight: 'bold' }}>{vendor?.vatNumber || '-'}</p>
-                </div>
-              </div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#e6d7e6' }}>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Invoice No</th>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Amount</th>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {asArray(selectedPayment.linkedInvoices).map((inv, index) => (
-                  <tr key={index}>
-                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>
-                      {inv.invoiceId?.transactionNo || inv.transactionNo || inv.invoiceId || "N/A"}
-                    </td>
-                    <td style={{ border: '1px solid #000', padding: '6px' }}>{selectedPayment.narration || "-"}</td>
-                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{Number(inv.amount).toFixed(2)}</td>
-                    <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{Number(inv.balance).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div style={{ width: '45%' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '10px' }}>BANK DETAILS:-</div>
-                <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                  <p style={{ margin: '2px 0' }}><strong>BANK:</strong> NATIONAL BANK OF ABUDHABI</p>
-                  <p style={{ margin: '2px 0' }}><strong>ACCOUNT NO:</strong> 087989283001</p>
-                </div>
-              </div>
-              <div style={{ width: '40%' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-                  <tr>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Total</td>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{totals.total.toFixed(2)}</td>
-                  </tr>
-                </table>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
-              <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                <p style={{ margin: '2px 0' }}><strong>IBAN NO:</strong> AE410547283001</p>
-                <p style={{ margin: '2px 0' }}><strong>CURRENCY:</strong> AED</p>
-                <p style={{ margin: '2px 0' }}><strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C</p>
-              </div>
-              <div style={{ border: '2px solid #000', padding: '10px 20px', backgroundColor: '#f9f9f9' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>GRAND TOTAL</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{totals.total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: '30px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <p style={{ fontSize: '11px', margin: '0' }}>Payment issued in good order.</p>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '20px' }}>
-                <div style={{ fontSize: '11px', width: '45%' }}>
-                  <p style={{ margin: '0 0 30px 0' }}>Received by:</p>
-                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
-                </div>
-                <div style={{ fontSize: '11px', width: '45%', textAlign: 'right' }}>
-                  <p style={{ margin: '0 0 30px 0' }}>Prepared by:</p>
-                  <div style={{ borderBottom: '1px solid #000', marginBottom: '5px' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PaymentInvoiceView
+        selectedPayment={selectedPayment}
+        vendors={vendors}
+        onBack={handleBackToList}
+        voucherType="payment"
+        showToastMessage={showToastMessage}
+      />
     );
   }
 
@@ -1207,10 +939,11 @@ const PaymentVoucherManagement = () => {
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${showFilters
-              ? "bg-purple-100 text-purple-600"
-              : "bg-white text-gray-600"
-              }`}
+            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+              showFilters
+                ? "bg-purple-100 text-purple-600"
+                : "bg-white text-gray-600"
+            }`}
             title="Toggle filters"
           >
             <Filter size={16} />
@@ -1582,13 +1315,15 @@ const PaymentVoucherManagement = () => {
                 />
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <LinkIcon size={16} className="inline mr-2" /> Linked Invoice(s) *
+                    <LinkIcon size={16} className="inline mr-2" /> Linked
+                    Invoice(s) *
                   </label>
                   <div
-                    className={`border rounded-xl p-4 max-h-48 overflow-y-auto ${errors.linkedInvoices
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300"
-                      }`}
+                    className={`border rounded-xl p-4 max-h-48 overflow-y-auto ${
+                      errors.linkedInvoices
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
                   >
                     {availableInvoices.length === 0 ? (
                       <p className="text-gray-500 text-sm text-center py-4">
@@ -1609,7 +1344,12 @@ const PaymentVoucherManagement = () => {
                                 checked={asArray(formData.linkedInvoices).some(
                                   (i) => i.invoiceId === inv._id
                                 )}
-                                onChange={() => handleInvoiceSelection(inv._id, inv.totalAmount)}
+                                onChange={() =>
+                                  handleInvoiceSelection(
+                                    inv._id,
+                                    inv.totalAmount
+                                  )
+                                }
                                 className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
                               />
                               <div>
@@ -1630,7 +1370,10 @@ const PaymentVoucherManagement = () => {
                                   )?.amount || ""
                                 }
                                 onChange={(e) =>
-                                  handleInvoiceAmountChange(inv._id, e.target.value)
+                                  handleInvoiceAmountChange(
+                                    inv._id,
+                                    e.target.value
+                                  )
                                 }
                                 placeholder="Amount"
                                 min="0"
@@ -1791,7 +1534,9 @@ const PaymentVoucherManagement = () => {
                           )}
                           <div>
                             <p className="font-medium text-sm text-gray-900">
-                              {getFileName(selectedFile || existingProof?.fileName)}
+                              {getFileName(
+                                selectedFile || existingProof?.fileName
+                              )}
                             </p>
                             <p className="text-xs text-gray-500">
                               {getFileSize(selectedFile || existingProof)}

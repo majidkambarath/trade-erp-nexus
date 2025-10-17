@@ -1,8 +1,9 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { ArrowLeft, Download, Printer, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import DirhamIcon from "../../../assets/dirham.svg";
+import axiosInstance from "../../../axios/axios";
 
 const JournalVoucherView = ({
   selectedVoucher,
@@ -11,6 +12,73 @@ const JournalVoucherView = ({
   showToastMessage,
 }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [profileData, setProfileData] = useState({
+    companyName: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    stateProvince: "",
+    country: "United Arab Emirates",
+    postalCode: "",
+    phoneNumber: "",
+    email: "",
+    website: "",
+    logo: null,
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    ibanNumber: "",
+    currency: "AED",
+    vatNumber: "",
+  });
+
+  const adminId = sessionStorage.getItem("adminId");
+  const token = sessionStorage.getItem("accessToken");
+
+  useEffect(() => {
+    const loadProfileData = async () => {
+      if (!adminId || !token) {
+        console.warn("Authentication required");
+        return;
+      }
+
+      try {
+        const response = await axiosInstance.get("/profile/me");
+        if (response.data.success) {
+          const data = response.data.data;
+          setProfileData({
+            companyName: data.companyInfo?.companyName || "",
+            addressLine1: data.companyInfo?.addressLine1 || "",
+            addressLine2: data.companyInfo?.addressLine2 || "",
+            city: data.companyInfo?.city || "",
+            stateProvince: data.companyInfo?.state || "",
+            country: data.companyInfo?.country || "United Arab Emirates",
+            postalCode: data.companyInfo?.postalCode || "",
+            phoneNumber: data.companyInfo?.phoneNumber || "",
+            email: data.companyInfo?.emailAddress || data.email || "",
+            website: data.companyInfo?.website || "",
+            logo: data.companyInfo?.companyLogo?.url || null,
+            bankName: data.companyInfo?.bankDetails?.bankName || "",
+            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
+            accountName: data.companyInfo?.bankDetails?.accountName || "",
+            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
+            currency: data.companyInfo?.bankDetails?.currency || "AED",
+            vatNumber: data.companyInfo?.vatNumber || "",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load profile data:", error);
+        showToastMessage(
+          `Failed to load profile data: ${
+            error.response?.data?.message || error.message
+          }`,
+          "error"
+        );
+      }
+    };
+
+    loadProfileData();
+  }, [adminId, token, showToastMessage]);
 
   if (!selectedVoucher) return null;
 
@@ -224,7 +292,7 @@ const JournalVoucherView = ({
                 direction: "rtl",
               }}
             >
-              نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
+              { "نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و"}
             </h1>
             <h2
               style={{
@@ -234,7 +302,7 @@ const JournalVoucherView = ({
                 color: "#0f766e",
               }}
             >
-              NH FOODSTUFF TRADING LLC S.O.C.
+              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
             </h2>
             <div
               style={{
@@ -260,16 +328,31 @@ const JournalVoucherView = ({
             }}
           >
             <div>
-              <p style={{ margin: "2px 0" }}>Dubai, UAE</p>
-              <p style={{ margin: "2px 0" }}>VAT Reg. No: 10503303</p>
-              <p style={{ margin: "2px 0" }}>Email: finance@nhfo.com</p>
-              <p style={{ margin: "2px 0" }}>Phone: +971 58 724 2111</p>
-              <p style={{ margin: "2px 0" }}>Web: www.nhfo.com</p>
+              <p style={{ margin: "2px 0" }}>
+                {profileData.city && profileData.country
+                  ? `${profileData.city}, ${profileData.country}`
+                  : "Dubai, UAE"}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                VAT Reg. No: {profileData.vatNumber || "10503303"}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                Email: {profileData.email || "finance@nhfo.com"}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                Phone: {profileData.phoneNumber || "+971 58 724 2111"}
+              </p>
+              <p style={{ margin: "2px 0" }}>
+                Web: {profileData.website || "www.nhfo.com"}
+              </p>
             </div>
             <div style={{ textAlign: "center" }}>
               <img
-                src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                alt="NH Foods Logo"
+                src={
+                  profileData.logo ||
+                  "https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
+                }
+                alt="Company Logo"
                 style={{
                   width: "80px",
                   height: "80px",
@@ -424,10 +507,12 @@ const JournalVoucherView = ({
               </div>
               <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>BANK:</strong> NATIONAL BANK OF ABUDHABI
+                  <strong>BANK:</strong>{" "}
+                  {profileData.bankName || "NATIONAL BANK OF ABUDHABI"}
                 </p>
                 <p style={{ margin: "2px 0" }}>
-                  <strong>ACCOUNT NO:</strong> 087989283001
+                  <strong>ACCOUNT NO:</strong>{" "}
+                  {profileData.accountNumber || "087989283001"}
                 </p>
               </div>
             </div>
@@ -473,13 +558,15 @@ const JournalVoucherView = ({
           >
             <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
               <p style={{ margin: "2px 0" }}>
-                <strong>IBAN NO:</strong> AE410547283001
+                <strong>IBAN NO:</strong>{" "}
+                {profileData.ibanNumber || "AE410547283001"}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> AED
+                <strong>CURRENCY:</strong> {profileData.currency || "AED"}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> NH FOODSTUFF TRADING LLC S.O.C
+                <strong>ACCOUNT NAME:</strong>{" "}
+                {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
               </p>
             </div>
             <div

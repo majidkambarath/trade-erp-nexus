@@ -426,32 +426,33 @@ const SaleAccountsManagement = () => {
       (acc, inv) => {
         const total = Number(inv.totalAmount) || 0;
         const tax = Number(inv.taxAmount) || 0;
-        const paid = Number(inv.paidAmount) || 0;
+        const paid = Number(inv.amount) || 0; // Use the paid amount from the invoice
         return {
-          saleAmount: acc.saleAmount + (total - tax),
+          purchaseAmount: acc.purchaseAmount + (total - tax),
           taxAmount: acc.taxAmount + tax,
           total: acc.total + total,
           paidAmount: acc.paidAmount + paid,
         };
       },
-      { saleAmount: 0, taxAmount: 0, total: 0, paidAmount: 0 }
+      { purchaseAmount: 0, taxAmount: 0, total: 0, paidAmount: 0 }
     );
-    const balanceAmount = totals.total - totals.paidAmount;
-    const status =
-      balanceAmount <= 0
-        ? "Paid"
-        : totals.paidAmount === 0
-        ? "Unpaid"
-        : "Partially Paid";
+    const balanceAmount = totals.total - totals.paidAmount; // Initial balance
+    const status = selectedInvoicesData.every(
+      (inv) => (Number(inv.amount) || 0) >= Number(inv.totalAmount)
+    )
+      ? "Paid"
+      : selectedInvoicesData.every((inv) => (Number(inv.amount) || 0) === 0)
+      ? "Unpaid"
+      : "Partially Paid";
     setFormData((prev) => ({
       ...prev,
       invoiceNumber: selectedInvoicesData
-        .map((inv) => inv.voucherNo)
+        .map((inv) => inv.voucherNo || inv.transactionNo)
         .join(", "),
       date:
         selectedInvoicesData[0]?.date?.split("T")[0] ||
         new Date().toISOString().split("T")[0],
-      saleAmount: totals.saleAmount.toFixed(2),
+      purchaseAmount: totals.purchaseAmount.toFixed(2),
       taxAmount: totals.taxAmount.toFixed(2),
       total: totals.total.toFixed(2),
       paidAmount: totals.paidAmount.toFixed(2),
@@ -470,18 +471,19 @@ const SaleAccountsManagement = () => {
       const newData = { ...prev, [name]: value };
       if (name === "returnAmount") {
         const total =
-          Number(prev.saleAmount) + Number(prev.taxAmount) - Number(value);
+          Number(prev.purchaseAmount) + Number(prev.taxAmount) - Number(value);
         const balanceAmount = total - Number(prev.paidAmount);
+        const status =
+          balanceAmount <= 0
+            ? "Paid"
+            : balanceAmount === total
+            ? "Unpaid"
+            : "Partially Paid";
         return {
           ...newData,
           total: total.toFixed(2),
           balanceAmount: balanceAmount.toFixed(2),
-          status:
-            balanceAmount <= 0
-              ? "Paid"
-              : Number(prev.paidAmount) === 0
-              ? "Unpaid"
-              : "Partially Paid",
+          status,
         };
       }
       return newData;
@@ -528,20 +530,38 @@ const SaleAccountsManagement = () => {
     }
     setIsSubmitting(true);
     try {
+      const selectedInvoiceIds = selectedInvoices.map((invoice) => invoice._id);
+      const voucherIds = vouchers
+        .filter((voucher) =>
+          voucher.linkedInvoices?.some((link) =>
+            selectedInvoiceIds.includes(link.invoiceId?._id || link.invoiceId)
+          )
+        )
+        .map((voucher) => voucher._id);
+
+      const invoiceBalances = selectedInvoices.map((inv) => {
+        const total = Number(inv.totalAmount) || 0;
+        const linkedPayments = vouchers.reduce((acc, voucher) => {
+          const link = voucher.linkedInvoices?.find(
+            (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
+          );
+          return acc + (Number(link?.amount) || 0);
+        }, 0);
+        const returnAmount = Number(formData.returnAmount) || 0;
+        const balance = total - linkedPayments - returnAmount;
+        return {
+          invoiceId: inv._id,
+          transactionNo: inv.voucherNo || inv.transactionNo,
+          balanceAmount: balance.toFixed(2),
+        };
+      });
+
       const payload = {
         partyId: formData.customerId,
         partyType: "Customer",
         voucherType: "sale",
         invoiceIds: selectedInvoices.map((inv) => inv._id),
-        voucherIds: vouchers
-          .filter((v) =>
-            v.linkedInvoices?.some((link) =>
-              selectedInvoices.some(
-                (inv) => inv._id === (link.invoiceId?._id || link.invoiceId)
-              )
-            )
-          )
-          .map((v) => v._id),
+        voucherIds: voucherIds,
         transactionNo: formData.invoiceNumber,
         date: formData.date,
         totalAmount: Number(formData.total),
@@ -549,20 +569,7 @@ const SaleAccountsManagement = () => {
         paidAmount: Number(formData.paidAmount) || 0,
         balanceAmount: Number(formData.balanceAmount) || 0,
         status: formData.status,
-        invoiceBalances: selectedInvoices.map((inv) => ({
-          invoiceId: inv._id,
-          transactionNo: inv.voucherNo,
-          balanceAmount: (
-            Number(inv.totalAmount) -
-            vouchers.reduce((acc, v) => {
-              const link = v.linkedInvoices?.find(
-                (l) => (l.invoiceId?._id || l.invoiceId) === inv._id
-              );
-              return acc + (Number(link?.amount) || 0);
-            }, 0) -
-            (Number(formData.returnAmount) || 0)
-          ).toFixed(2),
-        })),
+        invoiceBalances: invoiceBalances,
       };
       await axiosInstance.post("/account/account-vouchers", payload);
       showToastMessage("Sale invoice created successfully!", "success");
@@ -1148,7 +1155,7 @@ const SaleAccountsManagement = () => {
                           {voucher.customerName}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                          {voucher.voucherNo} (Inv: {link.invoiceNo})
+                          {voucher.voucherNo}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {new Date(voucher.date).toLocaleDateString()}

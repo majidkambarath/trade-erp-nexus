@@ -95,7 +95,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
                 ? invoiceItems.reduce((sum, item) => sum + (Number(item.taxPercent) || 0), 0) /
                   invoiceItems.length
                 : 0;
-
+              
             const invoiceDetails = {
               _id: invoiceId,
               transactionNo: link.invoiceId?.transactionNo || "Unknown",
@@ -118,6 +118,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
               amount: link.amount || 0,
               balance: (totalLineTotal - (link.amount || 0)).toFixed(2),
             };
+            console.log(invoiceDetails)
             uniqueInvoices.push(invoiceDetails);
           }
         });
@@ -169,12 +170,11 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
       );
       const balanceAmount = totalAmount - paidAmount;
 
-      const status =
-        balanceAmount <= 0
-          ? "Paid"
-          : paidAmount === 0
-          ? "Unpaid"
-          : "Partially Paid";
+       const status = selectedInvoiceData.every((inv) => inv.status === "paid")
+        ? "Paid"
+        : selectedInvoiceData.every((inv) => inv.status === "unpaid")
+        ? "Unpaid"
+        : "Partially Paid";
 
       onInvoiceSelect(selectedInvoiceData, {
         purchaseAmount: (totalPurchaseAmount - taxAmount).toFixed(2), // Base amount excluding tax

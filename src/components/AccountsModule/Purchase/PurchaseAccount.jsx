@@ -277,6 +277,7 @@ const PurchaseAccountsManagement = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [activeTab, setActiveTab] = useState("invoices");
   const [selectedInvoices, setSelectedInvoices] = useState([]);
+  console.log(selectedInvoices);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -447,7 +448,7 @@ const PurchaseAccountsManagement = () => {
       (acc, inv) => {
         const total = Number(inv.totalAmount) || 0;
         const tax = Number(inv.taxAmount) || 0;
-        const paid = Number(inv.paidAmount) || 0;
+        const paid = Number(inv.amount) || 0; // Use the paid amount from the invoice
         return {
           purchaseAmount: acc.purchaseAmount + (total - tax),
           taxAmount: acc.taxAmount + tax,
@@ -457,13 +458,14 @@ const PurchaseAccountsManagement = () => {
       },
       { purchaseAmount: 0, taxAmount: 0, total: 0, paidAmount: 0 }
     );
-    const balanceAmount = totals.total - totals.paidAmount;
-    const status =
-      balanceAmount <= 0
-        ? "Paid"
-        : totals.paidAmount === 0
-        ? "Unpaid"
-        : "Partially Paid";
+    const balanceAmount = totals.total - totals.paidAmount; // Initial balance
+    const status = selectedInvoicesData.every(
+      (inv) => (Number(inv.amount) || 0) >= Number(inv.totalAmount)
+    )
+      ? "Paid"
+      : selectedInvoicesData.every((inv) => (Number(inv.amount) || 0) === 0)
+      ? "Unpaid"
+      : "Partially Paid";
     setFormData((prev) => ({
       ...prev,
       invoiceNumber: selectedInvoicesData
@@ -493,16 +495,17 @@ const PurchaseAccountsManagement = () => {
         const total =
           Number(prev.purchaseAmount) + Number(prev.taxAmount) - Number(value);
         const balanceAmount = total - Number(prev.paidAmount);
+        const status =
+          balanceAmount <= 0
+            ? "Paid"
+            : balanceAmount === total
+            ? "Unpaid"
+            : "Partially Paid";
         return {
           ...newData,
           total: total.toFixed(2),
           balanceAmount: balanceAmount.toFixed(2),
-          status:
-            balanceAmount <= 0
-              ? "Paid"
-              : Number(prev.paidAmount) === 0
-              ? "Unpaid"
-              : "Partially Paid",
+          status,
         };
       }
       return newData;
@@ -566,8 +569,8 @@ const PurchaseAccountsManagement = () => {
           );
           return acc + (Number(link?.amount) || 0);
         }, 0);
-        const balance =
-          total - linkedPayments - (Number(formData.returnAmount) || 0);
+        const returnAmount = Number(formData.returnAmount) || 0;
+        const balance = total - linkedPayments - returnAmount;
         return {
           invoiceId: inv._id,
           transactionNo: inv.voucherNo || inv.transactionNo,
@@ -1224,7 +1227,7 @@ const PurchaseAccountsManagement = () => {
                             {voucher.vendorName}
                           </td>
                           <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                            {voucher.voucherNo} 
+                            {voucher.voucherNo}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {new Date(voucher.date).toLocaleDateString()}

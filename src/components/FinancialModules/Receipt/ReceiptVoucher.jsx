@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import axios from "../../../axios/axios";
 import InvoiceSelection from "./InvoiceSelection";
-import ReceiptView from "./ReceiptView";
+import PaymentInvoiceView from "../Payment/PaymentInvoiceView";
 import CustomerSelect from "./CustomerSelect";
 import {
   asArray,
@@ -649,10 +649,12 @@ const ReceiptVoucherManagement = () => {
 
   if (selectedReceipt) {
     return (
-      <ReceiptView
-        receipt={selectedReceipt}
-        customers={customers}
+      <PaymentInvoiceView
+        selectedPayment={selectedReceipt}
+        vendors={customers}
         onBack={handleBackToList}
+        voucherType="receipt"
+        showToastMessage={showToastMessage}
       />
     );
   }

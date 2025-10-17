@@ -249,6 +249,9 @@ const PurchaseOrderManagement = () => {
       const pending = purchaseOrders.filter(
         (po) => po.status === "PENDING"
       ).length;
+      const paid = purchaseOrders.filter(
+        (po) => po.status === "paid"
+      ).length;
       const approved = purchaseOrders.filter(
         (po) => po.status === "APPROVED"
       ).length;
@@ -294,6 +297,7 @@ const PurchaseOrderManagement = () => {
         pending,
         approved,
         draft,
+        paid,
         rejected,
         totalValue,
         approvedValue,
@@ -715,6 +719,24 @@ const PurchaseOrderManagement = () => {
                   style={{
                     width: `${
                       (statistics.pending / statistics.total) * 100 || 0
+                    }%`,
+                  }}
+                ></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-slate-700">Paid</span>
+                <span className="text-xs font-medium text-amber-600">
+                  {statistics.paid}
+                </span>
+              </div>
+              <div className="h-2 bg-amber-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 transition-all duration-500 ease-out"
+                  style={{
+                    width: `${
+                      (statistics.paid / statistics.total) * 100 || 0
                     }%`,
                   }}
                 ></div>
