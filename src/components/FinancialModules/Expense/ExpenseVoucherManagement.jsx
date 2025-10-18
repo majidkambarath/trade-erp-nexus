@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -22,7 +28,7 @@ import {
   Filter,
   Receipt,
   AlertTriangle,
-  Link as LinkIcon,
+  LinkIcon,
   Loader2,
   Upload,
   Eye,
@@ -39,7 +45,9 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"}`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     />
     {error && (
       <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -49,28 +57,111 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
   </div>
 );
 
-const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      <Icon size={16} className="inline mr-2" /> {label} *
-    </label>
-    <select
-      {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"}`}
-    >
-      {options.map(({ value, label }) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </select>
-    {error && (
-      <p className="mt-1 text-sm text-red-600 flex items-center">
-        <AlertCircle size={12} className="mr-1" /> {error}
-      </p>
-    )}
-  </div>
-);
+const FormSelect = ({
+  label,
+  icon: Icon,
+  error,
+  options,
+  onAddNew,
+  data,
+  ...props
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = options.filter((option) =>
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <Icon size={16} className="inline mr-2" /> {label} *
+      </label>
+      <div className="relative">
+        <div
+          className={`w-full px-4 py-3 border rounded-xl focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-transparent transition-all duration-200 ${
+            error ? "border-red-300 bg-red-50" : "border-gray-300"
+          } bg-white cursor-pointer flex items-center justify-between`}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <span className="text-sm text-gray-900">
+            {options.find((opt) => opt.value === props.value)?.label ||
+              "Select an expense type"}
+          </span>
+          {data && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddNew();
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
+                title="Add new expense type"
+              >
+                <Plus size={14} /> <span className="text-xs">New</span>
+              </button>
+            </div>
+          )}
+        </div>
+        {isOpen && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+            <div className="p-2">
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search expense types..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm"
+                />
+              </div>
+            </div>
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-2 text-sm text-gray-500">
+                No expense types found
+              </p>
+            ) : (
+              filteredOptions.map(({ value, label }) => (
+                <div
+                  key={value}
+                  className="px-4 py-2 text-sm text-gray-900 hover:bg-purple-50 cursor-pointer transition-all duration-200"
+                  onClick={() => {
+                    props.onChange({ target: { name: props.name, value } });
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                >
+                  {label}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {error && (
+        <p className="mt-1 text-sm text-red-600 flex items-center">
+          <AlertCircle size={12} className="mr-1" /> {error}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const FormFileUpload = ({ label, icon: Icon, error, ...props }) => (
   <div>
@@ -81,7 +172,9 @@ const FormFileUpload = ({ label, icon: Icon, error, ...props }) => (
       type="file"
       accept="application/pdf,image/jpeg,image/png"
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"}`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     />
     {error && (
       <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -98,7 +191,9 @@ const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
     </label>
     <textarea
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"}`}
+      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      }`}
     />
     {error && (
       <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -111,7 +206,9 @@ const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${type === "success" ? "bg-emerald-500" : "bg-red-500"}`}
+      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${
+        type === "success" ? "bg-emerald-500" : "bg-red-500"
+      }`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -163,12 +260,12 @@ const SessionManager = {
   set(key, value) {
     try {
       SessionManager.storage[SessionManager.key(key)] = value;
-    } catch { }
+    } catch {}
   },
   remove(key) {
     try {
       delete SessionManager.storage[SessionManager.key(key)];
-    } catch { }
+    } catch {}
   },
   clear() {
     Object.keys(SessionManager.storage).forEach((k) => {
@@ -182,13 +279,18 @@ const takeArray = (resp) => {
   if (!resp) return [];
   const d = resp.data;
   if (Array.isArray(d)) return d;
-  if (Array.isArray(d?.data)) return d.data.data ?? d.data;
-  if (Array.isArray(d?.vouchers)) return d.vouchers;
+  if (Array.isArray(d?.data?.expenseTypes)) return d.data.expenseTypes;
+  if (Array.isArray(d?.expenseTypes)) return d.expenseTypes;
+  if (Array.isArray(d?.data)) return d.data;
   return [];
 };
 
 const by = (value) => (value || "").toString().toLowerCase();
-const formatCurrency = (amount, colorClass = "text-gray-900", isSummaryCard = false) => {
+const formatCurrency = (
+  amount,
+  colorClass = "text-gray-900",
+  isSummaryCard = false
+) => {
   const numAmount = Number(amount) || 0;
   const absAmount = Math.abs(numAmount).toFixed(2);
   const isNegative = numAmount < 0;
@@ -204,13 +306,20 @@ const formatCurrency = (amount, colorClass = "text-gray-900", isSummaryCard = fa
 
 const ExpenseVoucherManagement = () => {
   const [vouchers, setVouchers] = useState([]);
+  const [expenseTypes, setExpenseTypes] = useState([]);
+  const [transactors, setTransactors] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showExpenseTypeModal, setShowExpenseTypeModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState(
     SessionManager.get("searchTerm") || ""
   );
   const [editVoucherId, setEditVoucherId] = useState(null);
+  const [editExpenseTypeId, setEditExpenseTypeId] = useState(null);
+  const [expenseTypeForm, setExpenseTypeForm] = useState({ name: "" });
+  const [expenseTypeErrors, setExpenseTypeErrors] = useState({});
   const [formData, setFormData] = useState({
-    expenseType: "Travel",
+    expenseType: "",
+    transactor: "",
     amount: "",
     description: "",
     attachReceipt: null,
@@ -221,6 +330,7 @@ const ExpenseVoucherManagement = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExpenseTypeSubmitting, setIsExpenseTypeSubmitting] = useState(false);
   const [showToast, setShowToast] = useState({
     visible: false,
     message: "",
@@ -236,8 +346,18 @@ const ExpenseVoucherManagement = () => {
     voucherNo: "",
     isDeleting: false,
   });
+  const [expenseTypeDeleteConfirmation, setExpenseTypeDeleteConfirmation] =
+    useState({
+      visible: false,
+      expenseTypeId: null,
+      expenseTypeName: "",
+      isDeleting: false,
+      associatedVouchers: [],
+      errorMessage: "",
+    });
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const formRef = useRef(null);
+  const expenseTypeFormRef = useRef(null);
 
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
@@ -245,6 +365,8 @@ const ExpenseVoucherManagement = () => {
       setFormData((prev) => ({ ...prev, ...savedFormData }));
     }
     fetchVouchers();
+    fetchExpenseTypes();
+    fetchTransactors();
   }, []);
 
   useEffect(() => {
@@ -277,7 +399,10 @@ const ExpenseVoucherManagement = () => {
         const response = await axiosInstance.get("/vouchers/vouchers", {
           params: { voucherType: "expense" },
         });
-        setVouchers(takeArray(response));
+        const vouchersData = takeArray(response).filter(
+        (info) => info.status !== "cancelled"
+      );
+        setVouchers(vouchersData);
         if (showRefreshIndicator) showToastMessage("Data refreshed", "success");
       } catch (err) {
         showToastMessage(
@@ -293,31 +418,103 @@ const ExpenseVoucherManagement = () => {
     [showToastMessage]
   );
 
-  const handleChange = useCallback(
-    (e) => {
-      const { name, value, files } = e.target;
-      setFormData((prev) => ({
-        ...prev,
-        [name]: files ? files[0] : value,
+  const fetchExpenseTypes = useCallback(async () => {
+    try {
+      const response = await axiosInstance.get("/expense/expense-types");
+      const types = takeArray(response).map((type) => ({
+        value: type._id,
+        label: type.name,
       }));
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    },
-    []
-  );
+      setExpenseTypes(types);
+      if (!formData.expenseType && types.length > 0) {
+        setFormData((prev) => ({ ...prev, expenseType: types[0].value }));
+      }
+    } catch (err) {
+      showToastMessage(
+        err.response?.data?.message || "Failed to fetch expense types.",
+        "error"
+      );
+      setExpenseTypes([]);
+    }
+  }, [showToastMessage, formData.expenseType]);
+
+  const fetchTransactors = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await axiosInstance.get("/account-v2/Transactor");
+      const transactorData = res.data.data.map((t) => ({
+        value: t._id,
+        label: `${t.accountName} (${t.accountCode})`,
+        accountType: t.accountType,
+      }));
+      setTransactors(transactorData);
+      if (!formData.transactor && transactorData.length > 0) {
+        const expenseTransactor = transactorData.find(
+          (t) => t.accountType === "expense"
+        );
+        setFormData((prev) => ({
+          ...prev,
+          transactor: expenseTransactor
+            ? expenseTransactor.value
+            : transactorData[0].value,
+        }));
+      }
+    } catch (err) {
+      showToastMessage("Failed to fetch transactors.", "error");
+      setTransactors([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [showToastMessage]);
+
+  const fetchAssociatedVouchers = useCallback(async (expenseTypeId) => {
+    try {
+      const response = await axiosInstance.get("/vouchers/vouchers", {
+        params: { expenseType: expenseTypeId },
+      });
+      return takeArray(response);
+    } catch (err) {
+      console.error("Failed to fetch associated vouchers:", err);
+      return [];
+    }
+  }, []);
+
+  const handleChange = useCallback((e) => {
+    const { name, value, files } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: files ? files[0] : value,
+    }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  }, []);
+
+  const handleExpenseTypeChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setExpenseTypeForm((prev) => ({ ...prev, [name]: value }));
+    setExpenseTypeErrors((prev) => ({ ...prev, [name]: "" }));
+  }, []);
 
   const validateForm = useCallback(() => {
     const e = {};
     if (!formData.expenseType) e.expenseType = "Expense Type is required";
+    if (!formData.transactor) e.transactor = "Transactor is required";
     if (!formData.amount || Number(formData.amount) <= 0)
       e.amount = "Amount must be greater than 0";
     if (!formData.date) e.date = "Date is required";
     return e;
   }, [formData]);
 
+  const validateExpenseTypeForm = useCallback(() => {
+    const e = {};
+    if (!expenseTypeForm.name.trim()) e.name = "Expense Type name is required";
+    return e;
+  }, [expenseTypeForm]);
+
   const resetForm = useCallback(() => {
     setEditVoucherId(null);
     setFormData({
-      expenseType: "Travel",
+      expenseType: expenseTypes[0]?.value || "",
+      transactor: transactors[0]?.value || "",
       amount: "",
       description: "",
       attachReceipt: null,
@@ -329,6 +526,13 @@ const ExpenseVoucherManagement = () => {
     setShowModal(false);
     SessionManager.remove("formData");
     SessionManager.remove("lastSaveTime");
+  }, [expenseTypes, transactors]);
+
+  const resetExpenseTypeForm = useCallback(() => {
+    setEditExpenseTypeId(null);
+    setExpenseTypeForm({ name: "" });
+    setExpenseTypeErrors({});
+    setShowExpenseTypeModal(false);
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -340,8 +544,10 @@ const ExpenseVoucherManagement = () => {
     setIsSubmitting(true);
     try {
       const payload = {
-        expenseType: formData.expenseType,
-        amount: Number(formData.amount),
+        expenseTypeId: formData.expenseType,
+        transactorId: formData.transactor,
+        voucherType: "expense",
+        totalAmount: Number(formData.amount),
         description: formData.description,
         date: formData.date,
         submittedBy: formData.submittedBy,
@@ -349,22 +555,32 @@ const ExpenseVoucherManagement = () => {
       };
       if (formData.attachReceipt) {
         const formDataToSend = new FormData();
-        Object.keys(payload).forEach(key => formDataToSend.append(key, payload[key]));
-        formDataToSend.append('attachReceipt', formData.attachReceipt);
+        Object.keys(payload).forEach((key) =>
+          formDataToSend.append(key, payload[key])
+        );
+        formDataToSend.append("attachedProof", formData.attachReceipt);
+
         if (editVoucherId) {
-          await axiosInstance.put(`/vouchers/vouchers/${editVoucherId}`, formDataToSend, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+          await axiosInstance.put(
+            `/vouchers/vouchers/${editVoucherId}`,
+            formDataToSend,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            }
+          );
           showToastMessage("Expense voucher updated successfully!", "success");
         } else {
           await axiosInstance.post("/vouchers/vouchers", formDataToSend, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: { "Content-Type": "multipart/form-data" },
           });
           showToastMessage("Expense voucher created successfully!", "success");
         }
       } else {
         if (editVoucherId) {
-          await axiosInstance.put(`/vouchers/vouchers/${editVoucherId}`, payload);
+          await axiosInstance.put(
+            `/vouchers/vouchers/${editVoucherId}`,
+            payload
+          );
           showToastMessage("Expense voucher updated successfully!", "success");
         } else {
           await axiosInstance.post("/vouchers/vouchers", payload);
@@ -390,15 +606,77 @@ const ExpenseVoucherManagement = () => {
     validateForm,
   ]);
 
+  const handleExpenseTypeSubmit = useCallback(async () => {
+    const e = validateExpenseTypeForm();
+    if (Object.keys(e).length) {
+      setExpenseTypeErrors(e);
+      return;
+    }
+    setIsExpenseTypeSubmitting(true);
+    try {
+      const payload = { name: expenseTypeForm.name };
+      let newExpenseTypeId;
+      if (editExpenseTypeId) {
+        await axiosInstance.put(
+          `/expense/expense-types/${editExpenseTypeId}`,
+          payload
+        );
+        showToastMessage("Expense type updated successfully!", "success");
+      } else {
+        const response = await axiosInstance.post(
+          "/expense/expense-types",
+          payload
+        );
+        newExpenseTypeId = response.data.data.expenseType._id;
+        showToastMessage("Expense type created successfully!", "success");
+      }
+      await fetchExpenseTypes();
+      if (!editExpenseTypeId) {
+        setFormData((prev) => ({ ...prev, expenseType: newExpenseTypeId }));
+      }
+      resetExpenseTypeForm();
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to save expense type.";
+      showToastMessage(errorMessage, "error");
+      setExpenseTypeErrors((prev) => ({
+        ...prev,
+        name: errorMessage.includes("already exists")
+          ? "Expense type name already exists"
+          : errorMessage,
+      }));
+    } finally {
+      setIsExpenseTypeSubmitting(false);
+    }
+  }, [
+    editExpenseTypeId,
+    expenseTypeForm,
+    fetchExpenseTypes,
+    resetExpenseTypeForm,
+    showToastMessage,
+    validateExpenseTypeForm,
+  ]);
+
   const handleEdit = useCallback(
     (voucher) => {
       setEditVoucherId(voucher._id);
       setFormData({
-        expenseType: voucher.expenseType || "Travel",
-        amount: String(voucher.amount || 0),
+        expenseType:
+          voucher.expenseType?._id ||
+          voucher.expenseType ||
+          expenseTypes[0]?.value ||
+          "",
+        transactor:
+          voucher.transactor?._id ||
+          voucher.transactor ||
+          transactors[0]?.value ||
+          "",
+        amount: String(voucher.totalAmount || 0),
         description: voucher.description || "",
         attachReceipt: null,
-        date: voucher.date ? new Date(voucher.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        date: voucher.date
+          ? new Date(voucher.date).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
         submittedBy: voucher.submittedBy || "Logged-in User",
         approvalStatus: voucher.approvalStatus || "Pending",
       });
@@ -406,8 +684,14 @@ const ExpenseVoucherManagement = () => {
       SessionManager.remove("formData");
       SessionManager.remove("lastSaveTime");
     },
-    []
+    [expenseTypes, transactors]
   );
+
+  const handleEditExpenseType = useCallback((type) => {
+    setEditExpenseTypeId(type.value);
+    setExpenseTypeForm({ name: type.label });
+    setShowExpenseTypeModal(true);
+  }, []);
 
   const showDeleteConfirmation = useCallback((voucher) => {
     setDeleteConfirmation({
@@ -418,12 +702,34 @@ const ExpenseVoucherManagement = () => {
     });
   }, []);
 
+  const showExpenseTypeDeleteConfirmation = useCallback((type) => {
+    setExpenseTypeDeleteConfirmation({
+      visible: true,
+      expenseTypeId: type.value,
+      expenseTypeName: type.label,
+      isDeleting: false,
+      associatedVouchers: [],
+      errorMessage: "",
+    });
+  }, []);
+
   const hideDeleteConfirmation = useCallback(() => {
     setDeleteConfirmation({
       visible: false,
       voucherId: null,
       voucherNo: "",
       isDeleting: false,
+    });
+  }, []);
+
+  const hideExpenseTypeDeleteConfirmation = useCallback(() => {
+    setExpenseTypeDeleteConfirmation({
+      visible: false,
+      expenseTypeId: null,
+      expenseTypeName: "",
+      isDeleting: false,
+      associatedVouchers: [],
+      errorMessage: "",
     });
   }, []);
 
@@ -453,6 +759,56 @@ const ExpenseVoucherManagement = () => {
     showToastMessage,
   ]);
 
+  const confirmExpenseTypeDelete = useCallback(async () => {
+    setExpenseTypeDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      await axiosInstance.delete(
+        `/expense/expense-types/${expenseTypeDeleteConfirmation.expenseTypeId}`
+      );
+      setExpenseTypes((prev) =>
+        prev.filter(
+          (type) => type.value !== expenseTypeDeleteConfirmation.expenseTypeId
+        )
+      );
+      setFormData((prev) => ({
+        ...prev,
+        expenseType: expenseTypes[0]?.value || "",
+      }));
+      showToastMessage("Expense type deleted successfully!", "success");
+      hideExpenseTypeDeleteConfirmation();
+      await fetchExpenseTypes();
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to delete expense type.";
+      if (errorMessage.includes("associated expense vouchers")) {
+        const associatedVouchers = await fetchAssociatedVouchers(
+          expenseTypeDeleteConfirmation.expenseTypeId
+        );
+        setExpenseTypeDeleteConfirmation((prev) => ({
+          ...prev,
+          isDeleting: false,
+          associatedVouchers,
+          errorMessage: `Cannot delete "${prev.expenseTypeName}" because it is used by ${associatedVouchers.length} expense voucher(s).`,
+        }));
+      } else {
+        showToastMessage(errorMessage, "error");
+        setExpenseTypeDeleteConfirmation((prev) => ({
+          ...prev,
+          isDeleting: false,
+          errorMessage,
+        }));
+      }
+    }
+  }, [
+    expenseTypeDeleteConfirmation.expenseTypeId,
+    expenseTypeDeleteConfirmation.expenseTypeName,
+    fetchAssociatedVouchers,
+    fetchExpenseTypes,
+    hideExpenseTypeDeleteConfirmation,
+    showToastMessage,
+    expenseTypes,
+  ]);
+
   const openAddModal = useCallback(() => {
     resetForm();
     setShowModal(true);
@@ -460,11 +816,27 @@ const ExpenseVoucherManagement = () => {
       const modal = document.querySelector(".modal-container");
       if (modal) modal.classList.add("scale-100");
       if (formRef.current)
-        formRef.current.querySelector('select[name="expenseType"]')?.focus();
+        formRef.current.querySelector('div[role="combobox"]')?.focus();
     }, 10);
   }, [resetForm]);
 
-  const handleRefresh = useCallback(() => fetchVouchers(true), [fetchVouchers]);
+  const openExpenseTypeModal = useCallback(() => {
+    resetExpenseTypeForm();
+    setShowExpenseTypeModal(true);
+    setTimeout(() => {
+      const modal = document.querySelector(".expense-type-modal-container");
+      if (modal) modal.classList.add("scale-100");
+      if (expenseTypeFormRef.current)
+        formRef.current.querySelector('input[name="name"]')?.focus();
+    }, 10);
+  }, [resetExpenseTypeForm]);
+
+  const handleRefresh = useCallback(() => {
+    fetchVouchers(true);
+    fetchExpenseTypes();
+    fetchTransactors();
+  }, [fetchVouchers, fetchExpenseTypes, fetchTransactors]);
+
   const handleSort = useCallback((key) => {
     setSortConfig((prev) => ({
       key,
@@ -479,8 +851,8 @@ const ExpenseVoucherManagement = () => {
     return diffMins < 1
       ? "just now"
       : diffMins < 60
-        ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
-        : t.toLocaleTimeString();
+      ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
+      : t.toLocaleTimeString();
   }, []);
 
   const handleViewVoucher = useCallback((voucher) => {
@@ -494,8 +866,8 @@ const ExpenseVoucherManagement = () => {
   const handleDownloadPDF = useCallback(async () => {
     try {
       setIsGeneratingPDF(true);
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
       const input = document.getElementById("expense-content");
       if (!input) {
         showToastMessage("Expense content not found!", "error");
@@ -505,49 +877,57 @@ const ExpenseVoucherManagement = () => {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         logging: false,
         width: input.scrollWidth,
         height: input.scrollHeight,
         onclone: (clonedDoc) => {
           const clonedElement = clonedDoc.getElementById("expense-content");
           if (clonedElement) {
-            clonedElement.style.display = 'block';
-            clonedElement.style.visibility = 'visible';
+            clonedElement.style.display = "block";
+            clonedElement.style.visibility = "visible";
           }
-        }
+        },
       });
       const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
-      const imgX = (pdfWidth - (imgWidth * 0.264583 * ratio)) / 2;
+      const ratio = Math.min(
+        pdfWidth / (imgWidth * 0.264583),
+        pdfHeight / (imgHeight * 0.264583)
+      );
+      const imgX = (pdfWidth - imgWidth * 0.264583 * ratio) / 2;
       const imgY = 0;
       pdf.addImage(
         imgData,
-        'PNG',
+        "PNG",
         imgX,
         imgY,
         imgWidth * 0.264583 * ratio,
         imgHeight * 0.264583 * ratio,
         undefined,
-        'FAST'
+        "FAST"
       );
-      const filename = `Expense_${selectedVoucher.voucherNo}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filename = `Expense_${selectedVoucher.voucherNo}_${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
       pdf.save(filename);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      showToastMessage("Failed to generate PDF. Please try again or use the Print option.", "error");
+      console.error("Error generating PDF:", error);
+      showToastMessage(
+        "Failed to generate PDF. Please try again or use the Print option.",
+        "error"
+      );
     } finally {
       setIsGeneratingPDF(false);
     }
   }, [selectedVoucher, showToastMessage]);
 
   const handlePrintPDF = useCallback(() => {
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open("", "_blank");
     const expenseContent = document.getElementById("expense-content");
     if (!expenseContent || !printWindow) {
       showToastMessage("Unable to open print dialog", "error");
@@ -577,7 +957,10 @@ const ExpenseVoucherManagement = () => {
           </style>
         </head>
         <body>
-          ${expenseContent.innerHTML.replace(/<img[^>]*src="${DirhamIcon}"[^>]*>/g, `<img src="${DirhamIcon}" class="dirham-icon" alt="AED">`)}
+          ${expenseContent.innerHTML.replace(
+            /<img[^>]*src="${DirhamIcon}"[^>]*>/g,
+            `<img src="${DirhamIcon}" class="dirham-icon" alt="AED">`
+          )}
         </body>
       </html>
     `);
@@ -587,13 +970,13 @@ const ExpenseVoucherManagement = () => {
       printWindow.print();
       printWindow.close();
     }, 250);
-  }, [selectedVoucher, showToastMessage, DirhamIcon]);
+  }, [selectedVoucher, showToastMessage]);
 
   const safeVouchers = useMemo(() => asArray(vouchers), [vouchers]);
   const voucherStats = useMemo(() => {
     const totalVouchers = safeVouchers.length;
     const totalAmount = safeVouchers.reduce(
-      (sum, p) => sum + (Number(p.amount) || 0),
+      (sum, p) => sum + (Number(p.totalAmount) || 0),
       0
     );
     const todayVouchers = safeVouchers.filter(
@@ -612,29 +995,33 @@ const ExpenseVoucherManagement = () => {
     if (sortConfig.key) {
       filtered = [...filtered].sort((a, b) => {
         const av =
-          sortConfig.key === "amount"
-            ? Number(a.amount)
+          sortConfig.key === "totalAmount"
+            ? Number(a.totalAmount)
             : sortConfig.key === "date"
-              ? new Date(a.date).getTime()
-              : by(a[sortConfig.key]);
+            ? new Date(a.date).getTime()
+            : by(a[sortConfig.key]);
         const bv =
-          sortConfig.key === "amount"
-            ? Number(b.amount)
+          sortConfig.key === "totalAmount"
+            ? Number(b.totalAmount)
             : sortConfig.key === "date"
-              ? new Date(b.date).getTime()
-              : by(b[sortConfig.key]);
+            ? new Date(b.date).getTime()
+            : by(b[sortConfig.key]);
         return av < bv
-          ? sortConfig.direction === "asc" ? -1 : 1
+          ? sortConfig.direction === "asc"
+            ? -1
+            : 1
           : av > bv
-            ? sortConfig.direction === "asc" ? 1 : -1
-            : 0;
+          ? sortConfig.direction === "asc"
+            ? 1
+            : -1
+          : 0;
       });
     }
     return filtered;
   }, [safeVouchers, searchTerm, sortConfig]);
 
   if (selectedVoucher) {
-    const totals = { total: Number(selectedVoucher.amount || 0) };
+    const totals = { total: Number(selectedVoucher.totalAmount || 0) };
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-4xl mx-auto px-4">
@@ -657,7 +1044,9 @@ const ExpenseVoucherManagement = () => {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                <span>{isGeneratingPDF ? 'Generating...' : 'Download PDF'}</span>
+                <span>
+                  {isGeneratingPDF ? "Generating..." : "Download PDF"}
+                </span>
               </button>
               <button
                 onClick={handlePrintPDF}
@@ -672,113 +1061,385 @@ const ExpenseVoucherManagement = () => {
             id="expense-content"
             className="bg-white shadow-lg"
             style={{
-              width: '210mm',
-              minHeight: '297mm',
-              margin: '0 auto',
-              padding: '20mm',
-              fontSize: '12px',
-              lineHeight: '1.4',
-              fontFamily: 'Arial, sans-serif',
-              color: '#000'
+              width: "210mm",
+              minHeight: "297mm",
+              margin: "0 auto",
+              padding: "20mm",
+              fontSize: "12px",
+              lineHeight: "1.4",
+              fontFamily: "Arial, sans-serif",
+              color: "#000",
             }}
           >
-            <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #8B5CF6', paddingBottom: '15px' }}>
-              <h1 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 5px 0', direction: 'rtl' }}>
+            <div
+              style={{
+                textAlign: "center",
+                marginBottom: "20px",
+                borderBottom: "2px solid #8B5CF6",
+                paddingBottom: "15px",
+              }}
+            >
+              <h1
+                style={{
+                  fontSize: "14px",
+                  fontWeight: "bold",
+                  margin: "0 0 5px 0",
+                  direction: "rtl",
+                }}
+              >
                 نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
               </h1>
-              <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 15px 0', color: '#0f766e' }}>
+              <h2
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 15px 0",
+                  color: "#0f766e",
+                }}
+              >
                 NH FOODSTUFF TRADING LLC S.O.C.
               </h2>
-              <div style={{ backgroundColor: '#c8a2c8', color: 'white', padding: '8px', margin: '0 -20mm 20px -20mm' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>EXPENSE VOUCHER</h3>
+              <div
+                style={{
+                  backgroundColor: "#c8a2c8",
+                  color: "white",
+                  padding: "8px",
+                  margin: "0 -20mm 20px -20mm",
+                }}
+              >
+                <h3
+                  style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}
+                >
+                  EXPENSE VOUCHER
+                </h3>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '10px' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "20px",
+                fontSize: "10px",
+              }}
+            >
               <div>
-                <p style={{ margin: '2px 0' }}>Dubai, UAE</p>
-                <p style={{ margin: '2px 0' }}>VAT Reg. No: 10503303</p>
-                <p style={{ margin: '2px 0' }}>Email: finance@nhfo.com</p>
-                <p style={{ margin: '2px 0' }}>Phone: +971 58 724 2111</p>
-                <p style={{ margin: '2px 0' }}>Web: www.nhfo.com</p>
+                <p style={{ margin: "2px 0" }}>Dubai, UAE</p>
+                <p style={{ margin: "2px 0" }}>VAT Reg. No: 10503303</p>
+                <p style={{ margin: "2px 0" }}>Email: finance@nhfo.com</p>
+                <p style={{ margin: "2px 0" }}>Phone: +971 58 724 2111</p>
+                <p style={{ margin: "2px 0" }}>Web: www.nhfo.com</p>
               </div>
-              <div style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: "center" }}>
                 <img
                   src="https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
                   alt="NH Foods Logo"
-                  style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  style={{
+                    width: "80px",
+                    height: "80px",
+                    objectFit: "contain",
+                  }}
                 />
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ margin: '2px 0' }}>Date: {new Date(selectedVoucher.date).toLocaleDateString("en-GB")}</p>
-                <p style={{ margin: '2px 0' }}>Voucher No: {selectedVoucher.voucherNo}</p>
+              <div style={{ textAlign: "right" }}>
+                <p style={{ margin: "2px 0" }}>
+                  Date:{" "}
+                  {new Date(selectedVoucher.date).toLocaleDateString("en-GB")}
+                </p>
+                <p style={{ margin: "2px 0" }}>
+                  Voucher No: {selectedVoucher.voucherNo}
+                </p>
               </div>
             </div>
-            <div style={{ backgroundColor: '#e6d7e6', padding: '10px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                backgroundColor: "#e6d7e6",
+                padding: "10px",
+                marginBottom: "20px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>Expense Details:</div>
-                  <div style={{ fontSize: '10px' }}>
-                    <p style={{ margin: '2px 0' }}><strong>Expense Type:</strong> {selectedVoucher.expenseType}</p>
-                    <p style={{ margin: '2px 0' }}><strong>Submitted By:</strong> {selectedVoucher.submittedBy}</p>
-                    <p style={{ margin: '2px 0' }}><strong>Approval Status:</strong> {selectedVoucher.approvalStatus}</p>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "bold",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    Expense Details:
+                  </div>
+                  <div style={{ fontSize: "10px" }}>
+                    <p style={{ margin: "2px 0" }}>
+                      <strong>Expense Type:</strong>{" "}
+                      {expenseTypes.find(
+                        (type) =>
+                          type.value === selectedVoucher.expenseType?._id
+                      )?.label ||
+                        selectedVoucher.expenseType?.name ||
+                        selectedVoucher.expenseType}
+                    </p>
+                    <p style={{ margin: "2px 0" }}>
+                      <strong>Transactor:</strong>{" "}
+                      {transactors.find(
+                        (t) => t.value === selectedVoucher.transactor?._id
+                      )?.label ||
+                        selectedVoucher.transactor?.accountName ||
+                        selectedVoucher.transactor}
+                    </p>
+                    <p style={{ margin: "2px 0" }}>
+                      <strong>Submitted By:</strong>{" "}
+                      {selectedVoucher.submittedBy}
+                    </p>
+                    <p style={{ margin: "2px 0" }}>
+                      <strong>Approval Status:</strong>{" "}
+                      {selectedVoucher.approvalStatus}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
-            <table style={{ width: '100', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '10px' }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginBottom: "20px",
+                fontSize: "10px",
+              }}
+            ></table>
+            <div
+              style={{
+                fontSize: "11px",
+                fontWeight: "bold",
+                marginBottom: "10px",
+              }}
+            >
+              Accounting Entries:
+            </div>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginBottom: "20px",
+                fontSize: "10px",
+              }}
+            >
               <thead>
-                <tr style={{ backgroundColor: '#e6d7e6' }}>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Description</th>
-                  <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold' }}>Amount</th>
+                <tr style={{ backgroundColor: "#e6d7e6" }}>
+                  <th
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Account Name
+                  </th>
+                  <th
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Account Code
+                  </th>
+                  <th
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Debit
+                  </th>
+                  <th
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Credit
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td style={{ border: '1px solid #000', padding: '6px' }}>{selectedVoucher.description || "-"}</td>
-                  <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{formatCurrency(totals.total, "text-black")}</td>
-                </tr>
+                {selectedVoucher.entries &&
+                selectedVoucher.entries.length > 0 ? (
+                  selectedVoucher.entries.map((entry, index) => (
+                    <tr key={index}>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "6px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {entry.accountName || "-"}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "6px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {entry.accountCode || "-"}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "6px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {formatCurrency(entry.debitAmount, "text-black")}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "6px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {formatCurrency(entry.creditAmount, "text-black")}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      style={{
+                        border: "1px solid #000",
+                        padding: "6px",
+                        textAlign: "center",
+                      }}
+                    >
+                      No entries available
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
             {selectedVoucher.attachReceipt && (
-              <div style={{ marginBottom: '20px' }}>
-                <p style={{ fontSize: '10px', fontWeight: 'bold' }}>Attached Receipt:</p>
-                <a href={selectedVoucher.attachReceipt} target="_blank" rel="noopener noreferrer" style={{ fontSize: '10px' }}>
+              <div style={{ marginBottom: "20px" }}>
+                <p style={{ fontSize: "10px", fontWeight: "bold" }}>
+                  Attached Receipt:
+                </p>
+                <a
+                  href={selectedVoucher.attachReceipt}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: "10px" }}
+                >
                   View Receipt
                 </a>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <div style={{ width: '45%' }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '10px' }}>Prepared by:</div>
-                <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                  <p style={{ margin: '2px 0' }}>Name: {selectedVoucher.submittedBy}</p>
-                  <p style={{ margin: '2px 0' }}>Date: {new Date().toLocaleDateString("en-GB")}</p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "20px",
+              }}
+            >
+              <div style={{ width: "45%" }}>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                    marginBottom: "10px",
+                  }}
+                >
+                  Prepared by:
+                </div>
+                <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+                  <p style={{ margin: "2px 0" }}>
+                    Name: {selectedVoucher.submittedBy}
+                  </p>
+                  <p style={{ margin: "2px 0" }}>
+                    Date: {new Date().toLocaleDateString("en-GB")}
+                  </p>
                 </div>
               </div>
-              <div style={{ width: '40%' }}>
-                <table style={{ width: '100', borderCollapse: 'collapse', fontSize: '10px' }}>
+              <div style={{ width: "40%" }}>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "10px",
+                  }}
+                >
                   <tr>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold' }}>Total</td>
-                    <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{formatCurrency(totals.total, "text-black")}</td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "8px",
+                        textAlign: "right",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Total
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {formatCurrency(totals.total, "text-black")}
+                    </td>
                   </tr>
                 </table>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
-              <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
-                <p style={{ margin: '2px 0' }}><strong>Approved by:</strong> [Approver Name]</p>
-                <p style={{ margin: '2px 0' }}><strong>Date:</strong> {new Date().toLocaleDateString("en-GB")}</p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+                marginBottom: "20px",
+              }}
+            >
+              <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
+                <p style={{ margin: "2px 0" }}>
+                  <strong>Approved by:</strong> [Approver Name]
+                </p>
+                <p style={{ margin: "2px 0" }}>
+                  <strong>Date:</strong>{" "}
+                  {new Date().toLocaleDateString("en-GB")}
+                </p>
               </div>
-              <div style={{ border: '2px solid #000', padding: '10px 20px', backgroundColor: '#f9f9f9' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>GRAND TOTAL</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{formatCurrency(totals.total, "text-black")}</span>
+              <div
+                style={{
+                  border: "2px solid #000",
+                  padding: "10px 20px",
+                  backgroundColor: "#f9f9f9",
+                }}
+              >
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "15px" }}
+                >
+                  <span style={{ fontSize: "12px", fontWeight: "bold" }}>
+                    GRAND TOTAL
+                  </span>
+                  <span style={{ fontSize: "14px", fontWeight: "bold" }}>
+                    {formatCurrency(totals.total, "text-black")}
+                  </span>
                 </div>
               </div>
             </div>
-            <div style={{ marginTop: '30px' }}>
-              <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <p style={{ fontSize: '11px', margin: '0' }}>Expense recorded in good order.</p>
+            <div style={{ marginTop: "30px" }}>
+              <div style={{ textAlign: "center", marginBottom: "30px" }}>
+                <p style={{ fontSize: "11px", margin: "0" }}>
+                  Expense recorded in good order.
+                </p>
               </div>
             </div>
           </div>
@@ -858,10 +1519,11 @@ const ExpenseVoucherManagement = () => {
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${showFilters
-              ? "bg-purple-100 text-purple-600"
-              : "bg-white text-gray-600"
-              }`}
+            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+              showFilters
+                ? "bg-purple-100 text-purple-600"
+                : "bg-white text-gray-600"
+            }`}
             title="Toggle filters"
           >
             <Filter size={16} />
@@ -894,7 +1556,11 @@ const ExpenseVoucherManagement = () => {
           />
           <StatCard
             title="Total Amount"
-            count={formatCurrency(voucherStats.totalAmount, "text-purple-700", true)}
+            count={formatCurrency(
+              voucherStats.totalAmount,
+              "text-purple-700",
+              true
+            )}
             icon={<TrendingUp size={24} />}
             bgColor="bg-purple-50"
             textColor="text-purple-700"
@@ -905,7 +1571,11 @@ const ExpenseVoucherManagement = () => {
           />
           <StatCard
             title="Avg Expense Value"
-            count={formatCurrency(voucherStats.avgAmount, "text-indigo-700", true)}
+            count={formatCurrency(
+              voucherStats.avgAmount,
+              "text-indigo-700",
+              true
+            )}
             icon={<Banknote size={24} />}
             bgColor="bg-indigo-50"
             textColor="text-indigo-700"
@@ -967,15 +1637,18 @@ const ExpenseVoucherManagement = () => {
                 <tr>
                   {[
                     { key: "expenseType", label: "Expense Type" },
+                    { key: "transactor", label: "Transactor" },
                     { key: "date", label: "Date" },
-                    { key: "amount", label: "Amount" },
+                    { key: "totalAmount", label: "Total Amount" },
+                    { key: "entries", label: "Debit" },
+                    { key: "entries", label: "Credit" },
                     { key: "description", label: "Description" },
                     { key: "submittedBy", label: "Submitted By" },
                     { key: "approvalStatus", label: "Approval Status" },
                     { key: null, label: "Actions" },
                   ].map((col) => (
                     <th
-                      key={col.key || "actions"}
+                      key={col.key ? `${col.key}-${col.label}` : "actions"}
                       className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                       onClick={col.key ? () => handleSort(col.key) : undefined}
                     >
@@ -992,109 +1665,78 @@ const ExpenseVoucherManagement = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredVouchers.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      <button
-                        onClick={() => handleViewVoucher(p)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {p.expenseType}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(p.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                      {formatCurrency(p.amount)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                      {p.description || "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {p.submittedBy || "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {p.approvalStatus || "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
+                {sortedAndFilteredVouchers.map((p) => {
+                  const debitTotal = p.entries?.reduce(
+                    (sum, entry) => sum + (Number(entry.debitAmount) || 0),
+                    0
+                  );
+                  const creditTotal = p.entries?.reduce(
+                    (sum, entry) => sum + (Number(entry.creditAmount) || 0),
+                    0
+                  );
+                  return (
+                    <tr
+                      key={p._id}
+                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                    >
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         <button
-                          onClick={() => handleEdit(p)}
-                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                          title="Edit expense"
+                          onClick={() => handleViewVoucher(p)}
+                          className="text-blue-600 hover:underline"
                         >
-                          <Edit size={16} />
+                          {p.expenseTypeName}
                         </button>
-                        <button
-                          onClick={() => showDeleteConfirmation(p)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Delete expense"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {p.transactorName || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(p.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                        {formatCurrency(p.totalAmount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                        {formatCurrency(debitTotal)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 font-medium">
+                        {formatCurrency(creditTotal)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                        {p.description || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {p.submittedBy || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {p.approvalStatus || "-"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => handleEdit(p)}
+                            className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                            title="Edit expense"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => showDeleteConfirmation(p)}
+                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
+                            title="Delete expense"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-      {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={32} className="text-red-600" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                Delete Expense Voucher
-              </h3>
-              <p className="text-gray-600 text-center mb-2">
-                Are you sure you want to delete
-              </p>
-              <p className="text-gray-900 font-semibold text-center mb-6">
-                "{deleteConfirmation.voucherNo}"?
-              </p>
-              <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone.
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={hideDeleteConfirmation}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
-                >
-                  {deleteConfirmation.isDeleting ? (
-                    <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} className="mr-2" /> Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -1134,11 +1776,22 @@ const ExpenseVoucherManagement = () => {
                   name="expenseType"
                   value={formData.expenseType}
                   onChange={handleChange}
+                  onAddNew={openExpenseTypeModal}
                   error={errors.expenseType}
-                  options={[
-                    { value: "Travel", label: "Travel" },
-                    { value: "Office Supplies", label: "Office Supplies" },
-                  ]}
+                  options={expenseTypes}
+                  data={true}
+                />
+                <FormSelect
+                  label="Transactor"
+                  icon={CreditCard}
+                  name="transactor"
+                  value={formData.transactor}
+                  onChange={handleChange}
+                  error={errors.transactor}
+                  options={transactors.filter(
+                    (t) => t.accountType === "expense"
+                  )}
+                  data={false}
                 />
                 <FormInput
                   label="Amount"
@@ -1215,6 +1868,250 @@ const ExpenseVoucherManagement = () => {
                     <>
                       <Save size={16} className="mr-2" />{" "}
                       {editVoucherId ? "Update Expense" : "Save Expense"}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showExpenseTypeModal && (
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 expense-type-modal-container transform scale-95 transition-transform duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {editExpenseTypeId ? "Edit Expense Type" : "Add Expense Type"}
+                </h3>
+                <p className="text-gray-600 text-sm mt-1">
+                  {editExpenseTypeId
+                    ? "Update expense type information"
+                    : "Create a new expense type"}
+                </p>
+              </div>
+              <button
+                onClick={resetExpenseTypeForm}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="p-6" ref={expenseTypeFormRef}>
+              <FormInput
+                label="Expense Type Name"
+                icon={Building}
+                name="name"
+                value={expenseTypeForm.name}
+                onChange={handleExpenseTypeChange}
+                error={expenseTypeErrors.name}
+                required
+                placeholder="Enter expense type name"
+              />
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                  Existing Expense Types
+                </h4>
+                <div className="bg-gray-50 rounded-xl p-4 max-h-64 overflow-y-auto">
+                  {expenseTypes.length === 0 ? (
+                    <p className="text-gray-600 text-sm">
+                      No expense types available. Add one above.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {expenseTypes.map((type) => (
+                        <li
+                          key={type.value}
+                          className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm hover:bg-gray-100 transition-all duration-200"
+                        >
+                          <span className="text-sm text-gray-900">
+                            {type.label}
+                          </span>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditExpenseType(type)}
+                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
+                              title="Edit expense type"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() =>
+                                showExpenseTypeDeleteConfirmation(type)
+                              }
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
+                              title="Delete expense type"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-8">
+                <button
+                  onClick={resetExpenseTypeForm}
+                  disabled={isExpenseTypeSubmitting}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExpenseTypeSubmit}
+                  disabled={isExpenseTypeSubmitting}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {isExpenseTypeSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} className="mr-2" />{" "}
+                      {editExpenseTypeId ? "Update Type" : "Save Type"}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {expenseTypeDeleteConfirmation.visible && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-60">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Expense Type
+              </h3>
+              <p className="text-gray-600 text-center mb-2">
+                Are you sure you want to delete
+              </p>
+              <p className="text-gray-900 font-semibold text-center mb-4">
+                "{expenseTypeDeleteConfirmation.expenseTypeName}"?
+              </p>
+              {expenseTypeDeleteConfirmation.errorMessage && (
+                <div className="mb-4">
+                  <p className="text-sm text-red-600 text-center mb-2">
+                    {expenseTypeDeleteConfirmation.errorMessage}
+                  </p>
+                  {expenseTypeDeleteConfirmation.associatedVouchers.length >
+                    0 && (
+                    <div className="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <p className="text-sm font-semibold text-gray-700 mb-2">
+                        Associated Vouchers:
+                      </p>
+                      <ul className="space-y-1">
+                        {expenseTypeDeleteConfirmation.associatedVouchers.map(
+                          (voucher) => (
+                            <li
+                              key={voucher._id}
+                              className="text-sm text-gray-600"
+                            >
+                              <button
+                                onClick={() => {
+                                  hideExpenseTypeDeleteConfirmation();
+                                  handleViewVoucher(voucher);
+                                }}
+                                className="text-blue-600 hover:underline"
+                              >
+                                Voucher #{voucher.voucherNo} -{" "}
+                                {voucher.description || "No description"}
+                              </button>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-sm text-gray-500 text-center mb-6">
+                This action cannot be undone.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={hideExpenseTypeDeleteConfirmation}
+                  disabled={expenseTypeDeleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmExpenseTypeDelete}
+                  disabled={
+                    expenseTypeDeleteConfirmation.isDeleting ||
+                    expenseTypeDeleteConfirmation.associatedVouchers.length > 0
+                  }
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {expenseTypeDeleteConfirmation.isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" /> Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteConfirmation.visible && (
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
+                Delete Expense Voucher
+              </h3>
+              <p className="text-gray-600 text-center mb-2">
+                Are you sure you want to delete
+              </p>
+              <p className="text-gray-900 font-semibold text-center mb-6">
+                "{deleteConfirmation.voucherNo}"?
+              </p>
+              <p className="text-sm text-gray-500 text-center mb-8">
+                This action cannot be undone.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={hideDeleteConfirmation}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleteConfirmation.isDeleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {deleteConfirmation.isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="mr-2 animate-spin" />{" "}
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" /> Delete
                     </>
                   )}
                 </button>
