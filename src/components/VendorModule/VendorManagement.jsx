@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ArrowLeft,
   Plus,
@@ -19,16 +25,14 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Eye,
   Filter,
-  Download
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 
 // Session management utilities (using memory storage for Claude environment)
 const SessionManager = {
   storage: {},
-  
+
   get: (key) => {
     try {
       return this.storage[`vendor_session_${key}`] || null;
@@ -36,30 +40,30 @@ const SessionManager = {
       return null;
     }
   },
-  
+
   set: (key, value) => {
     try {
       this.storage[`vendor_session_${key}`] = value;
     } catch (error) {
-      console.warn('Session storage failed:', error);
+      console.warn("Session storage failed:", error);
     }
   },
-  
+
   remove: (key) => {
     try {
       delete this.storage[`vendor_session_${key}`];
     } catch (error) {
-      console.warn('Session removal failed:', error);
+      console.warn("Session removal failed:", error);
     }
   },
-  
+
   clear: () => {
-    Object.keys(this.storage).forEach(key => {
-      if (key.startsWith('vendor_session_')) {
+    Object.keys(this.storage).forEach((key) => {
+      if (key.startsWith("vendor_session_")) {
         delete this.storage[key];
       }
     });
-  }
+  },
 };
 
 const VendorManagement = () => {
@@ -73,8 +77,10 @@ const VendorManagement = () => {
     email: "",
     phone: "",
     address: "",
+    trnNO: "",
     paymentTerms: "",
     status: "",
+    vendorId: "",
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,16 +98,16 @@ const VendorManagement = () => {
     id: null,
     isDeleting: false,
   });
-  
+
   // New UX enhancement states
   const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); // table, card
+  const [viewMode, setViewMode] = useState("table"); // table, card
   const [selectedVendors, setSelectedVendors] = useState([]);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+
   // Refs for enhanced UX
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
@@ -109,26 +115,26 @@ const VendorManagement = () => {
 
   // Load session data on component mount
   useEffect(() => {
-    const savedFormData = SessionManager.get('formData');
-    const savedFilters = SessionManager.get('filters');
-    const savedSearchTerm = SessionManager.get('searchTerm');
-    const savedViewMode = SessionManager.get('viewMode');
+    const savedFormData = SessionManager.get("formData");
+    const savedFilters = SessionManager.get("filters");
+    const savedSearchTerm = SessionManager.get("searchTerm");
+    const savedViewMode = SessionManager.get("viewMode");
 
-    if (savedFormData && Object.values(savedFormData).some(val => val)) {
+    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
       setFormData(savedFormData);
       setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get('lastSaveTime'));
+      setLastSaveTime(SessionManager.get("lastSaveTime"));
     }
-    
+
     if (savedFilters) {
       setFilterStatus(savedFilters.status || "");
       setFilterPaymentTerms(savedFilters.paymentTerms || "");
     }
-    
+
     if (savedSearchTerm) {
       setSearchTerm(savedSearchTerm);
     }
-    
+
     if (savedViewMode) {
       setViewMode(savedViewMode);
     }
@@ -136,10 +142,10 @@ const VendorManagement = () => {
 
   // Auto-save form data to session
   useEffect(() => {
-    if (showModal && Object.values(formData).some(val => val)) {
+    if (showModal && Object.values(formData).some((val) => val)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set('formData', formData);
-        SessionManager.set('lastSaveTime', new Date().toISOString());
+        SessionManager.set("formData", formData);
+        SessionManager.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
       }, 2000); // Auto-save after 2 seconds of inactivity
@@ -154,15 +160,18 @@ const VendorManagement = () => {
 
   // Save search and filter preferences
   useEffect(() => {
-    SessionManager.set('searchTerm', searchTerm);
+    SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
-    SessionManager.set('filters', { status: filterStatus, paymentTerms: filterPaymentTerms });
+    SessionManager.set("filters", {
+      status: filterStatus,
+      paymentTerms: filterPaymentTerms,
+    });
   }, [filterStatus, filterPaymentTerms]);
 
   useEffect(() => {
-    SessionManager.set('viewMode', viewMode);
+    SessionManager.set("viewMode", viewMode);
   }, [viewMode]);
 
   const fetchVendors = useCallback(async (showRefreshIndicator = false) => {
@@ -172,10 +181,10 @@ const VendorManagement = () => {
       } else {
         setIsLoading(true);
       }
-      
+
       const res = await axiosInstance.get("/vendors/vendors");
       setVendors(res.data.data || []);
-      
+
       if (showRefreshIndicator) {
         showToastMessage("Data refreshed successfully!", "success");
       }
@@ -197,7 +206,10 @@ const VendorManagement = () => {
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
-    setTimeout(() => setShowToast(prev => ({ ...prev, visible: false })), 3000);
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
   }, []);
 
   const handleChange = useCallback((e) => {
@@ -216,6 +228,8 @@ const VendorManagement = () => {
     if (!formData.address.trim()) newErrors.address = "Address is required";
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Invalid email format";
+    if (formData.trnNO && !/^[A-Za-z0-9]{5,15}$/.test(formData.trnNO))
+      newErrors.trnNO = "TRN NO must be 5-15 alphanumeric characters";
     return newErrors;
   }, [formData]);
 
@@ -238,14 +252,13 @@ const VendorManagement = () => {
         await axiosInstance.post("/vendors/vendors", payload);
         showToastMessage("Vendor created successfully!", "success");
       }
-      
+
       await fetchVendors();
       resetForm();
-      
+
       // Clear session data after successful submission
-      SessionManager.remove('formData');
-      SessionManager.remove('lastSaveTime');
-      
+      SessionManager.remove("formData");
+      SessionManager.remove("lastSaveTime");
     } catch (error) {
       showToastMessage(
         error.response?.data?.message || "Failed to save vendor.",
@@ -264,16 +277,17 @@ const VendorManagement = () => {
       email: vendor.email,
       phone: vendor.phone,
       address: vendor.address,
+      trnNO: vendor.trnNO || "",
       paymentTerms: vendor.paymentTerms,
       status: vendor.status,
       vendorId: vendor.vendorId,
     });
     setShowModal(true);
     setIsDraftSaved(false);
-    
+
     // Clear any existing draft when editing
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const handleDelete = useCallback((id, vendorName) => {
@@ -317,17 +331,19 @@ const VendorManagement = () => {
       email: "",
       phone: "",
       address: "",
+      trnNO: "",
       paymentTerms: "",
       status: "",
+      vendorId: "",
     });
     setErrors({});
     setShowModal(false);
     setIsDraftSaved(false);
     setLastSaveTime(null);
-    
+
     // Clear session draft
-    SessionManager.remove('formData');
-    SessionManager.remove('lastSaveTime');
+    SessionManager.remove("formData");
+    SessionManager.remove("lastSaveTime");
   }, []);
 
   const openAddModal = useCallback(() => {
@@ -338,10 +354,12 @@ const VendorManagement = () => {
       if (modal) {
         modal.classList.add("scale-100");
       }
-      
+
       // Focus first input
       if (formRef.current) {
-        const firstInput = formRef.current.querySelector('input[name="vendorName"]');
+        const firstInput = formRef.current.querySelector(
+          'input[name="vendorName"]'
+        );
         if (firstInput) firstInput.focus();
       }
     }, 10);
@@ -352,9 +370,12 @@ const VendorManagement = () => {
   }, [fetchVendors]);
 
   const handleSort = useCallback((key) => {
-    setSortConfig(prevConfig => ({
+    setSortConfig((prevConfig) => ({
       key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+      direction:
+        prevConfig.key === key && prevConfig.direction === "asc"
+          ? "desc"
+          : "asc",
     }));
   }, []);
 
@@ -382,9 +403,13 @@ const VendorManagement = () => {
     let filtered = vendors.filter(
       (vendor) =>
         (vendor.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          vendor.contactPerson
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
           vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.vendorId.toLowerCase().includes(searchTerm.toLowerCase())) &&
+          vendor.vendorId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (vendor.trnNO &&
+            vendor.trnNO.toLowerCase().includes(searchTerm.toLowerCase()))) &&
         (filterStatus ? vendor.status === filterStatus : true) &&
         (filterPaymentTerms ? vendor.paymentTerms === filterPaymentTerms : true)
     );
@@ -393,12 +418,12 @@ const VendorManagement = () => {
       filtered.sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
-        
+
         if (aValue < bValue) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
+          return sortConfig.direction === "asc" ? -1 : 1;
         }
         if (aValue > bValue) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
+          return sortConfig.direction === "asc" ? 1 : -1;
         }
         return 0;
       });
@@ -410,7 +435,8 @@ const VendorManagement = () => {
   const vendorStats = useMemo(
     () => ({
       compliantVendors: vendors.filter((v) => v.status === "Compliant").length,
-      nonCompliantVendors: vendors.filter((v) => v.status === "Non-compliant").length,
+      nonCompliantVendors: vendors.filter((v) => v.status === "Non-compliant")
+        .length,
       pendingVendors: vendors.filter((v) => v.status === "Pending").length,
       expiredVendors: vendors.filter((v) => v.status === "Expired").length,
       totalVendors: vendors.length,
@@ -419,14 +445,14 @@ const VendorManagement = () => {
   );
 
   const formatLastSaveTime = useCallback((timeString) => {
-    if (!timeString) return '';
+    if (!timeString) return "";
     const time = new Date(timeString);
     const now = new Date();
     const diffMs = now - time;
     const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
     return time.toLocaleTimeString();
   }, []);
 
@@ -434,7 +460,10 @@ const VendorManagement = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={48} className="text-blue-600 animate-spin mx-auto mb-4" />
+          <Loader2
+            size={48}
+            className="text-blue-600 animate-spin mx-auto mb-4"
+          />
           <p className="text-gray-600 text-lg">Loading vendors...</p>
         </div>
       </div>
@@ -454,11 +483,12 @@ const VendorManagement = () => {
               Vendor Management
             </h1>
             <p className="text-gray-600 text-sm mt-1">
-              {vendorStats.totalVendors} total vendors • {sortedAndFilteredVendors.length} displayed
+              {vendorStats.totalVendors} total vendors •{" "}
+              {sortedAndFilteredVendors.length} displayed
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleRefresh}
@@ -466,13 +496,18 @@ const VendorManagement = () => {
             className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw size={16} className={`text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              size={16}
+              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </button>
-          
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
-              showFilters ? 'bg-blue-100 text-blue-600' : 'bg-white text-gray-600'
+              showFilters
+                ? "bg-blue-100 text-blue-600"
+                : "bg-white text-gray-600"
             }`}
             title="Toggle filters"
           >
@@ -553,75 +588,6 @@ const VendorManagement = () => {
         </div>
       )}
 
-      {/* Statistics Cards */}
-      {/* <div className="mb-6 sm:mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              title: "Compliant Vendors",
-              count: vendorStats.compliantVendors,
-              color: "emerald",
-              icon: <CheckCircle size={20} />,
-              bgColor: "bg-emerald-50",
-              textColor: "text-emerald-700",
-              borderColor: "border-emerald-200"
-            },
-            {
-              title: "Non-compliant Vendors",
-              count: vendorStats.nonCompliantVendors,
-              color: "red",
-              icon: <XCircle size={20} />,
-              bgColor: "bg-red-50",
-              textColor: "text-red-700",
-              borderColor: "border-red-200"
-            },
-            {
-              title: "Pending Vendors",
-              count: vendorStats.pendingVendors,
-              color: "yellow",
-              icon: <Clock size={20} />,
-              bgColor: "bg-yellow-50",
-              textColor: "text-yellow-700",
-              borderColor: "border-yellow-200"
-            },
-            {
-              title: "Expired Vendors",
-              count: vendorStats.expiredVendors,
-              color: "gray",
-              icon: <AlertCircle size={20} />,
-              bgColor: "bg-gray-50",
-              textColor: "text-gray-700",
-              borderColor: "border-gray-200"
-            },
-          ].map((card, index) => (
-            <div
-              key={index}
-              className={`${card.bgColor} ${card.borderColor} rounded-xl p-4 sm:p-6 border transition-all duration-200 hover:shadow-sm cursor-pointer`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className={`p-2 rounded-lg bg-white ${card.textColor}`}>
-                  {card.icon}
-                </div>
-                <button
-                  className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity`}
-                  onClick={() => setFilterStatus(card.title.includes('Compliant') ? 'Compliant' : 
-                                                card.title.includes('Non-compliant') ? 'Non-compliant' :
-                                                card.title.includes('Pending') ? 'Pending' : 'Expired')}
-                >
-                  View All →
-                </button>
-              </div>
-              <h3 className={`text-sm font-medium ${card.textColor} mb-1`}>
-                {card.title}
-              </h3>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {card.count}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div> */}
-
       {/* Main Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
         {/* Header */}
@@ -636,7 +602,7 @@ const VendorManagement = () => {
               Add Vendor
             </button>
           </div>
-          
+
           {/* Search and Filters */}
           <div className="mt-4 space-y-4">
             <div className="relative">
@@ -647,7 +613,7 @@ const VendorManagement = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search by Vendor ID, Name, Email, or Contact Person..."
+                placeholder="Search by Vendor ID, Name, Email, Contact Person, or TRN NO..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -661,7 +627,7 @@ const VendorManagement = () => {
                 </button>
               )}
             </div>
-            
+
             {showFilters && (
               <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
                 <select
@@ -675,7 +641,7 @@ const VendorManagement = () => {
                   <option value="Pending">Pending</option>
                   <option value="Expired">Expired</option>
                 </select>
-                
+
                 <select
                   value={filterPaymentTerms}
                   onChange={(e) => setFilterPaymentTerms(e.target.value)}
@@ -688,7 +654,7 @@ const VendorManagement = () => {
                   <option value="Net 60">Net 60</option>
                   <option value="60 days">60 days</option>
                 </select>
-                
+
                 <button
                   onClick={() => {
                     setFilterStatus("");
@@ -703,7 +669,7 @@ const VendorManagement = () => {
             )}
           </div>
         </div>
-        
+
         {/* Table */}
         <div className="overflow-x-auto">
           {sortedAndFilteredVendors.length === 0 ? (
@@ -723,25 +689,28 @@ const VendorManagement = () => {
               <thead className="bg-gray-50">
                 <tr>
                   {[
-                    { key: 'vendorId', label: 'Vendor ID' },
-                    { key: 'vendorName', label: 'Vendor Name' },
-                    { key: 'contactPerson', label: 'Contact Person' },
-                    { key: 'email', label: 'Email' },
-                    { key: 'phone', label: 'Phone Number' },
-                    { key: 'address', label: 'Billing Address' },
-                    { key: 'status', label: 'Status' },
-                    { key: null, label: 'Actions' }
+                    { key: "vendorId", label: "Vendor ID" },
+                    { key: "vendorName", label: "Vendor Name" },
+                    { key: "contactPerson", label: "Contact Person" },
+                    { key: "email", label: "Email" },
+                    { key: "phone", label: "Phone Number" },
+                    { key: "address", label: "Billing Address" },
+                    { key: "trnNO", label: "TRN NO" },
+                    { key: "status", label: "Status" },
+                    { key: null, label: "Actions" },
                   ].map((column) => (
                     <th
-                      key={column.key || 'actions'}
+                      key={column.key || "actions"}
                       className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={column.key ? () => handleSort(column.key) : undefined}
+                      onClick={
+                        column.key ? () => handleSort(column.key) : undefined
+                      }
                     >
                       <div className="flex items-center space-x-1">
                         <span>{column.label}</span>
                         {column.key && sortConfig.key === column.key && (
                           <span className="text-blue-600">
-                            {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                            {sortConfig.direction === "asc" ? "↑" : "↓"}
                           </span>
                         )}
                       </div>
@@ -751,8 +720,8 @@ const VendorManagement = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedAndFilteredVendors.map((vendor) => (
-                  <tr 
-                    key={vendor._id} 
+                  <tr
+                    key={vendor._id}
                     className="hover:bg-gray-50 transition-colors duration-150"
                   >
                     <td className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-900">
@@ -772,7 +741,7 @@ const VendorManagement = () => {
                       {vendor.contactPerson}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      <a 
+                      <a
                         href={`mailto:${vendor.email}`}
                         className="text-blue-600 hover:text-blue-800 transition-colors"
                       >
@@ -780,7 +749,7 @@ const VendorManagement = () => {
                       </a>
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      <a 
+                      <a
                         href={`tel:${vendor.phone}`}
                         className="text-blue-600 hover:text-blue-800 transition-colors"
                       >
@@ -791,6 +760,9 @@ const VendorManagement = () => {
                       <div className="max-w-xs truncate" title={vendor.address}>
                         {vendor.address}
                       </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
+                      {vendor.trnNO || "-"}
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center space-x-2">
@@ -814,7 +786,9 @@ const VendorManagement = () => {
                           <Edit size={16} />
                         </button>
                         <button
-                          onClick={() => handleDelete(vendor._id, vendor.vendorName)}
+                          onClick={() =>
+                            handleDelete(vendor._id, vendor.vendorName)
+                          }
                           className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50"
                           title="Delete vendor"
                         >
@@ -854,7 +828,7 @@ const VendorManagement = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Modal Body */}
             <div className="p-4 sm:p-6" ref={formRef}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -872,7 +846,7 @@ const VendorManagement = () => {
                     />
                   </div>
                 )}
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <User size={16} className="inline mr-1" /> Vendor Name *
@@ -884,7 +858,9 @@ const VendorManagement = () => {
                     onChange={handleChange}
                     placeholder="Enter vendor name"
                     className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.vendorName ? "border-red-300 bg-red-50" : "border-gray-300"
+                      errors.vendorName
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.vendorName && (
@@ -894,7 +870,7 @@ const VendorManagement = () => {
                     </p>
                   )}
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <User size={16} className="inline mr-1" /> Contact Person *
@@ -906,7 +882,9 @@ const VendorManagement = () => {
                     onChange={handleChange}
                     placeholder="Enter contact person name"
                     className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.contactPerson ? "border-red-300 bg-red-50" : "border-gray-300"
+                      errors.contactPerson
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.contactPerson && (
@@ -916,7 +894,7 @@ const VendorManagement = () => {
                     </p>
                   )}
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Mail size={16} className="inline mr-1" /> Email
@@ -928,7 +906,9 @@ const VendorManagement = () => {
                     onChange={handleChange}
                     placeholder="vendor@example.com"
                     className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.email ? "border-red-300 bg-red-50" : "border-gray-300"
+                      errors.email
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.email && (
@@ -938,7 +918,7 @@ const VendorManagement = () => {
                     </p>
                   )}
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Phone size={16} className="inline mr-1" /> Phone
@@ -952,7 +932,7 @@ const VendorManagement = () => {
                     className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <MapPin size={16} className="inline mr-1" /> Billing Address *
@@ -964,7 +944,9 @@ const VendorManagement = () => {
                     rows={3}
                     placeholder="Enter complete billing address"
                     className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none ${
-                      errors.address ? "border-red-300 bg-red-50" : "border-gray-300"
+                      errors.address
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {errors.address && (
@@ -974,7 +956,29 @@ const VendorManagement = () => {
                     </p>
                   )}
                 </div>
-                
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <CreditCard size={16} className="inline mr-1" /> TRN NO
+                  </label>
+                  <input
+                    type="text"
+                    name="trnNO"
+                    value={formData.trnNO}
+                    onChange={handleChange}
+                    placeholder="Enter TRN number"
+                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                      errors.trnNO ? "border-red-300 bg-red-50" : "border-gray-300"
+                    }`}
+                  />
+                  {errors.trnNO && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.trnNO}
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <CreditCard size={16} className="inline mr-1" /> Payment Terms
@@ -993,7 +997,7 @@ const VendorManagement = () => {
                     <option value="60 days">60 days</option>
                   </select>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
@@ -1012,7 +1016,7 @@ const VendorManagement = () => {
                   </select>
                 </div>
               </div>
-              
+
               {/* Modal Footer */}
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                 <div className="flex items-center text-sm text-gray-500">
@@ -1021,14 +1025,17 @@ const VendorManagement = () => {
                       <CheckCircle size={14} className="mr-1" />
                       Changes saved automatically
                     </span>
-                  ) : formData.vendorName || formData.contactPerson || formData.email ? (
+                  ) : formData.vendorName ||
+                    formData.contactPerson ||
+                    formData.email ||
+                    formData.trnNO ? (
                     <span className="flex items-center text-amber-600">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>
                   ) : null}
                 </div>
-                
+
                 <div className="flex space-x-4">
                   <button
                     type="button"

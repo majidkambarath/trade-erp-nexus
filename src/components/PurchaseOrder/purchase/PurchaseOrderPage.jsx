@@ -141,6 +141,9 @@ const PurchaseOrderManagement = () => {
           salesPrice: item.salesPrice,
           reorderLevel: item.reorderLevel,
           status: item.status,
+          brand: item.brand,
+          origin: item.origin,
+          expiryDate: item.expiryDate,
         }))
       );
     } catch (error) {
@@ -212,13 +215,13 @@ const PurchaseOrderManagement = () => {
   const generateTransactionNumber = () => {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
+    const sequence = String(Math.floor(Math.random() * 9999) + 1).padStart(
       3,
       "0"
     );
     setFormData((prev) => ({
       ...prev,
-      transactionNo: `PO-${dateStr}-${sequence}`,
+      transactionNo: `PO${sequence}`,
     }));
   };
 

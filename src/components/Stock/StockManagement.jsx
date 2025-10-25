@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Package,
   Plus,
@@ -33,14 +33,17 @@ import {
   ArrowLeft,
   AlertCircle,
   Truck,
+  Globe, // Added for Origin
+  Star, // Added for Brand
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
+import BarcodeGenerator from "react-barcode";
+import { saveAs } from "file-saver";
 
-// Session management utilities
+// SessionManager and getColorFilter remain unchanged
 const SessionManager = {
   storage: {},
-
   get: (key) => {
     try {
       return this.storage[`stock_session_${key}`] || null;
@@ -48,7 +51,6 @@ const SessionManager = {
       return null;
     }
   },
-
   set: (key, value) => {
     try {
       this.storage[`stock_session_${key}`] = value;
@@ -56,7 +58,6 @@ const SessionManager = {
       console.warn("Session storage failed:", error);
     }
   },
-
   remove: (key) => {
     try {
       delete this.storage[`stock_session_${key}`];
@@ -64,7 +65,6 @@ const SessionManager = {
       console.warn("Session removal failed:", error);
     }
   },
-
   clear: () => {
     Object.keys(this.storage).forEach((key) => {
       if (key.startsWith("stock_session_")) {
@@ -74,7 +74,6 @@ const SessionManager = {
   },
 };
 
-// Utility function to map text color classes to SVG filters
 const getColorFilter = (colorClass) => {
   const colorMap = {
     "text-gray-900": "none",
@@ -88,10 +87,118 @@ const getColorFilter = (colorClass) => {
   return colorMap[colorClass] || "none";
 };
 
+// FormSelect Component (unchanged)
+const FormSelect = ({
+  label,
+  icon: Icon,
+  error,
+  options,
+  onAddNew,
+  data,
+  ...props
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const filteredOptions = options.filter((option) =>
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <Icon size={16} className="inline mr-2" /> {label} *
+      </label>
+      <div className="relative">
+        <div
+          className={`w-full px-4 py-3 border rounded-xl focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-transparent transition-all duration-200 ${
+            error ? "border-red-300 bg-red-50" : "border-gray-300"
+          } bg-white cursor-pointer flex items-center justify-between`}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          <span className="text-sm text-gray-900">
+            {options.find((opt) => opt.value === props.value)?.label ||
+              `Select ${label.toLowerCase()}`}
+          </span>
+          {data && (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddNew();
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
+                title={`Add new ${label.toLowerCase()}`}
+              >
+                <Plus size={14} /> <span className="text-xs">New</span>
+              </button>
+            </div>
+          )}
+        </div>
+        {isOpen && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+            <div className="p-2">
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder={`Search ${label.toLowerCase()}...`}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 text-sm"
+                />
+              </div>
+            </div>
+            {filteredOptions.length === 0 ? (
+              <p className="px-4 py-2 text-sm text-gray-500">
+                No {label.toLowerCase()} found
+              </p>
+            ) : (
+              filteredOptions.map(({ value, label }) => (
+                <div
+                  key={value}
+                  className="px-4 py-2 text-sm text-gray-900 hover:bg-purple-50 cursor-pointer transition-all duration-200"
+                  onClick={() => {
+                    props.onChange({ target: { name: props.name, value } });
+                    setIsOpen(false);
+                    setSearchTerm("");
+                  }}
+                >
+                  {label}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      {error && (
+        <p className="mt-1 text-sm text-red-600 flex items-center">
+          <AlertCircle size={12} className="mr-1" /> {error}
+        </p>
+      )}
+    </div>
+  );
+};
+
 const StockManagement = () => {
   const [stockItems, setStockItems] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -102,7 +209,10 @@ const StockManagement = () => {
   const [showLowStock, setShowLowStock] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [isAutoSKU, setIsAutoSKU] = useState(true);
+  const [barcodeData, setBarcodeData] = useState(null);
 
+  // Updated formData with new fields: origin and brand
   const [formData, setFormData] = useState({
     sku: "",
     itemName: "",
@@ -117,6 +227,8 @@ const StockManagement = () => {
     currentStock: "",
     status: "Active",
     vendorId: "",
+    origin: "", // New field
+    brand: "", // New field
   });
 
   const [errors, setErrors] = useState({});
@@ -149,9 +261,8 @@ const StockManagement = () => {
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
+  const barcodeRef = useRef(null);
   const navigate = useNavigate();
-
-  const unitsOfMeasure = ["Piece", "Kg", "Liter", "Meter", "Box", "Carton"];
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
@@ -187,12 +298,48 @@ const StockManagement = () => {
     }
   }, [showToastMessage]);
 
+  const fetchUnits = useCallback(async () => {
+    try {
+      const response = await axiosInstance.get("/uom/units");
+      setUnits(Array.isArray(response.data.data) ? response.data.data : []);
+    } catch (error) {
+      showToastMessage("Failed to fetch units", "error");
+      setUnits([]);
+    }
+  }, [showToastMessage]);
+
   useEffect(() => {
     if (showModal) {
       fetchCategories();
       fetchVendors();
+      fetchUnits();
     }
-  }, [showModal, fetchCategories, fetchVendors]);
+  }, [showModal, fetchCategories, fetchVendors, fetchUnits]);
+
+  useEffect(() => {
+    if (isAutoSKU && formData.category && !editItemId) {
+      const selectedCategory = categories.find(
+        (cat) => cat._id === formData.category
+      );
+      if (selectedCategory) {
+        const prefix = selectedCategory.name
+          .substring(0, 2)
+          .toUpperCase()
+          .replace(/[^A-Z]/g, "");
+        const lastItem = stockItems
+          .filter((item) => item.category?._id === formData.category)
+          .sort((a, b) => b.sku.localeCompare(a.sku))[0];
+        let nextNumber = 1;
+        if (lastItem && lastItem.sku) {
+          const number = parseInt(lastItem.sku.replace(prefix, ""));
+          if (!isNaN(number)) nextNumber = number + 1;
+        }
+        const newSKU = `${prefix}${nextNumber.toString().padStart(4, "0")}`;
+        setFormData((prev) => ({ ...prev, sku: newSKU }));
+        setBarcodeData(newSKU);
+      }
+    }
+  }, [formData.category, isAutoSKU, categories, stockItems, editItemId]);
 
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
@@ -203,6 +350,7 @@ const StockManagement = () => {
       setFormData(savedFormData);
       setIsDraftSaved(true);
       setLastSaveTime(SessionManager.get("lastSaveTime"));
+      setBarcodeData(savedFormData.sku);
     }
 
     if (savedFilters) {
@@ -284,12 +432,14 @@ const StockManagement = () => {
     (e) => {
       const { name, value } = e.target;
       setFormData((prev) => ({ ...prev, [name]: value }));
+      if (name === "sku") setBarcodeData(value);
       if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
       setIsDraftSaved(false);
     },
     [errors]
   );
 
+  // Updated validation to include origin and brand
   const validateForm = useCallback(() => {
     const newErrors = {};
     if (!formData.itemName.trim()) newErrors.itemName = "Item name is required";
@@ -298,6 +448,8 @@ const StockManagement = () => {
     if (!formData.unitOfMeasure)
       newErrors.unitOfMeasure = "Unit of measure is required";
     if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
+    if (!formData.origin.trim()) newErrors.origin = "Origin is required"; // New validation
+    if (!formData.brand.trim()) newErrors.brand = "Brand is required"; // New validation
     if (
       formData.reorderLevel &&
       (isNaN(formData.reorderLevel) || Number(formData.reorderLevel) < 0)
@@ -349,6 +501,8 @@ const StockManagement = () => {
         currentStock: Number(formData.currentStock) || 0,
         status: formData.status,
         vendorId: formData.vendorId,
+        origin: formData.origin, // New field
+        brand: formData.brand, // New field
       };
 
       if (editItemId) {
@@ -361,7 +515,6 @@ const StockManagement = () => {
 
       await fetchStockItems();
       resetForm();
-
       SessionManager.remove("formData");
       SessionManager.remove("lastSaveTime");
     } catch (error) {
@@ -375,6 +528,7 @@ const StockManagement = () => {
   }, [editItemId, formData, fetchStockItems, validateForm, showToastMessage]);
 
   const handleEdit = useCallback((item) => {
+    console.log(item)
     setEditItemId(item._id);
     setFormData({
       sku: item.sku,
@@ -392,10 +546,13 @@ const StockManagement = () => {
       currentStock: item.currentStock.toString(),
       status: item.status,
       vendorId: item.vendorId?._id || "",
+      origin: item.origin || "", // New field
+      brand: item.brand || "", // New field
     });
+    setBarcodeData(item.sku);
+    setIsAutoSKU(false);
     setShowModal(true);
     setIsDraftSaved(false);
-
     SessionManager.remove("formData");
     SessionManager.remove("lastSaveTime");
   }, []);
@@ -459,12 +616,15 @@ const StockManagement = () => {
       currentStock: "",
       status: "Active",
       vendorId: "",
+      origin: "", // New field
+      brand: "", // New field
     });
     setErrors({});
     setShowModal(false);
     setIsDraftSaved(false);
     setLastSaveTime(null);
-
+    setBarcodeData(null);
+    setIsAutoSKU(true);
     SessionManager.remove("formData");
     SessionManager.remove("lastSaveTime");
   }, []);
@@ -477,7 +637,6 @@ const StockManagement = () => {
       if (modal) {
         modal.classList.add("scale-100");
       }
-
       if (formRef.current) {
         const firstInput = formRef.current.querySelector('input[name="sku"]');
         if (firstInput) firstInput.focus();
@@ -506,6 +665,13 @@ const StockManagement = () => {
           categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ""
         }`
       );
+    },
+    [navigate]
+  );
+
+  const handleNavigateToDetail = useCallback(
+    (itemId) => {
+      navigate(`/stock-detail/${itemId}`);
     },
     [navigate]
   );
@@ -574,18 +740,20 @@ const StockManagement = () => {
   const handleExport = useCallback(async () => {
     try {
       const csv = [
-        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt",
+        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,Origin,Brand,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt",
         ...sortedAndFilteredItems.map(
           (item) =>
             `${item.itemId || item._id},${item.sku},"${item.itemName}",${
               item.category?.name || ""
             },${item.category?._id || ""},${item.vendorId?.vendorName || ""},${
               item.vendorId?._id || ""
-            },${item.unitOfMeasure},${item.currentStock},${item.reorderLevel},${
-              item.purchasePrice
-            },${item.salesPrice},${item.status},${item.batchNumber || ""},${
-              item.expiryDate || ""
-            },${item.createdAt || new Date().toISOString()}`
+            },${item.unitOfMeasure},${item.origin || ""},${item.brand || ""},${
+              item.currentStock
+            },${item.reorderLevel},${item.purchasePrice},${item.salesPrice},${
+              item.status
+            },${item.batchNumber || ""},${item.expiryDate || ""},${
+              item.createdAt || new Date().toISOString()
+            }`
         ),
       ].join("\n");
 
@@ -660,12 +828,14 @@ const StockManagement = () => {
     return (
       <span className={`inline-flex items-center ${colorClass}`}>
         {isNegative && "-"}
-        <img
+
+         <span className="mr-1">AED </span>
+        {/* <img
           src={DirhamIcon}
           alt="AED"
           className="w-4.5 h-4.5 mr-1"
           style={{ filter: getColorFilter(colorClass) }}
-        />
+        /> */}
         {absAmount}
       </span>
     );
@@ -704,15 +874,20 @@ const StockManagement = () => {
     };
   }, [stockItems]);
 
-  const handleCategoryChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setCategoryFormData((prev) => ({ ...prev, [name]: value }));
-    if (categoryErrors[name]) setCategoryErrors((prev) => ({ ...prev, [name]: "" }));
-  }, [categoryErrors]);
+  const handleCategoryChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      setCategoryFormData((prev) => ({ ...prev, [name]: value }));
+      if (categoryErrors[name])
+        setCategoryErrors((prev) => ({ ...prev, [name]: "" }));
+    },
+    [categoryErrors]
+  );
 
   const validateCategoryForm = useCallback(() => {
     const newErrors = {};
-    if (!categoryFormData.name.trim()) newErrors.name = "Category name is required";
+    if (!categoryFormData.name.trim())
+      newErrors.name = "Category name is required";
     return newErrors;
   }, [categoryFormData]);
 
@@ -727,25 +902,20 @@ const StockManagement = () => {
     try {
       const payload = {
         name: categoryFormData.name,
-        description: categoryFormData.name, // Default description to name
+        description: categoryFormData.name,
         status: categoryFormData.status,
       };
 
-      const response = await axiosInstance.post("/categories/categories", payload);
-      const newCategory = response.data.data; // Assuming response has the new category with _id
+      const response = await axiosInstance.post(
+        "/categories/categories",
+        payload
+      );
+      const newCategory = response.data.data;
 
-      // Refresh categories
       await fetchCategories();
-
-      // Set the new category in the stock form
       setFormData((prev) => ({ ...prev, category: newCategory._id }));
-
       showToastMessage("Category created successfully!", "success");
-
-      // Close category modal
       setShowCategoryModal(false);
-
-      // Reset category form
       setCategoryFormData({
         name: "",
         description: "",
@@ -760,7 +930,29 @@ const StockManagement = () => {
     } finally {
       setIsCategorySubmitting(false);
     }
-  }, [categoryFormData, validateCategoryForm, fetchCategories, showToastMessage]);
+  }, [
+    categoryFormData,
+    validateCategoryForm,
+    fetchCategories,
+    showToastMessage,
+  ]);
+
+//   const handleDownloadBarcode = useCallback(() => {
+//   if (barcodeRef.current && barcodeRef.current.canvas) {
+//     const canvas = barcodeRef.current.canvas;
+//     canvas.toBlob((blob) => {
+//       if (blob) {
+//         const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // e.g., 2025-10-25T18-39
+//         saveAs(blob, `${formData.sku || "barcode"}_${timestamp}_barcode.png`);
+//         showToastMessage("Barcode downloaded successfully!", "success");
+//       } else {
+//         showToastMessage("Failed to generate barcode image.", "error");
+//       }
+//     }, "image/png");
+//   } else {
+//     showToastMessage("Barcode not available for download.", "error");
+//   }
+// }, [formData.sku, showToastMessage]);
 
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
@@ -789,25 +981,14 @@ const StockManagement = () => {
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2
-            size={48}
-            className="text-indigo-600 animate-spin mx-auto mb-4"
-          />
-          <p className="text-gray-600 text-lg">Loading stock items...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
+          >
             <ArrowLeft size={20} className="text-gray-600" />
           </button>
           <div>
@@ -1118,16 +1299,19 @@ const StockManagement = () => {
                   );
                   const expiryStatus = getExpiryStatus(item.expiryDate);
                   const StockIcon = stockStatus.icon;
-                  const rowClass = item.currentStock <= item.reorderLevel
-                    ? "bg-red-50 border-l-4 border-red-500"
-                    : expiryStatus.label === "Expired" || expiryStatus.label === "Expiring Soon"
-                    ? "bg-yellow-50 border-l-4 border-yellow-500"
-                    : "";
+                  const rowClass =
+                    item.currentStock <= item.reorderLevel
+                      ? "bg-red-50 border-l-4 border-red-500"
+                      : expiryStatus.label === "Expired" ||
+                        expiryStatus.label === "Expiring Soon"
+                      ? "bg-yellow-50 border-l-4 border-yellow-500"
+                      : "";
 
                   return (
                     <tr
                       key={item._id}
-                      className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 ${rowClass}`}
+                      className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 ${rowClass} cursor-pointer`}
+                      onClick={() => handleNavigateToDetail(item._id)}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
@@ -1136,7 +1320,7 @@ const StockManagement = () => {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900">
-                              {item.itemName}
+                              {item.itemName.toUpperCase()}
                             </p>
                             <p className="text-xs text-gray-500">
                               SKU: {item.sku}
@@ -1151,11 +1335,12 @@ const StockManagement = () => {
                         <div>
                           <p
                             className="text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
-                            onClick={() =>
-                              handleNavigateToCategory(item.category?._id)
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNavigateToCategory(item.category?._id);
+                            }}
                           >
-                            {item.category?.name || "N/A"}
+                            {item.category?.name.toUpperCase() || "N/A"}
                           </p>
                           <p className="text-xs text-gray-500">
                             {item.unitOfMeasure}
@@ -1193,11 +1378,14 @@ const StockManagement = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
                           <Calendar size={16} className={expiryStatus.color} />
-                          <span className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}>
+                          <span
+                            className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}
+                          >
                             {item.expiryDate
                               ? new Date(item.expiryDate).toLocaleDateString()
                               : "N/A"}
-                            {expiryStatus.label !== "N/A" && ` (${expiryStatus.label})`}
+                            {expiryStatus.label !== "N/A" &&
+                              ` (${expiryStatus.label})`}
                           </span>
                         </div>
                       </td>
@@ -1213,7 +1401,10 @@ const StockManagement = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td
+                        className="px-6 py-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="flex items-center space-x-3">
                           <button
                             onClick={() => handleEdit(item)}
@@ -1336,22 +1527,52 @@ const StockManagement = () => {
                 </div>
 
                 <div>
+                  <FormSelect
+                    label="Category"
+                    icon={Tag}
+                    error={errors.category}
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    options={categories.map((cat) => ({
+                      value: cat._id,
+                      label: cat.name,
+                    }))}
+                    data={true}
+                    onAddNew={() => setShowCategoryModal(true)}
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Barcode size={16} className="inline mr-2" />
                     SKU *
                   </label>
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleChange}
-                    placeholder="Enter SKU code"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.sku
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      name="sku"
+                      value={formData.sku}
+                      onChange={handleChange}
+                      placeholder="Enter SKU code"
+                      disabled={isAutoSKU && !editItemId}
+                      className={`flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                        errors.sku
+                          ? "border-red-300 bg-red-50"
+                          : "border-gray-300"
+                      } ${isAutoSKU && !editItemId ? "bg-gray-100" : ""}`}
+                    />
+                    <button
+                      onClick={() => setIsAutoSKU(!isAutoSKU)}
+                      className={`px-4 py-2 rounded-lg ${
+                        isAutoSKU
+                          ? "bg-indigo-600 text-white"
+                          : "bg-gray-200 text-gray-700"
+                      } hover:bg-indigo-700 hover:text-white transition-all duration-200`}
+                    >
+                      {isAutoSKU ? "Auto" : "Manual"}
+                    </button>
+                  </div>
                   {errors.sku && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
                       <AlertCircle size={12} className="mr-1" />
@@ -1386,124 +1607,103 @@ const StockManagement = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Tag size={16} className="inline mr-2" />
-                    Category *
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleChange}
-                      className={`flex-1 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                        errors.category
-                          ? "border-red-300 bg-red-50"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      <option value="">Select Category</option>
-                      {categories.map((cat) => (
-                        <option key={cat._id} value={cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() =>
-                        handleNavigateToCategory(formData.category)
-                      }
-                      className="p-2 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 hover:text-indigo-700 transition-all duration-200"
-                      title="Manage Category"
-                    >
-                      <Tag size={16} />
-                    </button>
-                    <button
-                      onClick={() => setShowCategoryModal(true)}
-                      className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 hover:text-green-700 transition-all duration-200"
-                      title="Add New Category"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                  {errors.category && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.category}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Truck size={16} className="inline mr-2" />
-                    Vendor *
-                  </label>
-                  <select
+                  <FormSelect
+                    label="Vendor"
+                    icon={Truck}
+                    error={errors.vendorId}
                     name="vendorId"
                     value={formData.vendorId}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.vendorId
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <option value="">Select Vendor</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor._id} value={vendor._id}>
-                        {vendor.vendorName}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.vendorId && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.vendorId}
-                    </p>
-                  )}
+                    options={vendors.map((vendor) => ({
+                      value: vendor._id,
+                      label: vendor.vendorName,
+                    }))}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Unit of Measure *
-                  </label>
-                  <select
+                  <FormSelect
+                    label="Unit of Measure"
+                    icon={Box}
+                    error={errors.unitOfMeasure}
                     name="unitOfMeasure"
                     value={formData.unitOfMeasure}
                     onChange={handleChange}
+                    options={units.map((unit) => ({
+                      value: unit._id,
+                      label: unit.unitName,
+                    }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    <Globe size={16} className="inline mr-2" />
+                    Origin *
+                  </label>
+                  <input
+                    type="text"
+                    name="origin"
+                    value={formData.origin}
+                    onChange={handleChange}
+                    placeholder="Enter country of origin"
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.unitOfMeasure
+                      errors.origin
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
                     }`}
-                  >
-                    <option value="">Select Unit</option>
-                    {unitsOfMeasure.map((unit) => (
-                      <option key={unit} value={unit}>
-                        {unit}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.unitOfMeasure && (
+                  />
+                  {errors.origin && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
                       <AlertCircle size={12} className="mr-1" />
-                      {errors.unitOfMeasure}
+                      {errors.origin}
                     </p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Barcode/QR Code
+                    <Star size={16} className="inline mr-2" />
+                    Brand *
                   </label>
                   <input
                     type="text"
-                    name="barcodeQrCode"
-                    value={formData.barcodeQrCode}
+                    name="brand"
+                    value={formData.brand}
                     onChange={handleChange}
-                    placeholder="Enter barcode or QR code"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Enter brand name"
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                      errors.brand
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
+                    }`}
                   />
+                  {errors.brand && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <AlertCircle size={12} className="mr-1" />
+                      {errors.brand}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Barcode
+                  </label>
+
+                  {barcodeData && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <BarcodeGenerator
+                        value={barcodeData}
+                        format="CODE128"
+                        ref={barcodeRef}
+                        width={2}
+                        height={50}
+                        fontSize={12}
+                      />
+                     
+                    </div>
+                  )}
                 </div>
 
                 <div className="lg:col-span-3 mt-6">
@@ -1676,7 +1876,9 @@ const StockManagement = () => {
                   ) : formData.itemName ||
                     formData.sku ||
                     formData.category ||
-                    formData.vendorId ? (
+                    formData.vendorId ||
+                    formData.origin || // New field
+                    formData.brand ? ( // New field
                     <span className="flex items-center text-amber-600">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
@@ -1727,7 +1929,9 @@ const StockManagement = () => {
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-              <h3 className="text-xl font-bold text-gray-900">Add New Category</h3>
+              <h3 className="text-xl font-bold text-gray-900">
+                Add New Category
+              </h3>
               <button
                 onClick={() => setShowCategoryModal(false)}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
@@ -1748,7 +1952,9 @@ const StockManagement = () => {
                     onChange={handleCategoryChange}
                     placeholder="Enter category name"
                     className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      categoryErrors.name ? "border-red-300 bg-red-50" : "border-gray-300"
+                      categoryErrors.name
+                        ? "border-red-300 bg-red-50"
+                        : "border-gray-300"
                     }`}
                   />
                   {categoryErrors.name && (

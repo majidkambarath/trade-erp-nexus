@@ -12,7 +12,6 @@ import {
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios"; // Adjust path as needed
 
-// Memoize the POForm component to prevent unnecessary re-renders
 const POForm = React.memo(
   ({
     formData,
@@ -30,16 +29,18 @@ const POForm = React.memo(
     onPOSuccess,
   }) => {
     const isEditing = activeView === "edit";
-
-    // Local state for form errors
     const [formErrors, setFormErrors] = useState({});
 
-    // Log renders for debugging
+    // Recalculate totals whenever items change
+    useEffect(() => {
+      const totals = calculateTotals(formData.items);
+      setFormData((prev) => ({ ...prev, totals }));
+    }, [formData.items, calculateTotals, setFormData]);
+
     useEffect(() => {
       console.log("POForm rendered");
     }, []);
 
-    // Validate form data
     const validateForm = useCallback(() => {
       const errors = {};
       if (!formData.partyId) {
@@ -51,7 +52,11 @@ const POForm = React.memo(
       if (!formData.deliveryDate) {
         errors.deliveryDate = "Delivery date is required";
       }
-      if (!formData.items.some((item) => item.itemId && item.qty && item.purchasePrice)) {
+      if (
+        !formData.items.some(
+          (item) => item.itemId && item.qty && item.purchasePrice
+        )
+      ) {
         errors.items = "At least one valid item is required";
       }
       formData.items.forEach((item, index) => {
@@ -60,16 +65,18 @@ const POForm = React.memo(
           if (!item.qty || parseFloat(item.qty) <= 0)
             errors[`qty_${index}`] = "Quantity must be greater than 0";
           if (!item.purchasePrice || parseFloat(item.purchasePrice) <= 0)
-            errors[`purchasePrice_${index}`] = "Purchase price must be greater than 0";
-          if (!item.taxPercent || parseFloat(item.taxPercent) < 0)
-            errors[`taxPercent_${index}`] = "Tax % must be non-negative";
+            errors[`purchasePrice_${index}`] =
+              "Purchase price must be greater than 0";
+          if (!item.vatPercent || parseFloat(item.vatPercent) < 0)
+            errors[`vatPercent_${index}`] = "VAT % must be non-negative";
+          if (item.expiryDate && new Date(item.expiryDate) < new Date())
+            errors[`expiryDate_${index}`] = "Expiry date cannot be in the past";
         }
       });
       setFormErrors(errors);
       return Object.keys(errors).length === 0;
     }, [formData]);
 
-    // Handle input changes for text fields and textareas
     const handleInputChange = useCallback(
       (e) => {
         const { name, value } = e.target;
@@ -79,7 +86,6 @@ const POForm = React.memo(
       [setFormData]
     );
 
-    // Handle vendor selection
     const handleVendorSelect = useCallback(
       (vendorId) => {
         const vendor = vendors.find((v) => v._id === vendorId);
@@ -92,7 +98,6 @@ const POForm = React.memo(
       [vendors, setFormData, addNotification]
     );
 
-    // Handle item field changes
     const handleItemChange = useCallback(
       (index, field, value) => {
         const newItems = [...formData.items];
@@ -102,17 +107,27 @@ const POForm = React.memo(
           const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].purchasePrice = item.purchasePrice; // Editable purchase price
-            newItems[index].originalPurchasePrice = item.purchasePrice; // Store original price
-            newItems[index].category = item.category?.name || item.category || "";
-            newItems[index].taxPercent =
-              item.taxPercent !== undefined
-                ? item.taxPercent.toString()
-                : newItems[index].taxPercent || "5";
+            newItems[index].purchasePrice = item.purchasePrice;
+            newItems[index].originalPurchasePrice = item.purchasePrice;
+            newItems[index].category =
+              item.category?.name || item.category || "";
+            newItems[index].vatPercent =
+              item.vatPercent !== undefined
+                ? item.vatPercent.toString()
+                : newItems[index].vatPercent || "5";
+            newItems[index].brand = item.brand || "";
+            newItems[index].origin = item.origin || "";
+            newItems[index].expiryDate = item.expiryDate || "";
             const qty = parseFloat(newItems[index].qty) || 0;
+            const purchasePrice =
+              parseFloat(newItems[index].purchasePrice) || 0;
+            const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
             newItems[index].rate = qty
-              ? (item.purchasePrice * qty).toFixed(2)
+              ? (purchasePrice * qty).toFixed(2)
               : "0.00";
+            newItems[index].lineTotal = qty
+              ? (purchasePrice * qty * (1 + vatPercent / 100)).toFixed(2)
+              : "0.00"; // New: Calculate lineTotal
             if (item.currentStock < item.reorderLevel) {
               addNotification(
                 `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
@@ -125,19 +140,26 @@ const POForm = React.memo(
             newItems[index].originalPurchasePrice = 0;
             newItems[index].category = "";
             newItems[index].rate = "0.00";
-            newItems[index].taxPercent = "5";
+            newItems[index].vatPercent = "5";
+            newItems[index].brand = "";
+            newItems[index].origin = "";
+            newItems[index].expiryDate = "";
+            newItems[index].lineTotal = "0.00"; // New: Reset lineTotal
           }
-        } else if (field === "qty") {
-          const qty = parseFloat(value) || 0;
-          const purchasePrice = parseFloat(newItems[index].purchasePrice) || 0;
-          newItems[index].rate = (qty * purchasePrice).toFixed(2);
-        } else if (field === "purchasePrice") {
-          const purchasePrice = parseFloat(value) || 0;
+        } else if (
+          field === "qty" ||
+          field === "purchasePrice" ||
+          field === "vatPercent"
+        ) {
           const qty = parseFloat(newItems[index].qty) || 0;
-          newItems[index].rate = (qty * purchasePrice).toFixed(2);
-        } else if (field === "taxPercent") {
-          newItems[index].taxPercent =
-            parseFloat(value) >= 0 ? parseFloat(value).toFixed(2) : "0.00";
+          const purchasePrice = parseFloat(newItems[index].purchasePrice) || 0;
+          const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
+          newItems[index].rate = qty
+            ? (purchasePrice * qty).toFixed(2)
+            : "0.00";
+          newItems[index].lineTotal = qty
+            ? (purchasePrice * qty * (1 + vatPercent / 100)).toFixed(2)
+            : "0.00"; // New: Calculate lineTotal
         }
 
         setFormData((prev) => ({ ...prev, items: newItems }));
@@ -146,7 +168,6 @@ const POForm = React.memo(
       [formData.items, stockItems, setFormData, addNotification]
     );
 
-    // Add a new item
     const addItem = useCallback(() => {
       setFormData((prev) => ({
         ...prev,
@@ -157,16 +178,19 @@ const POForm = React.memo(
             description: "",
             qty: "",
             rate: "0.00",
-            taxPercent: "5",
+            vatPercent: "5",
             purchasePrice: 0,
             originalPurchasePrice: 0,
             category: "",
+            brand: "",
+            origin: "",
+            expiryDate: "",
+            lineTotal: "0.00", // New
           },
         ],
       }));
     }, [setFormData]);
 
-    // Remove an item
     const removeItem = useCallback(
       (index) => {
         if (formData.items.length > 1) {
@@ -186,7 +210,6 @@ const POForm = React.memo(
       [formData.items, setFormData]
     );
 
-    // Save or update the purchase order
     const savePO = useCallback(async () => {
       if (!validateForm()) {
         addNotification("Please fix form errors before saving", "error");
@@ -209,20 +232,25 @@ const POForm = React.memo(
             .map((item) => {
               const qty = parseFloat(item.qty) || 0;
               const purchasePrice = parseFloat(item.purchasePrice) || 0;
-              const taxPercent = parseFloat(item.taxPercent) || 0;
+              const vatPercent = parseFloat(item.vatPercent) || 0;
               const lineSubtotal = qty * purchasePrice;
-              const lineTotal = (lineSubtotal * (1 + taxPercent / 100)).toFixed(2);
+              const lineTotal = (lineSubtotal * (1 + vatPercent / 100)).toFixed(
+                2
+              );
 
               return {
                 itemId: item.itemId,
                 description: item.description,
                 qty,
                 rate: parseFloat(item.rate) || 0,
-                taxPercent,
+                vatPercent,
                 price: purchasePrice,
                 originalPurchasePrice: item.originalPurchasePrice || 0,
                 category: item.category || "",
-                lineTotal: parseFloat(lineTotal),
+                brand: item.brand || "",
+                origin: item.origin || "",
+                expiryDate: item.expiryDate || "",
+                lineTotal: parseFloat(lineTotal), // New: Include lineTotal
               };
             }),
           terms: formData.terms,
@@ -251,7 +279,8 @@ const POForm = React.memo(
           transactionNo: response.data.data.transactionNo,
           vendorId: response.data.data.partyId,
           vendorName:
-            vendors.find((v) => v._id === response.data.data.partyId)?.vendorName || "Unknown",
+            vendors.find((v) => v._id === response.data.data.partyId)
+              ?.vendorName || "Unknown",
           date: response.data.data.date,
           deliveryDate: response.data.data.deliveryDate,
           status: response.data.data.status,
@@ -278,7 +307,8 @@ const POForm = React.memo(
         onPOSuccess(newPO);
       } catch (error) {
         addNotification(
-          "Failed to save purchase order: " + (error.response?.data?.message || error.message),
+          "Failed to save purchase order: " +
+            (error.response?.data?.message || error.message),
           "error"
         );
       }
@@ -293,13 +323,11 @@ const POForm = React.memo(
       calculateTotals,
     ]);
 
-    const totals = calculateTotals(formData.items);
+    const totals = formData.totals || calculateTotals(formData.items);
 
-    // Stabilize vendors and stockItems props
     const stableVendors = useMemo(() => vendors || [], [vendors]);
     const stableStockItems = useMemo(() => stockItems || [], [stockItems]);
 
-    // Memoize item options for react-select
     const itemOptions = useMemo(
       () =>
         stableStockItems.map((stock) => ({
@@ -327,10 +355,14 @@ const POForm = React.memo(
                 </button>
                 <div>
                   <h1 className="text-3xl font-bold text-slate-800">
-                    {isEditing ? "Edit Purchase Order" : "Create Purchase Order"}
+                    {isEditing
+                      ? "Edit Purchase Order"
+                      : "Create Purchase Order"}
                   </h1>
                   <p className="text-slate-600 mt-1">
-                    {isEditing ? "Update purchase order details" : "Create a new purchase order"}
+                    {isEditing
+                      ? "Update purchase order details"
+                      : "Create a new purchase order"}
                   </p>
                 </div>
               </div>
@@ -381,11 +413,15 @@ const POForm = React.memo(
                         value={formData.date || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.date ? "border-red-500" : "border-slate-200"
+                          formErrors.date
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.date && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.date}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -402,11 +438,15 @@ const POForm = React.memo(
                         value={formData.deliveryDate || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.deliveryDate ? "border-red-500" : "border-slate-200"
+                          formErrors.deliveryDate
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.deliveryDate && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.deliveryDate}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.deliveryDate}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -432,7 +472,9 @@ const POForm = React.memo(
                     ))}
                   </select>
                   {formErrors.partyId && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.partyId}</p>
+                    <p className="text-red-500 text-xs mt-1">
+                      {formErrors.partyId}
+                    </p>
                   )}
                 </div>
 
@@ -455,20 +497,6 @@ const POForm = React.memo(
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Terms & Conditions
-                  </label>
-                  <textarea
-                    key="terms"
-                    name="terms"
-                    value={formData.terms || ""}
-                    onChange={handleInputChange}
-                    placeholder="Payment terms, delivery conditions, etc."
-                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Notes
                   </label>
                   <textarea
@@ -483,14 +511,22 @@ const POForm = React.memo(
               </div>
 
               <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">Vendor Preview</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Vendor Preview
+                </h3>
                 {formData.partyId ? (
                   (() => {
-                    const vendor = stableVendors.find((v) => v._id === formData.partyId);
+                    const vendor = stableVendors.find(
+                      (v) => v._id === formData.partyId
+                    );
                     return vendor ? (
                       <div className="text-sm text-slate-700 space-y-2">
-                        <p className="font-semibold text-blue-600">{vendor.vendorId}</p>
-                        <p className="font-bold text-slate-800">{vendor.vendorName}</p>
+                        <p className="font-semibold text-blue-600">
+                          {vendor.vendorId}
+                        </p>
+                        <p className="font-bold text-slate-800">
+                          {vendor.vendorName}
+                        </p>
                         <p>{vendor.address}</p>
                         <p className="flex items-center space-x-1">
                           <User className="w-3 h-3" />
@@ -505,28 +541,36 @@ const POForm = React.memo(
                     );
                   })()
                 ) : (
-                  <p className="text-slate-500 italic">Select a vendor to see details</p>
+                  <p className="text-slate-500 italic">
+                    Select a vendor to see details
+                  </p>
                 )}
 
                 <div className="mt-6 pt-6 border-t border-slate-200">
-                  <h4 className="font-semibold text-slate-800 mb-3">Order Summary</h4>
+                  <h4 className="font-semibold text-slate-800 mb-3">
+                    Order Summary
+                  </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Items:</span>
-                      <span>{formData.items.filter((item) => item.itemId).length}</span>
+                      <span>
+                        {formData.items.filter((item) => item.itemId).length}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
                       <span>AED {totals.subtotal}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Tax:</span>
-                      <span>AED {totals.tax}</span>
+                      <span>VAT:</span>
+                      <span>AED {totals.vat}</span>
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total:</span>
-                        <span className="text-emerald-600">AED {totals.total}</span>
+                        <span className="text-emerald-600">
+                          AED {totals.total}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -557,42 +601,109 @@ const POForm = React.memo(
                 {formData.items.map((item, index) => (
                   <div
                     key={`item-${index}`}
-                    className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
+                    className="grid grid-cols-6 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
                   >
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Item
+                      </label>
                       <Select
                         options={itemOptions}
-                        value={itemOptions.find((opt) => opt.value === item.itemId) || null}
+                        value={
+                          itemOptions.find(
+                            (opt) => opt.value === item.itemId
+                          ) || null
+                        }
                         onChange={(selected) =>
-                          handleItemChange(index, "itemId", selected ? selected.value : "")
+                          handleItemChange(
+                            index,
+                            "itemId",
+                            selected ? selected.value : ""
+                          )
                         }
                         placeholder="Select Item..."
                         isClearable
                         isSearchable
                         classNamePrefix="select"
                         className={`text-sm ${
-                          formErrors[`itemId_${index}`] ? "border-red-500 rounded-lg" : ""
+                          formErrors[`itemId_${index}`]
+                            ? "border-red-500 rounded-lg"
+                            : ""
                         }`}
                       />
                       {formErrors[`itemId_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`itemId_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`itemId_${index}`]}
+                        </p>
                       )}
                     </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Description
+                      </label>
                       <input
                         type="text"
                         value={item.description || ""}
-                        onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "description", e.target.value)
+                        }
                         placeholder="Description"
                         className="w-full px-4 py-3 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
                     </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Brand
+                      </label>
+                      <input
+                        type="text"
+                        value={item.brand || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Origin
+                      </label>
+                      <input
+                        type="text"
+                        value={item.origin || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block  text-xs font-semibold text-slate-700 mb-1">
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        value={item.expiryDate || ""}
+                        onChange={(e) =>
+                          handleItemChange(index, "expiryDate", e.target.value)
+                        }
+                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
+                          formErrors[`expiryDate_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                      />
+                      {formErrors[`expiryDate_${index}`] && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`expiryDate_${index}`]}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Category
+                      </label>
                       <input
                         type="text"
                         value={item.category || ""}
@@ -602,24 +713,34 @@ const POForm = React.memo(
                     </div>
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Quantity
+                      </label>
                       <input
                         type="number"
                         value={item.qty || ""}
-                        onChange={(e) => handleItemChange(index, "qty", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "qty", e.target.value)
+                        }
                         placeholder="Qty"
                         min="0"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`qty_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`qty_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`qty_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`qty_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`qty_${index}`]}
+                        </p>
                       )}
                     </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Original Purchase Price</label>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Purchase Price
+                      </label>
                       <input
                         type="number"
                         value={item.originalPurchasePrice || ""}
@@ -628,50 +749,84 @@ const POForm = React.memo(
                       />
                     </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price</label>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                         Price
+                      </label>
                       <input
                         type="number"
                         value={item.purchasePrice || ""}
-                        onChange={(e) => handleItemChange(index, "purchasePrice", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(
+                            index,
+                            "purchasePrice",
+                            e.target.value
+                          )
+                        }
                         placeholder="Price"
                         min="0"
                         step="0.01"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`purchasePrice_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`purchasePrice_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`purchasePrice_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`purchasePrice_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`purchasePrice_${index}`]}
+                        </p>
                       )}
                     </div>
 
-                    <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rate</label>
+                    {/* <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Rate
+                      </label>
                       <input
                         type="number"
                         value={item.rate || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
-                    </div>
+                    </div> */}
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tax %</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        VAT %
+                      </label>
                       <input
                         type="number"
-                        value={item.taxPercent || ""}
-                        onChange={(e) => handleItemChange(index, "taxPercent", e.target.value)}
-                        placeholder="Tax %"
+                        value={item.vatPercent || ""}
+                        onChange={(e) =>
+                          handleItemChange(index, "vatPercent", e.target.value)
+                        }
+                        placeholder="VAT %"
                         min="0"
                         step="0.1"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`taxPercent_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`vatPercent_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
-                      {formErrors[`taxPercent_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`taxPercent_${index}`]}</p>
+                      {formErrors[`vatPercent_${index}`] && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`vatPercent_${index}`]}
+                        </p>
                       )}
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Line Total
+                      </label>
+                      <input
+                        type="number"
+                        value={item.lineTotal || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
                     </div>
 
                     <div className="col-span-1 flex justify-end">

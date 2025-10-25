@@ -26,6 +26,7 @@ import TransactorsManagement from "../components/AccountsModule/Transactors/Tran
 import JournalVoucherManagement from "../components/FinancialModules/Journal/JournalVoucherManagement.jsx";
 import ContraVoucherManagement from "../components/FinancialModules/Contra/ContraVoucherManagement.jsx";
 import ExpenseVoucherManagement from "../components/FinancialModules/Expense/ExpenseVoucherManagement.jsx";
+import StockDetail from "../components/Stock/StockDetail.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
@@ -35,6 +36,8 @@ export default function AdminRouter() {
         <Route path="/vendor-creation" element={<VendorCreation />} />{" "}
         <Route path="/customer-creation" element={<CustomerCreation />} />{" "}
         <Route path="/stock-item-creation" element={<StockCreation />} />{" "}
+        <Route path="/stock-item-creation" element={<StockCreation />} />{" "}
+         <Route path="/stock-detail/:id" element={<StockDetail />} />{" "}
         <Route path="/unit-setup" element={<UnitOfMeasure />} />{" "}
         <Route path="/staff-records" element={<Staff />} />{" "}
         <Route path="/settings" element={<Settings />} />{" "}

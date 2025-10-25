@@ -29,6 +29,7 @@ const InvoiceView = ({
     accountName: "",
     ibanNumber: "",
     currency: "AED",
+    vatNumber: "",
   });
   const adminId = sessionStorage.getItem("adminId");
   const token = sessionStorage.getItem("accessToken");
@@ -45,22 +46,23 @@ const InvoiceView = ({
         if (response.data.success) {
           const data = response.data.data;
           setProfileData({
-            companyName: data.companyInfo?.companyName || "",
-            addressLine1: data.companyInfo?.addressLine1 || "",
-            addressLine2: data.companyInfo?.addressLine2 || "",
-            city: data.companyInfo?.city || "",
+            companyName: data.companyInfo?.companyName || "WOOHOO KITCHEN",
+            addressLine1: data.companyInfo?.addressLine1 || "Loading Bay, G01 & G03, Ground Floor",
+            addressLine2: data.companyInfo?.addressLine2 || "Kempinski, The Boulevard Dubai",
+            city: data.companyInfo?.city || "Downtown Dubai",
             stateProvince: data.companyInfo?.state || "",
             country: data.companyInfo?.country || "United Arab Emirates",
             postalCode: data.companyInfo?.postalCode || "",
-            phoneNumber: data.companyInfo?.phoneNumber || "",
-            email: data.companyInfo?.emailAddress || data.email || "",
-            website: data.companyInfo?.website || "",
+            phoneNumber: data.companyInfo?.phoneNumber || "+971 50 5894738",
+            email: data.companyInfo?.emailAddress || data.email || "contact@woohookitchen.com",
+            website: data.companyInfo?.website || "www.woohookitchen.com",
             logo: data.companyInfo?.companyLogo?.url || null,
-            bankName: data.companyInfo?.bankDetails?.bankName || "",
-            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
-            accountName: data.companyInfo?.bankDetails?.accountName || "",
-            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
+            bankName: data.companyInfo?.bankDetails?.bankName || "Emirates NBD",
+            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "1234567890",
+            accountName: data.companyInfo?.bankDetails?.accountName || "WOOHOO KITCHEN LLC",
+            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "AE123456789012345678901",
             currency: data.companyInfo?.bankDetails?.currency || "AED",
+            vatNumber: data.companyInfo?.vatNumber || "1048471625000003",
           });
         }
       } catch (error) {
@@ -78,11 +80,11 @@ const InvoiceView = ({
 
   const po = createdPO || selectedPO;
   if (!po) return null;
-  console.log(po);
   const vendor = vendors.find((v) => v._id === po.vendorId);
 
   const subtotal = po.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = po.items.reduce((sum, item) => sum + item.taxPercent, 0);
+  const vatAmount = subtotal * 0.05;
+  const grandTotal = subtotal + vatAmount;
 
   const handleDownloadPDF = async () => {
     try {
@@ -209,6 +211,15 @@ const InvoiceView = ({
     setActiveView("list");
   };
 
+  // Terms and Conditions
+  const termsAndConditions = [
+    "Payment is due within 30 days from the invoice date.",
+    "Goods remain the property of the seller until fully paid.",
+    "Late payments may incur a 2% monthly interest charge.",
+    "All deliveries must be inspected upon receipt, and any discrepancies reported within 48 hours.",
+    "Returns are subject to prior approval and must be in original condition.",
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
@@ -255,140 +266,149 @@ const InvoiceView = ({
 
         <div
           id="invoice-content"
-          className="bg-white shadow-lg"
+          className="bg-white shadow-lg rounded-lg"
           style={{
             width: "210mm",
             minHeight: "297mm",
             margin: "0 auto",
-            padding: "20mm",
-            fontSize: "12px",
-            lineHeight: "1.4",
+            padding: "20mm 15mm",
+            fontSize: "11px",
+            lineHeight: "1.5",
             fontFamily: "Arial, sans-serif",
             color: "#000",
           }}
         >
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "20px",
-              borderBottom: "2px solid #8B5CF6",
-              paddingBottom: "15px",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: "14px",
-                fontWeight: "bold",
-                margin: "0 0 5px 0",
-                direction: "rtl",
-              }}
-            >
-              نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
-            </h1>
-            <h2
-              style={{
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 15px 0",
-                color: "#0f766e",
-              }}
-            >
-              {profileData.companyName || "Company Name"}
-            </h2>
-
-            <div
-              style={{
-                backgroundColor: "#c8a2c8",
-                color: "white",
-                padding: "8px",
-                margin: "0 -20mm 20px -20mm",
-              }}
-            >
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}>
-                PURCHASE INVOICE
-              </h3>
+          {/* Header Section */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ width: "50%" }}>
+              {profileData.logo && (
+                <img
+                  src={profileData.logo}
+                  alt="Company Logo"
+                  style={{
+                    width: "150px",
+                    height: "auto",
+                    marginBottom: "10px",
+                    objectFit: "contain",
+                  }}
+                />
+              )}
+              <h2 style={{ fontSize: "14px", fontWeight: "bold", margin: "0" }}>
+                {profileData.companyName}
+              </h2>
+              <p style={{ margin: "5px 0 0 0", fontSize: "10px" }}>
+                {profileData.addressLine1}
+                {profileData.addressLine2 && `, ${profileData.addressLine2}`}
+                <br />
+                {profileData.city}
+                {profileData.stateProvince && `, ${profileData.stateProvince}`}
+                {profileData.postalCode && `, ${profileData.postalCode}`}
+                <br />
+                {profileData.country}
+                <br />
+                Tel: {profileData.phoneNumber}
+                <br />
+                Email: {profileData.email}
+                <br />
+                Website: {profileData.website}
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{
+                  borderTop: "2px solid #000",
+                  borderBottom: "2px solid #000",
+                  padding: "5px 0",
+                  margin: "0 0 10px 0",
+                }}
+              >
+                <h1
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    margin: "0",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  PURCHASE ORDER
+                </h1>
+              </div>
+              <p style={{ margin: "0 0 5px 0", fontSize: "10px" }}>
+                <strong>VAT Reg. No.:</strong> {profileData.vatNumber}
+              </p>
             </div>
           </div>
 
+          {/* Two Column Layout - Vendor Info and Order Details */}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               marginBottom: "20px",
               fontSize: "10px",
+              borderTop: "1px solid #ccc",
+              paddingTop: "10px",
             }}
           >
-            <div>
-              <p style={{ margin: "2px 0" }}>
-                {profileData.city}, {profileData.country}
+            {/* Left Column - Vendor Info */}
+            <div style={{ width: "48%" }}>
+              <p
+                style={{
+                  margin: "0 0 5px 0",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                To: {vendor?.vendorName || "NAJM ALHUDA FOODSTUFF TRADING LLC"}
               </p>
-              <p style={{ margin: "2px 0" }}>
-                VAT Reg. No: {profileData.vatNumber || "N/A"}
+              <p style={{ margin: "0 0 5px 0" }}>
+                Address: {vendor?.address || "Not Provided"}
               </p>
-              <p style={{ margin: "2px 0" }}>Email: {profileData.email}</p>
-              <p style={{ margin: "2px 0" }}>
-                Phone: {profileData.phoneNumber}
-              </p>
-              <p style={{ margin: "2px 0" }}>Web: {profileData.website}</p>
+              <p style={{ margin: "0 0 5px 0" }}>Tel: {vendor?.phone || "Not Provided"}</p>
+              <p style={{ margin: "0 0 5px 0" }}>TRN No: {vendor?.traNo || "Not Provided"}</p>
+              <p style={{ margin: "0 0 5px 0" }}>Email: {vendor?.email || "Not Provided"}</p>
             </div>
 
-            <div style={{ textAlign: "center" }}>
-              <img
-                src={profileData.logo || "https://via.placeholder.com/80"}
-                alt="Company Logo"
-                style={{ width: "80px", height: "80px", objectFit: "contain" }}
-              />
-            </div>
-
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: "2px 0" }}>
-                Date: {new Date().toLocaleDateString("en-GB")}
+            {/* Right Column - Order Details */}
+            <div style={{ width: "48%", textAlign: "right" }}>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Order No:</strong> {po.transactionNo}
               </p>
-              <p style={{ margin: "2px 0" }}>Invoice: {po.transactionNo}</p>
-              <p style={{ margin: "2px 0" }}>PO. NO: {po.transactionNo}</p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Order Date:</strong>{" "}
+                {new Date(po.date || Date.now()).toLocaleDateString("en-GB")}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Requested By:</strong> {profileData.companyName}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Request No.:</strong> {po.requestNo || "i25-30157"}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Delivery Date:</strong>{" "}
+                {po.deliveryDate
+                  ? new Date(po.deliveryDate).toLocaleDateString("en-GB")
+                  : "Not Specified"}
+              </p>
             </div>
           </div>
 
-          <div
-            style={{
-              backgroundColor: "#e6d7e6",
-              padding: "10px",
-              marginBottom: "20px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>
-                <div
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: "bold",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Bill To:
-                </div>
-                <div style={{ fontSize: "10px" }}>
-                  <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                    {vendor?.vendorName}
-                  </p>
-                  <p style={{ margin: "2px 0" }}>
-                    {vendor?.address.split("\n")[0]}
-                  </p>
-                  <p style={{ margin: "2px 0" }}>
-                    {vendor?.address.split("\n")[1] || ""}
-                  </p>
-                  <p style={{ margin: "2px 0" }}>Tel: {vendor?.phone}</p>
-                </div>
-              </div>
-              <div style={{ fontSize: "10px" }}>
-                <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
-                <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                  {vendor?.vatNumber}
-                </p>
-              </div>
-            </div>
+          {/* Delivery Information */}
+          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
+            <p style={{ margin: "0 0 5px 0" }}>
+              <strong>Delivery To:</strong>{" "}
+              {po.deliveryAddress || `${profileData.addressLine1}, ${profileData.addressLine2}, ${profileData.city}, ${profileData.country}`}
+            </p>
+            <p style={{ margin: "0 0 5px 0" }}>
+              <strong>Contact Person:</strong>{" "}
+              {po.contactPerson || profileData.phoneNumber}
+            </p>
+            <p style={{ margin: "0 0 10px 0" }}>
+              <strong>Payment Terms:</strong> {po.paymentTerms || "Due on Receipt"}
+            </p>
           </div>
 
+          {/* Items Table */}
           <table
             style={{
               width: "100%",
@@ -398,43 +418,39 @@ const InvoiceView = ({
             }}
           >
             <thead>
-              <tr style={{ backgroundColor: "#e6d7e6" }}>
+              <tr>
                 <th
                   style={{
                     border: "1px solid #000",
+                    borderBottom: "2px solid #000",
                     padding: "8px",
                     textAlign: "center",
                     fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Line
+                  Article
                 </th>
                 <th
                   style={{
                     border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "left",
-                    fontWeight: "bold",
-                  }}
-                >
-                  CODE
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "left",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Item Description
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
                     padding: "8px",
                     textAlign: "center",
                     fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
+                  }}
+                >
+                  Unit
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
                   }}
                 >
                   Qty
@@ -442,42 +458,26 @@ const InvoiceView = ({
                 <th
                   style={{
                     border: "1px solid #000",
+                    borderBottom: "2px solid #000",
                     padding: "8px",
                     textAlign: "center",
                     fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Unit price
+                  Unit Price
                 </th>
                 <th
                   style={{
                     border: "1px solid #000",
+                    borderBottom: "2px solid #000",
                     padding: "8px",
                     textAlign: "center",
                     fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Value
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  VAT 5%
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Amount
+                  Total
                 </th>
               </tr>
             </thead>
@@ -487,31 +487,45 @@ const InvoiceView = ({
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "6px",
-                      textAlign: "center",
+                      padding: "8px",
+                      textAlign: "left",
                     }}
                   >
-                    {index + 1}
-                  </td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>
-                    {item.itemCode}
-                  </td>
-                  <td style={{ border: "1px solid #000", padding: "6px" }}>
                     {item.description}
+                    {item.note && (
+                      <div
+                        style={{
+                          fontSize: "9px",
+                          fontStyle: "italic",
+                          color: "#666",
+                        }}
+                      >
+                        {item.note}
+                      </div>
+                    )}
                   </td>
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "6px",
+                      padding: "8px",
                       textAlign: "center",
                     }}
                   >
-                    {item.qty}
+                    {item.unit || "N/A"}
                   </td>
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "6px",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.qty.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
                       textAlign: "center",
                     }}
                   >
@@ -520,192 +534,229 @@ const InvoiceView = ({
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "6px",
+                      padding: "8px",
                       textAlign: "center",
                     }}
                   >
                     {item.rate.toFixed(2)}
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "6px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {item.taxPercent}
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "6px",
-                      textAlign: "center",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {item.lineTotal.toFixed(2)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div
+          {/* Totals Section */}
+          <table
             style={{
-              display: "flex",
-              justifyContent: "space-between",
+              width: "100%",
+              borderCollapse: "collapse",
               marginBottom: "20px",
+              fontSize: "10px",
             }}
           >
-            <div style={{ width: "45%" }}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "bold",
-                  marginBottom: "10px",
-                }}
-              >
-                BANK DETAILS:-
-              </div>
-              <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
-                <p style={{ margin: "2px 0" }}>
-                  <strong>BANK:</strong> {profileData.bankName}
-                </p>
-                <p style={{ margin: "2px 0" }}>
-                  <strong>ACCOUNT NO:</strong> {profileData.accountNumber}
-                </p>
-              </div>
-            </div>
-
-            <div style={{ width: "40%" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "10px",
-                }}
-              >
-                <tr>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "right",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Sub Total
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {subtotal.toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "right",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    VAT (5%)
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {tax}
-                  </td>
-                </tr>
-              </table>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              marginBottom: "20px",
-            }}
-          >
-            <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
-              <p style={{ margin: "2px 0" }}>
-                <strong>IBAN NO:</strong> {profileData.ibanNumber}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> {profileData.currency}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> {profileData.accountName}
-              </p>
-            </div>
-
-            <div
-              style={{
-                border: "2px solid #000",
-                padding: "10px 20px",
-                backgroundColor: "#f9f9f9",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "15px" }}
-              >
-                <span style={{ fontSize: "12px", fontWeight: "bold" }}>
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    border: "none",
+                    borderLeft: "1px solid #000",
+                    borderRight: "1px solid #000",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "1px solid #000",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "1px solid #000",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  NET TOTAL
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {profileData.currency}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "right",
+                  }}
+                >
+                  {subtotal.toFixed(2)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style={{
+                    border: "none",
+                    borderLeft: "none",
+                    borderRight: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "1px solid #000",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    padding: "8px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  VAT 5%
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {profileData.currency}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    padding: "8px",
+                    textAlign: "right",
+                  }}
+                >
+                  {vatAmount.toFixed(2)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  style={{
+                    border: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
                   GRAND TOTAL
-                </span>
-                <span style={{ fontSize: "14px", fontWeight: "bold" }}>
-                  {subtotal}
-                </span>
-              </div>
-            </div>
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {profileData.currency}
+                </td>
+                <td
+                  style={{
+                    border: "1px solid #000",
+                    borderTop: "none",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {grandTotal.toFixed(2)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Terms and Conditions */}
+          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
+            <h3 style={{ fontSize: "12px", fontWeight: "bold", margin: "0 0 10px 0" }}>
+              Terms and Conditions
+            </h3>
+            <ul style={{ margin: "0", paddingLeft: "20px" }}>
+              {termsAndConditions.map((term, index) => (
+                <li key={index} style={{ marginBottom: "5px" }}>
+                  {term}
+                </li>
+              ))}
+            </ul>
           </div>
 
-          <div style={{ marginTop: "30px" }}>
-            <div style={{ textAlign: "center", marginBottom: "30px" }}>
-              <p style={{ fontSize: "11px", margin: "0" }}>
-                Received the above goods in good order and condition.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                paddingTop: "20px",
-              }}
-            >
-              <div style={{ fontSize: "11px", width: "45%" }}>
-                <p style={{ margin: "0 0 30px 0" }}>Received by:</p>
-                <div
-                  style={{
-                    borderBottom: "1px solid #000",
-                    marginBottom: "5px",
-                  }}
-                ></div>
-              </div>
-              <div
-                style={{ fontSize: "11px", width: "45%", textAlign: "right" }}
-              >
-                <p style={{ margin: "0 0 30px 0" }}>Prepared by:</p>
-                <div
-                  style={{
-                    borderBottom: "1px solid #000",
-                    marginBottom: "5px",
-                  }}
-                ></div>
-              </div>
-            </div>
+          {/* Footer - Page Number */}
+          <div
+            style={{
+              textAlign: "right",
+              fontSize: "9px",
+              marginTop: "20px",
+              borderTop: "1px solid #ccc",
+              paddingTop: "10px",
+            }}
+          >
+            <p style={{ margin: "0" }}>Page: 1/1</p>
           </div>
         </div>
       </div>
