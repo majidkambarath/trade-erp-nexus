@@ -178,6 +178,7 @@ const PurchaseOrderManagement = () => {
           transactionNo: transaction.transactionNo,
           vendorId: transaction.partyId,
           vendorName: transaction.partyName,
+          vendorReference:transaction.vendorReference,
           date: transaction.date,
           deliveryDate: transaction.deliveryDate,
           status: transaction.status,

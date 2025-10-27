@@ -3,7 +3,6 @@ import { Package, Plus, Trash2, Calendar, User, Save, ArrowLeft, Hash } from "lu
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios"; // Adjust path as needed
 
-// Memoize the SOForm component to prevent unnecessary re-renders
 const SOForm = React.memo(
   ({
     formData,
@@ -24,12 +23,15 @@ const SOForm = React.memo(
   }) => {
     const isEditing = activeView === "edit";
 
-    // Log renders for debugging
+    useEffect(() => {
+      const totals = calculateTotals(formData.items);
+      setFormData((prev) => ({ ...prev, totals }));
+    }, [formData.items, calculateTotals, setFormData]);
+
     useEffect(() => {
       console.log("SOForm rendered");
     }, []);
 
-    // Validate form data
     const validateForm = useCallback(() => {
       const errors = {};
       if (!formData.partyId) {
@@ -55,15 +57,14 @@ const SOForm = React.memo(
             errors[`qty_${index}`] = "Quantity must be greater than 0";
           if (!item.salesPrice || parseFloat(item.salesPrice) <= 0)
             errors[`salesPrice_${index}`] = "Sales price must be greater than 0";
-          if (!item.taxPercent || parseFloat(item.taxPercent) < 0)
-            errors[`taxPercent_${index}`] = "Tax % must be non-negative";
+          if (!item.vatPercent || parseFloat(item.vatPercent) < 0)
+            errors[`vatPercent_${index}`] = "VAT % must be non-negative";
         }
       });
       setFormErrors(errors);
       return Object.keys(errors).length === 0;
     }, [formData, setFormErrors]);
 
-    // Handle input changes for text fields and textareas
     const handleInputChange = useCallback(
       (e) => {
         const { name, value } = e.target;
@@ -73,20 +74,21 @@ const SOForm = React.memo(
       [setFormData, setFormErrors]
     );
 
-    // Handle customer selection
     const handleCustomerSelect = useCallback(
-      (customerId) => {
-        const customer = customers.find((c) => c._id === customerId);
-        if (customer) {
-          setFormData((prev) => ({ ...prev, partyId: customer._id }));
-          setFormErrors((prev) => ({ ...prev, partyId: null }));
-          addNotification(`Customer ${customer.customerName} selected`, "success");
+      (selected) => {
+        const customerId = selected ? selected.value : "";
+        setFormData((prev) => ({ ...prev, partyId: customerId }));
+        setFormErrors((prev) => ({ ...prev, partyId: null }));
+        if (selected) {
+          const customer = customers.find((c) => c._id === selected.value);
+          if (customer) {
+            addNotification(`Customer ${customer.customerName} selected`, "success");
+          }
         }
       },
       [customers, setFormData, addNotification, setFormErrors]
     );
 
-    // Handle item field changes
     const handleItemChange = useCallback(
       (index, field, value) => {
         const newItems = [...formData.items];
@@ -96,16 +98,23 @@ const SOForm = React.memo(
           const item = stockItems.find((i) => i._id === value);
           if (item) {
             newItems[index].description = item.itemName;
-            newItems[index].salesPrice = item.salesPrice; // Editable sales price
-            newItems[index].purchasePrice = item.purchasePrice; // Read-only purchase price
-            newItems[index].category = item.category?.name || item.category || "";
-            newItems[index].taxPercent =
+            newItems[index].salesPrice = item.salesPrice;
+            newItems[index].purchasePrice = item.purchasePrice;
+            newItems[index].vatPercent =
               item.taxPercent !== undefined
                 ? item.taxPercent.toString()
-                : newItems[index].taxPercent || "5";
+                : newItems[index].vatPercent || "5";
             const qty = parseFloat(newItems[index].qty) || 0;
-            newItems[index].rate = qty
-              ? (item.salesPrice * qty).toFixed(2)
+            const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
+            const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
+            newItems[index].total = qty
+              ? (salesPrice * qty).toFixed(2)
+              : "0.00";
+            newItems[index].vatAmount = qty
+              ? (salesPrice * qty * (vatPercent / 100)).toFixed(2)
+              : "0.00";
+            newItems[index].grandTotal = qty
+              ? (salesPrice * qty * (1 + vatPercent / 100)).toFixed(2)
               : "0.00";
             if (item.currentStock < item.reorderLevel) {
               addNotification(
@@ -117,21 +126,28 @@ const SOForm = React.memo(
             newItems[index].description = "";
             newItems[index].salesPrice = 0;
             newItems[index].purchasePrice = 0;
-            newItems[index].category = "";
-            newItems[index].rate = "0.00";
-            newItems[index].taxPercent = "5";
+            newItems[index].vatPercent = "5";
+            newItems[index].total = "0.00";
+            newItems[index].vatAmount = "0.00";
+            newItems[index].grandTotal = "0.00";
           }
-        } else if (field === "qty") {
-          const qty = parseFloat(value) || 0;
-          const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
-          newItems[index].rate = (qty * salesPrice).toFixed(2);
-        } else if (field === "salesPrice") {
-          const salesPrice = parseFloat(value) || 0;
+        } else if (
+          field === "qty" ||
+          field === "salesPrice" ||
+          field === "vatPercent"
+        ) {
           const qty = parseFloat(newItems[index].qty) || 0;
-          newItems[index].rate = (qty * salesPrice).toFixed(2);
-        } else if (field === "taxPercent") {
-          newItems[index].taxPercent =
-            parseFloat(value) >= 0 ? parseFloat(value).toFixed(2) : "0.00";
+          const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
+          const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
+          newItems[index].total = qty
+            ? (salesPrice * qty).toFixed(2)
+            : "0.00";
+          newItems[index].vatAmount = qty
+            ? (salesPrice * qty * (vatPercent / 100)).toFixed(2)
+            : "0.00";
+          newItems[index].grandTotal = qty
+            ? (salesPrice * qty * (1 + vatPercent / 100)).toFixed(2)
+            : "0.00";
         }
 
         setFormData((prev) => ({ ...prev, items: newItems }));
@@ -140,7 +156,6 @@ const SOForm = React.memo(
       [formData.items, stockItems, setFormData, addNotification, setFormErrors]
     );
 
-    // Add a new item
     const addItem = useCallback(() => {
       setFormData((prev) => ({
         ...prev,
@@ -150,17 +165,17 @@ const SOForm = React.memo(
             itemId: "",
             description: "",
             qty: "",
-            rate: "0.00",
-            taxPercent: "5",
+            total: "0.00",
+            vatPercent: "5",
+            vatAmount: "0.00",
             salesPrice: 0,
             purchasePrice: 0,
-            category: "",
+            grandTotal: "0.00",
           },
         ],
       }));
     }, [setFormData]);
 
-    // Remove an item
     const removeItem = useCallback(
       (index) => {
         if (formData.items.length > 1) {
@@ -180,7 +195,6 @@ const SOForm = React.memo(
       [formData.items, setFormData, setFormErrors]
     );
 
-    // Save or update the sales order
     const saveSO = useCallback(async () => {
       if (!validateForm()) {
         addNotification("Please fix form errors before saving", "error");
@@ -203,20 +217,21 @@ const SOForm = React.memo(
             .map((item) => {
               const qty = parseFloat(item.qty) || 0;
               const salesPrice = parseFloat(item.salesPrice) || 0;
-              const taxPercent = parseFloat(item.taxPercent) || 0;
-              const lineSubtotal = qty * salesPrice;
-              const lineTotal = (lineSubtotal * (1 + taxPercent / 100)).toFixed(2);
+              const vatPercent = parseFloat(item.vatPercent) || 0;
+              const total = qty * salesPrice;
+              const vatAmount = total * (vatPercent / 100);
+              const grandTotal = total + vatAmount;
 
               return {
                 itemId: item.itemId,
                 description: item.description,
                 qty,
-                rate: parseFloat(item.rate) || 0,
-                taxPercent,
-                price: salesPrice,
+                rate: parseFloat(total.toFixed(2)),
+                vatPercent,
+                vatAmount: parseFloat(vatAmount.toFixed(2)),
+                price:salesPrice,
                 purchasePrice: item.purchasePrice || 0,
-                category: item.category || "",
-                lineTotal: parseFloat(lineTotal),
+                grandTotal: parseFloat(grandTotal.toFixed(2)),
               };
             }),
           terms: formData.terms,
@@ -286,11 +301,11 @@ const SOForm = React.memo(
       calculateTotals,
     ]);
 
-    // Stabilize customers and stockItems props
+    const totals = formData.totals || calculateTotals(formData.items);
+
     const stableCustomers = useMemo(() => customers || [], [customers]);
     const stableStockItems = useMemo(() => stockItems || [], [stockItems]);
 
-    // Memoize item options for react-select
     const itemOptions = useMemo(
       () =>
         stableStockItems.map((stock) => ({
@@ -299,6 +314,54 @@ const SOForm = React.memo(
         })),
       [stableStockItems]
     );
+
+    const customerOptions = useMemo(
+      () =>
+        stableCustomers.map((customer) => ({
+          value: customer._id,
+          label: `${customer.customerId} - ${customer.customerName}`,
+        })),
+      [stableCustomers]
+    );
+
+    const customSelectStyles = {
+      control: (provided, state) => ({
+        ...provided,
+        width: "100%",
+        padding: "0.75rem 1rem",
+        backgroundColor: "#fff",
+        borderRadius: "0.75rem",
+        border: formErrors.partyId
+          ? "1px solid #ef4444"
+          : "1px solid #e2e8f0",
+        outline: "none",
+        boxShadow: state.isFocused ? "0 0 0 2px #3b82f6" : "none",
+        "&:hover": {
+          border: formErrors.partyId
+            ? "1px solid #ef4444"
+            : "1px solid #e2e8f0",
+        },
+        fontSize: "0.875rem",
+      }),
+      menu: (provided) => ({
+        ...provided,
+        backgroundColor: "#fff",
+        borderRadius: "0.75rem",
+        border: "1px solid #e2e8f0",
+      }),
+      option: (provided, state) => ({
+        ...provided,
+        backgroundColor: state.isSelected
+          ? "#3b82f6"
+          : state.isFocused
+          ? "#f1f5f9"
+          : "#fff",
+        color: state.isSelected ? "#fff" : "#1e293b",
+        "&:hover": {
+          backgroundColor: "#f1f5f9",
+        },
+      }),
+    };
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -407,21 +470,17 @@ const SOForm = React.memo(
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Select Customer
                   </label>
-                  <select
-                    name="partyId"
-                    value={formData.partyId || ""}
-                    onChange={(e) => handleCustomerSelect(e.target.value)}
-                    className={`w-full px-4 py-3 bg-white rounded-xl border ${
-                      formErrors.partyId ? "border-red-500" : "border-slate-200"
-                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-                  >
-                    <option value="">Select a customer...</option>
-                    {stableCustomers.map((customer) => (
-                      <option key={customer._id} value={customer._id}>
-                        {customer.customerId} - {customer.customerName}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    options={customerOptions}
+                    value={customerOptions.find((opt) => opt.value === formData.partyId) || null}
+                    onChange={handleCustomerSelect}
+                    placeholder="Select a customer..."
+                    isClearable
+                    isSearchable
+                    classNamePrefix="select"
+                    className={`text-sm ${formErrors.partyId ? "border-red-500 rounded-lg" : ""}`}
+                    styles={customSelectStyles}
+                  />
                   {formErrors.partyId && (
                     <p className="text-red-500 text-xs mt-1">{formErrors.partyId}</p>
                   )}
@@ -441,20 +500,6 @@ const SOForm = React.memo(
                     <option value="CONFIRMED">Confirmed</option>
                     {isEditing && <option value="INVOICED">Invoiced</option>}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Terms & Conditions
-                  </label>
-                  <textarea
-                    key="terms"
-                    name="terms"
-                    value={formData.terms || ""}
-                    onChange={handleInputChange}
-                    placeholder="Payment terms, delivery conditions, etc."
-                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
-                  />
                 </div>
 
                 <div>
@@ -507,16 +552,16 @@ const SOForm = React.memo(
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
-                      <span>AED {calculateTotals(formData.items).subtotal}</span>
+                      <span>AED {totals.subtotal}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span>Tax:</span>
-                      <span>AED {calculateTotals(formData.items).tax}</span>
+                      <span>VAT:</span>
+                      <span>AED {totals.vat}</span>
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total:</span>
-                        <span className="text-emerald-600">AED {calculateTotals(formData.items).total}</span>
+                        <span className="text-emerald-600">AED {totals.total}</span>
                       </div>
                     </div>
                   </div>
@@ -547,7 +592,7 @@ const SOForm = React.memo(
                 {formData.items.map((item, index) => (
                   <div
                     key={`item-${index}`}
-                    className="grid grid-cols-12 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
+                    className="grid grid-cols-10 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
                   >
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
@@ -581,16 +626,6 @@ const SOForm = React.memo(
                       />
                     </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
-                      <input
-                        type="text"
-                        value={item.category || ""}
-                        readOnly
-                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
-                      />
-                    </div>
-
                     <div className="col-span-1">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price</label>
                       <input
@@ -601,7 +636,7 @@ const SOForm = React.memo(
                       />
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Sales Price</label>
                       <input
                         type="number"
@@ -619,7 +654,7 @@ const SOForm = React.memo(
                       )}
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
                       <input
                         type="number"
@@ -637,31 +672,51 @@ const SOForm = React.memo(
                     </div>
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rate</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Total</label>
                       <input
                         type="number"
-                        value={item.rate || ""}
+                        value={item.total || ""}
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
                     </div>
 
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tax %</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">VAT %</label>
                       <input
                         type="number"
-                        value={item.taxPercent || ""}
-                        onChange={(e) => handleItemChange(index, "taxPercent", e.target.value)}
-                        placeholder="Tax %"
+                        value={item.vatPercent || ""}
+                        onChange={(e) => handleItemChange(index, "vatPercent", e.target.value)}
+                        placeholder="VAT %"
                         min="0"
                         step="0.1"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`taxPercent_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`vatPercent_${index}`] ? "border-red-500" : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
-                      {formErrors[`taxPercent_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`taxPercent_${index}`]}</p>
+                      {formErrors[`vatPercent_${index}`] && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors[`vatPercent_${index}`]}</p>
                       )}
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">VAT Amount</label>
+                      <input
+                        type="number"
+                        value={item.vatAmount || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Grand Total</label>
+                      <input
+                        type="number"
+                        value={item.grandTotal || ""}
+                        readOnly
+                        className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
+                      />
                     </div>
 
                     <div className="col-span-1 flex justify-end">

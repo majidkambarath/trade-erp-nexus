@@ -1,3 +1,4 @@
+// SaleInvoiceView.jsx
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
@@ -11,6 +12,8 @@ const SaleInvoiceView = ({
   setSelectedSO,
   setCreatedSO,
 }) => {
+  console.log(customers);
+  console.log(selectedSO)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
     companyName: "",
@@ -29,6 +32,7 @@ const SaleInvoiceView = ({
     accountName: "",
     ibanNumber: "",
     currency: "AED",
+    vatNumber: "",
   });
   const adminId = sessionStorage.getItem("adminId");
   const token = sessionStorage.getItem("accessToken");
@@ -45,22 +49,23 @@ const SaleInvoiceView = ({
         if (response.data.success) {
           const data = response.data.data;
           setProfileData({
-            companyName: data.companyInfo?.companyName || "",
-            addressLine1: data.companyInfo?.addressLine1 || "",
-            addressLine2: data.companyInfo?.addressLine2 || "",
-            city: data.companyInfo?.city || "",
+            companyName: data.companyInfo?.companyName || "WOOHOO KITCHEN",
+            addressLine1: data.companyInfo?.addressLine1 || "Loading Bay, G01 & G03, Ground Floor",
+            addressLine2: data.companyInfo?.addressLine2 || "Kempinski, The Boulevard Dubai",
+            city: data.companyInfo?.city || "Downtown Dubai",
             stateProvince: data.companyInfo?.state || "",
             country: data.companyInfo?.country || "United Arab Emirates",
             postalCode: data.companyInfo?.postalCode || "",
-            phoneNumber: data.companyInfo?.phoneNumber || "",
-            email: data.companyInfo?.emailAddress || data.email || "",
-            website: data.companyInfo?.website || "",
+            phoneNumber: data.companyInfo?.phoneNumber || "+971 50 5894738",
+            email: data.companyInfo?.emailAddress || data.email || "contact@woohookitchen.com",
+            website: data.companyInfo?.website || "www.woohookitchen.com",
             logo: data.companyInfo?.companyLogo?.url || null,
-            bankName: data.companyInfo?.bankDetails?.bankName || "",
-            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
-            accountName: data.companyInfo?.bankDetails?.accountName || "",
-            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
+            bankName: data.companyInfo?.bankDetails?.bankName || "Emirates NBD",
+            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "1234567890",
+            accountName: data.companyInfo?.bankDetails?.accountName || "WOOHOO KITCHEN LLC",
+            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "AE123456789012345678901",
             currency: data.companyInfo?.bankDetails?.currency || "AED",
+            vatNumber: data.companyInfo?.vatNumber || "1048471625000003",
           });
         }
       } catch (error) {
@@ -77,30 +82,14 @@ const SaleInvoiceView = ({
   }, [adminId, token]);
 
   const so = createdSO || selectedSO;
-  if (!so || !so.items || !Array.isArray(so.items)) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-          <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
-          <p className="text-gray-600 mb-4">
-            Invalid sales order data. Please try again or contact support.
-          </p>
-          <button
-            onClick={() => setActiveView("list")}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to List</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (!so) return null;
+  const customer = customers.find((c) => c.id === so._id);
 
-
-
+  // Calculate totals
+    const total = so.items.reduce((sum, item) => sum + item.rate, 0);
   const subtotal = so.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = so.items.reduce((sum, item) => sum +  item.taxPercent, 0);
+  const vatAmount = so.items.reduce((sum, item) => sum + item.vatAmount, 0);
+  const grandTotal = subtotal + vatAmount;
 
   const handleDownloadPDF = async () => {
     try {
@@ -110,7 +99,8 @@ const SaleInvoiceView = ({
 
       const input = document.getElementById("invoice-content");
       if (!input) {
-        throw new Error("Invoice content element not found");
+        alert("Invoice content not found!");
+        return;
       }
 
       const canvas = await html2canvas(input, {
@@ -126,31 +116,27 @@ const SaleInvoiceView = ({
           if (clonedElement) {
             clonedElement.style.display = "block";
             clonedElement.style.visibility = "visible";
-            const img = clonedElement.querySelector("img");
-            if (img) {
-              img.src = img.src;
-            }
           }
         },
       });
 
       const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const pdfWidth = 210; // A4 width in mm
+      const pdfHeight = 297; // A4 height in mm
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
-      const ratio = Math.min(
-        pdfWidth / (imgWidth * 0.264583),
-        pdfHeight / (imgHeight * 0.264583)
-      );
-
+      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
       const imgX = (pdfWidth - imgWidth * 0.264583 * ratio) / 2;
       const imgY = 0;
 
+      // Generate Internal Copy
+      let pdf = new jsPDF("p", "mm", "a4");
+      document.getElementById("copy-label").innerText = "Internal Copy";
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
+      const internalCanvas = await html2canvas(input, { scale: 2, useCORS: true });
+      const internalImgData = internalCanvas.toDataURL("image/png", 1.0);
       pdf.addImage(
-        imgData,
+        internalImgData,
         "PNG",
         imgX,
         imgY,
@@ -159,14 +145,32 @@ const SaleInvoiceView = ({
         undefined,
         "FAST"
       );
+      pdf.save(`SO_${so.transactionNo}_Internal_${new Date().toISOString().split("T")[0]}.pdf`);
 
-      const filename = `SO_${so.transactionNo || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
-      pdf.save(filename);
-    } catch (error) {
+      // Generate Customer Copy
+      pdf = new jsPDF("p", "mm", "a4");
+      document.getElementById("copy-label").innerText = "Customer Copy";
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
+      const customerCanvas = await html2canvas(input, { scale: 2, useCORS: true });
+      const customerImgData = customerCanvas.toDataURL("image/png", 1.0);
+      pdf.addImage(
+        customerImgData,
+        "PNG",
+        imgX,
+        imgY,
+        imgWidth * 0.264583 * ratio,
+        imgHeight * 0.264583 * ratio,
+        undefined,
+        "FAST"
+      );
+      pdf.save(`SO_${so.transactionNo}_Customer_${new Date().toISOString().split("T")[0]}.pdf`);
+
+       } catch (error) {
       console.error("Error generating PDF:", error);
-      alert(`Failed to generate PDF: ${error.message}. Please try again or use the Print option.`);
+      alert("Failed to generate PDF. Please try again or use the Print option.");
     } finally {
       setIsGeneratingPDF(false);
+      document.getElementById("copy-label").innerText = "Customer Copy"; // Reset
     }
   };
 
@@ -183,15 +187,17 @@ const SaleInvoiceView = ({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>SO_${so.transactionNo || "Unknown"}</title>
+          <title>SO_${so.transactionNo}</title>
           <style>
             * { box-sizing: border-box; }
             body { 
               margin: 0; 
-              padding: 20px; 
+              padding: 20mm; 
               font-family: Arial, sans-serif;
               line-height: 1.4;
               color: #000;
+              width: 210mm;
+              min-height: 297mm;
             }
             @media print { 
               body { margin: 0; padding: 0; }
@@ -199,7 +205,6 @@ const SaleInvoiceView = ({
             }
             table { border-collapse: collapse; width: 100%; }
             th, td { padding: 8px; text-align: left; border: 1px solid #000; }
-            img { max-width: 80px; max-height: 80px; }
           </style>
         </head>
         <body>
@@ -217,7 +222,7 @@ const SaleInvoiceView = ({
   };
 
   const handleSendToCustomer = () => {
-    alert("Sales Order invoice sent to customer!");
+    alert("Sales Invoice sent to customer!");
   };
 
   const handleBackClick = () => {
@@ -225,6 +230,14 @@ const SaleInvoiceView = ({
     setCreatedSO(null);
     setActiveView("list");
   };
+
+  const termsAndConditions = [
+    "Payment is due within 30 days from the invoice date.",
+    "Goods remain the property of the seller until fully paid.",
+    "Late payments may incur a 2% monthly interest charge.",
+    "All deliveries must be inspected upon receipt, and any discrepancies reported within 48 hours.",
+    "Returns are subject to prior approval and must be in original condition.",
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -272,141 +285,151 @@ const SaleInvoiceView = ({
 
         <div
           id="invoice-content"
-          className="bg-white shadow-lg"
+          className="bg-white shadow-lg rounded-lg"
           style={{
             width: "210mm",
             minHeight: "297mm",
             margin: "0 auto",
-            padding: "20mm",
-            fontSize: "12px",
-            lineHeight: "1.4",
+            padding: "20mm 15mm",
+            fontSize: "11px",
+            lineHeight: "1.5",
             fontFamily: "Arial, sans-serif",
             color: "#000",
           }}
         >
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "20px",
-              borderBottom: "2px solid #8B5CF6",
-              paddingBottom: "15px",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: "14px",
-                fontWeight: "bold",
-                margin: "0 0 5px 0",
-                direction: "rtl",
-              }}
-            >
-              نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و
-            </h1>
-            <h2
-              style={{
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 15px 0",
-                color: "#0f766e",
-              }}
-            >
-              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
+          {/* Copy Label */}
+          <div style={{ textAlign: "center", marginBottom: "10px" }}>
+            <h2 id="copy-label" style={{ fontSize: "14px", fontWeight: "bold" }}>
+              Customer Copy
             </h2>
+          </div>
 
-            <div
-              style={{
-                backgroundColor: "#c8a2c8",
-                color: "white",
-                padding: "8px",
-                margin: "0 -20mm 20px -20mm",
-              }}
-            >
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", margin: "0" }}>
-                SALES INVOICE
-              </h3>
+          {/* Header Section */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ width: "50%" }}>
+              {profileData.logo && (
+                <img
+                  src={profileData.logo}
+                  alt="Company Logo"
+                  style={{
+                    width: "150px",
+                    height: "auto",
+                    marginBottom: "10px",
+                    objectFit: "contain",
+                  }}
+                />
+              )}
+              <h2 style={{ fontSize: "14px", fontWeight: "bold", margin: "0" }}>
+                {profileData.companyName}
+              </h2>
+              <p style={{ margin: "5px 0 0 0", fontSize: "10px" }}>
+                {profileData.addressLine1}
+                {profileData.addressLine2 && `, ${profileData.addressLine2}`}
+                <br />
+                {profileData.city}
+                {profileData.stateProvince && `, ${profileData.stateProvince}`}
+                {profileData.postalCode && `, ${profileData.postalCode}`}
+                <br />
+                {profileData.country}
+                <br />
+                Tel: {profileData.phoneNumber}
+                <br />
+                Email: {profileData.email}
+                <br />
+                Website: {profileData.website}
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{
+                  borderTop: "2px solid #000",
+                  borderBottom: "2px solid #000",
+                  padding: "5px 0",
+                  margin: "0 0 10px 0",
+                }}
+              >
+                <h1
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    margin: "0",
+                    letterSpacing: "1px",
+                  }}
+                >
+                  SALES ORDER
+                </h1>
+              </div>
+              <p style={{ margin: "0 0 5px 0", fontSize: "10px" }}>
+                <strong>VAT Reg. No.:</strong> {profileData.vatNumber}
+              </p>
             </div>
           </div>
 
+          {/* Two Column Layout - Customer Info and Order Details */}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               marginBottom: "20px",
               fontSize: "10px",
+              borderTop: "1px solid #ccc",
+              paddingTop: "10px",
             }}
           >
-            <div>
-              <p style={{ margin: "2px 0" }}>
-                {profileData.city || "Dubai"}, {profileData.country}
+            <div style={{ width: "48%" }}>
+              <p
+                style={{
+                  margin: "0 0 5px 0",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                Bill To: {customer?.customerName || "N/A"}
               </p>
-              <p style={{ margin: "2px 0" }}>
-                VAT Reg. No: {profileData.vatNumber || "N/A"}
+              <p style={{ margin: "0 0 5px 0" }}>
+                Address: {customer?.billingAddress || "N/A"}
               </p>
-              <p style={{ margin: "2px 0" }}>Email: {profileData.email || "finance@nhfo.com"}</p>
-              <p style={{ margin: "2px 0" }}>
-                Phone: {profileData.phoneNumber || "+971 58 724 2111"}
+              <p style={{ margin: "0 0 5px 0" }}>
+                Tel: {customer?.phone || "Not Provided"}
               </p>
-              <p style={{ margin: "2px 0" }}>Web: {profileData.website || "www.nhfo.com"}</p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                Email: {customer?.email || "N/A"}
+              </p>
             </div>
 
-            <div style={{ textAlign: "center" }}>
-              <img
-                src={profileData.logo || "https://via.placeholder.com/80"}
-                alt="Company Logo"
-                style={{ width: "80px", height: "80px", objectFit: "contain" }}
-                onError={(e) => (e.target.src = "/path/to/fallback-logo.png")}
-              />
-            </div>
-
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: "2px 0" }}>
-                Date: {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
+            <div style={{ width: "48%", textAlign: "right" }}>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Invoice No:</strong> {so.transactionNo}
               </p>
-              <p style={{ margin: "2px 0" }}>Invoice: {so.transactionNo || "N/A"}</p>
-              <p style={{ margin: "2px 0" }}>SO: {so.transactionNo || "N/A"}</p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Invoice Date:</strong>{" "}
+                {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                <strong>Delivery Date:</strong>{" "}
+                {so.deliveryDate
+                  ? new Date(so.deliveryDate).toLocaleDateString("en-GB")
+                  : "Not Specified"}
+              </p>
             </div>
           </div>
 
-          <div
-            style={{
-              backgroundColor: "#e6d7e6",
-              padding: "10px",
-              marginBottom: "20px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>
-                <div
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: "bold",
-                    marginBottom: "5px",
-                  }}
-                >
-                  Bill To:
-                </div>
-                <div style={{ fontSize: "10px" }}>
-                  <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                    {so.customerName}
-                  </p>
-                  {/* <p style={{ margin: "2px 0" }}>
-                    {customer.address?.split("\n")[0] || "N/A"}
-                  </p>
-                  <p style={{ margin: "2px 0" }}>
-                    {customer.address?.split("\n")[1] || ""}
-                  </p>
-                  <p style={{ margin: "2px 0" }}>Tel: {customer.phone}</p> */}
-                </div>
-              </div>
-              <div style={{ fontSize: "10px" }}>
-                <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
-                <p style={{ margin: "2px 0", fontWeight: "bold" }}>
-                  {/* {customer.vatNumber} */}
-                </p>
-              </div>
-            </div>
+          {/* Delivery Information */}
+          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
+            <p style={{ margin: "0 0 5px 0" }}>
+              <strong>Delivery To:</strong>{" "}
+              {so.deliveryAddress || `${profileData.addressLine1}, ${profileData.addressLine2}, ${profileData.city}, ${profileData.country}`}
+            </p>
+            <p style={{ margin: "0 0 5px 0" }}>
+              <strong>Contact Person:</strong>{" "}
+              {so.contactPerson || profileData.phoneNumber}
+            </p>
+            <p style={{ margin: "0 0 10px 0" }}>
+              <strong>Payment Terms:</strong> {so.paymentTerms || "30 days"}
+            </p>
           </div>
 
+          {/* Items Table */}
           <table
             style={{
               width: "100%",
@@ -416,345 +439,106 @@ const SaleInvoiceView = ({
             }}
           >
             <thead>
-              <tr style={{ backgroundColor: "#e6d7e6" }}>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Line
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "left",
-                    fontWeight: "bold",
-                  }}
-                >
-                  CODE
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "left",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Item Description
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Qty
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Unit Price
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Value
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  VAT 5%
-                </th>
-                <th
-                  style={{
-                    border: "1px solid #000",
-                    padding: "8px",
-                    textAlign: "center",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Amount
-                </th>
+              <tr>
+                <th style={thStyle}>SL No</th>
+                <th style={thStyle}>Item Code</th>
+                <th style={thStyle}>Item Description</th>
+                <th style={thStyle}>Quantity</th>
+                <th style={thStyle}>Unit Price</th>
+                <th style={thStyle}>Total</th>
+                <th style={thStyle}>VAT %</th>
+                <th style={thStyle}>VAT Amount</th>
+                <th style={thStyle}>Grand Total</th>
               </tr>
             </thead>
             <tbody>
-              {so.items.map((item, index) => {
-                const qty = parseFloat(item.qty) || 0;
-                const rate = parseFloat(item.rate) / qty || 0;
-                const taxPercent = parseFloat(item.taxPercent) || 0;
-                const value =  item.rate;
-                const vat =  taxPercent;
-                const amount = value + vat;
-                return (
-                  <tr key={index}>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {index + 1}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                      }}
-                    >
-                      {item.itemCode || "N/A"}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                      }}
-                    >
-                      {item.description || "N/A"}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {qty.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {rate.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {value.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {vat.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "6px",
-                        textAlign: "center",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {item.lineTotal.toFixed(2)}
-                    </td>
-                  </tr>
-                );
-              })}
+              {so.items.map((item, index) => (
+                <tr key={index}>
+                  <td style={tdCenter}>{index + 1}</td>
+                  <td style={tdCenter}>{item.itemCode}</td>
+                  <td style={tdLeft}>
+                    {item.description}
+                    {item.note && (
+                      <div style={{ fontSize: "9px", fontStyle: "italic", color: "#666" }}>
+                        {item.note}
+                      </div>
+                    )}
+                  </td>
+                  <td style={tdCenter}>{item.qty.toFixed(2)}</td>
+                  <td style={tdCenter}>{(item.rate / item.qty).toFixed(2)}</td>
+                  <td style={tdCenter}>{item.rate.toFixed(2)}</td>
+                  <td style={tdCenter}>{item.vatPercent.toFixed(2)}%</td>
+                  <td style={tdCenter}>{item.vatAmount.toFixed(2)}</td>
+                  <td style={tdCenter}>
+                    {(item.lineTotal).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "20px",
-            }}
-          >
-            <div style={{ width: "45%" }}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "bold",
-                  marginBottom: "10px",
-                }}
-              >
-                BANK DETAILS:-
-              </div>
-              <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
-                <p style={{ margin: "2px 0" }}>
-                  <strong>BANK:</strong> {profileData.bankName || "NATIONAL BANK OF ABU DHABI"}
-                </p>
-                <p style={{ margin: "2px 0" }}>
-                  <strong>ACCOUNT NO:</strong> {profileData.accountNumber || "087989283001"}
-                </p>
-              </div>
-            </div>
+          {/* Totals Section */}
+          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px", fontSize: "10px" }}>
+            <tbody>
+              <tr>
+                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
+                <td style={totalLabel}>NET TOTAL</td>
+                <td style={totalCurr}>{profileData.currency}</td>
+                <td style={totalAmt}>{total.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
+                <td style={totalLabel}>VAT TOTAL</td>
+                <td style={totalCurr}>{profileData.currency}</td>
+                <td style={totalAmt}>{vatAmount.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
+                <td style={totalLabelBold}>GRAND TOTAL</td>
+                <td style={totalCurrBold}>{profileData.currency}</td>
+                <td style={totalAmtBold}>{subtotal.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
 
-            <div style={{ width: "40%" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "10px",
-                }}
-              >
-                <tr>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "right",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    Sub Total
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {subtotal.toFixed(2)}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "right",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    VAT (5%)
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {tax.toFixed(2)}
-                  </td>
-                </tr>
-              </table>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              marginBottom: "20px",
-            }}
-          >
-            <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
-              <p style={{ margin: "2px 0" }}>
-                <strong>IBAN NO:</strong> {profileData.ibanNumber || "AE410547283001"}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> {profileData.currency}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
-              </p>
-            </div>
-
-            <div
-              style={{
-                border: "2px solid #000",
-                padding: "10px 20px",
-                backgroundColor: "#f9f9f9",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "15px",
-                }}
-              >
-                <span style={{ fontSize: "12px", fontWeight: "bold" }}>
-                  GRAND TOTAL
-                </span>
-                <span style={{ fontSize: "14px", fontWeight: "bold" }}>
-                  {subtotal}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: "30px" }}>
-            <div style={{ textAlign: "center", marginBottom: "30px" }}>
-              <p style={{ fontSize: "11px", margin: "0" }}>
-                Received the above goods in good order and condition.
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                paddingTop: "20px",
-              }}
-            >
-              <div style={{ fontSize: "11px", width: "45%" }}>
-                <p style={{ margin: "0 0 30px 0" }}>Received by:</p>
-                <div
-                  style={{
-                    borderBottom: "1px solid #000",
-                    marginBottom: "5px",
-                  }}
-                ></div>
-              </div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  width: "45%",
-                  textAlign: "right",
-                }}
-              >
-                <p style={{ margin: "0 0 30px 0" }}>Prepared by:</p>
-                <div
-                  style={{
-                    borderBottom: "1px solid #000",
-                    marginBottom: "5px",
-                  }}
-                ></div>
-              </div>
-            </div>
+          {/* Terms and Conditions */}
+          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
+            <h3 style={{ fontSize: "12px", fontWeight: "bold", margin: "0 0 10px 0" }}>
+              Terms and Conditions
+            </h3>
+            <ul style={{ margin: "0", paddingLeft: "20px" }}>
+              {termsAndConditions.map((term, index) => (
+                <li key={index} style={{ marginBottom: "5px" }}>
+                  {term}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+/* Reusable Styles */
+const thStyle = {
+  border: "1px solid #000",
+  borderBottom: "2px solid #000",
+  padding: "8px",
+  textAlign: "center",
+  fontWeight: "bold",
+  backgroundColor: "#f5f5f5",
+};
+
+const tdCenter = { border: "1px solid #000", padding: "8px", textAlign: "center" };
+const tdLeft = { border: "1px solid #000", padding: "8px", textAlign: "left" };
+
+const totalLabel = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "right", fontWeight: "bold" };
+const totalCurr = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "center", fontWeight: "bold" };
+const totalAmt = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "right" };
+
+const totalLabelBold = { ...totalLabel, borderBottom: "2px solid #000" };
+const totalCurrBold = { ...totalCurr, borderBottom: "2px solid #000" };
+const totalAmtBold = { ...totalAmt, borderBottom: "2px solid #000", fontWeight: "bold" };
 
 export default SaleInvoiceView;

@@ -82,6 +82,20 @@ const TableView = ({
               </th>
               <th className="px-4 py-4 text-left">
                 <button
+                  onClick={() => handleSort("vendor")}
+                  className="flex items-center space-x-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
+                >
+                  <span>Reference</span>
+                  {sortBy === "vendor" &&
+                    (sortOrder === "asc" ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    ))}
+                </button>
+              </th>
+              <th className="px-4 py-4 text-left">
+                <button
                   onClick={() => handleSort("date")}
                   className="flex items-center space-x-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
                 >
@@ -161,6 +175,15 @@ const TableView = ({
                   <div>
                     <p className="font-medium text-slate-900">
                       {po.vendorName}
+                     
+                    </p>
+                  </div>
+                </td>
+                <td className="px-4 py-4">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {po.vendorReference}
+                     
                     </p>
                   </div>
                 </td>

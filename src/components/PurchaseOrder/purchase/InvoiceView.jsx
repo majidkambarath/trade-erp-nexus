@@ -11,6 +11,7 @@ const InvoiceView = ({
   setSelectedPO,
   setCreatedPO,
 }) => {
+  console.log(selectedPO)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
     companyName: "",
@@ -82,8 +83,9 @@ const InvoiceView = ({
   if (!po) return null;
   const vendor = vendors.find((v) => v._id === po.vendorId);
 
+  // Calculate totals
   const subtotal = po.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const vatAmount = subtotal * 0.05;
+  const vatAmount = po.items.reduce((sum, item) => sum + item.vatAmount, 0);
   const grandTotal = subtotal + vatAmount;
 
   const handleDownloadPDF = async () => {
@@ -116,23 +118,22 @@ const InvoiceView = ({
       });
 
       const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
+      const pdfWidth = 210; // A4 width in mm
+      const pdfHeight = 297; // A4 height in mm
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
-      const ratio = Math.min(
-        pdfWidth / (imgWidth * 0.264583),
-        pdfHeight / (imgHeight * 0.264583)
-      );
-
+      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
       const imgX = (pdfWidth - imgWidth * 0.264583 * ratio) / 2;
       const imgY = 0;
 
+      // Generate Internal Copy
+      let pdf = new jsPDF("p", "mm", "a4");
+      document.getElementById("copy-label").innerText = "Internal Copy";
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
+      const internalCanvas = await html2canvas(input, { scale: 2, useCORS: true });
+      const internalImgData = internalCanvas.toDataURL("image/png", 1.0);
       pdf.addImage(
-        imgData,
+        internalImgData,
         "PNG",
         imgX,
         imgY,
@@ -141,18 +142,32 @@ const InvoiceView = ({
         undefined,
         "FAST"
       );
+      pdf.save(`PO_${po.transactionNo}_Internal_${new Date().toISOString().split("T")[0]}.pdf`);
 
-      const filename = `PO_${po.transactionNo}_${
-        new Date().toISOString().split("T")[0]
-      }.pdf`;
-      pdf.save(filename);
+      // Generate Customer Copy
+      pdf = new jsPDF("p", "mm", "a4");
+      document.getElementById("copy-label").innerText = "Customer Copy";
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
+      const customerCanvas = await html2canvas(input, { scale: 2, useCORS: true });
+      const customerImgData = customerCanvas.toDataURL("image/png", 1.0);
+      pdf.addImage(
+        customerImgData,
+        "PNG",
+        imgX,
+        imgY,
+        imgWidth * 0.264583 * ratio,
+        imgHeight * 0.264583 * ratio,
+        undefined,
+        "FAST"
+      );
+      pdf.save(`PO_${po.transactionNo}_Customer_${new Date().toISOString().split("T")[0]}.pdf`);
+
     } catch (error) {
       console.error("Error generating PDF:", error);
-      alert(
-        "Failed to generate PDF. Please try again or use the Print option."
-      );
+      alert("Failed to generate PDF. Please try again or use the Print option.");
     } finally {
       setIsGeneratingPDF(false);
+      document.getElementById("copy-label").innerText = "Customer Copy"; // Reset to default
     }
   };
 
@@ -174,10 +189,12 @@ const InvoiceView = ({
             * { box-sizing: border-box; }
             body { 
               margin: 0; 
-              padding: 20px; 
+              padding: 20mm; 
               font-family: Arial, sans-serif;
               line-height: 1.4;
               color: #000;
+              width: 210mm;
+              min-height: 297mm;
             }
             @media print { 
               body { margin: 0; padding: 0; }
@@ -211,7 +228,6 @@ const InvoiceView = ({
     setActiveView("list");
   };
 
-  // Terms and Conditions
   const termsAndConditions = [
     "Payment is due within 30 days from the invoice date.",
     "Goods remain the property of the seller until fully paid.",
@@ -278,6 +294,13 @@ const InvoiceView = ({
             color: "#000",
           }}
         >
+          {/* Copy Label */}
+          <div style={{ textAlign: "center", marginBottom: "10px" }}>
+            <h2 id="copy-label" style={{ fontSize: "14px", fontWeight: "bold" }}>
+              Customer Copy
+            </h2>
+          </div>
+
           {/* Header Section */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <div style={{ width: "50%" }}>
@@ -350,7 +373,6 @@ const InvoiceView = ({
               paddingTop: "10px",
             }}
           >
-            {/* Left Column - Vendor Info */}
             <div style={{ width: "48%" }}>
               <p
                 style={{
@@ -359,17 +381,22 @@ const InvoiceView = ({
                   fontSize: "12px",
                 }}
               >
-                To: {vendor?.vendorName || "NAJM ALHUDA FOODSTUFF TRADING LLC"}
+                To: {vendor?.vendorName || "abc bulliion"}
               </p>
               <p style={{ margin: "0 0 5px 0" }}>
-                Address: {vendor?.address || "Not Provided"}
+                Address: {vendor?.address || "test"}
               </p>
-              <p style={{ margin: "0 0 5px 0" }}>Tel: {vendor?.phone || "Not Provided"}</p>
-              <p style={{ margin: "0 0 5px 0" }}>TRN No: {vendor?.traNo || "Not Provided"}</p>
-              <p style={{ margin: "0 0 5px 0" }}>Email: {vendor?.email || "Not Provided"}</p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                Tel: {vendor?.phone || "Not Provided"}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                TRN No: {vendor?.trnNO || "Not Provided"}
+              </p>
+              <p style={{ margin: "0 0 5px 0" }}>
+                Email: {vendor?.email || "abc@gmail.com"}
+              </p>
             </div>
 
-            {/* Right Column - Order Details */}
             <div style={{ width: "48%", textAlign: "right" }}>
               <p style={{ margin: "0 0 5px 0" }}>
                 <strong>Order No:</strong> {po.transactionNo}
@@ -377,12 +404,6 @@ const InvoiceView = ({
               <p style={{ margin: "0 0 5px 0" }}>
                 <strong>Order Date:</strong>{" "}
                 {new Date(po.date || Date.now()).toLocaleDateString("en-GB")}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                <strong>Requested By:</strong> {profileData.companyName}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                <strong>Request No.:</strong> {po.requestNo || "i25-30157"}
               </p>
               <p style={{ margin: "0 0 5px 0" }}>
                 <strong>Delivery Date:</strong>{" "}
@@ -404,7 +425,7 @@ const InvoiceView = ({
               {po.contactPerson || profileData.phoneNumber}
             </p>
             <p style={{ margin: "0 0 10px 0" }}>
-              <strong>Payment Terms:</strong> {po.paymentTerms || "Due on Receipt"}
+              <strong>Payment Terms:</strong> {po.paymentTerms || "30 days"}
             </p>
           </div>
 
@@ -429,7 +450,7 @@ const InvoiceView = ({
                     backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Article
+                  SL No
                 </th>
                 <th
                   style={{
@@ -441,7 +462,7 @@ const InvoiceView = ({
                     backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Unit
+                  Item Code
                 </th>
                 <th
                   style={{
@@ -453,7 +474,19 @@ const InvoiceView = ({
                     backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Qty
+                  Item Description
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
+                  }}
+                >
+                  Quantity
                 </th>
                 <th
                   style={{
@@ -477,13 +510,67 @@ const InvoiceView = ({
                     backgroundColor: "#f5f5f5",
                   }}
                 >
-                  Total
+                  Total 
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
+                  }}
+                >
+                  VAT %
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
+                  }}
+                >
+                  VAT Amount
+                </th>
+                <th
+                  style={{
+                    border: "1px solid #000",
+                    borderBottom: "2px solid #000",
+                    padding: "8px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    backgroundColor: "#f5f5f5",
+                  }}
+                >
+                  Grand Total
                 </th>
               </tr>
             </thead>
             <tbody>
               {po.items.map((item, index) => (
                 <tr key={index}>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {index + 1}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.itemCode}
+                  </td>
                   <td
                     style={{
                       border: "1px solid #000",
@@ -511,15 +598,6 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {item.unit || "N/A"}
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "8px",
-                      textAlign: "center",
-                    }}
-                  >
                     {item.qty.toFixed(2)}
                   </td>
                   <td
@@ -538,7 +616,34 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {item.rate.toFixed(2)}
+                    {item.lineTotal.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.vatPercent.toFixed(2)}%
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {item.vatAmount.toFixed(2)}
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {(item.lineTotal + item.vatAmount).toFixed(2)}
                   </td>
                 </tr>
               ))}
@@ -559,15 +664,29 @@ const InvoiceView = ({
                 <td
                   style={{
                     border: "none",
-                    borderLeft: "1px solid #000",
-                    borderRight: "1px solid #000",
+                    borderLeft: "",
+                    borderRight: "",
                     padding: "8px",
                   }}
                 ></td>
                 <td
                   style={{
                     border: "none",
-                    borderRight: "1px solid #000",
+                    borderRight: "",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "",
                     padding: "8px",
                   }}
                 ></td>
@@ -630,7 +749,21 @@ const InvoiceView = ({
                 <td
                   style={{
                     border: "none",
-                    borderRight: "1px solid #000",
+                    borderRight: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderRight: "none",
                     padding: "8px",
                   }}
                 ></td>
@@ -643,7 +776,7 @@ const InvoiceView = ({
                     fontWeight: "bold",
                   }}
                 >
-                  VAT 5%
+                  VAT TOTAL
                 </td>
                 <td
                   style={{
@@ -671,6 +804,22 @@ const InvoiceView = ({
                 <td
                   style={{
                     border: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "none",
+                    borderTop: "none",
+                    borderBottom: "none",
+                    padding: "8px",
+                  }}
+                ></td>
+                <td
+                  style={{
+                    border: "",
                     borderTop: "none",
                     borderBottom: "none",
                     padding: "8px",
@@ -745,19 +894,7 @@ const InvoiceView = ({
               ))}
             </ul>
           </div>
-
-          {/* Footer - Page Number */}
-          <div
-            style={{
-              textAlign: "right",
-              fontSize: "9px",
-              marginTop: "20px",
-              borderTop: "1px solid #ccc",
-              paddingTop: "10px",
-            }}
-          >
-            <p style={{ margin: "0" }}>Page: 1/1</p>
-          </div>
+         
         </div>
       </div>
     </div>
