@@ -212,7 +212,7 @@ const PurchaseReturnOrderManagement = () => {
     const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
-      transactionNo: `PR-${dateStr}-${sequence}`,
+      transactionNo: `PR${sequence}`,
     }));
   };
 

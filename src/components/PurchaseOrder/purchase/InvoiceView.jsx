@@ -84,6 +84,8 @@ const InvoiceView = ({
   const vendor = vendors.find((v) => v._id === po.vendorId);
 
   // Calculate totals
+    const total = po.items.reduce((sum, item) => sum + item.rate, 0);
+
   const subtotal = po.items.reduce((sum, item) => sum + item.lineTotal, 0);
   const vatAmount = po.items.reduce((sum, item) => sum + item.vatAmount, 0);
   const grandTotal = subtotal + vatAmount;
@@ -616,7 +618,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {item.lineTotal.toFixed(2)}
+                    {item.rate}
                   </td>
                   <td
                     style={{
@@ -643,7 +645,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {(item.lineTotal + item.vatAmount).toFixed(2)}
+                    {subtotal}
                   </td>
                 </tr>
               ))}
@@ -727,7 +729,7 @@ const InvoiceView = ({
                     textAlign: "right",
                   }}
                 >
-                  {subtotal.toFixed(2)}
+                  {total.toFixed(2)}
                 </td>
               </tr>
               <tr>
@@ -875,7 +877,7 @@ const InvoiceView = ({
                     fontWeight: "bold",
                   }}
                 >
-                  {grandTotal.toFixed(2)}
+                  {subtotal.toFixed(2)}
                 </td>
               </tr>
             </tbody>

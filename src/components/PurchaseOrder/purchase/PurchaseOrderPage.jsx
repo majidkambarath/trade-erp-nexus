@@ -528,9 +528,9 @@ const PurchaseOrderManagement = () => {
   // Notifications Component
   const NotificationList = () => (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {notifications.map((notification) => (
+      {notifications.map((notification,i) => (
         <div
-          key={notification.id}
+          key={i}
           className={`px-4 py-3 rounded-lg shadow-lg max-w-sm backdrop-blur-sm ${
             notification.type === "success"
               ? "bg-emerald-500/90 text-white"
