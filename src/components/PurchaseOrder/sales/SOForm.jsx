@@ -1,7 +1,16 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import { Package, Plus, Trash2, Calendar, User, Save, ArrowLeft, Hash } from "lucide-react";
+import {
+  Package,
+  Plus,
+  Trash2,
+  Calendar,
+  User,
+  Save,
+  ArrowLeft,
+  Hash,
+} from "lucide-react";
 import Select from "react-select";
-import axiosInstance from "../../../axios/axios"; // Adjust path as needed
+import axiosInstance from "../../../axios/axios";
 
 const SOForm = React.memo(
   ({
@@ -50,17 +59,24 @@ const SOForm = React.memo(
       ) {
         errors.items = "At least one valid item is required";
       }
+
       formData.items.forEach((item, index) => {
         if (item.itemId || item.qty || item.salesPrice) {
           if (!item.itemId) errors[`itemId_${index}`] = "Item code is required";
           if (!item.qty || parseFloat(item.qty) <= 0)
             errors[`qty_${index}`] = "Quantity must be greater than 0";
           if (!item.salesPrice || parseFloat(item.salesPrice) <= 0)
-            errors[`salesPrice_${index}`] = "Sales price must be greater than 0";
+            errors[`salesPrice_${index}`] =
+              "Sales price must be greater than 0";
           if (!item.vatPercent || parseFloat(item.vatPercent) < 0)
             errors[`vatPercent_${index}`] = "VAT % must be non-negative";
+
+          // Optional: Make Package required
+          // if (!item.package || item.package.trim() === "")
+          //   errors[`package_${index}`] = "Package is required";
         }
       });
+
       setFormErrors(errors);
       return Object.keys(errors).length === 0;
     }, [formData, setFormErrors]);
@@ -82,12 +98,30 @@ const SOForm = React.memo(
         if (selected) {
           const customer = customers.find((c) => c._id === selected.value);
           if (customer) {
-            addNotification(`Customer ${customer.customerName} selected`, "success");
+            addNotification(
+              `Customer ${customer.customerName} selected`,
+              "success"
+            );
           }
         }
       },
       [customers, setFormData, addNotification, setFormErrors]
     );
+
+    // Helper to recalculate row totals
+    const recalculateRow = (row) => {
+      const qty = parseFloat(row.qty) || 0;
+      const salesPrice = parseFloat(row.salesPrice) || 0;
+      const vatPercent = parseFloat(row.vatPercent) || 0;
+
+      row.total = qty ? (salesPrice * qty).toFixed(2) : "0.00";
+      row.vatAmount = qty
+        ? (salesPrice * qty * (vatPercent / 100)).toFixed(2)
+        : "0.00";
+      row.grandTotal = qty
+        ? (salesPrice * qty * (1 + vatPercent / 100)).toFixed(2)
+        : "0.00";
+    };
 
     const handleItemChange = useCallback(
       (index, field, value) => {
@@ -101,21 +135,10 @@ const SOForm = React.memo(
             newItems[index].salesPrice = item.salesPrice;
             newItems[index].purchasePrice = item.purchasePrice;
             newItems[index].vatPercent =
-              item.taxPercent !== undefined
-                ? item.taxPercent.toString()
-                : newItems[index].vatPercent || "5";
-            const qty = parseFloat(newItems[index].qty) || 0;
-            const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
-            const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
-            newItems[index].total = qty
-              ? (salesPrice * qty).toFixed(2)
-              : "0.00";
-            newItems[index].vatAmount = qty
-              ? (salesPrice * qty * (vatPercent / 100)).toFixed(2)
-              : "0.00";
-            newItems[index].grandTotal = qty
-              ? (salesPrice * qty * (1 + vatPercent / 100)).toFixed(2)
-              : "0.00";
+              item.taxPercent !== undefined ? item.taxPercent.toString() : "5";
+
+            recalculateRow(newItems[index]);
+
             if (item.currentStock < item.reorderLevel) {
               addNotification(
                 `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
@@ -127,27 +150,12 @@ const SOForm = React.memo(
             newItems[index].salesPrice = 0;
             newItems[index].purchasePrice = 0;
             newItems[index].vatPercent = "5";
-            newItems[index].total = "0.00";
-            newItems[index].vatAmount = "0.00";
-            newItems[index].grandTotal = "0.00";
+            recalculateRow(newItems[index]);
           }
         } else if (
-          field === "qty" ||
-          field === "salesPrice" ||
-          field === "vatPercent"
+          ["qty", "salesPrice", "vatPercent", "package"].includes(field)
         ) {
-          const qty = parseFloat(newItems[index].qty) || 0;
-          const salesPrice = parseFloat(newItems[index].salesPrice) || 0;
-          const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
-          newItems[index].total = qty
-            ? (salesPrice * qty).toFixed(2)
-            : "0.00";
-          newItems[index].vatAmount = qty
-            ? (salesPrice * qty * (vatPercent / 100)).toFixed(2)
-            : "0.00";
-          newItems[index].grandTotal = qty
-            ? (salesPrice * qty * (1 + vatPercent / 100)).toFixed(2)
-            : "0.00";
+          recalculateRow(newItems[index]);
         }
 
         setFormData((prev) => ({ ...prev, items: newItems }));
@@ -171,6 +179,7 @@ const SOForm = React.memo(
             salesPrice: 0,
             purchasePrice: 0,
             grandTotal: "0.00",
+            package: "", // NEW FIELD
           },
         ],
       }));
@@ -184,7 +193,7 @@ const SOForm = React.memo(
           setFormErrors((prev) => {
             const updatedErrors = { ...prev };
             Object.keys(prev).forEach((key) => {
-              if (key.includes(`_${index}`)) {
+              if (key.endsWith(`_${index}`)) {
                 delete updatedErrors[key];
               }
             });
@@ -207,7 +216,7 @@ const SOForm = React.memo(
           transactionNo: formData.transactionNo,
           type: "sales_order",
           partyId: formData.partyId,
-          partyType: "customer",
+          partyType: "Customer",
           date: formData.date,
           deliveryDate: formData.deliveryDate,
           status: formData.status,
@@ -229,9 +238,10 @@ const SOForm = React.memo(
                 rate: parseFloat(total.toFixed(2)),
                 vatPercent,
                 vatAmount: parseFloat(vatAmount.toFixed(2)),
-                price:salesPrice,
+                price: salesPrice,
                 purchasePrice: item.purchasePrice || 0,
                 grandTotal: parseFloat(grandTotal.toFixed(2)),
+                package: +item.package || "", // SENT TO BACKEND
               };
             }),
           terms: formData.terms,
@@ -260,7 +270,8 @@ const SOForm = React.memo(
           transactionNo: response.data.data.transactionNo,
           customerId: response.data.data.partyId,
           customerName:
-            customers.find((c) => c._id === response.data.data.partyId)?.customerName || "Unknown",
+            customers.find((c) => c._id === response.data.data.partyId)
+              ?.customerName || "Unknown",
           date: response.data.data.date,
           deliveryDate: response.data.data.deliveryDate,
           status: response.data.data.status,
@@ -286,7 +297,8 @@ const SOForm = React.memo(
         onSOSuccess(newSO);
       } catch (error) {
         addNotification(
-          "Failed to save sales order: " + (error.response?.data?.message || error.message),
+          "Failed to save sales order: " +
+            (error.response?.data?.message || error.message),
           "error"
         );
       }
@@ -331,9 +343,7 @@ const SOForm = React.memo(
         padding: "0.75rem 1rem",
         backgroundColor: "#fff",
         borderRadius: "0.75rem",
-        border: formErrors.partyId
-          ? "1px solid #ef4444"
-          : "1px solid #e2e8f0",
+        border: formErrors.partyId ? "1px solid #ef4444" : "1px solid #e2e8f0",
         outline: "none",
         boxShadow: state.isFocused ? "0 0 0 2px #3b82f6" : "none",
         "&:hover": {
@@ -384,7 +394,9 @@ const SOForm = React.memo(
                     {isEditing ? "Edit Sales Order" : "Create Sales Order"}
                   </h1>
                   <p className="text-slate-600 mt-1">
-                    {isEditing ? "Update sales order details" : "Create a new sales order"}
+                    {isEditing
+                      ? "Update sales order details"
+                      : "Create a new sales order"}
                   </p>
                 </div>
               </div>
@@ -435,11 +447,15 @@ const SOForm = React.memo(
                         value={formData.date || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.date ? "border-red-500" : "border-slate-200"
+                          formErrors.date
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.date && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.date}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -456,11 +472,15 @@ const SOForm = React.memo(
                         value={formData.deliveryDate || ""}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
-                          formErrors.deliveryDate ? "border-red-500" : "border-slate-200"
+                          formErrors.deliveryDate
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
                       />
                       {formErrors.deliveryDate && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.deliveryDate}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors.deliveryDate}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -472,17 +492,25 @@ const SOForm = React.memo(
                   </label>
                   <Select
                     options={customerOptions}
-                    value={customerOptions.find((opt) => opt.value === formData.partyId) || null}
+                    value={
+                      customerOptions.find(
+                        (opt) => opt.value === formData.partyId
+                      ) || null
+                    }
                     onChange={handleCustomerSelect}
                     placeholder="Select a customer..."
                     isClearable
                     isSearchable
                     classNamePrefix="select"
-                    className={`text-sm ${formErrors.partyId ? "border-red-500 rounded-lg" : ""}`}
+                    className={`text-sm ${
+                      formErrors.partyId ? "border-red-500 rounded-lg" : ""
+                    }`}
                     styles={customSelectStyles}
                   />
                   {formErrors.partyId && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.partyId}</p>
+                    <p className="text-red-500 text-xs mt-1">
+                      {formErrors.partyId}
+                    </p>
                   )}
                 </div>
 
@@ -507,7 +535,6 @@ const SOForm = React.memo(
                     Notes
                   </label>
                   <textarea
-                    key="notes"
                     name="notes"
                     value={formData.notes || ""}
                     onChange={handleInputChange}
@@ -518,14 +545,22 @@ const SOForm = React.memo(
               </div>
 
               <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6 border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">Customer Preview</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">
+                  Customer Preview
+                </h3>
                 {formData.partyId ? (
                   (() => {
-                    const customer = stableCustomers.find((c) => c._id === formData.partyId);
+                    const customer = stableCustomers.find(
+                      (c) => c._id === formData.partyId
+                    );
                     return customer ? (
                       <div className="text-sm text-slate-700 space-y-2">
-                        <p className="font-semibold text-blue-600">{customer.customerId}</p>
-                        <p className="font-bold text-slate-800">{customer.customerName}</p>
+                        <p className="font-semibold text-blue-600">
+                          {customer.customerId}
+                        </p>
+                        <p className="font-bold text-slate-800">
+                          {customer.customerName}
+                        </p>
                         <p>{customer.address}</p>
                         <p className="flex items-center space-x-1">
                           <User className="w-3 h-3" />
@@ -536,19 +571,27 @@ const SOForm = React.memo(
                         <p>Terms: {customer.paymentTerms}</p>
                       </div>
                     ) : (
-                      <p className="text-slate-500 italic">Customer not found</p>
+                      <p className="text-slate-500 italic">
+                        Customer not found
+                      </p>
                     );
                   })()
                 ) : (
-                  <p className="text-slate-500 italic">Select a customer to see details</p>
+                  <p className="text-slate-500 italic">
+                    Select a customer to see details
+                  </p>
                 )}
 
                 <div className="mt-6 pt-6 border-t border-slate-200">
-                  <h4 className="font-semibold text-slate-800 mb-3">Order Summary</h4>
+                  <h4 className="font-semibold text-slate-800 mb-3">
+                    Order Summary
+                  </h4>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Items:</span>
-                      <span>{formData.items.filter((item) => item.itemId).length}</span>
+                      <span>
+                        {formData.items.filter((item) => item.itemId).length}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
@@ -561,7 +604,9 @@ const SOForm = React.memo(
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total:</span>
-                        <span className="text-emerald-600">AED {totals.total}</span>
+                        <span className="text-emerald-600">
+                          AED {totals.total}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -592,42 +637,65 @@ const SOForm = React.memo(
                 {formData.items.map((item, index) => (
                   <div
                     key={`item-${index}`}
-                    className="grid grid-cols-10 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
+                    className="grid grid-cols-6 gap-4 items-center p-4 bg-slate-50 rounded-xl border border-slate-200 relative"
                   >
+                    {/* Item */}
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Item</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Item
+                      </label>
                       <Select
                         options={itemOptions}
-                        value={itemOptions.find((opt) => opt.value === item.itemId) || null}
+                        value={
+                          itemOptions.find(
+                            (opt) => opt.value === item.itemId
+                          ) || null
+                        }
                         onChange={(selected) =>
-                          handleItemChange(index, "itemId", selected ? selected.value : "")
+                          handleItemChange(
+                            index,
+                            "itemId",
+                            selected ? selected.value : ""
+                          )
                         }
                         placeholder="Select Item..."
                         isClearable
                         isSearchable
                         classNamePrefix="select"
                         className={`text-sm ${
-                          formErrors[`itemId_${index}`] ? "border-red-500 rounded-lg" : ""
+                          formErrors[`itemId_${index}`]
+                            ? "border-red-500 rounded-lg"
+                            : ""
                         }`}
                       />
                       {formErrors[`itemId_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`itemId_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`itemId_${index}`]}
+                        </p>
                       )}
                     </div>
 
+                    {/* Description */}
                     <div className="col-span-2">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Description
+                      </label>
                       <input
                         type="text"
                         value={item.description || ""}
-                        onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "description", e.target.value)
+                        }
                         placeholder="Description"
                         className="w-full px-4 py-3 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       />
                     </div>
 
+                    {/* Purchase Price */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Purchase Price</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Purchase Price
+                      </label>
                       <input
                         type="number"
                         value={item.purchasePrice || ""}
@@ -636,43 +704,89 @@ const SOForm = React.memo(
                       />
                     </div>
 
+                    {/* Sales Price */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Sales Price</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Sales Price
+                      </label>
                       <input
                         type="number"
                         value={item.salesPrice || ""}
-                        onChange={(e) => handleItemChange(index, "salesPrice", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "salesPrice", e.target.value)
+                        }
                         placeholder="Price"
                         min="0"
                         step="0.01"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`salesPrice_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`salesPrice_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`salesPrice_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`salesPrice_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`salesPrice_${index}`]}
+                        </p>
                       )}
                     </div>
 
+                    {/* Package - NEW FIELD */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Quantity</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Package
+                      </label>
+                      <input
+                        type="text"
+                        value={item.package || ""}
+                        onChange={(e) =>
+                          handleItemChange(index, "package", e.target.value)
+                        }
+                        placeholder="e.g. Box, Pallet"
+                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
+                          formErrors[`package_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
+                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                      />
+                      {formErrors[`package_${index}`] && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`package_${index}`]}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Quantity
+                      </label>
                       <input
                         type="number"
                         value={item.qty || ""}
-                        onChange={(e) => handleItemChange(index, "qty", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "qty", e.target.value)
+                        }
                         placeholder="Qty"
                         min="0"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`qty_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`qty_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`qty_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`qty_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`qty_${index}`]}
+                        </p>
                       )}
                     </div>
 
+                    {/* Total */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Total</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Total
+                      </label>
                       <input
                         type="number"
                         value={item.total || ""}
@@ -681,26 +795,38 @@ const SOForm = React.memo(
                       />
                     </div>
 
+                    {/* VAT % */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">VAT %</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        VAT %
+                      </label>
                       <input
                         type="number"
                         value={item.vatPercent || ""}
-                        onChange={(e) => handleItemChange(index, "vatPercent", e.target.value)}
+                        onChange={(e) =>
+                          handleItemChange(index, "vatPercent", e.target.value)
+                        }
                         placeholder="VAT %"
                         min="0"
                         step="0.1"
                         className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`vatPercent_${index}`] ? "border-red-500" : "border-slate-200"
+                          formErrors[`vatPercent_${index}`]
+                            ? "border-red-500"
+                            : "border-slate-200"
                         } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`vatPercent_${index}`] && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors[`vatPercent_${index}`]}</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {formErrors[`vatPercent_${index}`]}
+                        </p>
                       )}
                     </div>
 
+                    {/* VAT Amount */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">VAT Amount</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        VAT Amount
+                      </label>
                       <input
                         type="number"
                         value={item.vatAmount || ""}
@@ -709,8 +835,11 @@ const SOForm = React.memo(
                       />
                     </div>
 
+                    {/* Grand Total */}
                     <div className="col-span-1">
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Grand Total</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Grand Total
+                      </label>
                       <input
                         type="number"
                         value={item.grandTotal || ""}
@@ -719,6 +848,7 @@ const SOForm = React.memo(
                       />
                     </div>
 
+                    {/* Delete Button */}
                     <div className="col-span-1 flex justify-end">
                       {formData.items.length > 1 && (
                         <button

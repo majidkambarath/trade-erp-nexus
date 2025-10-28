@@ -1,544 +1,799 @@
-// SaleInvoiceView.jsx
+/* SaleInvoiceView.jsx */
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Printer, Send } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
 
 const SaleInvoiceView = ({
   selectedSO,
   createdSO,
   customers,
-  calculateTotals,
   setActiveView,
   setSelectedSO,
   setCreatedSO,
 }) => {
+  console.log(selectedSO);
   console.log(customers);
-  console.log(selectedSO)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
-    companyName: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    stateProvince: "",
-    country: "United Arab Emirates",
-    postalCode: "",
-    phoneNumber: "",
-    email: "",
-    website: "",
+    companyName: "ELFAB CO. (L.L.C.)",
+    companyNameArabic: "نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و",
+    addressLine1: "Dubai Investment Park",
+    addressLine2: "P.O. Box: 3352 - DUBAI - U.A.E.",
+    phoneNumber: "+971 4 8857575",
+    email: "corporate@elfab.ae",
+    website: "www.elfabshop.com",
+    vatNumber: "100000266500003",
     logo: null,
-    bankName: "",
-    accountNumber: "",
-    accountName: "",
-    ibanNumber: "",
-    currency: "AED",
-    vatNumber: "",
+    bankName: "EMIRATES NBD",
+    accountNumber: "1011024652501",
+    accountName: "ELFAB CO L L C",
+    ibanNumber: "AE550260001011024652501",
+    swiftCode: "EBILAEAD",
+    branch: "AL SOUK BRANCH",
   });
+
   const adminId = sessionStorage.getItem("adminId");
   const token = sessionStorage.getItem("accessToken");
 
+  /* -------------------------------------------------- PROFILE -------------------------------------------------- */
   useEffect(() => {
-    const loadProfileData = async () => {
-      if (!adminId || !token) {
-        alert("Authentication required");
-        return;
-      }
-
+    const load = async () => {
+      if (!adminId || !token) return;
       try {
-        const response = await axiosInstance.get("/profile/me");
-        if (response.data.success) {
-          const data = response.data.data;
-          setProfileData({
-            companyName: data.companyInfo?.companyName || "WOOHOO KITCHEN",
-            addressLine1: data.companyInfo?.addressLine1 || "Loading Bay, G01 & G03, Ground Floor",
-            addressLine2: data.companyInfo?.addressLine2 || "Kempinski, The Boulevard Dubai",
-            city: data.companyInfo?.city || "Downtown Dubai",
-            stateProvince: data.companyInfo?.state || "",
-            country: data.companyInfo?.country || "United Arab Emirates",
-            postalCode: data.companyInfo?.postalCode || "",
-            phoneNumber: data.companyInfo?.phoneNumber || "+971 50 5894738",
-            email: data.companyInfo?.emailAddress || data.email || "contact@woohookitchen.com",
-            website: data.companyInfo?.website || "www.woohookitchen.com",
-            logo: data.companyInfo?.companyLogo?.url || null,
-            bankName: data.companyInfo?.bankDetails?.bankName || "Emirates NBD",
-            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "1234567890",
-            accountName: data.companyInfo?.bankDetails?.accountName || "WOOHOO KITCHEN LLC",
-            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "AE123456789012345678901",
-            currency: data.companyInfo?.bankDetails?.currency || "AED",
-            vatNumber: data.companyInfo?.vatNumber || "1048471625000003",
-          });
+        const { data } = await axiosInstance.get("/profile/me");
+        if (data.success) {
+          const d = data.data;
+          setProfileData((p) => ({
+            ...p,
+            companyName: d.companyInfo?.companyName || p.companyName,
+            companyNameArabic:
+              d.companyInfo?.companyNameArabic || p.companyNameArabic,
+            addressLine1: d.companyInfo?.addressLine1 || p.addressLine1,
+            addressLine2: d.companyInfo?.addressLine2 || p.addressLine2,
+            phoneNumber: d.companyInfo?.phoneNumber || p.phoneNumber,
+            email: d.companyInfo?.emailAddress || p.email,
+            website: d.companyInfo?.website || p.website,
+            vatNumber: d.companyInfo?.vatNumber || p.vatNumber,
+            logo: d.companyInfo?.companyLogo?.url || p.logo,
+            bankName: d.companyInfo?.bankDetails?.bankName || p.bankName,
+            accountNumber:
+              d.companyInfo?.bankDetails?.accountNumber || p.accountNumber,
+            accountName:
+              d.companyInfo?.bankDetails?.accountName || p.accountName,
+            ibanNumber: d.companyInfo?.bankDetails?.ibanNumber || p.ibanNumber,
+            swiftCode: d.companyInfo?.bankDetails?.swiftCode || p.swiftCode,
+            branch: d.companyInfo?.branch || p.branch,
+          }));
         }
-      } catch (error) {
-        console.error("Failed to load profile data:", error);
-        alert(
-          `Failed to load profile data: ${
-            error.response?.data?.message || error.message
-          }`
-        );
+      } catch (e) {
+        console.error(e);
       }
     };
-
-    loadProfileData();
+    load();
   }, [adminId, token]);
 
   const so = createdSO || selectedSO;
   if (!so) return null;
-  const customer = customers.find((c) => c.id === so._id);
 
-  // Calculate totals
-    const total = so.items.reduce((sum, item) => sum + item.rate, 0);
-  const subtotal = so.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const vatAmount = so.items.reduce((sum, item) => sum + item.vatAmount, 0);
-  const grandTotal = subtotal + vatAmount;
+  const customer = customers.find((c) => c._id === so.customerData._id);
+  const isApproved = so.status === "APPROVED";
+
+  /* -------------------------------------------------- TOTALS -------------------------------------------------- */
+  const subtotal = so.items.reduce((s, i) => s + i.lineTotal, 0);
+  const total = so.items.reduce((s, i) => s + i.rate, 0);
+  const vatTotal = so.items.reduce((s, i) => s + i.vatAmount, 0);
+  const grandTotal = subtotal + vatTotal;
+
+  const numberToWords = (n) => {
+    const a = [
+      "",
+      "One",
+      "Two",
+      "Three",
+      "Four",
+      "Five",
+      "Six",
+      "Seven",
+      "Eight",
+      "Nine",
+      "Ten",
+      "Eleven",
+      "Twelve",
+      "Thirteen",
+      "Fourteen",
+      "Fifteen",
+      "Sixteen",
+      "Seventeen",
+      "Eighteen",
+      "Nineteen",
+    ];
+    const b = [
+      "",
+      "",
+      "Twenty",
+      "Thirty",
+      "Forty",
+      "Fifty",
+      "Sixty",
+      "Seventy",
+      "Eighty",
+      "Ninety",
+    ];
+    if (n === 0) return "Zero";
+    let w = "";
+    if (n >= 100) {
+      w += a[Math.floor(n / 100)] + " Hundred ";
+      n %= 100;
+    }
+    if (n >= 20) {
+      w += b[Math.floor(n / 10)] + " ";
+      n %= 10;
+    }
+    if (n > 0) w += a[n] + " ";
+    return w.trim();
+  };
+  const amountInWords = `${numberToWords(
+    Math.floor(grandTotal)
+  )} Dirhams and ${Math.round((grandTotal % 1) * 100)} Fils Only`;
+
+  /* -------------------------------------------------- PDF / PRINT -------------------------------------------------- */
+  const generatePDF = async (copyType) => {
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    document.getElementById("copy-label").innerText = copyType;
+    await new Promise((r) => setTimeout(r, 80));
+
+    const el = document.getElementById("invoice-content");
+    const canvas = await html2canvas(el, {
+      scale: 3,
+      useCORS: true,
+      backgroundColor: "#fff",
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+    });
+    const img = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pdfW = 210;
+    const pdfH = 297;
+    const ratio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
+    const w = canvas.width * ratio;
+    const h = canvas.height * ratio;
+    pdf.addImage(img, "PNG", (pdfW - w) / 2, (pdfH - h) / 2, w, h);
+    pdf.save(
+      `${isApproved ? "INV" : "SO"}_${so.transactionNo}_${copyType.replace(
+        " ",
+        "_"
+      )}.pdf`
+    );
+  };
 
   const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
     try {
-      setIsGeneratingPDF(true);
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-
-      const input = document.getElementById("invoice-content");
-      if (!input) {
-        alert("Invoice content not found!");
-        return;
-      }
-
-      const canvas = await html2canvas(input, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: input.scrollWidth,
-        height: input.scrollHeight,
-        onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById("invoice-content");
-          if (clonedElement) {
-            clonedElement.style.display = "block";
-            clonedElement.style.visibility = "visible";
-          }
-        },
-      });
-
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdfWidth = 210; // A4 width in mm
-      const pdfHeight = 297; // A4 height in mm
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / (imgWidth * 0.264583), pdfHeight / (imgHeight * 0.264583));
-      const imgX = (pdfWidth - imgWidth * 0.264583 * ratio) / 2;
-      const imgY = 0;
-
-      // Generate Internal Copy
-      let pdf = new jsPDF("p", "mm", "a4");
-      document.getElementById("copy-label").innerText = "Internal Copy";
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
-      const internalCanvas = await html2canvas(input, { scale: 2, useCORS: true });
-      const internalImgData = internalCanvas.toDataURL("image/png", 1.0);
-      pdf.addImage(
-        internalImgData,
-        "PNG",
-        imgX,
-        imgY,
-        imgWidth * 0.264583 * ratio,
-        imgHeight * 0.264583 * ratio,
-        undefined,
-        "FAST"
-      );
-      pdf.save(`SO_${so.transactionNo}_Internal_${new Date().toISOString().split("T")[0]}.pdf`);
-
-      // Generate Customer Copy
-      pdf = new jsPDF("p", "mm", "a4");
-      document.getElementById("copy-label").innerText = "Customer Copy";
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Ensure DOM update
-      const customerCanvas = await html2canvas(input, { scale: 2, useCORS: true });
-      const customerImgData = customerCanvas.toDataURL("image/png", 1.0);
-      pdf.addImage(
-        customerImgData,
-        "PNG",
-        imgX,
-        imgY,
-        imgWidth * 0.264583 * ratio,
-        imgHeight * 0.264583 * ratio,
-        undefined,
-        "FAST"
-      );
-      pdf.save(`SO_${so.transactionNo}_Customer_${new Date().toISOString().split("T")[0]}.pdf`);
-
-       } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("Failed to generate PDF. Please try again or use the Print option.");
+      await generatePDF("Internal Copy");
+      await generatePDF("Customer Copy");
+    } catch (e) {
+      alert("PDF generation failed");
     } finally {
       setIsGeneratingPDF(false);
-      document.getElementById("copy-label").innerText = "Customer Copy"; // Reset
+      document.getElementById("copy-label").innerText = "Customer Copy";
     }
   };
 
   const handlePrintPDF = () => {
     const printWindow = window.open("", "_blank");
-    const invoiceContent = document.getElementById("invoice-content");
+    const invoiceEl = document.getElementById("invoice-content");
 
-    if (!invoiceContent || !printWindow) {
-      alert("Unable to open print dialog");
-      return;
-    }
+    // ---- 1. Grab the current date-time that is shown on screen ----
+    const now = new Date().toLocaleString("en-GB"); // e.g. 28/10/2025, 17:03:05
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>SO_${so.transactionNo}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body { 
-              margin: 0; 
-              padding: 20mm; 
-              font-family: Arial, sans-serif;
-              line-height: 1.4;
-              color: #000;
-              width: 210mm;
-              min-height: 297mm;
-            }
-            @media print { 
-              body { margin: 0; padding: 0; }
-              .no-print { display: none !important; }
-            }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { padding: 8px; text-align: left; border: 1px solid #000; }
-          </style>
-        </head>
-        <body>
-          ${invoiceContent.innerHTML}
-        </body>
-      </html>
-    `);
+    // ---- 2. Build the HTML for the print window ----
+    const printHTML = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${so.transactionNo}</title>
+        <style>
+          @page { size: A4; margin:0; }
+          html,body { margin:0; padding:0; height:100%; }
+          #invoice-content {
+            width:210mm; height:297mm; padding:10mm;
+            box-sizing:border-box; font-family:Arial,Helvetica,sans-serif;
+            font-size:11px; color:#000; background:#fff;
+          }
+          table { border-collapse:collapse; width:100%; font-size:11px; }
+          th,td { border:1px solid #000; padding:4px; }
+          .no-print { display:none; }
 
+          /* ---- RE-CREATE THE FOOTER SPACING (same as Tailwind) ---- */
+          .footer-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.5rem; font-size:11px; }
+          .footer-left  strong { display:block; margin-bottom:0.2rem; }
+          .footer-right { text-align:right; }
+          .footer-right div { margin-bottom:0.1rem; }
+          .received-block { margin-top:1.5rem; }
+          .date-time      { text-align:center; margin-top:1.5rem; font-size:11px; }
+        </style>
+      </head>
+      <body>
+        ${invoiceEl.outerHTML}
+        <!-- inject the live date-time -->
+        <script>
+          document.querySelector('.date-time').innerText = '${now}';
+        </script>
+      </body>
+    </html>
+  `;
+
+    printWindow.document.write(printHTML);
     printWindow.document.close();
-    printWindow.focus();
+
     setTimeout(() => {
+      printWindow.focus();
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 300);
   };
 
-  const handleSendToCustomer = () => {
-    alert("Sales Invoice sent to customer!");
-  };
-
-  const handleBackClick = () => {
+  const handleBack = () => {
     setSelectedSO(null);
     setCreatedSO(null);
     setActiveView("list");
   };
 
-  const termsAndConditions = [
-    "Payment is due within 30 days from the invoice date.",
-    "Goods remain the property of the seller until fully paid.",
-    "Late payments may incur a 2% monthly interest charge.",
-    "All deliveries must be inspected upon receipt, and any discrepancies reported within 48 hours.",
-    "Returns are subject to prior approval and must be in original condition.",
+  const terms = [
+    "Manual Correction of this invoice is not allowed",
+    "Receiving stamp is mandatory",
+    "In case of any mismatches in price/ item inform our respective salesperson",
+    "Goods return is only accepted if agreed by us with in agreed period and items should be in good condition",
+    "Payment should be processed and released as per above mentioned payment term without delay",
+    "Cash invoices should be paid at the time of delivery",
   ];
 
+  /* -------------------------------------------------- JSX -------------------------------------------------- */
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
-        <div className="flex items-center justify-between mb-6">
+        {/* ---------- BUTTONS ---------- */}
+        <div className="flex justify-between mb-4">
           <button
-            onClick={handleBackClick}
-            className="flex items-center space-x-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+            onClick={handleBack}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to List</span>
+            <ArrowLeft className="w-4 h-4" /> Back to List
           </button>
 
-          <div className="flex space-x-3">
+          <div className="flex gap-3">
             <button
               onClick={handleDownloadPDF}
               disabled={isGeneratingPDF}
-              className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
               {isGeneratingPDF ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Download className="w-4 h-4" />
               )}
-              <span>{isGeneratingPDF ? "Generating..." : "Download PDF"}</span>
+              {isGeneratingPDF ? "Generating…" : "Download PDF"}
             </button>
 
             <button
               onClick={handlePrintPDF}
-              className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print PDF</span>
+              <Printer className="w-4 h-4" /> Print
             </button>
 
             <button
-              onClick={handleSendToCustomer}
-              className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              onClick={() => alert("Sales Invoice sent to customer!")}
+              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
-              <Send className="w-4 h-4" />
-              <span>Send to Customer</span>
+              <Send className="w-4 h-4" /> Send to Customer
             </button>
           </div>
         </div>
 
+        {/* ---------- A4 INVOICE (exact size) ---------- */}
         <div
           id="invoice-content"
-          className="bg-white shadow-lg rounded-lg"
           style={{
             width: "210mm",
-            minHeight: "297mm",
-            margin: "0 auto",
-            padding: "20mm 15mm",
+            height: "297mm",
+            padding: "10mm",
+            background: "#fff",
+            fontFamily: "Arial,Helvetica,sans-serif",
             fontSize: "11px",
-            lineHeight: "1.5",
-            fontFamily: "Arial, sans-serif",
             color: "#000",
+            position: "relative",
+            boxSizing: "border-box",
           }}
         >
-          {/* Copy Label */}
-          <div style={{ textAlign: "center", marginBottom: "10px" }}>
-            <h2 id="copy-label" style={{ fontSize: "14px", fontWeight: "bold" }}>
-              Customer Copy
-            </h2>
+          {/* ---------- COPY LABEL ---------- */}
+          <div
+            style={{
+              textAlign: "center",
+              fontWeight: "bold",
+              marginBottom: "2px",
+              margin: "25px",
+            }}
+          >
+            <span id="copy-label">Customer Copy</span>
           </div>
 
-          {/* Header Section */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <div style={{ width: "50%" }}>
+          {/* ---------- HEADER (EN – LOGO – AR) ---------- */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "4px",
+            }}
+          >
+            {/* ENGLISH */}
+            <div style={{ width: "36%" }}>
+              <h2
+                style={{
+                  margin: "0 0 2px",
+                  fontWeight: "bold",
+                  fontSize: "13px",
+                }}
+              >
+                {profileData.companyName}
+              </h2>
+              <p
+                style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
+              >
+                {profileData.addressLine1}
+                <br />
+                {profileData.addressLine2}
+                <br />
+                Tel. : {profileData.phoneNumber}
+                <br />
+                E-mail: {profileData.email}
+                <br />
+                Website : {profileData.website}
+                <br />
+                <strong>ELFAB VAT Number : {profileData.vatNumber}</strong>
+              </p>
+            </div>
+
+            {/* LOGO + TITLE (center) */}
+            <div style={{ textAlign: "center", width: "28%" }}>
               {profileData.logo && (
                 <img
                   src={profileData.logo}
                   alt="Company Logo"
                   style={{
-                    width: "150px",
+                    width: "110px",
                     height: "auto",
-                    marginBottom: "10px",
-                    objectFit: "contain",
+                    marginBottom: "2px",
+                    display: "block",
+                    marginLeft: "auto",
+                    marginRight: "auto",
                   }}
                 />
               )}
-              <h2 style={{ fontSize: "14px", fontWeight: "bold", margin: "0" }}>
-                {profileData.companyName}
-              </h2>
-              <p style={{ margin: "5px 0 0 0", fontSize: "10px" }}>
-                {profileData.addressLine1}
-                {profileData.addressLine2 && `, ${profileData.addressLine2}`}
-                <br />
-                {profileData.city}
-                {profileData.stateProvince && `, ${profileData.stateProvince}`}
-                {profileData.postalCode && `, ${profileData.postalCode}`}
-                <br />
-                {profileData.country}
-                <br />
-                Tel: {profileData.phoneNumber}
-                <br />
-                Email: {profileData.email}
-                <br />
-                Website: {profileData.website}
-              </p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div
+              <h1
                 style={{
-                  borderTop: "2px solid #000",
-                  borderBottom: "2px solid #000",
-                  padding: "5px 0",
-                  margin: "0 0 10px 0",
+                  margin: "0",
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  letterSpacing: "0.8px",
                 }}
               >
-                <h1
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    margin: "0",
-                    letterSpacing: "1px",
-                  }}
-                >
-                  SALES ORDER
-                </h1>
-              </div>
-              <p style={{ margin: "0 0 5px 0", fontSize: "10px" }}>
-                <strong>VAT Reg. No.:</strong> {profileData.vatNumber}
+                {isApproved ? "TAX INVOICE" : "SALES ORDER"}
+              </h1>
+            </div>
+
+            {/* ARABIC */}
+            <div
+              style={{
+                width: "36%",
+                textAlign: "right",
+                direction: "rtl",
+                fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
+                fontSize: "11px",
+              }}
+            >
+              <h2
+                style={{
+                  margin: "0 0 2px",
+                  fontWeight: "bold",
+                  fontSize: "13px",
+                }}
+              >
+                {profileData.companyNameArabic}
+              </h2>
+              <p style={{ margin: "1px 0", lineHeight: "1.3" }}>
+                مجمع دبي للاستثمار
+                <br />
+                ص.ب: 3352 - دبي - الإمارات
+                <br />
+                هاتف: {profileData.phoneNumber}
+                <br />
+                بريد إلكتروني: {profileData.email}
+                <br />
+                الموقع: {profileData.website}
+                <br />
+                <strong>رقم ضريبة الفاب: {profileData.vatNumber}</strong>
               </p>
             </div>
           </div>
 
-          {/* Two Column Layout - Customer Info and Order Details */}
+          {/* ---------- CUSTOMER & INVOICE INFO ---------- */}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
-              marginBottom: "20px",
-              fontSize: "10px",
-              borderTop: "1px solid #ccc",
-              paddingTop: "10px",
+              marginBottom: "6px",
+              fontSize: "11px",
             }}
           >
-            <div style={{ width: "48%" }}>
-              <p
+            <div>
+              <p>
+                <strong>Customer Code :</strong> {customer?.customerId || "N/A"}
+              </p>
+              <p>
+                <strong>EXSTORE SALES (CASH PAYMENT)</strong>
+              </p>
+              <p>
+                {customer?.billingAddress || "P.O. BOX - 3352 DUBAI U.A.E 3352"}
+              </p>
+              {/* <p>
+                <strong>Customer VAT Number :</strong>{" "}
+                {customer?.trnNO || "Not Provided"}
+              </p> */}
+              <p>
+                <strong>Location / PO / Ref # :</strong> {so.transactionNo}
+              </p>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <table
                 style={{
-                  margin: "0 0 5px 0",
-                  fontWeight: "bold",
-                  fontSize: "12px",
+                  display: "inline-table",
+                  border: "1px solid #000",
+                  fontSize: "11px",
                 }}
               >
-                Bill To: {customer?.customerName || "N/A"}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                Address: {customer?.billingAddress || "N/A"}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                Tel: {customer?.phone || "Not Provided"}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                Email: {customer?.email || "N/A"}
-              </p>
-            </div>
-
-            <div style={{ width: "48%", textAlign: "right" }}>
-              <p style={{ margin: "0 0 5px 0" }}>
-                <strong>Invoice No:</strong> {so.transactionNo}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                <strong>Invoice Date:</strong>{" "}
-                {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
-              </p>
-              <p style={{ margin: "0 0 5px 0" }}>
-                <strong>Delivery Date:</strong>{" "}
-                {so.deliveryDate
-                  ? new Date(so.deliveryDate).toLocaleDateString("en-GB")
-                  : "Not Specified"}
-              </p>
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      <strong>No.</strong>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      {so.transactionNo}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      <strong>Date</strong>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      {new Date(so.date).toLocaleDateString("en-GB")}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "2px 6px" }}>
+                      <strong>Payment Terms</strong>
+                    </td>
+                    <td style={{ padding: "2px 6px" }}>
+                      {so.paymentTerms || "CASH ON DELIVERY"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
-          {/* Delivery Information */}
-          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
-            <p style={{ margin: "0 0 5px 0" }}>
-              <strong>Delivery To:</strong>{" "}
-              {so.deliveryAddress || `${profileData.addressLine1}, ${profileData.addressLine2}, ${profileData.city}, ${profileData.country}`}
-            </p>
-            <p style={{ margin: "0 0 5px 0" }}>
-              <strong>Contact Person:</strong>{" "}
-              {so.contactPerson || profileData.phoneNumber}
-            </p>
-            <p style={{ margin: "0 0 10px 0" }}>
-              <strong>Payment Terms:</strong> {so.paymentTerms || "30 days"}
-            </p>
-          </div>
-
-          {/* Items Table */}
+          {/* ---------- ITEMS TABLE ---------- */}
           <table
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              marginBottom: "20px",
-              fontSize: "10px",
+              marginBottom: "6px",
+              fontSize: "11px",
             }}
           >
-            <thead>
+            <thead style={{ backgroundColor: "#fffacd" }}>
               <tr>
-                <th style={thStyle}>SL No</th>
-                <th style={thStyle}>Item Code</th>
-                <th style={thStyle}>Item Description</th>
-                <th style={thStyle}>Quantity</th>
-                <th style={thStyle}>Unit Price</th>
-                <th style={thStyle}>Total</th>
-                <th style={thStyle}>VAT %</th>
-                <th style={thStyle}>VAT Amount</th>
-                <th style={thStyle}>Grand Total</th>
+                {[
+                  "SR",
+                  "ITEM CODE",
+                  "DESCRIPTION",
+                  "PKGS",
+                  "QTY KG.",
+                  "RATE AED/KG",
+                  "AMOUNT AED.",
+                  "VAT 5%",
+                  "TOTAL AMOUNT AED.",
+                ].map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {so.items.map((item, index) => (
-                <tr key={index}>
-                  <td style={tdCenter}>{index + 1}</td>
-                  <td style={tdCenter}>{item.itemCode}</td>
-                  <td style={tdLeft}>
-                    {item.description}
-                    {item.note && (
-                      <div style={{ fontSize: "9px", fontStyle: "italic", color: "#666" }}>
-                        {item.note}
-                      </div>
-                    )}
+              {so.items.map((it, idx) => {
+                const rateKg =
+                  it.qty > 0 ? (it.rate / it.qty).toFixed(2) : "0.00";
+                const line = it.rate.toFixed(2);
+                const vat = it.vatAmount.toFixed(2);
+                const total = (parseFloat(line) + parseFloat(vat)).toFixed(2);
+                return (
+                  <tr key={idx}>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {idx + 1}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {it.itemCode}
+                    </td>
+                    <td style={{ border: "1px solid #000", padding: "4px" }}>
+                      {it.description}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {it.package || 0}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {it.qty.toFixed(2)}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {rateKg}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {line}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {vat}
+                    </td>
+                    <td
+                      style={{
+                        border: "1px solid #000",
+                        padding: "4px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {total}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* ---------- TOTALS BOX (right side) ---------- */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginBottom: "6px",
+            }}
+          >
+            <table
+              style={{
+                width: "40%",
+                borderCollapse: "collapse",
+                fontSize: "11px",
+              }}
+            >
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "right",
+                    }}
+                  >
+                    <strong>AMOUNT AED.</strong>
                   </td>
-                  <td style={tdCenter}>{item.qty.toFixed(2)}</td>
-                  <td style={tdCenter}>{(item.rate / item.qty).toFixed(2)}</td>
-                  <td style={tdCenter}>{item.rate.toFixed(2)}</td>
-                  <td style={tdCenter}>{item.vatPercent.toFixed(2)}%</td>
-                  <td style={tdCenter}>{item.vatAmount.toFixed(2)}</td>
-                  <td style={tdCenter}>
-                    {(item.lineTotal).toFixed(2)}
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {total.toFixed(2)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Totals Section */}
-          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px", fontSize: "10px" }}>
-            <tbody>
-              <tr>
-                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
-                <td style={totalLabel}>NET TOTAL</td>
-                <td style={totalCurr}>{profileData.currency}</td>
-                <td style={totalAmt}>{total.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
-                <td style={totalLabel}>VAT TOTAL</td>
-                <td style={totalCurr}>{profileData.currency}</td>
-                <td style={totalAmt}>{vatAmount.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style={{ border: "none", padding: "8px" }} colSpan={5}></td>
-                <td style={totalLabelBold}>GRAND TOTAL</td>
-                <td style={totalCurrBold}>{profileData.currency}</td>
-                <td style={totalAmtBold}>{subtotal.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Terms and Conditions */}
-          <div style={{ marginBottom: "20px", fontSize: "10px" }}>
-            <h3 style={{ fontSize: "12px", fontWeight: "bold", margin: "0 0 10px 0" }}>
-              Terms and Conditions
-            </h3>
-            <ul style={{ margin: "0", paddingLeft: "20px" }}>
-              {termsAndConditions.map((term, index) => (
-                <li key={index} style={{ marginBottom: "5px" }}>
-                  {term}
-                </li>
-              ))}
-            </ul>
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "right",
+                    }}
+                  >
+                    <strong>VAT 5%</strong>
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {vatTotal.toFixed(2)}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "right",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    <strong>TOTAL AMOUNT AED.</strong>
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "center",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {subtotal.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+
+          {/* ---------- AMOUNT IN WORDS ---------- */}
+          <div
+            style={{
+              marginBottom: "6px",
+              fontSize: "11px",
+              textAlign: "right",
+            }}
+          >
+            <strong>Amount in Words:</strong> {amountInWords}
+          </div>
+
+          {/* ---------- VEHICLE LINE ---------- */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "4px",
+              fontSize: "11px",
+            }}
+          >
+            <div>
+              <strong>VEHICLE NUMBER & NAME OF DRIVER :</strong> _______________
+            </div>
+            <div>
+              <strong>Manager :</strong> STORE
+            </div>
+          </div>
+
+          {/* ---------- TERMS & CONDITIONS ---------- */}
+          <div className="mt-4 text-xs">
+            <strong>Terms & Conditions</strong>
+            <ol className="list-decimal pl-5">
+              {terms.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ol>
+          </div>
+
+          {/* ---------- FOOTER (BANK + SIGNATURE) ---------- */}
+          <div className="grid grid-cols-2 gap-4 mt-6 text-xs footer-grid">
+            {/* BANK DETAILS (LEFT) */}
+            <div className="footer-left">
+              <strong>BANK DETAILS</strong>
+              <div>Bank : {profileData.bankName}</div>
+              <div>Account Name : {profileData.accountName}</div>
+              <div>Account No. : {profileData.accountNumber}</div>
+              <div>IBAN : {profileData.ibanNumber}</div>
+              <div>
+                Branch : {profileData.branch} | Swift Code :{" "}
+                {profileData.swiftCode}
+              </div>
+            </div>
+
+            {/* SIGNATURE & COMPANY NOTE (RIGHT) */}
+            <div className="footer-right">
+              <div>
+                This is computer generated{" "}
+                {isApproved ? "invoice" : "sales order"}.
+              </div>
+              <div>Therefore signature is not required.</div>
+              <div className="mt-2">
+                <strong>For {profileData.companyName}</strong>
+              </div>
+
+              <div className="received-block">
+                Received the above goods in good order and condition.
+              </div>
+              <div className="mt-8"></div>
+              <div>Received by</div>
+            </div>
+          </div>
+
+          {/* ---------- PRINT DATE-TIME (hidden in PDF) ---------- */}
+          <div className="date-time" style={{ display: "none" }}></div>
         </div>
       </div>
     </div>
   );
 };
-
-/* Reusable Styles */
-const thStyle = {
-  border: "1px solid #000",
-  borderBottom: "2px solid #000",
-  padding: "8px",
-  textAlign: "center",
-  fontWeight: "bold",
-  backgroundColor: "#f5f5f5",
-};
-
-const tdCenter = { border: "1px solid #000", padding: "8px", textAlign: "center" };
-const tdLeft = { border: "1px solid #000", padding: "8px", textAlign: "left" };
-
-const totalLabel = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "right", fontWeight: "bold" };
-const totalCurr = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "center", fontWeight: "bold" };
-const totalAmt = { border: "1px solid #000", borderTop: "2px solid #000", padding: "8px", textAlign: "right" };
-
-const totalLabelBold = { ...totalLabel, borderBottom: "2px solid #000" };
-const totalCurrBold = { ...totalCurr, borderBottom: "2px solid #000" };
-const totalAmtBold = { ...totalAmt, borderBottom: "2px solid #000", fontWeight: "bold" };
 
 export default SaleInvoiceView;

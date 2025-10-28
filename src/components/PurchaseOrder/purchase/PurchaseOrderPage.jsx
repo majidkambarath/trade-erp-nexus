@@ -63,13 +63,12 @@ const PurchaseOrderManagement = () => {
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
   const [createdPO, setCreatedPO] = useState(null);
 
-  // Form state for creating/editing PO
   const [formData, setFormData] = useState({
     transactionNo: "",
     partyId: "",
+    vendorReference: "",
     date: new Date().toISOString().slice(0, 10),
     deliveryDate: "",
     status: "DRAFT",
@@ -81,7 +80,14 @@ const PurchaseOrderManagement = () => {
         rate: "0.00",
         taxPercent: "5",
         purchasePrice: 0,
+        currentPurchasePrice: 0,
         category: "",
+        brand: "",
+        origin: "",
+        total: "0.00",
+        vatAmount: "0.00",
+        grandTotal: "0.00",
+        vatPercent: "5",
       },
     ],
     terms: "",
@@ -89,31 +95,25 @@ const PurchaseOrderManagement = () => {
     priority: "Medium",
   });
 
-  // Fetch vendors, stock items, and transactions on component mount
   useEffect(() => {
     fetchVendors();
     fetchStockItems();
     fetchTransactions();
   }, []);
 
-  // Refetch transactions when filters change
+  // Refresh list when filters change
   useEffect(() => {
     fetchTransactions();
   }, [searchTerm, statusFilter, vendorFilter, dateFilter]);
-  /// fetch admin data
 
-  // Fetch vendors from backend
   const fetchVendors = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/vendors/vendors");
-      console.log("Vendors Response:", response.data);
-      setVendors(response.data.data || []);
-    } catch (error) {
-      console.error("Fetch Vendors Error:", error);
+      const { data } = await axiosInstance.get("/vendors/vendors");
+      setVendors(data.data || []);
+    } catch (e) {
       addNotification(
-        "Failed to fetch vendors: " +
-          (error.response?.data?.message || error.message),
+        `Vendors load error: ${e.response?.data?.message || e.message}`,
         "error"
       );
     } finally {
@@ -121,36 +121,32 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  // Fetch stock items from backend
   const fetchStockItems = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/stock/stock");
-      console.log("Stock Items Response:", response.data);
-      const stocks = response.data.data?.stocks || response.data.data || [];
+      const { data } = await axiosInstance.get("/stock/stock");
+      const stocks = data.data?.stocks || data.data || [];
       setStockItems(
-        stocks.map((item) => ({
-          _id: item._id,
-          itemId: item.itemId,
-          itemName: item.itemName,
-          sku: item.sku,
-          category: item.category,
-          unitOfMeasure: item.unitOfMeasure,
-          currentStock: item.currentStock,
-          purchasePrice: item.purchasePrice,
-          salesPrice: item.salesPrice,
-          reorderLevel: item.reorderLevel,
-          status: item.status,
-          brand: item.brand,
-          origin: item.origin,
-          expiryDate: item.expiryDate,
+        stocks.map((i) => ({
+          _id: i._id,
+          itemId: i.itemId,
+          itemName: i.itemName,
+          sku: i.sku,
+          category: i.category,
+          unitOfMeasure: i.unitOfMeasure,
+          currentStock: i.currentStock,
+          purchasePrice: i.purchasePrice,
+          salesPrice: i.salesPrice,
+          reorderLevel: i.reorderLevel,
+          status: i.status,
+          brand: i.brand,
+          origin: i.origin,
+          expiryDate: i.expiryDate,
         }))
       );
-    } catch (error) {
-      console.error("Fetch Stock Items Error:", error);
+    } catch (e) {
       addNotification(
-        "Failed to fetch stock items: " +
-          (error.response?.data?.message || error.message),
+        `Stock load error: ${e.response?.data?.message || e.message}`,
         "error"
       );
     } finally {
@@ -158,11 +154,10 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  // Fetch transactions from backend
   const fetchTransactions = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/transactions/transactions", {
+      const { data } = await axiosInstance.get("/transactions/transactions", {
         params: {
           type: "purchase_order",
           search: searchTerm,
@@ -171,34 +166,76 @@ const PurchaseOrderManagement = () => {
           dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
         },
       });
-      console.log("Transactions Response:", response.data);
-      setPurchaseOrders(
-        response.data.data.map((transaction) => ({
-          id: transaction._id,
-          transactionNo: transaction.transactionNo,
-          vendorId: transaction.partyId,
-          vendorName: transaction.partyName,
-          vendorReference:transaction.vendorReference,
-          date: transaction.date,
-          deliveryDate: transaction.deliveryDate,
-          status: transaction.status,
-          approvalStatus: transaction.status,
-          totalAmount: transaction.totalAmount.toFixed(2),
-          items: transaction.items,
-          terms: transaction.terms,
-          notes: transaction.notes,
-          createdBy: transaction.createdBy,
-          createdAt: transaction.createdAt,
-          grnGenerated: transaction.grnGenerated,
-          invoiceGenerated: transaction.invoiceGenerated,
-          priority: transaction.priority,
-        }))
-      );
-    } catch (error) {
-      console.error("Fetch Transactions Error:", error);
+
+      console.log("Raw transactions:", data); // Debug
+
+      const enrichedPOs = data.data.map((t) => {
+        // Enrich each item with stock details
+        const enrichedItems = (t.items || []).map((item) => {
+          const stock = item.stockDetails || {};
+          return {
+            // Original item fields
+            itemId: item.itemId,
+            description: item.description || "",
+            qty: item.qty || 0,
+            rate: item.rate || 0,
+            lineTotal: item.lineTotal || 0,
+            vatAmount: item.vatAmount || 0,
+            vatPercent: item.vatPercent || 5,
+
+            // Enriched from stockDetails
+            itemName: stock.itemName || "Unknown Item",
+            sku: stock.sku || "-",
+            barcodeQrCode: stock.barcodeQrCode || "-",
+            category: stock.category || "-",
+            brand: stock.brand || "-",
+            origin: stock.origin || "-",
+            unitOfMeasure:
+              stock.unitOfMeasureDetails?.unitName ||
+              stock.unitOfMeasure ||
+              "Unit",
+            currentStock: stock.currentStock || 0,
+            purchasePrice: stock.purchasePrice || 0,
+            salesPrice: stock.salesPrice || 0,
+            reorderLevel: stock.reorderLevel || 0,
+            expiryDate: stock.expiryDate || null,
+            batchNumber: stock.batchNumber || "-",
+          };
+        });
+
+        return {
+          id: t._id,
+          transactionNo: t.transactionNo,
+          vendorId: t.partyId,
+          vendorName: t.partyName || "Unknown Vendor",
+          vendorReference: t.vendorReference || "",
+          date: t.date ? new Date(t.date).toISOString().split("T")[0] : "",
+          deliveryDate: t.deliveryDate
+            ? new Date(t.deliveryDate).toISOString().split("T")[0]
+            : "",
+          status: t.status,
+          totalAmount: Number(t.totalAmount || 0).toFixed(2),
+          outstandingAmount: Number(t.outstandingAmount || 0).toFixed(2),
+          paidAmount: Number(t.paidAmount || 0).toFixed(2),
+          items: enrichedItems,
+          terms: t.terms || "",
+          notes: t.notes || "",
+          createdBy: t.createdBy || "System",
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          grnGenerated: t.grnGenerated || false,
+          invoiceGenerated: t.invoiceGenerated || false,
+          priority: t.priority || "Medium",
+          creditNoteIssued: t.creditNoteIssued || false,
+          quoteRef: t.quoteRef || null,
+          linkedRef: t.linkedRef || null,
+        };
+      });
+
+      setPurchaseOrders(enrichedPOs);
+    } catch (e) {
       addNotification(
-        "Failed to fetch transactions: " +
-          (error.response?.data?.message || error.message),
+        `Transactions load error: ${e.response?.data?.message || e.message}`,
         "error"
       );
     } finally {
@@ -253,9 +290,7 @@ const PurchaseOrderManagement = () => {
       const pending = purchaseOrders.filter(
         (po) => po.status === "PENDING"
       ).length;
-      const paid = purchaseOrders.filter(
-        (po) => po.status === "paid"
-      ).length;
+      const paid = purchaseOrders.filter((po) => po.status === "paid").length;
       const approved = purchaseOrders.filter(
         (po) => po.status === "APPROVED"
       ).length;
@@ -528,7 +563,7 @@ const PurchaseOrderManagement = () => {
   // Notifications Component
   const NotificationList = () => (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {notifications.map((notification,i) => (
+      {notifications.map((notification, i) => (
         <div
           key={i}
           className={`px-4 py-3 rounded-lg shadow-lg max-w-sm backdrop-blur-sm ${
@@ -870,6 +905,7 @@ const PurchaseOrderManagement = () => {
     setFormData({
       transactionNo: "",
       partyId: "",
+      vendorReference: "",
       date: new Date().toISOString().slice(0, 10),
       deliveryDate: "",
       status: "DRAFT",
@@ -881,74 +917,77 @@ const PurchaseOrderManagement = () => {
           rate: "0.00",
           taxPercent: "5",
           purchasePrice: 0,
+          currentPurchasePrice: 0,
           category: "",
+          brand: "",
+          origin: "",
+          total: "0.00",
+          vatAmount: "0.00",
+          grandTotal: "0.00",
+          vatPercent: "5",
         },
       ],
       terms: "",
       notes: "",
       priority: "Medium",
     });
-    setFormErrors({});
   }, []);
 
-  // Calculate totals for items
   const calculateTotals = (items) => {
-    let subtotal = 0;
-    let tax = 0;
-
-    const validItems = items.filter(
-      (item) =>
-        item.itemId &&
-        parseFloat(item.qty) > 0 &&
-        parseFloat(item.purchasePrice) > 0
-    );
-
-    validItems.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0;
-      const purchasePrice = parseFloat(item.purchasePrice) || 0;
-      const taxPercent = parseFloat(item.taxPercent) || 0;
-
-      const lineSubtotal = qty * purchasePrice;
-      const lineTax = lineSubtotal * (taxPercent / 100);
-      const lineTotal = (lineSubtotal + lineTax).toFixed(2);
-
-      subtotal += lineSubtotal;
-      tax += lineTax;
-
-      item.lineTotal = lineTotal;
-    });
-
-    const total = (subtotal + tax).toFixed(2);
-    subtotal = subtotal.toFixed(2);
-    tax = tax.toFixed(2);
-
-    return { subtotal, tax, total };
+    let subtotal = 0,
+      tax = 0;
+    items
+      .filter((i) => i.itemId && i.qty && i.currentPurchasePrice)
+      .forEach((i) => {
+        const qty = Number(i.qty) || 0;
+        const price = Number(i.currentPurchasePrice) || 0;
+        const vat = Number(i.vatPercent) || 0;
+        const line = qty * price;
+        const lineTax = line * (vat / 100);
+        subtotal += line;
+        tax += lineTax;
+      });
+    return {
+      subtotal: subtotal.toFixed(2),
+      tax: tax.toFixed(2),
+      total: (subtotal + tax).toFixed(2),
+    };
   };
 
-  // Edit PO
   const editPO = (po) => {
-    setFormData({
+    const edited = {
       transactionNo: po.transactionNo,
       partyId: po.vendorId,
-      date: new Date(po.date).toISOString().slice(0, 10),
-      deliveryDate: po.deliveryDate
-        ? new Date(po.deliveryDate).toISOString().slice(0, 10)
-        : "",
+      partyType: "vendor",
+      vendorReference: po.vendorReference,
+      date: po.date,
+      deliveryDate: po.deliveryDate,
       status: po.status,
-      items: po.items.map((item) => ({
-        itemId: item.itemId,
-        description: item.description,
-        qty: item.qty.toString(),
-        rate: item.rate.toString(),
-        taxPercent: item.taxPercent.toString(),
-        purchasePrice: item.purchasePrice,
-        category: item.category || "",
-        lineTotal: item.lineTotal ? item.lineTotal.toString() : undefined,
+      priority: po.priority,
+      terms: po.terms,
+      notes: po.notes,
+      items: po.items.map((i) => ({
+        itemId: i.itemId,
+        description: i.description,
+        qty: String(i.qty),
+        rate: String(i.rate),
+        taxPercent: String(i.vatPercent),
+        purchasePrice: i.purchasePrice,
+        currentPurchasePrice: i.purchasePrice, // or i.rate
+        category: i.category,
+        brand: i.brand,
+        origin: i.origin,
+        total: String(i.rate),
+        vatAmount: String(i.vatAmount),
+        grandTotal: String(i.lineTotal),
+        vatPercent: String(i.vatPercent),
+        // Add enriched fields for dropdowns
+        itemName: i.itemName,
+        sku: i.sku,
       })),
-      terms: po.terms || "",
-      notes: po.notes || "",
-      priority: po.priority || "Medium",
-    });
+    };
+
+    setFormData(edited);
     setSelectedPO(po);
     setActiveView("edit");
   };

@@ -28,12 +28,9 @@ const POForm = React.memo(
     calculateTotals,
     onPOSuccess,
   }) => {
- 
-
     const isEditing = activeView === "edit";
     const [formErrors, setFormErrors] = useState({});
 
-  
     useEffect(() => {
       const totals = calculateTotals(formData.items);
       setFormData((prev) => ({ ...prev, totals }));
@@ -69,7 +66,10 @@ const POForm = React.memo(
           if (!item.itemId) errors[`itemId_${index}`] = "Item code is required";
           if (!item.qty || parseFloat(item.qty) <= 0)
             errors[`qty_${index}`] = "Quantity must be greater than 0";
-          if (!item.currentPurchasePrice || parseFloat(item.currentPurchasePrice) <= 0)
+          if (
+            !item.currentPurchasePrice ||
+            parseFloat(item.currentPurchasePrice) <= 0
+          )
             errors[`currentPurchasePrice_${index}`] =
               "Current purchase price must be greater than 0";
           if (!item.vatPercent || parseFloat(item.vatPercent) < 0)
@@ -157,7 +157,8 @@ const POForm = React.memo(
           field === "vatPercent"
         ) {
           const qty = parseFloat(newItems[index].qty) || 0;
-          const currentPurchasePrice = parseFloat(newItems[index].currentPurchasePrice) || 0;
+          const currentPurchasePrice =
+            parseFloat(newItems[index].currentPurchasePrice) || 0;
           const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
           newItems[index].total = qty
             ? (currentPurchasePrice * qty).toFixed(2)
@@ -229,17 +230,20 @@ const POForm = React.memo(
           transactionNo: formData.transactionNo,
           type: "purchase_order",
           partyId: formData.partyId,
-          partyType: "vendor",
+          partyType: "Vendor",
           date: formData.date,
           deliveryDate: formData.deliveryDate,
           status: formData.status,
           totalAmount: parseFloat(totals.total),
           vendorReference: formData.vendorReference, // Added vendorReference
           items: formData.items
-            .filter((item) => item.itemId && item.qty && item.currentPurchasePrice)
+            .filter(
+              (item) => item.itemId && item.qty && item.currentPurchasePrice
+            )
             .map((item) => {
               const qty = parseFloat(item.qty) || 0;
-              const currentPurchasePrice = parseFloat(item.currentPurchasePrice) || 0;
+              const currentPurchasePrice =
+                parseFloat(item.currentPurchasePrice) || 0;
               const vatPercent = parseFloat(item.vatPercent) || 0;
               const total = qty * currentPurchasePrice;
               const vatAmount = total * (vatPercent / 100);
@@ -279,7 +283,8 @@ const POForm = React.memo(
           );
           addNotification("Purchase Order created successfully", "success");
         }
-
+        console.log(response);
+        
         const newPO = {
           id: response.data.data._id,
           transactionNo: response.data.data.transactionNo,
@@ -361,9 +366,7 @@ const POForm = React.memo(
         padding: "0.75rem 1rem",
         backgroundColor: "#fff",
         borderRadius: "0.75rem",
-        border: formErrors.partyId
-          ? "1px solid #ef4444"
-          : "1px solid #e2e8f0",
+        border: formErrors.partyId ? "1px solid #ef4444" : "1px solid #e2e8f0",
         outline: "none",
         boxShadow: state.isFocused ? "0 0 0 2px #3b82f6" : "none",
         "&:hover": {
@@ -515,7 +518,9 @@ const POForm = React.memo(
                   <Select
                     options={vendorOptions}
                     value={
-                      vendorOptions.find((opt) => opt.value === formData.partyId) || null
+                      vendorOptions.find(
+                        (opt) => opt.value === formData.partyId
+                      ) || null
                     }
                     onChange={handleVendorSelect}
                     placeholder="Select a vendor..."

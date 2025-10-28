@@ -168,24 +168,7 @@ const SalesOrderManagement = () => {
       });
       console.log(response.data)
       setSalesOrders(
-        response.data?.data.map((transaction) => ({
-          id: transaction._id,
-          transactionNo: transaction.transactionNo,
-          customerId: transaction.partyId,
-          customerName: transaction?.partyName,
-          date: transaction.date,
-          deliveryDate: transaction.deliveryDate,
-          status: transaction.status,
-          approvalStatus: transaction.status,
-          totalAmount: transaction.totalAmount.toFixed(2),
-          items: transaction.items,
-          terms: transaction.terms,
-          notes: transaction.notes,
-          createdBy: transaction.createdBy,
-          createdAt: transaction.createdAt,
-          invoiceGenerated: transaction.invoiceGenerated,
-          priority: transaction.priority,
-        }))
+        response.data?.data
       );
     } catch (error) {
       console.error("Fetch Transactions Error:", error);
@@ -689,16 +672,16 @@ const SalesOrderManagement = () => {
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Sales Orders</h3>
           <div className="space-y-3">
-            {salesOrders.slice(0, 5).map((so) => (
+            {salesOrders.slice(0, 5).map((so,i) => (
               <div
-                key={so.id}
+                key={i}
                 className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <div className="flex items-center space-x-3">
                   <div className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`}></div>
                   <div>
                     <p className="font-medium text-slate-900">{so.transactionNo}</p>
-                    <p className="text-sm text-slate-600">{so.customerName}</p>
+                    <p className="text-sm text-slate-600">{so.customerData?.customerName}</p>
                   </div>
                 </div>
                 <div className="text-right">
