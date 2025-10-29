@@ -218,6 +218,20 @@ const Sidebar = () => {
           },
         ].filter((item) => userRole === "Admin" || userRole === "HR"),
       },
+      {
+        key: "reports",
+        icon: <BarChart3 strokeWidth={1.5} size={22} />,
+        text: "Reports",
+        children: [
+          {
+            icon: <FileText strokeWidth={1.5} size={20} />,
+            text: "VAT Reports",
+            to: "/vat-reports", // Your VAT Reports page
+          },
+          // Add more reports later
+          // { icon: <PieChart strokeWidth={1.5} size={20} />, text: "Sales Report", to: "/sales-report" },
+        ].filter(() => userRole === "Admin" || userRole === "Accountant"),
+      },
     ];
     return sections.filter((section) => section.children.length > 0);
   }, [userRole]);

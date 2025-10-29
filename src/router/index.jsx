@@ -27,6 +27,7 @@ import JournalVoucherManagement from "../components/FinancialModules/Journal/Jou
 import ContraVoucherManagement from "../components/FinancialModules/Contra/ContraVoucherManagement.jsx";
 import ExpenseVoucherManagement from "../components/FinancialModules/Expense/ExpenseVoucherManagement.jsx";
 import StockDetail from "../components/Stock/StockDetail.jsx";
+import VatReports from "../components/Reports/VATReportCreate.jsx";
 export default function AdminRouter() {
   return (
     <Routes>
@@ -74,6 +75,12 @@ export default function AdminRouter() {
           element={<TransactorsManagement />}
         />{" "}
         <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
+
+        {/* reports */}
+          <Route
+          path="/vat-reports"
+          element={<VatReports />}
+        />{" "}
       </Route>
       {/* </Route> */}
       <Route path="*" element={<NotFound />} />

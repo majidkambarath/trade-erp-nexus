@@ -965,7 +965,7 @@ const PurchaseOrderManagement = () => {
       status: po.status,
       priority: po.priority,
       terms: po.terms,
-      notes: po.notes,
+      notes: po.notes,  
       items: po.items.map((i) => ({
         itemId: i.itemId,
         description: i.description,

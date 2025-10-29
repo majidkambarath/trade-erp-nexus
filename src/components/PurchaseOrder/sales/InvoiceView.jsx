@@ -75,7 +75,7 @@ const SaleInvoiceView = ({
   const so = createdSO || selectedSO;
   if (!so) return null;
 
-  const customer = customers.find((c) => c._id === so.customerData._id);
+  const customer = customers.find((c) => c._id === so.vendorId);
   const isApproved = so.status === "APPROVED";
 
   /* -------------------------------------------------- TOTALS -------------------------------------------------- */
