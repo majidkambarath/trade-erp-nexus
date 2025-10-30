@@ -345,13 +345,13 @@ const StockDetail = () => {
             {/* Pricing Information */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-5 flex items-center">
-                <DollarSign size={20} className="mr-2 text-green-500" />
+                {/* <DollarSign size={20} className="mr-2 text-green-500" /> */}
                 Pricing Information
               </h3>
               <div className="space-y-5">
                 <div>
                   <p className="text-sm font-medium text-gray-600 flex items-center">
-                    <DollarSign size={16} className="mr-2 text-gray-500" />
+                    {/* <DollarSign size={16} className="mr-2 text-gray-500" /> */}
                     Purchase Price
                   </p>
                   <p className="text-gray-800 mt-1">
@@ -360,7 +360,7 @@ const StockDetail = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600 flex items-center">
-                    <DollarSign size={16} className="mr-2 text-gray-500" />
+                    {/* <DollarSign size={16} className="mr-2 text-gray-500" /> */}
                     Sales Price
                   </p>
                   <p className="text-gray-800 mt-1">

@@ -51,9 +51,9 @@ const POForm = React.memo(
       if (!formData.deliveryDate) {
         errors.deliveryDate = "Delivery date is required";
       }
-      if (!formData.vendorReference) {
-        errors.vendorReference = "Vendor reference is required";
-      }
+      // if (!formData.vendorReference) {
+      //   errors.vendorReference = "Vendor reference is required";
+      // }
       if (
         !formData.items.some(
           (item) => item.itemId && item.qty && item.currentPurchasePrice
@@ -541,14 +541,14 @@ const POForm = React.memo(
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
-                    Vendor Reference
+                    Reference
                   </label>
                   <input
                     type="text"
                     name="vendorReference"
                     value={formData.vendorReference || ""}
                     onChange={handleInputChange}
-                    placeholder="Enter vendor reference"
+                    placeholder="Enter reference"
                     className={`w-full px-4 py-3 bg-white rounded-xl border ${
                       formErrors.vendorReference
                         ? "border-red-500"
@@ -789,7 +789,7 @@ const POForm = React.memo(
 
                     <div className="col-span-1">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Purchase Price
+                        System Purchase Price
                       </label>
                       <input
                         type="number"
@@ -801,7 +801,7 @@ const POForm = React.memo(
 
                     <div className="col-span-1">
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Current Purchase Price
+                        New Purchase Price
                       </label>
                       <input
                         type="number"
