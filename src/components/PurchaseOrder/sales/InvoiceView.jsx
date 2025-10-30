@@ -11,8 +11,7 @@ const SaleInvoiceView = ({
   setSelectedSO,
   setCreatedSO,
 }) => {
-  console.log(selectedSO);
-  console.log(customers);
+  console.log(selectedSO)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
     companyName: "ELFAB CO. (L.L.C.)",
@@ -75,13 +74,14 @@ const SaleInvoiceView = ({
   const so = createdSO || selectedSO;
   if (!so) return null;
 
-  const customer = customers.find((c) => c._id === so.vendorId);
+  const customer = customers.find((c) => c._id === so.customerId) || {};
   const isApproved = so.status === "APPROVED";
 
   /* -------------------------------------------------- TOTALS -------------------------------------------------- */
-  const subtotal = so.items.reduce((s, i) => s + i.lineTotal, 0);
-  const total = so.items.reduce((s, i) => s + i.rate, 0);
-  const vatTotal = so.items.reduce((s, i) => s + i.vatAmount, 0);
+  const subtotal = so.items.reduce((s, i) => s + (i.lineTotal || 0), 0);
+  const vatTotal = so.items.reduce((s, i) => s + (i.vatAmount || 0), 0);
+    const total = so.items.reduce((s, i) => s + (i.rate || 0), 0);
+
   const grandTotal = subtotal + vatTotal;
 
   const numberToWords = (n) => {
@@ -133,8 +133,8 @@ const SaleInvoiceView = ({
     return w.trim();
   };
   const amountInWords = `${numberToWords(
-    Math.floor(grandTotal)
-  )} Dirhams and ${Math.round((grandTotal % 1) * 100)} Fils Only`;
+    Math.floor(subtotal)
+  )} Dirhams and ${Math.round((subtotal % 1) * 100)} Fils Only`;
 
   /* -------------------------------------------------- PDF / PRINT -------------------------------------------------- */
   const generatePDF = async (copyType) => {
@@ -155,11 +155,11 @@ const SaleInvoiceView = ({
     const img = canvas.toDataURL("image/png");
 
     const pdf = new jsPDF("p", "mm", "a4");
-    const pdfW = 210;
-    const pdfH = 297;
+    const pdfW = 210,
+      pdfH = 297;
     const ratio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-    const w = canvas.width * ratio;
-    const h = canvas.height * ratio;
+    const w = canvas.width * ratio,
+      h = canvas.height * ratio;
     pdf.addImage(img, "PNG", (pdfW - w) / 2, (pdfH - h) / 2, w, h);
     pdf.save(
       `${isApproved ? "INV" : "SO"}_${so.transactionNo}_${copyType.replace(
@@ -185,11 +185,8 @@ const SaleInvoiceView = ({
   const handlePrintPDF = () => {
     const printWindow = window.open("", "_blank");
     const invoiceEl = document.getElementById("invoice-content");
+    const now = new Date().toLocaleString("en-GB"); // e.g. 30/10/2025, 14:22:10
 
-    // ---- 1. Grab the current date-time that is shown on screen ----
-    const now = new Date().toLocaleString("en-GB"); // e.g. 28/10/2025, 17:03:05
-
-    // ---- 2. Build the HTML for the print window ----
     const printHTML = `
     <!DOCTYPE html>
     <html>
@@ -207,25 +204,22 @@ const SaleInvoiceView = ({
           table { border-collapse:collapse; width:100%; font-size:11px; }
           th,td { border:1px solid #000; padding:4px; }
           .no-print { display:none; }
-
-          /* ---- RE-CREATE THE FOOTER SPACING (same as Tailwind) ---- */
           .footer-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1.5rem; font-size:11px; }
-          .footer-left  strong { display:block; margin-bottom:0.2rem; }
+          .footer-left strong { display:block; margin-bottom:0.2rem; }
           .footer-right { text-align:right; }
           .footer-right div { margin-bottom:0.1rem; }
           .received-block { margin-top:1.5rem; }
-          .date-time      { text-align:center; margin-top:1.5rem; font-size:11px; }
+          .date-time { text-align:center; margin-top:1.5rem; font-size:11px; }
         </style>
       </head>
       <body>
         ${invoiceEl.outerHTML}
-        <!-- inject the live date-time -->
         <script>
           document.querySelector('.date-time').innerText = '${now}';
         </script>
       </body>
     </html>
-  `;
+    `;
 
     printWindow.document.write(printHTML);
     printWindow.document.close();
@@ -433,17 +427,24 @@ const SaleInvoiceView = ({
           >
             <div>
               <p>
-                <strong>Customer Code :</strong> {customer?.customerId || "N/A"}
+                <strong>Customer Code :</strong> {customer.customerId || "N/A"}
               </p>
               <p>
-                <strong>EXSTORE SALES (CASH PAYMENT)</strong>
+                <strong>Customer Name :</strong>{" "}
+                {customer.customerName || "N/A"}
               </p>
               <p>
-                {customer?.billingAddress || "P.O. BOX - 3352 DUBAI U.A.E 3352"}
+                {customer.billingAddress || "P.O. BOX - 3352 DUBAI U.A.E 3352"}
+              </p>
+              <p>
+                <strong>Phone :</strong> {customer.phone || "N/A"}
+              </p>
+              <p>
+                <strong>Email :</strong> {customer.email || "N/A"}
               </p>
               {/* <p>
                 <strong>Customer VAT Number :</strong>{" "}
-                {customer?.trnNO || "Not Provided"}
+                {customer.vatNumber || "Not Provided"}
               </p> */}
               <p>
                 <strong>Location / PO / Ref # :</strong> {so.transactionNo}
@@ -546,11 +547,13 @@ const SaleInvoiceView = ({
             </thead>
             <tbody>
               {so.items.map((it, idx) => {
-                const rateKg =
-                  it.qty > 0 ? (it.rate / it.qty).toFixed(2) : "0.00";
-                const line = it.rate.toFixed(2);
-                const vat = it.vatAmount.toFixed(2);
-                const total = (parseFloat(line) + parseFloat(vat)).toFixed(2);
+                const qty = parseFloat(it.qty) || 0;
+                const rate = parseFloat(it.rate) || 0;
+                const lineAmount = rate; // Amount AED
+                const ratePerKg = qty > 0 ? (rate / qty).toFixed(2) : "0.00";
+                const vat = parseFloat(it.vatAmount) || 0;
+                const total = (lineAmount + vat).toFixed(2);
+
                 return (
                   <tr key={idx}>
                     <td
@@ -569,7 +572,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {it.itemCode}
+                      {it.itemCode || "N/A"}
                     </td>
                     <td style={{ border: "1px solid #000", padding: "4px" }}>
                       {it.description}
@@ -590,7 +593,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {it.qty.toFixed(2)}
+                      {qty.toFixed(2)}
                     </td>
                     <td
                       style={{
@@ -599,7 +602,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {rateKg}
+                      {ratePerKg}
                     </td>
                     <td
                       style={{
@@ -608,7 +611,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {line}
+                      {lineAmount.toFixed(2)}
                     </td>
                     <td
                       style={{
@@ -617,7 +620,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {vat}
+                      {it.vatPercent || 5}
                     </td>
                     <td
                       style={{
@@ -756,7 +759,6 @@ const SaleInvoiceView = ({
 
           {/* ---------- FOOTER (BANK + SIGNATURE) ---------- */}
           <div className="grid grid-cols-2 gap-4 mt-6 text-xs footer-grid">
-            {/* BANK DETAILS (LEFT) */}
             <div className="footer-left">
               <strong>BANK DETAILS</strong>
               <div>Bank : {profileData.bankName}</div>
@@ -769,7 +771,6 @@ const SaleInvoiceView = ({
               </div>
             </div>
 
-            {/* SIGNATURE & COMPANY NOTE (RIGHT) */}
             <div className="footer-right">
               <div>
                 This is computer generated{" "}
@@ -779,7 +780,6 @@ const SaleInvoiceView = ({
               <div className="mt-2">
                 <strong>For {profileData.companyName}</strong>
               </div>
-
               <div className="received-block">
                 Received the above goods in good order and condition.
               </div>

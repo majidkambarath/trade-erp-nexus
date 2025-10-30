@@ -28,6 +28,7 @@ const TableView = ({
   confirmSO,
   deleteSO,
 }) => {
+  console.log(paginatedSOs)
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
@@ -159,7 +160,7 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div>
                     <p className="font-medium text-slate-900">
-                      {so.customerData?.customerName}
+                      {so?.customerName}
                     </p>
                   </div>
                 </td>
