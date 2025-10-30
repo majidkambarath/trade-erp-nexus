@@ -620,7 +620,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {it.vatPercent || 5}
+                      {it.vatAmount || 5}
                     </td>
                     <td
                       style={{
