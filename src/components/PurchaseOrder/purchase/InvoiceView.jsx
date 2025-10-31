@@ -14,7 +14,7 @@ const InvoiceView = ({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
     companyName: " NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C. ",
-    companyNameArabic: "نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و",
+    companyNameArabic: "نجم الهدى لتجارة المواد الغذائية ذ.م.م ش.ش.و",
     addressLine1: "Dubai Investment Park",
     addressLine2: "P.O. Box: 3352 - DUBAI - U.A.E.",
     phoneNumber: "+971 4 8857575",
@@ -172,12 +172,12 @@ const InvoiceView = ({
     setIsGeneratingPDF(true);
     try {
       await generatePDF("Internal Copy");
-      await generatePDF("Customer Copy");
+      await generatePDF("Supplier Copy");
     } catch (e) {
       alert("PDF generation failed");
     } finally {
       setIsGeneratingPDF(false);
-      document.getElementById("copy-label").innerText = "Customer Copy";
+      document.getElementById("copy-label").innerText = "Supplier Copy";
     }
   };
 
@@ -311,106 +311,86 @@ const InvoiceView = ({
               margin: "25px",
             }}
           >
-            <span id="copy-label">Customer Copy</span>
+            <span id="copy-label">Supplier Copy</span>
           </div>
 
           {/* ---------- HEADER (EN – LOGO – AR) ---------- */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "4px",
-            }}
-          >
-            {/* ENGLISH */}
-            <div style={{ width: "36%" }}>
-              <h2
-                style={{
-                  margin: "0 0 2px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                 NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.
-              </h2>
-              <p
-                style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
-              >
-                {profileData.addressLine1}
-                <br />
-                Tel. : {profileData.phoneNumber}
-                <br />
-                E-mail: {profileData.email}
-                <br />
-                Website : {profileData.website}
-                <br />
-                <strong>VAT Number : {profileData.vatNumber}</strong>
-              </p>
-            </div>
+                    <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "4px",
+  }}
+>
+  {/* ENGLISH DETAILS */}
+  <div style={{ width: "35%" }}>
+    <p
+      style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
+    >
+      {profileData.addressLine1}
+      <br />
+      Tel. : {profileData.phoneNumber}
+      <br />
+      E-mail: {profileData.email}
+      <br />
+      Website : {profileData.website}
+      <br />
+      <strong>VAT Number : {profileData.vatNumber}</strong>
+    </p>
+  </div>
 
-            {/* LOGO + TITLE (center) */}
-            <div style={{ textAlign: "center", width: "28%" }}>
-              {profileData.logo && (
-                <img
-                  src={profileData.logo}
-                  alt="Company Logo"
-                  style={{
-                    width: "110px",
-                    height: "auto",
-                    marginBottom: "2px",
-                    display: "block",
-                    marginLeft: "auto",
-                    marginRight: "auto",
-                  }}
-                />
-              )}
-              <h1
-                style={{
-                  margin: "0",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  letterSpacing: "0.8px",
-                }}
-              >
-                {isApproved ? "PURCHASE ORDER" : "PURCHASE ORDER"}
-              </h1>
-            </div>
+  {/* CENTER: ENGLISH NAME – ARABIC NAME – LOGO – TITLE */}
+  <div style={{ textAlign: "center", width: "30%" }}>
+    <h2
+      style={{
+        margin: "0 0 2px",
+        fontWeight: "bold",
+        fontSize: "13px",
+      }}
+    >
+      NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.
+    </h2>
+    <h2
+      style={{
+        margin: "2px 0 0",
+        fontWeight: "bold",
+        fontSize: "13px",
+        direction: "rtl",
+        fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
+      }}
+    >
+      {profileData.companyNameArabic}
+    </h2>
+    {profileData.logo && (
+      <img
+        src={profileData.logo}
+        alt="Company Logo"
+        style={{
+          width: "110px",
+          height: "auto",
+          marginBottom: "2px",
+          display: "block",
+          marginLeft: "auto",
+          marginRight: "auto",
+        }}
+      />
+    )}
+    <h1
+      style={{
+        margin: "0",
+        fontSize: "16px",
+        fontWeight: "bold",
+        letterSpacing: "0.8px",
+      }}
+    >
+      PURCHASE ORDER
+    </h1>
+  </div>
 
-            {/* ARABIC */}
-            <div
-              style={{
-                width: "36%",
-                textAlign: "right",
-                direction: "rtl",
-                fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
-                fontSize: "11px",
-              }}
-            >
-              <h2
-                style={{
-                  margin: "0 0 2px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                {profileData.companyNameArabic}
-              </h2>
-              <p style={{ margin: "1px 0", lineHeight: "1.3" }}>
-                مجمع دبي للاستثمار
-                <br />
-                ص.ب: 3352 - دبي - الإمارات
-                <br />
-                هاتف: {profileData.phoneNumber} 
-                <br />
-                بريد إلكتروني: {profileData.email}
-                <br />
-                الموقع: {profileData.website}
-                <br />
-                <strong>رقم ضريبة : {profileData.vatNumber}</strong>
-              </p>
-            </div>
-          </div>
+  {/* EMPTY RIGHT FOR ALIGNMENT */}
+  <div style={{ width: "35%" }}></div>
+</div>
 
           {/* ---------- CUSTOMER & INVOICE INFO ---------- */}
           <div
