@@ -958,7 +958,7 @@ const PurchaseOrderManagement = () => {
     const edited = {
       transactionNo: po.transactionNo,
       partyId: po.vendorId,
-      partyType: "vendor",
+      partyType: "Vendor",
       vendorReference: po.vendorReference,
       date: po.date,
       deliveryDate: po.deliveryDate,
@@ -973,7 +973,7 @@ const PurchaseOrderManagement = () => {
         rate: String(i.rate),
         taxPercent: String(i.vatPercent),
         purchasePrice: i.purchasePrice,
-        currentPurchasePrice: i.purchasePrice, // or i.rate
+        currentPurchasePrice: i.rate/i.qty , // or i.rate
         category: i.category,
         brand: i.brand,
         origin: i.origin,

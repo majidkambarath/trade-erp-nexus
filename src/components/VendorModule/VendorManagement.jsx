@@ -653,6 +653,7 @@ const VendorManagement = () => {
                   <option value="45 days">45 days</option>
                   <option value="Net 60">Net 60</option>
                   <option value="60 days">60 days</option>
+                  <option value="COD">Cash On Delivery</option>
                 </select>
 
                 <button
@@ -995,6 +996,7 @@ const VendorManagement = () => {
                     <option value="45 days">45 days</option>
                     <option value="Net 60">Net 60</option>
                     <option value="60 days">60 days</option>
+                    <option value="COD">Cash On Delivery</option>
                   </select>
                 </div>
 

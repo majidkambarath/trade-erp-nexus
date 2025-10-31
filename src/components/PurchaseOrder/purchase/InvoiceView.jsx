@@ -13,8 +13,8 @@ const InvoiceView = ({
 }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
-    companyName: "ELFAB CO. (L.L.C.)",
-    companyNameArabic: "نجم لتجارة المواد الغذائية ذ.م.م ش.ش.و",
+    companyName: " NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C. ",
+    companyNameArabic: "نجم الهدى لتجارة المواد الغذائية ذ.م.م ش.ش.و",
     addressLine1: "Dubai Investment Park",
     addressLine2: "P.O. Box: 3352 - DUBAI - U.A.E.",
     phoneNumber: "+971 4 8857575",
@@ -74,6 +74,7 @@ const InvoiceView = ({
   const po = createdPO || selectedPO;
   if (!po) return null;
   const vendor = vendors.find((v) => v._id === po.vendorId);
+  console.log(vendor);
   const isApproved = po.status === "APPROVED";
 
   /* -------------------------------------------------- TOTALS -------------------------------------------------- */
@@ -171,12 +172,12 @@ const InvoiceView = ({
     setIsGeneratingPDF(true);
     try {
       await generatePDF("Internal Copy");
-      await generatePDF("Customer Copy");
+      await generatePDF("Supplier Copy");
     } catch (e) {
       alert("PDF generation failed");
     } finally {
       setIsGeneratingPDF(false);
-      document.getElementById("copy-label").innerText = "Customer Copy";
+      document.getElementById("copy-label").innerText = "Supplier Copy";
     }
   };
 
@@ -242,12 +243,12 @@ const InvoiceView = ({
   };
 
   const terms = [
-    "Manual Correction of this invoice is not allowed",
-    "Receiving stamp is mandatory",
-    "In case of any mismatches in price/ item inform our respective salesperson",
-    "Goods return is only accepted if agreed by us with in agreed period and items should be in good condition",
-    "Payment should be processed and released as per above mentioned payment term without delay",
-    "Cash invoices should be paid at the time of delivery",
+    // "Manual Correction of this invoice is not allowed",
+    // "Receiving stamp is mandatory",
+    // "In case of any mismatches in price/ item inform our respective salesperson",
+    // "Goods return is only accepted if agreed by us with in agreed period and items should be in good condition",
+    // "Payment should be processed and released as per above mentioned payment term without delay",
+    // "Cash invoices should be paid at the time of delivery",
   ];
 
   /* -------------------------------------------------- JSX -------------------------------------------------- */
@@ -310,108 +311,86 @@ const InvoiceView = ({
               margin: "25px",
             }}
           >
-            <span id="copy-label">Customer Copy</span>
+            <span id="copy-label">Supplier Copy</span>
           </div>
 
           {/* ---------- HEADER (EN – LOGO – AR) ---------- */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "4px",
-            }}
-          >
-            {/* ENGLISH */}
-            <div style={{ width: "36%" }}>
-              <h2
-                style={{
-                  margin: "0 0 2px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                {profileData.companyName}
-              </h2>
-              <p
-                style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
-              >
-                {profileData.addressLine1}
-                <br />
-                {profileData.addressLine2}
-                <br />
-                Tel. : {profileData.phoneNumber}
-                <br />
-                E-mail: {profileData.email}
-                <br />
-                Website : {profileData.website}
-                <br />
-                <strong>ELFAB VAT Number : {profileData.vatNumber}</strong>
-              </p>
-            </div>
+                    <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "4px",
+  }}
+>
+  {/* ENGLISH DETAILS */}
+  <div style={{ width: "35%" }}>
+    <p
+      style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
+    >
+      {profileData.addressLine1}
+      <br />
+      Tel. : {profileData.phoneNumber}
+      <br />
+      E-mail: {profileData.email}
+      <br />
+      Website : {profileData.website}
+      <br />
+      <strong>VAT Number : {profileData.vatNumber}</strong>
+    </p>
+  </div>
 
-            {/* LOGO + TITLE (center) */}
-            <div style={{ textAlign: "center", width: "28%" }}>
-              {profileData.logo && (
-                <img
-                  src={profileData.logo}
-                  alt="Company Logo"
-                  style={{
-                    width: "110px",
-                    height: "auto",
-                    marginBottom: "2px",
-                    display: "block",
-                    marginLeft: "auto",
-                    marginRight: "auto",
-                  }}
-                />
-              )}
-              <h1
-                style={{
-                  margin: "0",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  letterSpacing: "0.8px",
-                }}
-              >
-                {isApproved ? "TAX INVOICE" : "PURCHASE ORDER"}
-              </h1>
-            </div>
+  {/* CENTER: ENGLISH NAME – ARABIC NAME – LOGO – TITLE */}
+  <div style={{ textAlign: "center", width: "30%" }}>
+    <h2
+      style={{
+        margin: "0 0 2px",
+        fontWeight: "bold",
+        fontSize: "13px",
+      }}
+    >
+      NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.
+    </h2>
+    <h2
+      style={{
+        margin: "2px 0 0",
+        fontWeight: "bold",
+        fontSize: "13px",
+        direction: "rtl",
+        fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
+      }}
+    >
+      {profileData.companyNameArabic}
+    </h2>
+    {profileData.logo && (
+      <img
+        src={profileData.logo}
+        alt="Company Logo"
+        style={{
+          width: "110px",
+          height: "auto",
+          marginBottom: "2px",
+          display: "block",
+          marginLeft: "auto",
+          marginRight: "auto",
+        }}
+      />
+    )}
+    <h1
+      style={{
+        margin: "0",
+        fontSize: "16px",
+        fontWeight: "bold",
+        letterSpacing: "0.8px",
+      }}
+    >
+      PURCHASE ORDER
+    </h1>
+  </div>
 
-            {/* ARABIC */}
-            <div
-              style={{
-                width: "36%",
-                textAlign: "right",
-                direction: "rtl",
-                fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
-                fontSize: "11px",
-              }}
-            >
-              <h2
-                style={{
-                  margin: "0 0 2px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                {profileData.companyNameArabic}
-              </h2>
-              <p style={{ margin: "1px 0", lineHeight: "1.3" }}>
-                مجمع دبي للاستثمار
-                <br />
-                ص.ب: 3352 - دبي - الإمارات
-                <br />
-                هاتف: {profileData.phoneNumber} 
-                <br />
-                بريد إلكتروني: {profileData.email}
-                <br />
-                الموقع: {profileData.website}
-                <br />
-                <strong>رقم ضريبة الفاب: {profileData.vatNumber}</strong>
-              </p>
-            </div>
-          </div>
+  {/* EMPTY RIGHT FOR ALIGNMENT */}
+  <div style={{ width: "35%" }}></div>
+</div>
 
           {/* ---------- CUSTOMER & INVOICE INFO ---------- */}
           <div
@@ -424,14 +403,15 @@ const InvoiceView = ({
           >
             <div>
               <p>
-                <strong>Customer Code :</strong> {vendor?.customerCode || "N/A"}
+                <strong>Vendor ID :</strong> {vendor?.vendorId || "N/A"}
+              
               </p>
               <p>
-                <strong>EXSTORE SALES (CASH PAYMENT)</strong>
+              <strong>{vendor?.vendorName}</strong>
               </p>
               <p>{vendor?.address || "P.O. BOX - 3352 DUBAI U.A.E 3352"}</p>
               <p>
-                <strong>Customer VAT Number :</strong>{" "}
+                <strong>VAT Number :</strong>{" "}
                 {vendor?.trnNO || "Not Provided"}
               </p>
               <p>
@@ -489,7 +469,7 @@ const InvoiceView = ({
                       <strong>Payment Terms</strong>
                     </td>
                     <td style={{ padding: "2px 6px" }}>
-                      {po.paymentTerms || "CASH ON DELIVERY"}
+                      {vendor.paymentTerms || "CASH ON DELIVERY"}
                     </td>
                   </tr>
                 </tbody>
@@ -512,7 +492,7 @@ const InvoiceView = ({
                   "SR",
                   "ITEM CODE",
                   "DESCRIPTION",
-                  "PKGS",
+                  // "PKGS",
                   "QTY KG.",
                   "RATE AED/KG",
                   "AMOUNT AED.",
@@ -558,12 +538,12 @@ const InvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {it.itemCode}
+                      {it.sku}
                     </td>
                     <td style={{ border: "1px solid #000", padding: "4px" }}>
                       {it.description}
                     </td>
-                    <td
+                    {/* <td
                       style={{
                         border: "1px solid #000",
                         padding: "4px",
@@ -571,7 +551,7 @@ const InvoiceView = ({
                       }}
                     >
                       1
-                    </td>
+                    </td> */}
                     <td
                       style={{
                         border: "1px solid #000",
@@ -723,14 +703,7 @@ const InvoiceView = ({
           </div>
 
           {/* ---------- TERMS & CONDITIONS ---------- */}
-          <div className="mt-4 text-xs">
-            <strong>Terms & Conditions</strong>
-            <ol className="list-decimal pl-5">
-              {terms.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ol>
-          </div>
+          
 
           {/* ---------- FOOTER (BANK + SIGNATURE) ---------- */}
           <div className="grid grid-cols-2 gap-4 mt-6 text-xs footer-grid">
@@ -742,8 +715,9 @@ const InvoiceView = ({
               <div>Account No. : {profileData.accountNumber}</div>
               <div>IBAN : {profileData.ibanNumber}</div>
               <div>
-                Branch : {profileData.branch} | Swift Code :{" "}
-                {profileData.swiftCode}
+                Currency : AED
+                {/* Branch : {profileData.branch} | Swift Code :{" "}
+                {profileData.swiftCode} */}
               </div>
             </div>
 
