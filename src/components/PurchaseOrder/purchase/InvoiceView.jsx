@@ -72,16 +72,20 @@ const InvoiceView = ({
   }, [adminId, token]);
 
   const po = createdPO || selectedPO;
+  console.log("PO Value......");
+  console.log(po);
   if (!po) return null;
   const vendor = vendors.find((v) => v._id === po.vendorId);
-  console.log(vendor);
+  console.log("DEBUG: Full vendor object:", vendor);  // ENHANCED: Better logging
   const isApproved = po.status === "APPROVED";
 
   /* -------------------------------------------------- TOTALS -------------------------------------------------- */
-  const subtotal = po.items.reduce((s, i) => s + i.lineTotal, 0);
-    const total = po.items.reduce((s, i) => s + i.rate, 0);
-  const vatTotal = po.items.reduce((s, i) => s + i.vatAmount, 0);
+  // SAFEGUARD: Handle empty items
+  const safeItems = po.items || [];
+  const subtotal = safeItems.reduce((s, i) => s + (i.rate || 0), 0);
+  const vatTotal = safeItems.reduce((s, i) => s + (i.vatAmount || 0), 0);  // FIX: Fallback for missing vatAmount
   const grandTotal = subtotal + vatTotal;
+  console.log("DEBUG: Totals - Subtotal:", subtotal, "VAT:", vatTotal, "Grand:", grandTotal);  // TEMP: Verify calculations
 
   const numberToWords = (n) => {
     const a = [
@@ -140,8 +144,10 @@ const InvoiceView = ({
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    document.getElementById("copy-label").innerText = copyType;
-    await new Promise((r) => setTimeout(r, 80));
+    if (copyType) {
+      document.getElementById("copy-label").innerText = copyType;
+      await new Promise((r) => setTimeout(r, 80));
+    }
 
     const el = document.getElementById("invoice-content");
     const canvas = await html2canvas(el, {
@@ -161,23 +167,26 @@ const InvoiceView = ({
     const h = canvas.height * ratio;
     pdf.addImage(img, "PNG", (pdfW - w) / 2, (pdfH - h) / 2, w, h);
     pdf.save(
-      `${isApproved ? "INV" : "PO"}_${po.transactionNo}_${copyType.replace(
-        " ",
-        "_"
-      )}.pdf`
+      `${isApproved ? "INV" : "PO"}_${po.transactionNo}${copyType ? `_${copyType.replace(/ /g, "_")}` : ""}.pdf`
     );
   };
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     try {
-      await generatePDF("Internal Copy");
-      await generatePDF("Supplier Copy");
+      if (isApproved) {
+        await generatePDF("Internal Copy");
+        await generatePDF("Supplier Copy");
+      } else {
+        await generatePDF("");
+      }
     } catch (e) {
       alert("PDF generation failed");
     } finally {
       setIsGeneratingPDF(false);
-      document.getElementById("copy-label").innerText = "Supplier Copy";
+      if (isApproved) {
+        document.getElementById("copy-label").innerText = "Supplier Copy";
+      }
     }
   };
 
@@ -212,8 +221,6 @@ const InvoiceView = ({
           .footer-left  strong { display:block; margin-bottom:0.2rem; }
           .footer-right { text-align:right; }
           .footer-right div { margin-bottom:0.1rem; }
-          .received-block { margin-top:1.5rem; }
-          .date-time      { text-align:center; margin-top:1.5rem; font-size:11px; }
         </style>
       </head>
       <body>
@@ -303,94 +310,93 @@ const InvoiceView = ({
           }}
         >
           {/* ---------- COPY LABEL ---------- */}
+          {isApproved && (
+            <div
+              style={{
+                textAlign: "center",
+                fontWeight: "bold",
+                marginBottom: "2px",
+                margin: "25px",
+              }}
+            >
+              <span id="copy-label">Supplier Copy</span>
+            </div>
+          )}
+
+          {/* ---------- HEADER (Centered: LOGO – AR – EN – ADDRESS – VAT – TITLE) ---------- */}
           <div
             style={{
               textAlign: "center",
-              fontWeight: "bold",
-              marginBottom: "2px",
-              margin: "25px",
+              marginBottom: "4px",
             }}
           >
-            <span id="copy-label">Supplier Copy</span>
+            {profileData.logo && (
+              <img
+                src={profileData.logo}
+                alt="Company Logo"
+                style={{
+                  width: "110px",
+                  height: "auto",
+                  marginBottom: "2px",
+                  display: "block",
+                  marginLeft: "auto",
+                  marginRight: "auto",
+                }}
+              />
+            )}
+            <h2
+              style={{
+                margin: "2px 0",
+                fontWeight: "bold",
+                fontSize: "13px",
+                direction: "rtl",
+                fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
+              }}
+            >
+              {profileData.companyNameArabic}
+            </h2>
+            <h2
+              style={{
+                margin: "2px 0",
+                fontWeight: "bold",
+                fontSize: "13px",
+              }}
+            >
+              {profileData.companyName}
+            </h2>
+            <p
+              style={{
+                margin: "1px 0",
+                lineHeight: "1.3",
+                fontSize: "11px",
+              }}
+            >
+              {profileData.addressLine1}
+              <br />
+              {profileData.phoneNumber}
+              {/* <br />
+              {profileData.addressLine2} */}
+            </p>
+            <p
+              style={{
+                margin: "1px 0",
+                fontSize: "14px",
+                fontWeight: "bold",
+              }}
+            >
+              VAT Number : {profileData.vatNumber}
+            </p>
+            <h1
+              style={{
+                margin: "10px 0 0 0",
+                fontSize: "16px",
+                fontWeight: "bold",
+                letterSpacing: "0.8px",
+              }}
+            >
+              {isApproved ? "PURCHASE ORDER " : "PURCHASE"}  {/* FIX: Clarified title */}
+            </h1>
           </div>
-
-          {/* ---------- HEADER (EN – LOGO – AR) ---------- */}
-                    <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "4px",
-  }}
->
-  {/* ENGLISH DETAILS */}
-  <div style={{ width: "35%" }}>
-    <p
-      style={{ margin: "1px 0", lineHeight: "1.3", fontSize: "11px" }}
-    >
-      {profileData.addressLine1}
-      <br />
-      Tel. : {profileData.phoneNumber}
-      <br />
-      E-mail: {profileData.email}
-      <br />
-      Website : {profileData.website}
-      <br />
-      <strong>VAT Number : {profileData.vatNumber}</strong>
-    </p>
-  </div>
-
-  {/* CENTER: ENGLISH NAME – ARABIC NAME – LOGO – TITLE */}
-  <div style={{ textAlign: "center", width: "30%" }}>
-    <h2
-      style={{
-        margin: "0 0 2px",
-        fontWeight: "bold",
-        fontSize: "13px",
-      }}
-    >
-      NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.
-    </h2>
-    <h2
-      style={{
-        margin: "2px 0 0",
-        fontWeight: "bold",
-        fontSize: "13px",
-        direction: "rtl",
-        fontFamily: "'Noto Sans Arabic',Arial,sans-serif",
-      }}
-    >
-      {profileData.companyNameArabic}
-    </h2>
-    {profileData.logo && (
-      <img
-        src={profileData.logo}
-        alt="Company Logo"
-        style={{
-          width: "110px",
-          height: "auto",
-          marginBottom: "2px",
-          display: "block",
-          marginLeft: "auto",
-          marginRight: "auto",
-        }}
-      />
-    )}
-    <h1
-      style={{
-        margin: "0",
-        fontSize: "16px",
-        fontWeight: "bold",
-        letterSpacing: "0.8px",
-      }}
-    >
-      PURCHASE ORDER
-    </h1>
-  </div>
-
-  {/* EMPTY RIGHT FOR ALIGNMENT */}
-  <div style={{ width: "35%" }}></div>
-</div>
 
           {/* ---------- CUSTOMER & INVOICE INFO ---------- */}
           <div
@@ -404,10 +410,9 @@ const InvoiceView = ({
             <div>
               <p>
                 <strong>Vendor ID :</strong> {vendor?.vendorId || "N/A"}
-              
               </p>
               <p>
-              <strong>{vendor?.vendorName}</strong>
+                <strong>{vendor?.vendorName || "Unknown Vendor"}</strong>  {/* FIX: Better fallback */}
               </p>
               <p>{vendor?.address || "P.O. BOX - 3352 DUBAI U.A.E 3352"}</p>
               <p>
@@ -461,7 +466,25 @@ const InvoiceView = ({
                         padding: "2px 6px",
                       }}
                     >
-                      {new Date(po.date).toLocaleDateString("en-GB")}
+                      {po.date ? new Date(po.date).toLocaleDateString("en-GB") : "N/A"}  {/* FIX: Safeguard date */}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      <strong>Delivery Date</strong>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #000",
+                        padding: "2px 6px",
+                      }}
+                    >
+                      {po.deliveryDate ? new Date(po.deliveryDate).toLocaleDateString("en-GB") : "N/A"}  {/* FIX: Safeguard date */}
                     </td>
                   </tr>
                   <tr>
@@ -469,7 +492,7 @@ const InvoiceView = ({
                       <strong>Payment Terms</strong>
                     </td>
                     <td style={{ padding: "2px 6px" }}>
-                      {vendor.paymentTerms || "CASH ON DELIVERY"}
+                      {vendor?.paymentTerms || "CASH ON DELIVERY"}
                     </td>
                   </tr>
                 </tbody>
@@ -492,7 +515,6 @@ const InvoiceView = ({
                   "SR",
                   "ITEM CODE",
                   "DESCRIPTION",
-                  // "PKGS",
                   "QTY KG.",
                   "RATE AED/KG",
                   "AMOUNT AED.",
@@ -514,92 +536,92 @@ const InvoiceView = ({
               </tr>
             </thead>
             <tbody>
-              {po.items.map((it, idx) => {
-                const rateKg =
-                  it.qty > 0 ? (it.rate / it.qty).toFixed(2) : "0.00";
-                const line = it.rate.toFixed(2);
-                const vat = it.vatAmount.toFixed(2);
-                const total = (parseFloat(line) + parseFloat(vat)).toFixed(2);
-                return (
-                  <tr key={idx}>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {idx + 1}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {it.sku}
-                    </td>
-                    <td style={{ border: "1px solid #000", padding: "4px" }}>
-                      {it.description}
-                    </td>
-                    {/* <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      1
-                    </td> */}
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {it.qty.toFixed(2)}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {rateKg}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {line}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {vat}
-                    </td>
-                    <td
-                      style={{
-                        border: "1px solid #000",
-                        padding: "4px",
-                        textAlign: "center",
-                      }}
-                    >
-                      {total}
-                    </td>
-                  </tr>
-                );
-              })}
+              {safeItems.length > 0 ? (
+                safeItems.map((it, idx) => {
+                  console.log("DEBUG: Item:", it);  // FIX: Better logging (remove after testing)
+                  const rateKg =
+                    it.qty > 0 ? ((it.rate || 0) / it.qty).toFixed(2) : "0.00";
+                  const line = (it.rate || 0).toFixed(2);
+                  const vat = it.vatAmount || 0// FIX: Fallback
+                  const total = (parseFloat(line) + parseFloat(vat)).toFixed(2);
+                  return (
+                    <tr key={idx}>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {idx + 1}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {it.itemCode || it.sku || ""}  {/* FIX: Use itemCode first, fallback to sku */}
+                      </td>
+                      <td style={{ border: "1px solid #000", padding: "4px" }}>
+                        {it.description || "N/A"}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {(it.qty || 0).toFixed(2)}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {rateKg}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {line}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {vat}
+                      </td>
+                      <td
+                        style={{
+                          border: "1px solid #000",
+                          padding: "4px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {total}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={8} style={{ border: "1px solid #000", padding: "4px", textAlign: "center" }}>
+                    No items found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
 
@@ -636,7 +658,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {total.toFixed(2)}
+                    {subtotal.toFixed(2)}
                   </td>
                 </tr>
                 <tr>
@@ -656,7 +678,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {vatTotal.toFixed(2)}
+                    {Number(vatTotal).toFixed(2)}
                   </td>
                 </tr>
                 <tr>
@@ -678,7 +700,30 @@ const InvoiceView = ({
                       fontWeight: "bold",
                     }}
                   >
-                    {subtotal.toFixed(2)}
+                    {grandTotal.toFixed(2)}
+                  </td>
+                </tr>
+                {/* ADD: Display amount in words */}
+                <tr>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "right",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    <strong>(In Words):</strong>
+                  </td>
+                  <td
+                    style={{
+                      border: "1px solid #000",
+                      padding: "4px",
+                      textAlign: "center",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {amountInWords}
                   </td>
                 </tr>
               </tbody>
@@ -695,9 +740,6 @@ const InvoiceView = ({
             }}
           >
             <div>
-              <strong>VEHICLE NUMBER & NAME OF DRIVER :</strong> _______________
-            </div>
-            <div>
               <strong>Manager :</strong> STORE
             </div>
           </div>
@@ -709,38 +751,42 @@ const InvoiceView = ({
           <div className="grid grid-cols-2 gap-4 mt-6 text-xs footer-grid">
             {/* BANK DETAILS (LEFT) */}
             <div className="footer-left">
-              <strong>BANK DETAILS</strong>
+              {/* <strong>BANK DETAILS</strong>
               <div>Bank : {profileData.bankName}</div>
               <div>Account Name : {profileData.accountName}</div>
               <div>Account No. : {profileData.accountNumber}</div>
-              <div>IBAN : {profileData.ibanNumber}</div>
-              <div>
-                Currency : AED
+              <div>IBAN : {profileData.ibanNumber}</div> */}
+              {/* <div>
+                Currency : AED */}
                 {/* Branch : {profileData.branch} | Swift Code :{" "}
                 {profileData.swiftCode} */}
-              </div>
+              {/* </div> */}
             </div>
 
             {/* SIGNATURE & COMPANY NOTE (RIGHT) */}
             <div className="footer-right">
               <div>
-                This is computer generated{" "}
-                {isApproved ? "invoice" : "purchase order"}.
+                This is a computer-generated document and does not require a signature.
               </div>
-              <div>Therefore signature is not required.</div>
               <div className="mt-2">
                 <strong>For {profileData.companyName}</strong>
               </div>
-
-              <div className="received-block">
-                Received the above goods in good order and condition.
-              </div>
-              <div className="mt-8"></div>
-              <div>Received by</div>
             </div>
           </div>
 
-         
+          {/* ---------- RECEIVED (BOTTOM CENTER) ---------- */}
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "1.5rem",
+              fontSize: "11px",
+            }}
+          >
+            <div style={{ marginBottom: "1.5rem" }}>
+              Received the above goods in good order and condition.
+            </div>
+            <div>Received by</div>
+          </div>
         </div>
       </div>
     </div>

@@ -170,12 +170,19 @@ const PurchaseOrderManagement = () => {
       console.log("Raw transactions:", data); // Debug
 
       const enrichedPOs = data.data.map((t) => {
-        // Enrich each item with stock details
+        // FIX: Enrich vendor name using vendors array (reliable fallback)
+        const vendorObj = vendors.find((v) => v._id === t.partyId);
+        const vendorName = vendorObj?.vendorName || t.partyName || "Unknown Vendor";
+
+        // Enrich each item with stock details (FIX: Preserve itemCode, fallback sku)
         const enrichedItems = (t.items || []).map((item) => {
-          const stock = item.stockDetails || {};
+          const stock = item.stockDetails || {};  // May be empty from backend
+          console.log("DEBUG: Enriching item - raw:", item, "stockDetails:", stock);  // TEMP: Verify fields
+
           return {
-            // Original item fields
+            // Original item fields (PRESERVE: Keep backend fields like itemCode, lineTotal)
             itemId: item.itemId,
+            itemCode: item.sku,  // FIX: Preserve from backend
             description: item.description || "",
             qty: item.qty || 0,
             rate: item.rate || 0,
@@ -183,9 +190,9 @@ const PurchaseOrderManagement = () => {
             vatAmount: item.vatAmount || 0,
             vatPercent: item.vatPercent || 5,
 
-            // Enriched from stockDetails
+            // Enriched from stockDetails (with fallbacks)
             itemName: stock.itemName || "Unknown Item",
-            sku: stock.sku || "-",
+            sku: item.itemCode || stock.sku || item.itemId || "-",  // FIX: Prioritize itemCode, then sku/itemId
             barcodeQrCode: stock.barcodeQrCode || "-",
             category: stock.category || "-",
             brand: stock.brand || "-",
@@ -207,7 +214,7 @@ const PurchaseOrderManagement = () => {
           id: t._id,
           transactionNo: t.transactionNo,
           vendorId: t.partyId,
-          vendorName: t.partyName || "Unknown Vendor",
+          vendorName,  // FIX: Use enriched vendorName
           vendorReference: t.vendorReference || "",
           date: t.date ? new Date(t.date).toISOString().split("T")[0] : "",
           deliveryDate: t.deliveryDate
@@ -232,6 +239,7 @@ const PurchaseOrderManagement = () => {
         };
       });
 
+      console.log("DEBUG: Enriched POs sample:", enrichedPOs[0]?.items?.[0]);  // TEMP: Check first item's code fields
       setPurchaseOrders(enrichedPOs);
     } catch (e) {
       addNotification(
@@ -432,6 +440,7 @@ const PurchaseOrderManagement = () => {
       dateFilter,
       sortBy,
       sortOrder,
+      vendors,  // ADD: Depend on vendors for enrichment
     ]
   );
 
@@ -966,25 +975,29 @@ const PurchaseOrderManagement = () => {
       priority: po.priority,
       terms: po.terms,
       notes: po.notes,  
-      items: po.items.map((i) => ({
-        itemId: i.itemId,
-        description: i.description,
-        qty: String(i.qty),
-        rate: String(i.rate),
-        taxPercent: String(i.vatPercent),
-        purchasePrice: i.purchasePrice,
-        currentPurchasePrice: i.rate/i.qty , // or i.rate
-        category: i.category,
-        brand: i.brand,
-        origin: i.origin,
-        total: String(i.rate),
-        vatAmount: String(i.vatAmount),
-        grandTotal: String(i.lineTotal),
-        vatPercent: String(i.vatPercent),
-        // Add enriched fields for dropdowns
-        itemName: i.itemName,
-        sku: i.sku,
-      })),
+      items: po.items.map((i) => {
+        console.log("DEBUG: Editing item:", i);  // TEMP: Verify itemCode/sku
+        return {
+          itemId: i.itemId,
+          itemCode: i.itemCode,  // FIX: Preserve for form display
+          description: i.description,
+          qty: String(i.qty),
+          rate: String(i.rate),
+          taxPercent: String(i.vatPercent),
+          purchasePrice: i.purchasePrice,
+          currentPurchasePrice: i.rate / i.qty || i.purchasePrice || 0,  // FIX: Better fallback
+          category: i.category,
+          brand: i.brand,
+          origin: i.origin,
+          total: String(i.rate),
+          vatAmount: String(i.vatAmount),
+          grandTotal: String(i.lineTotal),
+          vatPercent: String(i.vatPercent),
+          // Add enriched fields for dropdowns
+          itemName: i.itemName,
+          sku: i.sku || i.itemCode,  // FIX: Fallback to itemCode
+        };
+      }),
     };
 
     setFormData(edited);
