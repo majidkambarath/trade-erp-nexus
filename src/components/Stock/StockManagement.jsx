@@ -447,7 +447,7 @@ const StockManagement = () => {
     if (!formData.category) newErrors.category = "Category is required";
     if (!formData.unitOfMeasure)
       newErrors.unitOfMeasure = "Unit of measure is required";
-    if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
+    // if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
     if (!formData.origin.trim()) newErrors.origin = "Origin is required"; // New validation
     if (!formData.brand.trim()) newErrors.brand = "Brand is required"; // New validation
     if (
