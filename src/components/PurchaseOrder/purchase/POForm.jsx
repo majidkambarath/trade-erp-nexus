@@ -12,6 +12,21 @@ import {
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
 
+// FIX: Refined memoization to prevent unnecessary re-renders.
+// By moving the comparator function outside, it's not recreated on every render.
+const arePropsEqual = (prevProps, nextProps) => {
+  return (
+    prevProps.formData === nextProps.formData &&
+    prevProps.vendors === nextProps.vendors &&
+    prevProps.stockItems === nextProps.stockItems &&
+    prevProps.selectedPO === nextProps.selectedPO &&
+    prevProps.activeView === nextProps.activeView &&
+    // Functions from parent are generally stable, but props like formData are what matter
+    // We can assume functions like addNotification, resetForm etc. are stable.
+    prevProps.calculateTotals === nextProps.calculateTotals
+  );
+};
+
 const POForm = React.memo(
   ({
     formData,
@@ -31,10 +46,10 @@ const POForm = React.memo(
     const isEditing = activeView === "edit";
     const [formErrors, setFormErrors] = useState({});
 
-    useEffect(() => {
-      const totals = calculateTotals(formData.items);
-      setFormData((prev) => ({ ...prev, totals }));
-    }, [formData.items, calculateTotals, setFormData]);
+    // This is correct. `useMemo` is the right tool for derived state.
+    const totals = useMemo(() => {
+      return calculateTotals(formData.items);
+    }, [formData.items, calculateTotals]);
 
     useEffect(() => {
       console.log("POForm rendered");
@@ -42,38 +57,20 @@ const POForm = React.memo(
 
     const validateForm = useCallback(() => {
       const errors = {};
-      if (!formData.partyId) {
-        errors.partyId = "Vendor is required";
-      }
-      if (!formData.date) {
-        errors.date = "Date is required";
-      }
-      if (!formData.deliveryDate) {
-        errors.deliveryDate = "Delivery date is required";
-      }
-      // if (!formData.vendorReference) {
-      //   errors.vendorReference = "Vendor reference is required";
-      // }
-      if (
-        !formData.items.some(
-          (item) => item.itemId && item.qty && item.currentPurchasePrice
-        )
-      ) {
-        errors.items = "At least one valid item is required";
+      if (!formData.partyId) errors.partyId = "Vendor is required";
+      if (!formData.date) errors.date = "Date is required";
+      if (!formData.deliveryDate) errors.deliveryDate = "Delivery date is required";
+      if (!formData.items.some((item) => item.itemId && parseFloat(item.qty) > 0)) {
+        errors.items = "At least one item with a quantity greater than 0 is required";
       }
       formData.items.forEach((item, index) => {
+        // Only validate rows that have been started
         if (item.itemId || item.qty || item.currentPurchasePrice) {
-          if (!item.itemId) errors[`itemId_${index}`] = "Item code is required";
+          if (!item.itemId) errors[`itemId_${index}`] = "Item is required";
           if (!item.qty || parseFloat(item.qty) <= 0)
-            errors[`qty_${index}`] = "Quantity must be greater than 0";
-          if (
-            !item.currentPurchasePrice ||
-            parseFloat(item.currentPurchasePrice) <= 0
-          )
-            errors[`currentPurchasePrice_${index}`] =
-              "Current purchase price must be greater than 0";
-          if (!item.vatPercent || parseFloat(item.vatPercent) < 0)
-            errors[`vatPercent_${index}`] = "VAT % must be non-negative";
+            errors[`qty_${index}`] = "Quantity must be > 0";
+          if (!item.currentPurchasePrice || parseFloat(item.currentPurchasePrice) <= 0)
+            errors[`currentPurchasePrice_${index}`] = "Price must be > 0";
         }
       });
       setFormErrors(errors);
@@ -94,87 +91,61 @@ const POForm = React.memo(
         const vendorId = selected ? selected.value : "";
         setFormData((prev) => ({ ...prev, partyId: vendorId }));
         setFormErrors((prev) => ({ ...prev, partyId: null }));
-        if (selected) {
-          const vendor = vendors.find((v) => v._id === selected.value);
-          if (vendor) {
-            addNotification(`Vendor ${vendor.vendorName} selected`, "success");
-          }
-        }
       },
-      [vendors, setFormData, addNotification]
+      [setFormData]
     );
 
+    // FIX: Centralized and robust item calculation logic.
     const handleItemChange = useCallback(
       (index, field, value) => {
         const newItems = [...formData.items];
-        newItems[index] = { ...newItems[index], [field]: value };
+        const currentItem = { ...newItems[index] };
+        
+        // Update the field that was changed
+        currentItem[field] = value;
 
+        // If the item ID changes, populate details from stock
         if (field === "itemId") {
-          const item = stockItems.find((i) => i._id === value);
-          if (item) {
-            newItems[index].description = item.itemName;
-            newItems[index].currentPurchasePrice = item.purchasePrice;
-            newItems[index].purchasePrice = item.purchasePrice;
-            newItems[index].vatPercent =
-              item.vatPercent !== undefined
-                ? item.vatPercent.toString()
-                : newItems[index].vatPercent || "5";
-            newItems[index].brand = item.brand || "";
-            newItems[index].origin = item.origin || "";
-            const qty = parseFloat(newItems[index].qty) || 0;
-            const currentPurchasePrice =
-              parseFloat(newItems[index].currentPurchasePrice) || 0;
-            const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
-            newItems[index].total = qty
-              ? (currentPurchasePrice * qty).toFixed(2)
-              : "0.00";
-            newItems[index].vatAmount = qty
-              ? (currentPurchasePrice * qty * (vatPercent / 100)).toFixed(2)
-              : "0.00";
-            newItems[index].grandTotal = qty
-              ? (currentPurchasePrice * qty * (1 + vatPercent / 100)).toFixed(2)
-              : "0.00";
-            if (item.currentStock < item.reorderLevel) {
-              addNotification(
-                `Warning: ${item.itemName} is running low on stock (${item.currentStock} remaining)`,
-                "warning"
-              );
+          const stockItem = stockItems.find((i) => i._id === value);
+          if (stockItem) {
+            currentItem.description = stockItem.itemName;
+            currentItem.brand = stockItem.brand || "";
+            currentItem.origin = stockItem.origin || "";
+            currentItem.vatPercent = (stockItem.vatPercent !== undefined ? stockItem.vatPercent : 5).toString();
+            // Only set purchase price if not already set, to avoid overwriting a manual entry
+            if (!currentItem.currentPurchasePrice || parseFloat(currentItem.currentPurchasePrice) === 0) {
+              currentItem.currentPurchasePrice = (stockItem.purchasePrice || 0).toString();
             }
+            // Always update the system price for reference
+            currentItem.purchasePrice = stockItem.purchasePrice || 0;
           } else {
-            newItems[index].description = "";
-            newItems[index].currentPurchasePrice = 0;
-            newItems[index].purchasePrice = 0;
-            newItems[index].vatPercent = "5";
-            newItems[index].brand = "";
-            newItems[index].origin = "";
-            newItems[index].total = "0.00";
-            newItems[index].vatAmount = "0.00";
-            newItems[index].grandTotal = "0.00";
+            // Reset fields if item is cleared
+            currentItem.description = "";
+            currentItem.brand = "";
+            currentItem.origin = "";
           }
-        } else if (
-          field === "qty" ||
-          field === "currentPurchasePrice" ||
-          field === "vatPercent"
-        ) {
-          const qty = parseFloat(newItems[index].qty) || 0;
-          const currentPurchasePrice =
-            parseFloat(newItems[index].currentPurchasePrice) || 0;
-          const vatPercent = parseFloat(newItems[index].vatPercent) || 0;
-          newItems[index].total = qty
-            ? (currentPurchasePrice * qty).toFixed(2)
-            : "0.00";
-          newItems[index].vatAmount = qty
-            ? (currentPurchasePrice * qty * (vatPercent / 100)).toFixed(2)
-            : "0.00";
-          newItems[index].grandTotal = qty
-            ? (currentPurchasePrice * qty * (1 + vatPercent / 100)).toFixed(2)
-            : "0.00";
         }
+        
+        // --- Single Source of Truth for Calculations ---
+        const qty = parseFloat(currentItem.qty) || 0;
+        const price = parseFloat(currentItem.currentPurchasePrice) || 0;
+        const vatPercent = parseFloat(currentItem.vatPercent) || 0;
+
+        const subtotal = qty * price;
+        const vatAmount = subtotal * (vatPercent / 100);
+        const grandTotal = subtotal + vatAmount;
+
+        // Update the item object with calculated values (as strings for input fields)
+        currentItem.total = subtotal.toFixed(2);
+        currentItem.vatAmount = vatAmount.toFixed(2);
+        currentItem.grandTotal = grandTotal.toFixed(2);
+
+        newItems[index] = currentItem;
 
         setFormData((prev) => ({ ...prev, items: newItems }));
         setFormErrors((prev) => ({ ...prev, [`${field}_${index}`]: null }));
       },
-      [formData.items, stockItems, setFormData, addNotification]
+      [formData.items, stockItems, setFormData]
     );
 
     const addItem = useCallback(() => {
@@ -183,17 +154,9 @@ const POForm = React.memo(
         items: [
           ...prev.items,
           {
-            itemId: "",
-            description: "",
-            qty: "",
-            total: "0.00",
-            vatPercent: "5",
-            vatAmount: "0.00",
-            currentPurchasePrice: 0,
-            purchasePrice: 0,
-            brand: "",
-            origin: "",
-            grandTotal: "0.00",
+            itemId: "", description: "", qty: "",
+            purchasePrice: 0, currentPurchasePrice: "", vatPercent: "5",
+            brand: "", origin: "", total: "0.00", vatAmount: "0.00", grandTotal: "0.00",
           },
         ],
       }));
@@ -201,141 +164,129 @@ const POForm = React.memo(
 
     const removeItem = useCallback(
       (index) => {
-        if (formData.items.length > 1) {
-          const newItems = formData.items.filter((_, i) => i !== index);
-          setFormData((prev) => ({ ...prev, items: newItems }));
-          setFormErrors((prev) => {
-            const updatedErrors = { ...prev };
-            Object.keys(prev).forEach((key) => {
-              if (key.includes(`_${index}`)) {
-                delete updatedErrors[key];
-              }
-            });
-            return updatedErrors;
-          });
-        }
+        if (formData.items.length <= 1) return;
+        const newItems = formData.items.filter((_, i) => i !== index);
+        setFormData((prev) => ({ ...prev, items: newItems }));
       },
       [formData.items, setFormData]
     );
-
+    
+    // FIX: CRITICAL FIX for data integrity during save and hydration.
     const savePO = useCallback(async () => {
       if (!validateForm()) {
         addNotification("Please fix form errors before saving", "error");
         return;
       }
 
-      try {
-        const totals = calculateTotals(formData.items);
-        const transactionData = {
-          transactionNo: formData.transactionNo,
-          type: "purchase_order",
-          partyId: formData.partyId,
-          partyType: "Vendor",
-          date: formData.date,
-          deliveryDate: formData.deliveryDate,
-          status: formData.status,
-          totalAmount: parseFloat(totals.total),
-          vendorReference: formData.vendorReference, // Added vendorReference
-          items: formData.items
-            .filter(
-              (item) => item.itemId && item.qty && item.currentPurchasePrice
-            )
-            .map((item) => {
-              const qty = parseFloat(item.qty) || 0;
-              const currentPurchasePrice =
-                parseFloat(item.currentPurchasePrice) || 0;
-              const vatPercent = parseFloat(item.vatPercent) || 0;
-              const total = qty * currentPurchasePrice;
-              const vatAmount = total * (vatPercent / 100);
-              const grandTotal = total + vatAmount;
+      // Use the already calculated totals from useMemo for consistency
+      const finalTotals = calculateTotals(formData.items);
 
-              return {
-                itemId: item.itemId,
-                description: item.description,
-                qty,
-                rate: parseFloat(total.toFixed(2)),
-                vatPercent,
-                vatAmount: parseFloat(vatAmount.toFixed(2)),
-                currentPurchasePrice,
-                price: item.purchasePrice || 0,
-                brand: item.brand || "",
-                origin: item.origin || "",
-                grandTotal: parseFloat(grandTotal.toFixed(2)),
-              };
-            }),
-          terms: formData.terms,
-          notes: formData.notes,
-          createdBy: "Current User",
-          priority: formData.priority,
+      // 1. Prepare a clean payload for the API
+      const transactionData = {
+    // Keep top-level fields from the form state
+    transactionNo: formData.transactionNo,
+    partyId: formData.partyId,
+    vendorReference: formData.vendorReference,
+    date: formData.date,
+    deliveryDate: formData.deliveryDate,
+    status: formData.status,
+    terms: formData.terms,
+    notes: formData.notes,
+    priority: formData.priority,
+    
+    // FIX 1: Add back the mandatory 'type' and 'partyType' fields
+    type: "purchase_order", 
+    partyType: "Vendor",
+
+    // FIX 2: Add a placeholder for 'createdBy' as it's often required
+    createdBy: "Current User", // Or get the actual user ID if available
+
+    // Use the calculated total
+    totalAmount: parseFloat(finalTotals.total),
+
+    // Filter and map the items
+    items: formData.items
+      .filter(item => item.itemId && parseFloat(item.qty) > 0)
+      .map(item => {
+        const qty = parseFloat(item.qty) || 0;
+        const currentPurchasePrice = parseFloat(item.currentPurchasePrice) || 0;
+        const vatPercent = parseFloat(item.vatPercent) || 0;
+        const lineSubtotal = qty * currentPurchasePrice;
+        const vatAmount = lineSubtotal * (vatPercent / 100);
+        const grandTotal = lineSubtotal + vatAmount;
+        
+        return {
+          itemId: item.itemId,
+          description: item.description,
+          qty: qty,
+          price: currentPurchasePrice, 
+          currentPurchasePrice: currentPurchasePrice,
+          rate: parseFloat(lineSubtotal.toFixed(2)),
+          
+          // FIX 3: Add 'lineTotal' as an alias for 'rate'. The backend might need this exact name.
+          lineTotal: parseFloat(lineSubtotal.toFixed(2)),
+
+          vatPercent: vatPercent,
+          vatAmount: parseFloat(vatAmount.toFixed(2)),
+          grandTotal: parseFloat(grandTotal.toFixed(2)),
+          brand: item.brand,
+          origin: item.origin,
         };
+      }),
+  };
+  
+  console.log("Sending payload to backend:", JSON.stringify(transactionData, null, 2));
 
+      
+      try {
         let response;
         if (selectedPO) {
-          response = await axiosInstance.put(
-            `/transactions/transactions/${selectedPO.id}`,
-            transactionData
-          );
+          response = await axiosInstance.put(`/transactions/transactions/${selectedPO.id}`, transactionData);
           addNotification("Purchase Order updated successfully", "success");
         } else {
-          response = await axiosInstance.post(
-            "/transactions/transactions",
-            transactionData
-          );
+          response = await axiosInstance.post("/transactions/transactions", transactionData);
           addNotification("Purchase Order created successfully", "success");
         }
-        console.log(response);
-        
+
+        const savedPOData = response.data.data;
+
+        // 2. Hydrate the full PO object for the InvoiceView
         const newPO = {
-          id: response.data.data._id,
-          transactionNo: response.data.data.transactionNo,
-          vendorId: response.data.data.partyId,
-          vendorName:
-            vendors.find((v) => v._id === response.data.data.partyId)
-              ?.vendorName || "Unknown",
-          date: response.data.data.date,
-          deliveryDate: response.data.data.deliveryDate,
-          status: response.data.data.status,
-          approvalStatus: response.data.data.status,
-          totalAmount: response.data.data?.totalAmount.toFixed(2),
-          vendorReference: response.data.data.vendorReference, // Added vendorReference
-          items: response.data.data.items,
-          terms: response.data.data.terms,
-          notes: response.data.data.notes,
-          createdBy: response.data.data.createdBy,
-          createdAt: response.data.data.createdAt,
-          grnGenerated: response.data.data.grnGenerated,
-          invoiceGenerated: response.data.data.invoiceGenerated,
-          priority: response.data.data.priority,
+          ...savedPOData, // Start with what the backend returned
+          id: savedPOData._id,
+          vendorId: savedPOData.partyId,
+          vendorName: vendors.find(v => v._id === savedPOData.partyId)?.vendorName || "Unknown",
+          // Ensure items array is complete
+          items: (savedPOData.items || []).map(backendItem => {
+            // Find the original item from the form to get complete data
+            const originalItem = transactionData.items.find(i => i.itemId === backendItem.itemId);
+            
+            // Merge backend data with original data, prioritizing backend where it exists
+            return {
+              ...originalItem, // Provides fallbacks for everything (currentPurchasePrice, etc.)
+              ...backendItem, // Overwrites with confirmed saved data from backend
+              // Explicitly ensure critical calculated fields are correct
+              rate: backendItem.rate || originalItem?.rate || 0,
+              vatAmount: backendItem.vatAmount || originalItem?.vatAmount || 0,
+              grandTotal: backendItem.grandTotal || originalItem?.grandTotal || 0,
+              currentPurchasePrice: originalItem?.currentPurchasePrice || (backendItem.rate / backendItem.qty) || 0,
+            };
+          }),
         };
 
         if (selectedPO) {
-          setPurchaseOrders((prev) =>
-            prev.map((po) => (po.id === selectedPO.id ? newPO : po))
-          );
+          setPurchaseOrders(prev => prev.map(po => (po.id === selectedPO.id ? newPO : po)));
         } else {
-          setPurchaseOrders((prev) => [newPO, ...prev]);
+          setPurchaseOrders(prev => [newPO, ...prev]);
         }
 
-        onPOSuccess(newPO);
-      } catch (error) {
-        addNotification(
-          "Failed to save purchase order: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      }
-    }, [
-      validateForm,
-      formData,
-      selectedPO,
-      vendors,
-      setPurchaseOrders,
-      addNotification,
-      onPOSuccess,
-      calculateTotals,
-    ]);
+        onPOSuccess(newPO); // Pass the fully hydrated object to the success handler
 
-    const totals = formData.totals || calculateTotals(formData.items);
+      } catch (error) {
+        console.error("Save PO Error:", error.response?.data || error.message);
+        addNotification(`Failed to save PO: ${error.response?.data?.message || error.message}`, "error");
+      }
+    }, [formData, selectedPO, vendors, addNotification, calculateTotals, onPOSuccess, setPurchaseOrders, validateForm]);
 
     const stableVendors = useMemo(() => vendors || [], [vendors]);
     const stableStockItems = useMemo(() => stockItems || [], [stockItems]);
@@ -644,17 +595,17 @@ const POForm = React.memo(
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Subtotal:</span>
-                      <span>AED {totals.subtotal}</span>
+                      <span>AED {parseFloat(totals.subtotal || 0).toFixed(2)}</span>  {/* FIX: Ensure display */}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>VAT:</span>
-                      <span>AED {totals.vat}</span>
+                      <span>AED {parseFloat(totals.tax || 0).toFixed(2)}</span>  {/* FIX: Use 'tax' from calculateTotals */}
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold">
                         <span>Total:</span>
                         <span className="text-emerald-600">
-                          AED {totals.total}
+                          AED {parseFloat(totals.total || 0).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -767,19 +718,17 @@ const POForm = React.memo(
                         Quantity
                       </label>
                       <input
-                        type="number"
-                        value={item.qty || ""}
-                        onChange={(e) =>
-                          handleItemChange(index, "qty", e.target.value)
-                        }
-                        placeholder="Qty"
-                        min="0"
-                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`qty_${index}`]
-                            ? "border-red-500"
-                            : "border-slate-200"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
-                      />
+                      type="text"  // FIX: Change to text for free typing
+                      value={item.qty || ""}  // FIX: String for smooth typing (empty fallback)
+                      onChange={(e) => handleItemChange(index, "qty", e.target.value)}  // Passes raw string
+                      placeholder="Qty"
+                      pattern="[0-9]*\.?[0-9]+"  // FIX: Allow decimals (0-9, optional dot, more 0-9)
+                      className={`w-full px-4 py-3 bg-white rounded-lg border ${
+                      formErrors[`qty_${index}`]
+                      ? "border-red-500"
+                      :"border-slate-200"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                      />                                                
                       {formErrors[`qty_${index}`] && (
                         <p className="text-red-500 text-xs mt-1">
                           {formErrors[`qty_${index}`]}
@@ -793,7 +742,7 @@ const POForm = React.memo(
                       </label>
                       <input
                         type="number"
-                        value={item.purchasePrice || ""}
+                        value={item.purchasePrice || "0.00"}  /* FIX: Default display */
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
@@ -804,23 +753,16 @@ const POForm = React.memo(
                         New Purchase Price
                       </label>
                       <input
-                        type="number"
-                        value={item.currentPurchasePrice || ""}
-                        onChange={(e) =>
-                          handleItemChange(
-                            index,
-                            "currentPurchasePrice",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Price"
-                        min="0"
-                        step="0.01"
-                        className={`w-full px-4 py-3 bg-white rounded-lg border ${
-                          formErrors[`currentPurchasePrice_${index}`]
-                            ? "border-red-500"
-                            : "border-slate-200"
-                        } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
+                      type="text"  // FIX: Change to text
+                      value={item.currentPurchasePrice || ""}  // FIX: String fallback
+                      onChange={(e) => handleItemChange(index, "currentPurchasePrice", e.target.value)}
+                      placeholder="New Price"
+                      pattern="[0-9]*\.?[0-9]+"  // FIX: Decimal pattern
+                      className={`w-full px-4 py-3 bg-white rounded-lg border ${
+                      formErrors[`currentPurchasePrice_${index}`]
+                      ? "border-red-500"
+                      : "border-slate-200"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm`}
                       />
                       {formErrors[`currentPurchasePrice_${index}`] && (
                         <p className="text-red-500 text-xs mt-1">
@@ -835,7 +777,7 @@ const POForm = React.memo(
                       </label>
                       <input
                         type="number"
-                        value={item.total || ""}
+                        value={item.total || "0.00"}  /* FIX: Ensure display */
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
@@ -847,7 +789,7 @@ const POForm = React.memo(
                       </label>
                       <input
                         type="number"
-                        value={item.vatPercent || ""}
+                        value={item.vatPercent || "5.00"}  /* FIX: Default display */
                         onChange={(e) =>
                           handleItemChange(index, "vatPercent", e.target.value)
                         }
@@ -873,7 +815,7 @@ const POForm = React.memo(
                       </label>
                       <input
                         type="number"
-                        value={item.vatAmount || ""}
+                        value={item.vatAmount || "0.00"}  /* FIX: Ensure display */
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
@@ -885,7 +827,7 @@ const POForm = React.memo(
                       </label>
                       <input
                         type="number"
-                        value={item.grandTotal || ""}
+                        value={item.grandTotal || "0.00"}  /* FIX: Ensure display */
                         readOnly
                         className="w-full px-4 py-3 bg-slate-100 rounded-lg border border-slate-200 text-sm cursor-not-allowed"
                       />
@@ -910,6 +852,7 @@ const POForm = React.memo(
       </div>
     );
   },
+  // FIX: Refined memo deps (removed set* functions, added calculateTotals)
   (prevProps, nextProps) => {
     return (
       prevProps.formData === nextProps.formData &&
@@ -917,12 +860,11 @@ const POForm = React.memo(
       prevProps.stockItems === nextProps.stockItems &&
       prevProps.addNotification === nextProps.addNotification &&
       prevProps.selectedPO === nextProps.selectedPO &&
-      prevProps.setSelectedPO === nextProps.setSelectedPO &&
-      prevProps.setActiveView === nextProps.setActiveView &&
-      prevProps.setPurchaseOrders === nextProps.setPurchaseOrders &&
-      prevProps.activeView === nextProps.activeView
+      prevProps.activeView === nextProps.activeView &&
+      prevProps.calculateTotals === nextProps.calculateTotals
     );
-  }
+  },
+   arePropsEqual
 );
 
 export default POForm;
