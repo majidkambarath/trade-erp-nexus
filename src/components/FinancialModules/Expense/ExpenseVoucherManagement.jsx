@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios"; // Ensure this path is correct
 import DirhamIcon from "../../../assets/dirham.svg";
-
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -56,7 +55,6 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
     )}
   </div>
 );
-
 const FormSelect = ({
   label,
   icon: Icon,
@@ -71,7 +69,6 @@ const FormSelect = ({
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   const dropdownRef = useRef(null);
-
   // Filter options based on search term
   const filteredOptions = useMemo(() => {
     if (!hierarchical) {
@@ -101,7 +98,6 @@ const FormSelect = ({
     });
     return filtered;
   }, [options, searchTerm, hierarchical]);
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -111,7 +107,6 @@ const FormSelect = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
   // Auto-expand parent category if selected value is a sub-category
   useEffect(() => {
     if (hierarchical && props.value) {
@@ -126,14 +121,12 @@ const FormSelect = ({
       }
     }
   }, [props.value, options, hierarchical]);
-
   const toggleCategoryExpansion = (categoryId) => {
     setExpandedCategories((prev) => ({
       ...prev,
       [categoryId]: !prev[categoryId],
     }));
   };
-
   const findSelectedLabel = useCallback(
     (value) => {
       if (!hierarchical) {
@@ -157,7 +150,6 @@ const FormSelect = ({
     },
     [options, hierarchical]
   );
-
   const handleCategorySelect = (
     value,
     isSubCategory = false,
@@ -173,7 +165,6 @@ const FormSelect = ({
     setIsOpen(false);
     setSearchTerm("");
   };
-
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -298,7 +289,6 @@ const FormSelect = ({
     </div>
   );
 };
-
 const FormFileUpload = ({ label, icon: Icon, error, ...props }) => (
   <div>
     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -319,7 +309,6 @@ const FormFileUpload = ({ label, icon: Icon, error, ...props }) => (
     )}
   </div>
 );
-
 const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
   <div>
     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -338,7 +327,6 @@ const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
     )}
   </div>
 );
-
 const Toast = ({ show, message, type }) =>
   show && (
     <div
@@ -352,7 +340,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-
 const StatCard = ({
   title,
   count,
@@ -382,7 +369,6 @@ const StatCard = ({
     <p className="text-xs text-gray-500 mt-1">{subText}</p>
   </div>
 );
-
 const SessionManager = {
   storage: {},
   key: (k) => `expense_voucher_${k}`,
@@ -409,9 +395,7 @@ const SessionManager = {
     });
   },
 };
-
 const asArray = (x) => (Array.isArray(x) ? x : []);
-
 const takeArray = (resp) => {
   if (!resp) return [];
   const d = resp.data;
@@ -421,9 +405,7 @@ const takeArray = (resp) => {
   if (Array.isArray(d?.data)) return d.data;
   return [];
 };
-
 const by = (value) => (value || "").toString().toLowerCase();
-
 const formatCurrency = (
   amount,
   colorClass = "text-gray-900",
@@ -441,7 +423,6 @@ const formatCurrency = (
     </span>
   );
 };
-
 const ExpenseVoucherManagement = () => {
   const [vouchers, setVouchers] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
@@ -460,8 +441,8 @@ const ExpenseVoucherManagement = () => {
   });
   const [categoryErrors, setCategoryErrors] = useState({});
   const [formData, setFormData] = useState({
-    expenseCategory: "",
     mainExpenseCategory: "",
+    expenseCategory: "",
     transactor: "",
     amount: "",
     description: "",
@@ -469,6 +450,8 @@ const ExpenseVoucherManagement = () => {
     date: new Date().toISOString().split("T")[0],
     submittedBy: "Logged-in User",
     approvalStatus: "Pending",
+    includeVAT: false,
+    vatRate: 5,
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -501,6 +484,14 @@ const ExpenseVoucherManagement = () => {
   const formRef = useRef(null);
   const categoryFormRef = useRef(null);
 
+  const vatAmount = useMemo(() => {
+    const amountNum = Number(formData.amount) || 0;
+    const vatRateNum = Number(formData.vatRate) || 0;
+    return formData.includeVAT
+      ? (amountNum * vatRateNum) / (100 + vatRateNum)
+      : 0;
+  }, [formData.amount, formData.vatRate, formData.includeVAT]);
+
   useEffect(() => {
     const savedFormData = SessionManager.get("formData");
     if (savedFormData && typeof savedFormData === "object") {
@@ -510,7 +501,6 @@ const ExpenseVoucherManagement = () => {
     fetchExpenseCategories();
     fetchTransactors();
   }, []);
-
   useEffect(() => {
     let timer;
     if (showModal) {
@@ -521,11 +511,9 @@ const ExpenseVoucherManagement = () => {
     }
     return () => clearTimeout(timer);
   }, [formData, showModal]);
-
   useEffect(() => {
     SessionManager.set("searchTerm", searchTerm);
   }, [searchTerm]);
-
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
     setTimeout(
@@ -533,7 +521,6 @@ const ExpenseVoucherManagement = () => {
       2800
     );
   }, []);
-
   const fetchExpenseCategories = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -560,7 +547,6 @@ const ExpenseVoucherManagement = () => {
       setIsLoading(false);
     }
   }, [showToastMessage]);
-
   const fetchVouchers = useCallback(
     async (showRefreshIndicator = false) => {
       try {
@@ -586,7 +572,6 @@ const ExpenseVoucherManagement = () => {
     },
     [showToastMessage]
   );
-
   const fetchTransactors = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -615,7 +600,6 @@ const ExpenseVoucherManagement = () => {
       setIsLoading(false);
     }
   }, [showToastMessage]);
-
   const fetchAssociatedVouchers = useCallback(async (categoryId) => {
     try {
       const response = await axiosInstance.get("/vouchers/vouchers", {
@@ -627,16 +611,10 @@ const ExpenseVoucherManagement = () => {
       return [];
     }
   }, []);
-
   const handleChange = useCallback((e) => {
-    const { name, value, files } = e.target;
-    // Handle hierarchical category selection
-    if (name === "expenseCategory" && "mainCategoryId" in e.target) {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-        mainExpenseCategory: e.target.mainCategoryId,
-      }));
+    const { name, value, files, checked, type } = e.target;
+    if (type === "checkbox") {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -645,26 +623,23 @@ const ExpenseVoucherManagement = () => {
     }
     setErrors((prev) => ({ ...prev, [name]: "" }));
   }, []);
-
   const handleCategoryChange = useCallback((e) => {
     const { name, value } = e.target;
     setCategoryForm((prev) => ({ ...prev, [name]: value }));
     setCategoryErrors((prev) => ({ ...prev, [name]: "" }));
   }, []);
-
   const validateForm = useCallback(() => {
     const e = {};
     if (!formData.mainExpenseCategory)
       e.mainExpenseCategory = "Main category is required";
-    if (!formData.expenseCategory)
-      e.expenseCategory = "Expense category is required";
     if (!formData.transactor) e.transactor = "Transactor is required";
     if (!formData.amount || Number(formData.amount) <= 0)
       e.amount = "Amount must be greater than 0";
     if (!formData.date) e.date = "Date is required";
+    if (formData.includeVAT && Number(formData.vatRate) <= 0)
+      e.vatRate = "VAT rate must be greater than 0";
     return e;
   }, [formData]);
-
   const validateCategoryForm = useCallback(() => {
     const e = {};
     if (!categoryForm.name.trim()) e.name = "Category name is required";
@@ -673,12 +648,11 @@ const ExpenseVoucherManagement = () => {
     }
     return e;
   }, [categoryForm]);
-
   const resetForm = useCallback(() => {
     setEditVoucherId(null);
     setFormData({
-      expenseCategory: "",
       mainExpenseCategory: "",
+      expenseCategory: "",
       transactor: transactors[0]?.value || "",
       amount: "",
       description: "",
@@ -686,20 +660,20 @@ const ExpenseVoucherManagement = () => {
       date: new Date().toISOString().split("T")[0],
       submittedBy: "Logged-in User",
       approvalStatus: "Pending",
+      includeVAT: false,
+      vatRate: 5,
     });
     setErrors({});
     setShowModal(false);
     SessionManager.remove("formData");
     SessionManager.remove("lastSaveTime");
   }, [transactors]);
-
   const resetCategoryForm = useCallback(() => {
     setEditCategoryId(null);
     setCategoryForm({ name: "", isSubCategory: false, parentCategory: "" });
     setCategoryErrors({});
     setShowCategoryModal(false);
   }, []);
-
   const handleSubmit = useCallback(async () => {
     const e = validateForm();
     if (Object.keys(e).length) {
@@ -708,16 +682,27 @@ const ExpenseVoucherManagement = () => {
     }
     setIsSubmitting(true);
     try {
+      const selectedMainId = formData.mainExpenseCategory;
+      const selectedExpenseId = formData.expenseCategory || selectedMainId;
+      const mainExpenseCategoryId = selectedMainId;
+      const vatRateNum = Number(formData.vatRate) || 0;
+      const amountNum = Number(formData.amount) || 0;
+      const calculatedVatAmount = formData.includeVAT
+        ? (amountNum * vatRateNum) / (100 + vatRateNum)
+        : 0;
+
       const payload = {
-        mainExpenseCategoryId: formData.mainExpenseCategory,
-        expenseCategoryId: formData.expenseCategory,
+        mainExpenseCategoryId,
+        expenseCategoryId: selectedExpenseId,
         transactorId: formData.transactor,
         voucherType: "expense",
-        totalAmount: Number(formData.amount),
+        totalAmount: amountNum,
         description: formData.description,
         date: formData.date,
         submittedBy: formData.submittedBy,
         approvalStatus: formData.approvalStatus,
+        vatRate: formData.includeVAT ? vatRateNum : 0,
+        vatAmount: calculatedVatAmount,
       };
       if (formData.attachReceipt) {
         const formDataToSend = new FormData();
@@ -770,7 +755,6 @@ const ExpenseVoucherManagement = () => {
     showToastMessage,
     validateForm,
   ]);
-
   const handleCategorySubmit = useCallback(async () => {
     const e = validateCategoryForm();
     if (Object.keys(e).length) {
@@ -829,7 +813,6 @@ const ExpenseVoucherManagement = () => {
     showToastMessage,
     validateCategoryForm,
   ]);
-
   const handleEdit = useCallback(
     (voucher) => {
       const expenseCat = voucher.expenseCategoryId || {};
@@ -837,9 +820,9 @@ const ExpenseVoucherManagement = () => {
         voucher.mainExpenseCategoryId || expenseCat.parentCategory || {};
       setEditVoucherId(voucher._id);
       setFormData({
-        expenseCategory: expenseCat._id || "",
+        expenseCategory: expenseCat.parentCategory ? expenseCat._id : "",
         mainExpenseCategory:
-          mainCat._id || expenseCat.parentCategory?._id || "",
+          mainCat._id || expenseCat.parentCategory?._id || expenseCat._id || "",
         transactor:
           voucher.transactorId?._id ||
           voucher.transactorId ||
@@ -853,6 +836,8 @@ const ExpenseVoucherManagement = () => {
           : new Date().toISOString().split("T")[0],
         submittedBy: voucher.submittedBy || "Logged-in User",
         approvalStatus: voucher.approvalStatus || "Pending",
+        includeVAT: !!voucher.vatAmount,
+        vatRate: voucher.vatRate || 5,
       });
       setShowModal(true);
       SessionManager.remove("formData");
@@ -860,7 +845,6 @@ const ExpenseVoucherManagement = () => {
     },
     [transactors]
   );
-
   const handleEditCategory = useCallback((category) => {
     setEditCategoryId(category.value);
     setCategoryForm({
@@ -870,7 +854,6 @@ const ExpenseVoucherManagement = () => {
     });
     setShowCategoryModal(true);
   }, []);
-
   const showDeleteConfirmation = useCallback((voucher) => {
     setDeleteConfirmation({
       visible: true,
@@ -879,7 +862,6 @@ const ExpenseVoucherManagement = () => {
       isDeleting: false,
     });
   }, []);
-
   const showCategoryDeleteConfirmation = useCallback((category) => {
     setCategoryDeleteConfirmation({
       visible: true,
@@ -890,7 +872,6 @@ const ExpenseVoucherManagement = () => {
       errorMessage: "",
     });
   }, []);
-
   const hideDeleteConfirmation = useCallback(() => {
     setDeleteConfirmation({
       visible: false,
@@ -899,7 +880,6 @@ const ExpenseVoucherManagement = () => {
       isDeleting: false,
     });
   }, []);
-
   const hideCategoryDeleteConfirmation = useCallback(() => {
     setCategoryDeleteConfirmation({
       visible: false,
@@ -910,7 +890,6 @@ const ExpenseVoucherManagement = () => {
       errorMessage: "",
     });
   }, []);
-
   const confirmDelete = useCallback(async () => {
     setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
     try {
@@ -936,7 +915,6 @@ const ExpenseVoucherManagement = () => {
     hideDeleteConfirmation,
     showToastMessage,
   ]);
-
   const confirmCategoryDelete = useCallback(async () => {
     setCategoryDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
     try {
@@ -987,7 +965,6 @@ const ExpenseVoucherManagement = () => {
     showToastMessage,
     expenseCategories,
   ]);
-
   const openAddModal = useCallback(() => {
     resetForm();
     setShowModal(true);
@@ -998,7 +975,6 @@ const ExpenseVoucherManagement = () => {
         formRef.current.querySelector('div[role="combobox"]')?.focus();
     }, 10);
   }, [resetForm]);
-
   const openCategoryModal = useCallback(
     (isSub = false, parentId = "") => {
       resetCategoryForm();
@@ -1019,20 +995,17 @@ const ExpenseVoucherManagement = () => {
     },
     [resetCategoryForm]
   );
-
   const handleRefresh = useCallback(() => {
     fetchVouchers(true);
     fetchExpenseCategories();
     fetchTransactors();
   }, [fetchVouchers, fetchExpenseCategories, fetchTransactors]);
-
   const handleSort = useCallback((key) => {
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
     }));
   }, []);
-
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
     const t = new Date(timeString);
@@ -1043,15 +1016,12 @@ const ExpenseVoucherManagement = () => {
       ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
       : t.toLocaleTimeString();
   }, []);
-
   const handleViewVoucher = useCallback((voucher) => {
     setSelectedVoucher(voucher);
   }, []);
-
   const handleBackToList = useCallback(() => {
     setSelectedVoucher(null);
   }, []);
-
   const handleDownloadPDF = useCallback(async () => {
     try {
       setIsGeneratingPDF(true);
@@ -1114,7 +1084,6 @@ const ExpenseVoucherManagement = () => {
       setIsGeneratingPDF(false);
     }
   }, [selectedVoucher, showToastMessage]);
-
   const handlePrintPDF = useCallback(() => {
     const printWindow = window.open("", "_blank");
     const expenseContent = document.getElementById("expense-content");
@@ -1160,9 +1129,7 @@ const ExpenseVoucherManagement = () => {
       printWindow.close();
     }, 250);
   }, [selectedVoucher, showToastMessage]);
-
   const safeVouchers = useMemo(() => asArray(vouchers), [vouchers]);
-
   const voucherStats = useMemo(() => {
     const totalVouchers = safeVouchers.length;
     const totalAmount = safeVouchers.reduce(
@@ -1175,7 +1142,6 @@ const ExpenseVoucherManagement = () => {
     const avgAmount = totalVouchers ? totalAmount / totalVouchers : 0;
     return { totalVouchers, totalAmount, todayVouchers, avgAmount };
   }, [safeVouchers]);
-
   const sortedAndFilteredVouchers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     let filtered = safeVouchers.filter((p) => {
@@ -1219,22 +1185,25 @@ const ExpenseVoucherManagement = () => {
     }
     return filtered;
   }, [safeVouchers, searchTerm, sortConfig]);
-
   const findCategoryDetails = useCallback((category, mainCategory) => {
     const categoryObj = typeof category === "object" ? category : null;
     const mainObj = typeof mainCategory === "object" ? mainCategory : null;
-
     if (!categoryObj) return null;
-
     const name = categoryObj.name || "";
     const parent = categoryObj.parentCategory || mainObj || null;
-
     if (parent && parent._id !== categoryObj._id) {
       return { name, type: "sub", parent: parent.name || "" };
     }
     return { name, type: "main" };
   }, []);
-
+  const selectedMainObj = useMemo(
+    () =>
+      expenseCategories.find(
+        (cat) => cat.value === formData.mainExpenseCategory
+      ),
+    [expenseCategories, formData.mainExpenseCategory]
+  );
+  const subOptions = selectedMainObj?.subCategories || [];
   if (selectedVoucher) {
     const categoryDetails = findCategoryDetails(
       selectedVoucher.expenseCategoryId,
@@ -1667,7 +1636,6 @@ const ExpenseVoucherManagement = () => {
       </div>
     );
   }
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
@@ -1681,7 +1649,6 @@ const ExpenseVoucherManagement = () => {
       </div>
     );
   }
-
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
       <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
@@ -1703,7 +1670,6 @@ const ExpenseVoucherManagement = () => {
       </button>
     </div>
   );
-
   const lastSaveTime = SessionManager.get("lastSaveTime");
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
@@ -2005,22 +1971,36 @@ const ExpenseVoucherManagement = () => {
             <div className="p-6" ref={formRef}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormSelect
-                  label="Expense Category"
+                  label="Main Expense Category"
                   icon={Building}
-                  name="expenseCategory"
-                  value={formData.expenseCategory}
-                  onChange={handleChange}
-                  hierarchical={true}
-                  error={errors.expenseCategory}
+                  name="mainExpenseCategory"
+                  value={formData.mainExpenseCategory}
+                  onChange={(e) => {
+                    handleChange(e);
+                    setFormData((prev) => ({ ...prev, expenseCategory: "" }));
+                  }}
+                  error={errors.mainExpenseCategory}
                   options={expenseCategories}
+                  hierarchical={false}
                   data={true}
-                  onAddNew={() =>
-                    openCategoryModal(
-                      !!formData.mainExpenseCategory,
-                      formData.mainExpenseCategory
-                    )
-                  }
+                  onAddNew={() => openCategoryModal(false)}
                 />
+                {subOptions.length > 0 && (
+                  <FormSelect
+                    label="Sub Expense Category (optional)"
+                    icon={Building}
+                    name="expenseCategory"
+                    value={formData.expenseCategory}
+                    onChange={handleChange}
+                    error={errors.expenseCategory}
+                    options={subOptions}
+                    hierarchical={false}
+                    data={true}
+                    onAddNew={() =>
+                      openCategoryModal(true, formData.mainExpenseCategory)
+                    }
+                  />
+                )}
                 <FormSelect
                   label="Transactor"
                   icon={CreditCard}
@@ -2053,6 +2033,43 @@ const ExpenseVoucherManagement = () => {
                     placeholder="Enter details or justification for the expense..."
                   />
                 </div>
+                <div className="md:col-span-2 flex items-center gap-4">
+                  <label className="flex items-center space-x-2 text-sm font-semibold text-gray-700">
+                    <input
+                      type="checkbox"
+                      name="includeVAT"
+                      checked={formData.includeVAT}
+                      onChange={handleChange}
+                      className="rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                    />
+                    <span>VAT Included</span>
+                  </label>
+                </div>
+                {formData.includeVAT && (
+                  <>
+                    <FormInput
+                      label="VAT Rate (%)"
+                      icon={DollarSign}
+                      type="number"
+                      name="vatRate"
+                      value={formData.vatRate}
+                      onChange={handleChange}
+                      error={errors.vatRate}
+                      required
+                      min="0"
+                      step="0.01"
+                    />
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <DollarSign size={16} className="inline mr-2" /> VAT
+                        Amount
+                      </label>
+                      <div className="w-full px-4 py-3 border rounded-xl bg-gray-50 text-gray-900 font-medium">
+                        {formatCurrency(vatAmount)}
+                      </div>
+                    </div>
+                  </>
+                )}
                 <FormFileUpload
                   label="Attach Receipt"
                   icon={Upload}
@@ -2467,5 +2484,4 @@ const ExpenseVoucherManagement = () => {
     </div>
   );
 };
-
 export default ExpenseVoucherManagement;
