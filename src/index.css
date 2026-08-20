@@ -1,1 +1,509 @@
 @import "tailwindcss";
+
+/* ─── NH FOODS ERP — PropValue-inspired soft theme ─── */
+
+:root {
+  --radius: 1.35rem;
+
+  --background: #ffffff;
+  --foreground: #171717;
+
+  --card: #ffffff;
+  --card-foreground: #171717;
+
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+
+  --primary: #171717;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f4f4f5;
+  --secondary-foreground: #171717;
+
+  --muted: #f4f4f5;
+  --muted-foreground: #6b6b6b;
+
+  --accent: #f6e27a;
+  --accent-foreground: #171717;
+
+  --highlight: #f0c929;
+  --highlight-soft: #fff6c8;
+
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+
+  --border: #ececec;
+  --input: #ececec;
+  --ring: #171717;
+
+  --chart-1: #f0c929;
+  --chart-2: #171717;
+  --chart-3: #a8a29e;
+  --chart-4: #d6d3d1;
+  --chart-5: #78716c;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #ececec;
+  --sidebar-ring: #171717;
+
+  --success: #16a34a;
+  --warning: #f0c929;
+  --info: #2563eb;
+
+  --shadow-card: 0 8px 28px rgba(23, 23, 23, 0.06), 0 1px 2px rgba(23, 23, 23, 0.04);
+  --shadow-elevated: 0 18px 48px rgba(23, 23, 23, 0.1);
+
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #fafafa;
+
+  --card: #1a1a1a;
+  --card-foreground: #fafafa;
+
+  --popover: #1a1a1a;
+  --popover-foreground: #fafafa;
+
+  --primary: #fafafa;
+  --primary-foreground: #121212;
+
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+
+  --accent: #f0c929;
+  --accent-foreground: #121212;
+
+  --highlight: #f0c929;
+  --highlight-soft: #3d3510;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #f0c929;
+
+  --chart-1: #f0c929;
+  --chart-2: #fafafa;
+  --chart-3: #737373;
+  --chart-4: #525252;
+  --chart-5: #a3a3a3;
+
+  --sidebar: #0f0f0f;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #0f0f0f;
+  --sidebar-accent: #1c1c1c;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #f0c929;
+
+  --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--font-sans);
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.25);
+  --radius-2xl: calc(var(--radius) * 1.55);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-sans);
+  letter-spacing: -0.03em;
+}
+
+.erp-page {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.erp-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.erp-soft-panel {
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.erp-highlight {
+  background: var(--highlight);
+  color: var(--accent-foreground);
+}
+
+.erp-highlight-soft {
+  background: var(--highlight-soft);
+}
+
+.erp-scope .bg-white {
+  background-color: var(--card) !important;
+}
+.erp-scope [class~="bg-white/80"],
+.erp-scope [class~="bg-white/90"],
+.erp-scope [class~="bg-white/50"] {
+  background-color: var(--card) !important;
+}
+.erp-scope [class~="border-white/20"],
+.erp-scope [class~="border-white/50"] {
+  border-color: var(--border) !important;
+}
+.erp-scope .bg-gray-50,
+.erp-scope .bg-gray-100,
+.erp-scope .bg-gray-100\/50,
+.erp-scope .bg-slate-50,
+.erp-scope .bg-slate-100,
+.erp-scope .bg-slate-200,
+.erp-scope .bg-rose-50,
+.erp-scope .bg-rose-100 {
+  background-color: var(--secondary) !important;
+}
+.erp-scope .bg-gray-200,
+.erp-scope .bg-gray-200\/50 {
+  background-color: var(--muted) !important;
+}
+.erp-scope .text-gray-800,
+.erp-scope .text-gray-900,
+.erp-scope .text-black,
+.erp-scope .text-slate-800,
+.erp-scope .text-slate-900 {
+  color: var(--foreground) !important;
+}
+.erp-scope .text-gray-600,
+.erp-scope .text-gray-700,
+.erp-scope .text-gray-500,
+.erp-scope .text-slate-400,
+.erp-scope .text-slate-500,
+.erp-scope .text-slate-600,
+.erp-scope .text-slate-700,
+.erp-scope .text-rose-600,
+.erp-scope .text-rose-700 {
+  color: var(--muted-foreground) !important;
+}
+.erp-scope .border-gray-200,
+.erp-scope .border-gray-200\/50,
+.erp-scope .border-gray-300,
+.erp-scope .border-gray-300\/50,
+.erp-scope .border-gray-100,
+.erp-scope .border-slate-200,
+.erp-scope .border-slate-300 {
+  border-color: var(--border) !important;
+}
+
+.erp-scope .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.erp-scope .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.erp-scope .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.erp-scope .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border) !important;
+}
+
+.erp-scope [class~="hover:bg-purple-50"]:hover,
+.erp-scope [class~="hover:bg-purple-100"]:hover,
+.erp-scope [class~="hover:bg-blue-50"]:hover,
+.erp-scope [class~="hover:bg-blue-100"]:hover,
+.erp-scope [class~="hover:bg-emerald-50"]:hover,
+.erp-scope [class~="hover:bg-emerald-100"]:hover,
+.erp-scope [class~="hover:bg-gray-50"]:hover,
+.erp-scope [class~="hover:bg-gray-100"]:hover,
+.erp-scope [class~="hover:bg-slate-50"]:hover,
+.erp-scope [class~="hover:bg-slate-100"]:hover,
+.erp-scope [class~="hover:bg-slate-200"]:hover {
+  background-color: var(--muted) !important;
+}
+
+/* ── Remap legacy purple/blue page shells → NH theme ── */
+.erp-scope [class~="from-purple-50"],
+.erp-scope [class~="from-blue-50"],
+.erp-scope [class~="via-blue-50"],
+.erp-scope [class~="to-indigo-100"],
+.erp-scope [class~="from-slate-50"],
+.erp-scope [class~="to-indigo-100"] {
+  background-image: none !important;
+  background-color: var(--background) !important;
+}
+
+.erp-scope [class~="from-purple-100"],
+.erp-scope [class~="to-blue-100"],
+.erp-scope [class~="from-indigo-100"],
+.erp-scope [class~="to-purple-100"],
+.erp-scope [class~="from-indigo-50"],
+.erp-scope [class~="to-purple-50"],
+.erp-scope [class~="from-gray-50"],
+.erp-scope [class~="to-gray-100"],
+.erp-scope [class~="to-slate-100"],
+.erp-scope [class~="to-white"],
+.erp-scope [class~="hover:from-purple-50"],
+.erp-scope [class~="hover:to-blue-50"],
+.erp-scope [class~="hover:from-blue-50"] {
+  background-image: none !important;
+  background-color: var(--secondary) !important;
+}
+
+.erp-scope tr:hover {
+  background-color: var(--secondary) !important;
+}
+
+.erp-scope input:focus,
+.erp-scope select:focus,
+.erp-scope textarea:focus {
+  --tw-ring-color: color-mix(in oklab, var(--foreground) 20%, transparent);
+  border-color: var(--border) !important;
+  outline-color: color-mix(in oklab, var(--foreground) 20%, transparent);
+}
+
+/* Primary CTA gradients → theme primary */
+.erp-scope [class~="from-purple-600"],
+.erp-scope [class~="from-purple-700"],
+.erp-scope [class~="from-blue-500"],
+.erp-scope [class~="from-blue-600"],
+.erp-scope [class~="from-indigo-500"],
+.erp-scope [class~="from-indigo-600"],
+.erp-scope [class~="to-blue-600"],
+.erp-scope [class~="to-blue-700"],
+.erp-scope [class~="to-indigo-600"],
+.erp-scope [class~="to-indigo-700"],
+.erp-scope [class~="to-purple-600"],
+.erp-scope [class~="to-purple-700"] {
+  background-image: none !important;
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.erp-scope .bg-blue-600,
+.erp-scope .bg-blue-700,
+.erp-scope .bg-purple-600,
+.erp-scope .bg-purple-700,
+.erp-scope .bg-indigo-600,
+.erp-scope .bg-indigo-700 {
+  background-color: var(--primary) !important;
+  background-image: none !important;
+  color: var(--primary-foreground) !important;
+}
+
+.erp-scope .bg-blue-100,
+.erp-scope .bg-purple-100,
+.erp-scope .bg-indigo-100,
+.erp-scope .bg-blue-50,
+.erp-scope .bg-purple-50,
+.erp-scope .bg-indigo-50,
+.erp-scope .bg-emerald-50,
+.erp-scope .bg-emerald-100,
+.erp-scope .bg-green-50,
+.erp-scope .bg-green-100,
+.erp-scope .bg-yellow-50,
+.erp-scope .bg-yellow-100,
+.erp-scope .bg-amber-50,
+.erp-scope .bg-amber-100,
+.erp-scope .bg-cyan-50,
+.erp-scope .bg-cyan-100,
+.erp-scope .bg-teal-50,
+.erp-scope .bg-teal-100,
+.erp-scope .bg-sky-50,
+.erp-scope .bg-sky-100,
+.erp-scope .bg-orange-50,
+.erp-scope .bg-orange-100,
+.erp-scope .bg-rose-50,
+.erp-scope .bg-pink-50 {
+  background-color: var(--secondary) !important;
+}
+
+.erp-scope .text-blue-600,
+.erp-scope .text-blue-700,
+.erp-scope .text-blue-800,
+.erp-scope .text-purple-600,
+.erp-scope .text-purple-700,
+.erp-scope .text-purple-800,
+.erp-scope .text-indigo-600,
+.erp-scope .text-indigo-700,
+.erp-scope .text-emerald-600,
+.erp-scope .text-emerald-700,
+.erp-scope .text-emerald-800,
+.erp-scope .text-green-600,
+.erp-scope .text-green-700,
+.erp-scope .text-yellow-600,
+.erp-scope .text-yellow-700,
+.erp-scope .text-yellow-800,
+.erp-scope .text-amber-600,
+.erp-scope .text-amber-700,
+.erp-scope .text-cyan-600,
+.erp-scope .text-cyan-700,
+.erp-scope .text-teal-600,
+.erp-scope .text-teal-700,
+.erp-scope .text-sky-600,
+.erp-scope .text-orange-600,
+.erp-scope .text-orange-700 {
+  color: var(--foreground) !important;
+}
+
+.erp-scope .border-blue-200,
+.erp-scope .border-purple-200,
+.erp-scope .border-indigo-200,
+.erp-scope .border-emerald-200,
+.erp-scope .border-emerald-300,
+.erp-scope .border-green-200,
+.erp-scope .border-yellow-200,
+.erp-scope .border-yellow-300,
+.erp-scope .border-amber-200,
+.erp-scope .border-cyan-200,
+.erp-scope .border-teal-200,
+.erp-scope .border-purple-500,
+.erp-scope .border-blue-500 {
+  border-color: var(--border) !important;
+}
+
+.erp-scope .text-purple-100,
+.erp-scope .text-blue-100,
+.erp-scope .text-indigo-100 {
+  color: color-mix(in oklab, var(--primary-foreground) 75%, transparent) !important;
+}
+
+.erp-scope [class~="via-purple-500"],
+.erp-scope [class~="via-blue-500"] {
+  background-image: none !important;
+  background-color: var(--primary) !important;
+}
+
+/* Soft emerald/yellow gradient badges & panels */
+.erp-scope [class~="from-emerald-50"],
+.erp-scope [class~="from-emerald-100"],
+.erp-scope [class~="to-emerald-50"],
+.erp-scope [class~="to-emerald-200"],
+.erp-scope [class~="from-yellow-100"],
+.erp-scope [class~="to-yellow-200"],
+.erp-scope [class~="from-teal-50"],
+.erp-scope [class~="to-teal-50"],
+.erp-scope [class~="from-red-100"],
+.erp-scope [class~="to-red-200"],
+.erp-scope [class~="from-amber-500"],
+.erp-scope [class~="to-orange-600"],
+.erp-scope [class~="from-emerald-500"],
+.erp-scope [class~="to-teal-600"],
+.erp-scope [class~="from-indigo-500"] {
+  background-image: none !important;
+  background-color: var(--secondary) !important;
+}
+
+.erp-scope .bg-clip-text[class*="from-purple"],
+.erp-scope .bg-clip-text[class*="from-blue"] {
+  background-image: none !important;
+  color: var(--foreground) !important;
+  -webkit-text-fill-color: var(--foreground) !important;
+}
+
+.erp-scope button[class*="text-white"] {
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+  font-family: var(--font-sans) !important;
+}
+
+.erp-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  box-shadow: var(--shadow-card);
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+.erp-btn-primary:hover {
+  opacity: 0.9;
+}
+.erp-btn-accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--highlight);
+  color: #171717;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+.erp-btn-accent:hover {
+  opacity: 0.92;
+}

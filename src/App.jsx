@@ -1,18 +1,18 @@
-import React from 'react'
+import React from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import AdminRouter from './router/index';
+import AdminRouter from "./router/index";
+import { ThemeProvider } from "./components/theme-provider";
 
 function App() {
   return (
-    <>
-    <BrowserRouter>
-       <Routes>
+    <ThemeProvider defaultTheme="light">
+      <BrowserRouter>
+        <Routes>
           <Route path={"/*"} element={<AdminRouter />} />
         </Routes>
       </BrowserRouter>
-     
-    </>
-  )
+    </ThemeProvider>
+  );
 }
 
-export default App
+export default App;

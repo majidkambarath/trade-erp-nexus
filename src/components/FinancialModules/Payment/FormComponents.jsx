@@ -14,9 +14,9 @@ export const FormInput = ({
   ...props
 }) => (
   <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      {Icon && <Icon size={16} className="inline mr-2" />} {label}
-      {required && <span className="text-red-500 ml-1">*</span>}
+    <label className="mb-2 block text-sm font-semibold text-foreground">
+      {Icon && <Icon size={16} className="mr-2 inline" />} {label}
+      {required && <span className="ml-1 text-destructive">*</span>}
     </label>
     <input
       type={type}
@@ -24,12 +24,12 @@ export const FormInput = ({
       value={value}
       onChange={onChange}
       disabled={disabled}
-      className={`w-full px-4 py-3 border ${
-        error ? "border-red-500" : "border-gray-200"
-      } rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${className}`}
+      className={`w-full rounded-full border px-4 py-3 transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-foreground/20 ${
+        error ? "border-destructive" : "border-border bg-background"
+      } ${className}`}
       {...props}
     />
-    {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
   </div>
 );
 
@@ -44,17 +44,17 @@ export const FormSelect = ({
   required = false,
 }) => (
   <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      {Icon && <Icon size={16} className="inline mr-2" />} {label}
-      {required && <span className="text-red-500 ml-1">*</span>}
+    <label className="mb-2 block text-sm font-semibold text-foreground">
+      {Icon && <Icon size={16} className="mr-2 inline" />} {label}
+      {required && <span className="ml-1 text-destructive">*</span>}
     </label>
     <select
       name={name}
       value={value}
       onChange={onChange}
-      className={`w-full px-4 py-3 border ${
-        error ? "border-red-500" : "border-gray-200"
-      } rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200`}
+      className={`w-full rounded-full border px-4 py-3 transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-foreground/20 ${
+        error ? "border-destructive" : "border-border bg-background"
+      }`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
@@ -62,7 +62,7 @@ export const FormSelect = ({
         </option>
       ))}
     </select>
-    {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+    {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
   </div>
 );
 
@@ -70,41 +70,32 @@ export const StatCard = ({
   title,
   count,
   icon,
-  bgColor = "bg-gray-50",
-  textColor = "text-gray-700",
-  borderColor = "border-gray-200",
-  iconBg = "bg-gray-100",
-  iconColor = "text-gray-600",
+  bgColor = "bg-secondary",
+  textColor = "text-foreground",
+  borderColor = "border-border",
+  iconBg = "bg-card",
+  iconColor = "text-foreground",
   subText,
 }) => (
   <div
-    className={`p-6 rounded-2xl ${bgColor} border ${borderColor} shadow-sm hover:shadow-md transition-all duration-200 flex items-center space-x-4`}
+    className={`${bgColor} ${borderColor} cursor-pointer rounded-[1.35rem] border p-6 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]`}
   >
-    <div className={`p-3 ${iconBg} rounded-xl ${iconColor}`}>{icon}</div>
-    <div>
-      <p className={`text-sm font-semibold ${textColor}`}>{title}</p>
-      <p className={`text-2xl font-bold ${textColor}`}>{count}</p>
-      {subText && <p className="text-xs text-gray-500">{subText}</p>}
+    <div className="mb-4 flex items-center justify-between">
+      <div className={`rounded-2xl p-3 ${iconBg}`}>
+        <div className={iconColor}>{icon}</div>
+      </div>
+      <button
+        className={`text-xs font-medium ${textColor} transition-opacity hover:opacity-80`}
+      >
+        View Details
+      </button>
     </div>
+    <h3 className={`mb-1 text-sm font-semibold ${textColor}`}>{title}</h3>
+    <p className="text-2xl font-extrabold tracking-tight text-foreground">
+      {count}
+    </p>
+    {subText && (
+      <p className="mt-2 text-xs text-muted-foreground">{subText}</p>
+    )}
   </div>
 );
-
-export const Toast = ({ show, message, type = "success" }) => {
-  if (!show) return null;
-  return (
-    <div
-      className={`fixed top-4 right-4 px-6 py-3 rounded-xl shadow-lg flex items-center space-x-2 transition-all duration-300 ${
-        type === "success"
-          ? "bg-green-100 text-green-700"
-          : "bg-red-100 text-red-700"
-      }`}
-    >
-      {type === "success" ? (
-        <CheckCircle size={20} />
-      ) : (
-        <AlertCircle size={20} />
-      )}
-      <span>{message}</span>
-    </div>
-  );
-};

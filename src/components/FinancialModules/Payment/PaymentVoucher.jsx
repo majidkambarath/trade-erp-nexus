@@ -41,17 +41,17 @@ import PaymentInvoiceView from "./PaymentInvoiceView";
 
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      <Icon size={16} className="inline mr-2" /> {label} {props.required && "*"}
+    <label className="mb-2 block text-sm font-semibold text-foreground">
+      <Icon size={16} className="mr-2 inline" /> {label} {props.required && "*"}
     </label>
     <input
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      className={`w-full rounded-full border px-4 py-3 transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-foreground/20 ${
+        error ? "border-destructive bg-destructive/5" : "border-border bg-background"
       }`}
     />
     {error && (
-      <p className="mt-1 text-sm text-red-600 flex items-center">
+      <p className="mt-1 flex items-center text-sm text-destructive">
         <AlertCircle size={12} className="mr-1" /> {error}
       </p>
     )}
@@ -60,13 +60,13 @@ const FormInput = ({ label, icon: Icon, error, ...props }) => (
 
 const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
   <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-2">
-      <Icon size={16} className="inline mr-2" /> {label} *
+    <label className="mb-2 block text-sm font-semibold text-foreground">
+      <Icon size={16} className="mr-2 inline" /> {label} *
     </label>
     <select
       {...props}
-      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-        error ? "border-red-300 bg-red-50" : "border-gray-300"
+      className={`w-full rounded-full border px-4 py-3 transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-foreground/20 ${
+        error ? "border-destructive bg-destructive/5" : "border-border bg-background"
       }`}
     >
       {options.map(({ value, label }) => (
@@ -76,7 +76,7 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
       ))}
     </select>
     {error && (
-      <p className="mt-1 text-sm text-red-600 flex items-center">
+      <p className="mt-1 flex items-center text-sm text-destructive">
         <AlertCircle size={12} className="mr-1" /> {error}
       </p>
     )}
@@ -923,13 +923,13 @@ const PaymentVoucherManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
-            className="text-purple-600 animate-spin mx-auto mb-4"
+            className="text-foreground animate-spin mx-auto mb-4"
           />
-          <p className="text-gray-600 text-lg">Loading payment vouchers...</p>
+          <p className="text-muted-foreground text-lg">Loading payment vouchers...</p>
         </div>
       </div>
     );
@@ -937,21 +937,18 @@ const PaymentVoucherManagement = () => {
 
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <Receipt size={40} className="text-purple-600" />
+      <div className="w-24 h-24 bg-secondary rounded-full flex items-center justify-center mb-6">
+        <Receipt size={40} className="text-foreground" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
+      <h3 className="text-xl font-extrabold text-foreground mb-2">
         No payment vouchers found
       </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
+      <p className="text-muted-foreground text-center mb-8 max-w-md">
         {searchTerm || filterPaymentMode
           ? "No payment vouchers match your current filters. Try adjusting your search criteria."
           : "Start recording payments by creating your first payment voucher."}
       </p>
-      <button
-        onClick={openAddModal}
-        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
-      >
+      <button onClick={openAddModal} className="erp-btn-accent">
         <Plus size={20} /> Create First Payment
       </button>
     </div>
@@ -960,7 +957,7 @@ const PaymentVoucherManagement = () => {
   const lastSaveTime = SessionManager.get("lastSaveTime");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
+    <div className="min-h-screen bg-background p-4 sm:p-6 font-sans">
       <Toast
         show={showToast.visible}
         message={showToast.message}
@@ -968,12 +965,12 @@ const PaymentVoucherManagement = () => {
       />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button className="p-3 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-300">
+            <ArrowLeft size={20} className="text-foreground" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black">Payment Voucher</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Payment Voucher</h1>
+            <p className="text-muted-foreground mt-1">
               {paymentStats.totalPayments} total payments •{" "}
               {sortedAndFilteredPayments.length} displayed
             </p>
@@ -983,20 +980,20 @@ const PaymentVoucherManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="p-2 rounded-full bg-card border border-border shadow-sm hover:bg-secondary transition-all duration-200 disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
               size={16}
-              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+              className={`text-foreground ${isRefreshing ? "animate-spin" : ""}`}
             />
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+            className={`p-2 rounded-full border shadow-sm transition-all duration-200 ${
               showFilters
-                ? "bg-purple-100 text-purple-600"
-                : "bg-white text-gray-600"
+                ? "bg-foreground text-background border-foreground"
+                : "bg-card text-foreground border-border hover:bg-secondary"
             }`}
             title="Toggle filters"
           >
@@ -1010,63 +1007,60 @@ const PaymentVoucherManagement = () => {
             title="Total Payments"
             count={paymentStats.totalPayments}
             icon={<Receipt size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            bgColor="bg-secondary"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-card"
+            iconColor="text-foreground"
             subText="All time records"
           />
           <StatCard
             title="Today's Payments"
             count={paymentStats.todayPayments}
             icon={<Calendar size={24} />}
-            bgColor="bg-blue-50"
-            textColor="text-blue-700"
-            borderColor="border-blue-200"
-            iconBg="bg-blue-100"
-            iconColor="text-blue-600"
+            bgColor="bg-secondary"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-card"
+            iconColor="text-foreground"
             subText="Current day activity"
           />
           <StatCard
             title="Total Amount"
-            count={formatCurrency(paymentStats.totalAmount, "text-purple-700")}
+            count={formatCurrency(paymentStats.totalAmount, "text-foreground")}
             icon={<TrendingUp size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
+            bgColor="bg-secondary"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-card"
+            iconColor="text-foreground"
             subText="All disbursed payments"
           />
           <StatCard
             title="Avg Payment Value"
-            count={formatCurrency(paymentStats.avgAmount, "text-indigo-700")}
+            count={formatCurrency(paymentStats.avgAmount, "text-foreground")}
             icon={<Banknote size={24} />}
-            bgColor="bg-indigo-50"
-            textColor="text-indigo-700"
-            borderColor="border-indigo-200"
-            iconBg="bg-indigo-100"
-            iconColor="text-indigo-600"
+            bgColor="bg-secondary"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-card"
+            iconColor="text-foreground"
             subText="Per payment average"
           />
         </div>
       </div>
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
+      <div className="bg-card rounded-[1.75rem] shadow-[var(--shadow-card)] border border-border">
+        <div className="p-6 border-b border-border">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-extrabold text-foreground">
                 Payment Vouchers
               </h2>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="text-muted-foreground text-sm mt-1">
                 Manage payment vouchers and transactions
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
-            >
+            <button onClick={openAddModal} className="erp-btn-primary">
               <Plus size={18} /> Add Payment
             </button>
           </div>
@@ -1074,14 +1068,14 @@ const PaymentVoucherManagement = () => {
             <div className="relative">
               <Search
                 size={18}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
               />
               <input
                 type="text"
                 placeholder="Search by voucher number, vendor, or narration..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                className="w-full pl-12 pr-4 py-3 border border-border rounded-full bg-background focus:ring-2 focus:ring-foreground/20 focus:border-transparent transition-all duration-200"
               />
               {searchTerm && (
                 <button
@@ -1158,7 +1152,7 @@ const PaymentVoucherManagement = () => {
                 {sortedAndFilteredPayments.map((p) => (
                   <tr
                     key={p._id}
-                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                    className="hover:bg-secondary transition-all duration-200"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
                       <button
@@ -1312,7 +1306,7 @@ const PaymentVoucherManagement = () => {
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
+            <div className="flex justify-between items-center p-6 border-b border-border bg-secondary sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
                   {editPaymentId
@@ -1644,14 +1638,14 @@ const PaymentVoucherManagement = () => {
                 <button
                   onClick={resetForm}
                   disabled={isSubmitting}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                  className="px-6 py-3 border border-border text-foreground rounded-full hover:bg-secondary transition-all duration-200 font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                  className="erp-btn-primary disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <>

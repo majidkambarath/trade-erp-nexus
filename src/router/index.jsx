@@ -36,47 +36,38 @@ export default function AdminRouter() {
       <Route path="/" element={<ERPLogin />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/vendor-creation" element={<VendorCreation />} />{" "}
-        <Route path="/customer-creation" element={<CustomerCreation />} />{" "}
-        <Route path="/stock-item-creation" element={<StockCreation />} />{" "}
-        <Route path="/stock-item-creation" element={<StockCreation />} />{" "}
-        <Route path="/stock-detail/:id" element={<StockDetail />} />{" "}
-        <Route path="/unit-setup" element={<UnitOfMeasure />} />{" "}
-        <Route path="/staff-records" element={<Staff />} />{" "}
-        <Route path="/settings" element={<Settings />} />{" "}
-        <Route path="/purchase-order" element={<PurchaseOrderPage />} />{" "}
-        <Route path="/sales-order" element={<SalesOrderPage />} />{" "}
-        <Route path="/inventory" element={<InventoryManagement />} />{" "}
-        <Route path="/purchase-return" element={<PurchaseReturnPage />} />{" "}
-        <Route path="/sales-return" element={<SalesReturnPage />} />{" "}
+        <Route path="/vendor-creation" element={<VendorCreation />} />
+        <Route path="/customer-creation" element={<CustomerCreation />} />
+        <Route path="/stock-item-creation" element={<StockCreation />} />
+        <Route path="/stock-detail/:id" element={<StockDetail />} />
+        <Route path="/unit-setup" element={<UnitOfMeasure />} />
+        <Route path="/staff-records" element={<Staff />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/purchase-order" element={<PurchaseOrderPage />} />
+        <Route path="/sales-order" element={<SalesOrderPage />} />
+        <Route path="/inventory" element={<InventoryManagement />} />
+        <Route path="/purchase-return" element={<PurchaseReturnPage />} />
+        <Route path="/sales-return" element={<SalesReturnPage />} />
         <Route path="/category-management" element={<CategoryManagement />} />
-        {/* financial */}
-        <Route
-          path="/receipt-voucher"
-          element={<ReceiptVoucherManagement />}
-        />{" "}
-        <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
-        <Route path="/journal-voucher" element={<JournalVoucherManagement />} />{" "}
-        <Route path="/contra-voucher" element={<ContraVoucherManagement />} />{" "}
-        <Route path="/expense-voucher" element={<ExpenseVoucherManagement />} />{" "}
-        {/* Accounts Module */}
-        <Route path="/debit-accounts" element={<PurchaseAccounts />} />{" "}
+        <Route path="/receipt-voucher" element={<ReceiptVoucherManagement />} />
+        <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />
+        <Route path="/journal-voucher" element={<JournalVoucherManagement />} />
+        <Route path="/contra-voucher" element={<ContraVoucherManagement />} />
+        <Route path="/expense-voucher" element={<ExpenseVoucherManagement />} />
+        <Route path="/debit-accounts" element={<PurchaseAccounts />} />
         <Route
           path="/debit-accounts/vendor/:vendorId"
           element={<VendorDetailsPage />}
         />
-        <Route path="/credit-accounts" element={<SaleAccountsManagement />} />{" "}
+        <Route path="/credit-accounts" element={<SaleAccountsManagement />} />
         <Route
           path="/credit-accounts/customer/:customerId"
           element={<CustomerDetailsPage />}
         />
-        <Route path="/transactions" element={<TransactionsManagement />} />{" "}
-        <Route path="/transactors" element={<TransactorsManagement />} />{" "}
-        <Route path="/payment-voucher" element={<PaymentVoucherManagement />} />{" "}
-        {/* reports */}
-        <Route path="/vat-reports" element={<VatReports />} />{" "}
+        <Route path="/transactions" element={<TransactionsManagement />} />
+        <Route path="/transactors" element={<TransactorsManagement />} />
+        <Route path="/vat-reports" element={<VatReports />} />
       </Route>
-      {/* </Route> */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

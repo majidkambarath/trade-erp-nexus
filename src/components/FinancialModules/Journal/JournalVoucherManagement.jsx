@@ -108,24 +108,24 @@ const StatCard = ({
   title,
   count,
   icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
+  bgColor = "bg-card",
+  textColor = "text-foreground",
+  borderColor = "border-border",
+  iconBg = "bg-secondary",
+  iconColor = "text-foreground",
   subText,
   trend,
 }) => (
   <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-xl cursor-pointer hover:scale-105 hover:-translate-y-1`}
+    className={`${bgColor} ${borderColor} rounded-[1.35rem] border p-6 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] cursor-pointer`}
   >
     <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
+      <div className={`p-3 ${iconBg} rounded-2xl`}>
         <div className={iconColor}>{icon}</div>
       </div>
       {trend && (
         <div
-          className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold flex items-center`}
+          className={`text-xs ${textColor} font-semibold flex items-center rounded-full bg-secondary px-2 py-1`}
         >
           <TrendingUp size={12} className="mr-1" /> {trend}
         </div>
@@ -136,8 +136,8 @@ const StatCard = ({
     >
       {title}
     </h3>
-    <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
-    <p className="text-xs text-gray-600 font-medium">{subText}</p>
+    <p className="text-3xl font-extrabold tracking-tight text-foreground mb-1">{count}</p>
+    <p className="text-xs text-muted-foreground font-medium">{subText}</p>
   </div>
 );
 
@@ -243,14 +243,11 @@ const formatCurrencyText = (amount) => {
 
 const badgeClassForStatus = (status) => {
   const badges = {
-    Approved:
-      "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
-    Pending:
-      "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
-    Rejected:
-      "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300",
+    Approved: "bg-secondary text-foreground border border-border",
+    Pending: "bg-secondary text-foreground border border-border",
+    Rejected: "bg-secondary text-foreground border border-border",
   };
-  return badges[status] || "bg-gray-100 text-gray-800 border border-gray-300";
+  return badges[status] || "bg-secondary text-foreground border border-border";
 };
 
 const asArray = (x) => (Array.isArray(x) ? x : []);
@@ -532,13 +529,13 @@ const JournalVoucherManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
-            className="text-purple-600 animate-spin mx-auto mb-4"
+            className="text-foreground animate-spin mx-auto mb-4"
           />
-          <p className="text-gray-600 text-lg font-medium">
+          <p className="text-muted-foreground text-lg font-medium">
             Loading journal vouchers...
           </p>
         </div>
@@ -559,11 +556,11 @@ const JournalVoucherManagement = () => {
 
   const EmptyState = ({ type }) => (
     <div className="flex flex-col items-center justify-center py-20 px-6">
-      <div className="w-32 h-32 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse shadow-lg">
-        <Receipt size={48} className="text-purple-600" />
+      <div className="w-32 h-32 bg-secondary rounded-full flex items-center justify-center mb-6 shadow-[var(--shadow-card)]">
+        <Receipt size={48} className="text-foreground" />
       </div>
-      <h3 className="text-2xl font-bold text-gray-900 mb-2">No {type} found</h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
+      <h3 className="text-2xl font-extrabold text-foreground mb-2">No {type} found</h3>
+      <p className="text-muted-foreground text-center mb-8 max-w-md">
         {searchTerm
           ? `No ${type} match your search criteria.`
           : `Get started by creating your first journal voucher.`}
@@ -571,7 +568,7 @@ const JournalVoucherManagement = () => {
       {!searchTerm && (
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
+          className="erp-btn-accent"
         >
           <Plus size={18} /> Create First Voucher
         </button>
@@ -580,7 +577,7 @@ const JournalVoucherManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8 font-sans">
       <style>{`
         @keyframes slide-in {
           from {
@@ -622,18 +619,18 @@ const JournalVoucherManagement = () => {
       <div className="mb-8">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="flex items-center space-x-4">
-            <button className="p-3 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group">
+            <button className="p-3 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-300 group">
               <ArrowLeft
                 size={20}
-                className="text-gray-600 group-hover:text-purple-600 transition-colors"
+                className="text-foreground transition-colors"
               />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-black bg-clip-text">
+              <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
                 Journal Voucher Management
               </h1>
-              <p className="text-gray-600 mt-2 font-medium flex items-center gap-2">
-                <Clock size={16} className="text-purple-500" />
+              <p className="text-muted-foreground mt-2 font-medium flex items-center gap-2">
+                <Clock size={16} className="text-foreground" />
                 {stats.totalVouchers} total vouchers · Last updated:{" "}
                 {new Date().toLocaleDateString()}
               </p>
@@ -642,25 +639,25 @@ const JournalVoucherManagement = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-3 px-6 py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
+              className="erp-btn-primary"
             >
               <Plus size={20} strokeWidth={2.5} /> New Voucher
             </button>
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="p-3.5 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 hover:scale-105 group"
+              className="p-3.5 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-200 disabled:opacity-50 group"
               title="Refresh data"
             >
               <RefreshCw
                 size={20}
-                className={`text-gray-600 group-hover:text-purple-600 transition-colors ${
+                className={`text-foreground transition-colors ${
                   isRefreshing ? "animate-spin" : ""
                 }`}
               />
             </button>
             <button
-              className="p-3.5 rounded-xl bg-white shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 group"
+              className="p-3.5 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-200 group"
               title="Export data"
               onClick={async () => {
                 try {
@@ -691,7 +688,7 @@ const JournalVoucherManagement = () => {
             >
               <Download
                 size={20}
-                className="text-gray-600 group-hover:text-purple-600 transition-colors"
+                className="text-foreground transition-colors"
               />
             </button>
           </div>
@@ -704,23 +701,23 @@ const JournalVoucherManagement = () => {
             title="Total Vouchers"
             count={stats.totalVouchers}
             icon={<Receipt size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            bgColor="bg-card"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-secondary"
+            iconColor="text-foreground"
             subText="All journal entries"
             trend="+12%"
           />
           <StatCard
             title="Total Amount"
-            count={formatCurrency(stats.totalAmount, "text-purple-700")}
+            count={formatCurrency(stats.totalAmount, "text-foreground")}
             icon={<DollarSign size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
+            bgColor="bg-card"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-secondary"
+            iconColor="text-foreground"
             subText="Sum of all vouchers"
             trend="+8%"
           />
@@ -728,36 +725,36 @@ const JournalVoucherManagement = () => {
             title="Approved"
             count={stats.approvedCount}
             icon={<CheckCircle size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            bgColor="bg-card"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-secondary"
+            iconColor="text-foreground"
             subText="Approved vouchers"
           />
           <StatCard
             title="Pending"
             count={stats.pendingCount}
             icon={<Clock size={24} />}
-            bgColor="bg-yellow-50"
-            textColor="text-yellow-700"
-            borderColor="border-yellow-200"
-            iconBg="bg-yellow-100"
-            iconColor="text-yellow-600"
+            bgColor="bg-card"
+            textColor="text-foreground"
+            borderColor="border-border"
+            iconBg="bg-secondary"
+            iconColor="text-foreground"
             subText="Awaiting approval"
           />
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+      <div className="bg-card rounded-[1.75rem] shadow-[var(--shadow-card)] border border-border overflow-hidden">
+        <div className="p-6 border-b border-border">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <BarChart3 size={24} className="text-purple-600" />
+              <h2 className="text-xl font-extrabold text-foreground flex items-center gap-2">
+                <BarChart3 size={22} className="text-foreground" />
                 Journal Vouchers
               </h2>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="text-muted-foreground text-sm mt-1">
                 View and manage all journal entries
               </p>
             </div>
@@ -765,19 +762,19 @@ const JournalVoucherManagement = () => {
           <div className="relative">
             <Search
               size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <input
               type="text"
               placeholder="Search by voucher ID, reason, or account..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-12 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-300 transition-all duration-200 hover:border-gray-300 text-gray-900 placeholder-gray-400"
+              className="w-full pl-12 pr-12 py-3 border border-border rounded-full bg-background focus:ring-2 focus:ring-foreground/20 focus:border-transparent transition-all duration-200 text-foreground placeholder:text-muted-foreground"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-lg"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1 hover:bg-secondary rounded-lg"
               >
                 <X size={18} />
               </button>
@@ -790,7 +787,7 @@ const JournalVoucherManagement = () => {
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <thead className="bg-secondary border-b border-border">
                   <tr>
                     {[
                       { key: "voucherNo", label: "Voucher ID" },
@@ -804,7 +801,7 @@ const JournalVoucherManagement = () => {
                     ].map((col) => (
                       <th
                         key={col.key}
-                        className={`px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors ${
+                        className={`px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted transition-colors ${
                           col.key === "actions" ? "cursor-default" : ""
                         }`}
                         onClick={
@@ -817,7 +814,7 @@ const JournalVoucherManagement = () => {
                           <span>{col.label}</span>
                           {sortConfig.key === col.key &&
                             col.key !== "actions" && (
-                              <span className="text-purple-600 font-bold">
+                              <span className="text-foreground font-bold">
                                 {sortConfig.direction === "asc" ? "↑" : "↓"}
                               </span>
                             )}
@@ -826,38 +823,38 @@ const JournalVoucherManagement = () => {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-border">
                   {filteredVouchers.map((v) => (
                     <tr
                       key={v._id}
-                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
+                      className="hover:bg-secondary transition-all duration-200"
                     >
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-foreground">
                         <button
                           onClick={() => handleViewVoucher(v)}
-                          className="text-blue-600 hover:underline"
+                          className="text-foreground hover:underline font-semibold"
                         >
                           {v.voucherNo}
                         </button>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
                         {new Date(v.date).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
                         })}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-foreground">
                         {v.debitAccountName}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-foreground">
                         {v.creditAccountName}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-foreground">
                         {formatCurrency(v.totalAmount)}
                       </td>
                       <td
-                        className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate"
+                        className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate"
                         title={v.narration}
                       >
                         {v.narration}
@@ -872,16 +869,16 @@ const JournalVoucherManagement = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleViewVoucher(v)}
-                            className="p-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-600 transition-colors"
+                            className="p-2 rounded-full bg-secondary hover:bg-muted text-foreground transition-colors"
                             title="View details"
                           >
                             <Eye size={16} />
                           </button>
                           <button
-                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                            className="p-2 rounded-full bg-secondary hover:bg-muted text-foreground transition-colors"
                             title="Download voucher"
                             onClick={async () => {
                               try {
@@ -924,8 +921,8 @@ const JournalVoucherManagement = () => {
                 </tbody>
               </table>
             </div>
-            <div className="p-6 flex justify-between items-center border-t border-gray-200">
-              <div className="text-sm text-gray-600">
+            <div className="p-6 flex justify-between items-center border-t border-border">
+              <div className="text-sm text-muted-foreground">
                 Showing {(pagination.current - 1) * pagination.limit + 1} to{" "}
                 {Math.min(
                   pagination.current * pagination.limit,
@@ -937,7 +934,7 @@ const JournalVoucherManagement = () => {
                 <button
                   onClick={() => handlePageChange(pagination.current - 1)}
                   disabled={pagination.current === 1}
-                  className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                  className="px-4 py-2 border border-border rounded-full disabled:opacity-50 hover:bg-secondary text-foreground"
                 >
                   Previous
                 </button>
@@ -946,10 +943,10 @@ const JournalVoucherManagement = () => {
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`px-4 py-2 border rounded-lg ${
+                      className={`px-4 py-2 border border-border rounded-full ${
                         pagination.current === page
-                          ? "bg-purple-600 text-white"
-                          : "hover:bg-gray-100"
+                          ? "bg-foreground text-background"
+                          : "hover:bg-secondary text-foreground"
                       }`}
                     >
                       {page}
@@ -959,7 +956,7 @@ const JournalVoucherManagement = () => {
                 <button
                   onClick={() => handlePageChange(pagination.current + 1)}
                   disabled={pagination.current === pagination.pages}
-                  className="px-4 py-2 border rounded-lg disabled:opacity-50 hover:bg-gray-100"
+                  className="px-4 py-2 border border-border rounded-full disabled:opacity-50 hover:bg-secondary text-foreground"
                 >
                   Next
                 </button>
@@ -970,42 +967,42 @@ const JournalVoucherManagement = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 modal-backdrop flex items-center justify-center p-4 z-50">
           <div
             ref={modalRef}
-            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden transform scale-95 opacity-0 transition-all duration-300"
+            className="bg-card rounded-[1.75rem] shadow-[var(--shadow-elevated)] border border-border max-w-4xl w-full max-h-[90vh] overflow-hidden transform scale-95 opacity-0 transition-all duration-300"
           >
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 sticky top-0 z-10">
+            <div className="flex justify-between items-center p-6 border-b border-border bg-foreground sticky top-0 z-10">
               <div>
-                <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-xl">
+                <h3 className="text-2xl font-extrabold text-background flex items-center gap-3">
+                  <div className="p-2 bg-background/15 rounded-2xl">
                     <Receipt size={28} />
                   </div>
                   Create Journal Voucher
                 </h3>
-                <p className="text-purple-100 text-sm mt-1">
+                <p className="text-background/70 text-sm mt-1">
                   Record a new journal entry with debit and credit accounts
                 </p>
               </div>
               <button
                 onClick={resetForm}
-                className="p-2 text-white hover:bg-white/20 rounded-xl transition-all duration-200 hover:rotate-90"
+                className="p-2 text-background hover:bg-background/15 rounded-full transition-all duration-200"
               >
                 <X size={24} />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-              <div className="mb-6 p-5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-l-4 border-purple-500 shadow-sm">
+              <div className="mb-6 p-5 bg-secondary rounded-2xl border-l-4 border-foreground shadow-sm">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-xl shadow-sm">
-                    <Sparkles size={20} className="text-purple-600" />
+                  <div className="p-2 bg-card rounded-2xl shadow-sm">
+                    <Sparkles size={20} className="text-foreground" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-gray-900 mb-1">
+                    <h4 className="font-bold text-foreground mb-1">
                       Smart Journal Entry
                     </h4>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-muted-foreground">
                       Select accounts from your chart of accounts and enter the
                       transaction details. The system ensures balanced entries
                       automatically.
@@ -1139,27 +1136,26 @@ const JournalVoucherManagement = () => {
                 )} */}
             </div>
 
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white sticky bottom-0">
+            <div className="flex justify-end space-x-3 p-6 border-t border-border bg-card sticky bottom-0">
               <button
                 onClick={resetForm}
                 disabled={isSubmitting}
-                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-all duration-200 font-semibold disabled:opacity-50 hover:scale-105"
+                className="px-6 py-3 border border-border text-foreground rounded-full hover:bg-secondary transition-all duration-200 font-semibold disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold disabled:opacity-50 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 min-w-[180px]"
+                className="erp-btn-primary min-w-[180px] disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 size={18} className="mr-2 animate-spin" />{" "}
-                    Creating...
+                    <Loader2 size={18} className="animate-spin" /> Creating...
                   </>
                 ) : (
                   <>
-                    <Save size={18} className="mr-2" /> Create Voucher
+                    <Save size={18} /> Create Voucher
                   </>
                 )}
               </button>

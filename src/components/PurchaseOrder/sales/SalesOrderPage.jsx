@@ -508,13 +508,13 @@ const formatDisplayTransactionNo = (t) => {
   const getStatusColor = (status) => {
     switch (status) {
       case "DRAFT":
-        return "bg-slate-100 text-slate-700 border-slate-200";
+        return "bg-secondary text-muted-foreground border-border";
       case "APPROVED":
-        return "bg-blue-100 text-blue-700 border-blue-200";
+        return "bg-foreground text-background border-foreground";
       case "INVOICED":
-        return "bg-purple-100 text-purple-700 border-purple-200";
+        return "bg-secondary text-muted-foreground border-border";
       default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
+        return "bg-secondary text-muted-foreground border-border";
     }
   };
 
@@ -534,13 +534,13 @@ const formatDisplayTransactionNo = (t) => {
   const getPriorityColor = (priority) => {
     switch (priority) {
       case "High":
-        return "bg-red-500";
+        return "bg-foreground";
       case "Medium":
-        return "bg-yellow-500";
+        return "bg-[var(--highlight)]";
       case "Low":
-        return "bg-green-500";
+        return "bg-muted-foreground";
       default:
-        return "bg-gray-500";
+        return "bg-muted-foreground";
     }
   };
 
@@ -800,91 +800,85 @@ const formatDisplayTransactionNo = (t) => {
   const Dashboard = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Total Orders</p>
-              <p className="text-3xl font-bold text-slate-900">
+              <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
                 {statistics.total}
               </p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
-                  <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
+                  <TrendingUp className="w-4 h-4 text-foreground mr-1" />
                 ) : (
-                  <TrendingDown className="w-4 h-4 text-rose-500 mr-1" />
+                  <TrendingDown className="w-4 h-4 text-muted-foreground mr-1" />
                 )}
-                <span
-                  className={`text-sm font-medium ${
-                    statistics.growthRate >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
-                  }`}
-                >
+                <span className="text-sm font-medium text-muted-foreground">
                   {Math.abs(statistics.growthRate).toFixed(1)}% from last month
                 </span>
               </div>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-              <ShoppingCart className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+              <ShoppingCart className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Approved</p>
-              <p className="text-3xl font-bold text-blue-600">
+              <p className="text-sm font-medium text-muted-foreground">Approved</p>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
                 {statistics.confirmed}
               </p>
-              <p className="text-sm text-slate-500 mt-2">Ready for dispatch</p>
+              <p className="text-sm text-muted-foreground mt-2">Ready for dispatch</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-              <CheckSquare className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+              <CheckSquare className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Total Value</p>
-              <p className="text-3xl font-bold text-emerald-600">
+              <p className="text-sm font-medium text-muted-foreground">Total Value</p>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
                 AED {statistics.totalValue.toLocaleString()}
               </p>
-              <p className="text-sm text-slate-500 mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 Invoiced: AED {statistics.invoicedValue.toLocaleString()}
               </p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">
+              <p className="text-sm font-medium text-muted-foreground">This Month</p>
+              <p className="text-3xl font-extrabold tracking-tight text-foreground">
                 {statistics.thisMonthSOs}
               </p>
-              <p className="text-sm text-slate-500 mt-2">New orders created</p>
+              <p className="text-sm text-muted-foreground mt-2">New orders created</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <div className="lg:col-span-2 bg-card rounded-[1.75rem] p-6 border border-border shadow-[var(--shadow-card)]">
+          <h3 className="text-lg font-extrabold text-foreground mb-4">
             Recent Sales Orders
           </h3>
           <div className="space-y-3">
             {salesOrders.slice(0, 5).map((so) => (
               <div
                 key={so.id}
-                className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                className="flex items-center justify-between py-3 px-4 bg-secondary rounded-full hover:bg-muted transition-colors"
               >
                 <div className="flex items-center space-x-3">
                   <div
@@ -893,11 +887,11 @@ const formatDisplayTransactionNo = (t) => {
                     )}`}
                   ></div>
                   <div>
-                    <p className="font-medium text-slate-900">
+                    <p className="font-semibold text-foreground">
                      {so.displayTransactionNo || so.transactionNo}
                     </p>
 
-                    <p className="text-sm text-slate-600">{so.customerName}</p>
+                    <p className="text-sm text-muted-foreground">{so.customerName}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -909,7 +903,7 @@ const formatDisplayTransactionNo = (t) => {
                     {getStatusIcon(so.status)}
                     <span className="ml-1">{so.status}</span>
                   </div>
-                  <p className="text-sm text-slate-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     AED {parseFloat(so.totalAmount).toLocaleString()}
                   </p>
                 </div>
@@ -918,71 +912,41 @@ const formatDisplayTransactionNo = (t) => {
           </div>
           <button
             onClick={() => setActiveView("list")}
-            className="w-full mt-4 py-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
+            className="w-full mt-4 py-2 text-foreground hover:opacity-80 font-semibold text-sm"
           >
-            View All Orders
+            View All Orders →
           </button>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        <div className="bg-card rounded-[1.75rem] p-6 border border-border shadow-[var(--shadow-card)]">
+          <h3 className="text-lg font-extrabold text-foreground mb-4">
             Status Overview
           </h3>
           <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Approved</span>
-                <span className="text-xs font-medium text-blue-600">
-                  {statistics.confirmed}
-                </span>
+            {[
+              { label: "Approved", value: statistics.confirmed },
+              { label: "Invoiced", value: statistics.invoiced },
+              { label: "Draft", value: statistics.draft },
+            ].map((row) => (
+              <div key={row.label}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-muted-foreground">{row.label}</span>
+                  <span className="text-xs font-medium text-foreground">
+                    {row.value}
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-foreground transition-all duration-500 ease-out"
+                    style={{
+                      width: `${
+                        (row.value / statistics.total) * 100 || 0
+                      }%`,
+                    }}
+                  ></div>
+                </div>
               </div>
-              <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.confirmed / statistics.total) * 100 || 0
-                    }%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Invoiced</span>
-                <span className="text-xs font-medium text-purple-600">
-                  {statistics.invoiced}
-                </span>
-              </div>
-              <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-purple-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.invoiced / statistics.total) * 100 || 0
-                    }%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Draft</span>
-                <span className="text-xs font-medium text-slate-600">
-                  {statistics.draft}
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-slate-400 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${
-                      (statistics.draft / statistics.total) * 100 || 0
-                    }%`,
-                  }}
-                ></div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -994,9 +958,9 @@ const formatDisplayTransactionNo = (t) => {
     const endItem = Math.min(currentPage * itemsPerPage, filteredSOs.length);
 
     return (
-      <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/20">
+      <div className="flex items-center justify-between bg-card rounded-[1.35rem] px-6 py-4 border border-border shadow-[var(--shadow-card)]">
         <div className="flex items-center space-x-4">
-          <span className="text-sm text-slate-600">
+          <span className="text-sm text-muted-foreground">
             Showing {startItem} to {endItem} of {filteredSOs.length} orders
           </span>
           <select
@@ -1005,7 +969,7 @@ const formatDisplayTransactionNo = (t) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-sm"
+            className="px-3 py-1 border border-border rounded-full text-sm bg-background text-foreground"
           >
             <option value={10}>10 per page</option>
             <option value={25}>25 per page</option>
@@ -1017,7 +981,7 @@ const formatDisplayTransactionNo = (t) => {
           <button
             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
             disabled={currentPage === 1}
-            className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50"
+            className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </button>
@@ -1035,10 +999,10 @@ const formatDisplayTransactionNo = (t) => {
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`px-3 py-2 text-sm rounded-lg ${
+                  className={`px-3 py-2 text-sm rounded-full transition-colors ${
                     currentPage === pageNum
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
                   {pageNum}
@@ -1049,7 +1013,7 @@ const formatDisplayTransactionNo = (t) => {
           <button
             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
             disabled={currentPage === totalPages}
-            className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50"
+            className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
@@ -1059,18 +1023,18 @@ const formatDisplayTransactionNo = (t) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-background font-sans">
       <NotificationList />
-      <div className="relative bg-white/80 backdrop-blur-xl shadow-xl border-b border-gray-200/50">
+      <div className="relative bg-card border-b border-border">
         <div className="px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <ShoppingCart className="w-8 h-8 text-blue-600" />
+              <ShoppingCart className="w-8 h-8 text-foreground" />
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">
+                <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
                   Sales Order Management
                 </h1>
-                <p className="text-slate-600 mt-1">
+                <p className="text-muted-foreground mt-1">
                   Manage your sales orders efficiently
                 </p>
               </div>
@@ -1083,7 +1047,7 @@ const formatDisplayTransactionNo = (t) => {
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
-                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
+                className="erp-btn-primary"
               >
                 <Plus className="w-5 h-5" />
                 <span>Create New SO</span>
@@ -1094,23 +1058,23 @@ const formatDisplayTransactionNo = (t) => {
                   fetchStockItems();
                   fetchTransactions();
                 }}
-                className="p-3 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
+                className="p-3 bg-secondary rounded-full hover:bg-muted transition-colors"
               >
-                <RefreshCw className="w-5 h-5 text-slate-600" />
+                <RefreshCw className="w-5 h-5 text-foreground" />
               </button>
-              <button className="p-3 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">
-                <Settings className="w-5 h-5 text-slate-600" />
+              <button className="p-3 bg-secondary rounded-full hover:bg-muted transition-colors">
+                <Settings className="w-5 h-5 text-foreground" />
               </button>
             </div>
           </div>
         </div>
 
         {(activeView === "dashboard" || activeView === "list") && (
-          <div className="px-8 py-4 bg-gradient-to-r from-slate-50 to-slate-100 border-t border-slate-200">
+          <div className="px-8 py-4 bg-secondary/60 border-t border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
                     placeholder="Search by SO number, customer, or user..."
@@ -1119,7 +1083,7 @@ const formatDisplayTransactionNo = (t) => {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-80 pl-10 pr-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-80 pl-10 pr-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
                   />
                 </div>
                 <select
@@ -1128,7 +1092,7 @@ const formatDisplayTransactionNo = (t) => {
                     setStatusFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="DRAFT">Draft</option>
@@ -1141,7 +1105,7 @@ const formatDisplayTransactionNo = (t) => {
                     setCustomerFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
                 >
                   <option value="ALL">All Customers</option>
                   {customers.map((c) => (
@@ -1156,7 +1120,7 @@ const formatDisplayTransactionNo = (t) => {
                     setDateFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
                 >
                   <option value="ALL">All Dates</option>
                   <option value="TODAY">Today</option>
@@ -1167,30 +1131,36 @@ const formatDisplayTransactionNo = (t) => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setActiveView("dashboard")}
-                  className={`p-3 rounded-xl ${
+                  className={`p-3 rounded-full transition-colors ${
                     activeView === "dashboard"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-foreground text-background"
+                      : "bg-card text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   <BarChart3 className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-3 rounded-xl ${
-                    viewMode === "table"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => {
+                    setViewMode("table");
+                    setActiveView("list");
+                  }}
+                  className={`p-3 rounded-full transition-colors ${
+                    viewMode === "table" && activeView === "list"
+                      ? "bg-foreground text-background"
+                      : "bg-card text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   <List className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-3 rounded-xl ${
-                    viewMode === "grid"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => {
+                    setViewMode("grid");
+                    setActiveView("list");
+                  }}
+                  className={`p-3 rounded-full transition-colors ${
+                    viewMode === "grid" && activeView === "list"
+                      ? "bg-foreground text-background"
+                      : "bg-card text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   <Grid className="w-5 h-5" />
@@ -1199,21 +1169,21 @@ const formatDisplayTransactionNo = (t) => {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleBulkAction("confirm")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
                     >
                       <CheckSquare className="w-4 h-4" />
                       <span>Approve</span>
                     </button>
                     <button
                       onClick={() => handleBulkAction("delete")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200"
+                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Delete</span>
                     </button>
                     <button
                       onClick={() => handleBulkAction("export")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
                     >
                       <Download className="w-4 h-4" />
                       <span>Export</span>
@@ -1229,7 +1199,7 @@ const formatDisplayTransactionNo = (t) => {
       <div className="p-8">
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
           </div>
         ) : (
           <>

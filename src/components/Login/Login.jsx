@@ -380,7 +380,7 @@ const ERPLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
+    <div className="erp-scope min-h-screen bg-background text-foreground relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-gray-200/20 rounded-full blur-3xl animate-pulse"></div>
@@ -643,7 +643,7 @@ const ERPLogin = () => {
               <button
                 type="submit"
                 disabled={isLoading || !formData.email || !formData.password}
-                className="group w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-4 px-6 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                className="group w-full bg-primary hover:opacity-90 text-primary-foreground font-semibold py-4 px-6 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 <div className="flex items-center justify-center space-x-2">
                   {isLoading ? (

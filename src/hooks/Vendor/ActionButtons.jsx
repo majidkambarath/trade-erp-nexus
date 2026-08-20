@@ -5,24 +5,24 @@ const ActionButtons = ({ onEdit, onDelete, onView }) => (
   <div className="flex space-x-2">
     <button
       onClick={onEdit}
-      className="p-1.5 sm:p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition-colors duration-300"
-      aria-label="Edit Vendor"
+      className="p-2 bg-secondary text-foreground rounded-full border border-border hover:bg-foreground hover:text-background transition-colors duration-300"
+      aria-label="Edit"
     >
-      <Edit size={14} className="sm:size-16" />
+      <Edit size={14} />
     </button>
     <button
       onClick={onDelete}
-      className="p-1.5 sm:p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition-colors duration-300"
-      aria-label="Delete Vendor"
+      className="p-2 bg-secondary text-foreground rounded-full border border-border hover:bg-destructive hover:text-destructive-foreground transition-colors duration-300"
+      aria-label="Delete"
     >
-      <Trash2 size={14} className="sm:size-16" />
+      <Trash2 size={14} />
     </button>
     <button
       onClick={onView}
-      className="p-1.5 sm:p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200 transition-colors duration-300"
-      aria-label="View Vendor"
+      className="p-2 bg-secondary text-foreground rounded-full border border-border hover:bg-[var(--highlight)] hover:text-[#171717] transition-colors duration-300"
+      aria-label="View"
     >
-      <Eye size={14} className="sm:size-16" />
+      <Eye size={14} />
     </button>
   </div>
 );

@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  HelpCircle,
   LogOut,
   Settings,
   User,
@@ -13,467 +12,507 @@ import {
   CreditCard,
   FileText,
   ShoppingCart,
-  Package,
   Box,
   Barcode,
-  BookOpen,
   Ruler,
   Users,
   BarChart3,
-  Shield,
   Zap,
   DollarSign,
   TrendingUp,
-  Archive,
   Calculator,
   Wallet,
   ShoppingBag,
-  Truck,
   Warehouse,
-  Database,
-  Scale,
   UserPlus,
-  PieChart,
-  Activity,
   ArrowLeftRight,
-  Percent,
   UserCheck,
   Briefcase,
 } from "lucide-react";
 
-const Sidebar = () => {
+/** Match exact path or nested detail routes (e.g. /debit-accounts/vendor/123). */
+const isPathActive = (path, currentPath) => {
+  if (!path || !currentPath) return false;
+  if (currentPath === path) return true;
+  return currentPath.startsWith(`${path}/`);
+};
+
+const pathMatchesAny = (paths, currentPath) =>
+  paths.some((p) => isPathActive(p, currentPath));
+
+const Sidebar = ({ mobileOpen = false, onMobileClose }) => {
   const [expandedSections, setExpandedSections] = useState({});
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("erp-sidebar-collapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
-
-  // Mock user role
   const userRole = "Admin";
 
-  // Navigation structure based on ERP requirements
-  const navigationSections = useMemo(() => {
-    const sections = [
+  /**
+   * ERP navigation tree:
+   * - type "link"  → one click goes to a page
+   * - type "group" → accordion with children only (never navigates to undefined)
+   */
+  const navigation = useMemo(() => {
+    const allow = (...roles) => roles.includes(userRole);
+
+    const financeChildren = [
+      { icon: Receipt, text: "Receipt Voucher", to: "/receipt-voucher" },
+      { icon: CreditCard, text: "Payment Voucher", to: "/payment-voucher" },
+      { icon: Calculator, text: "Journal Voucher", to: "/journal-voucher" },
+      { icon: Wallet, text: "Contra Voucher", to: "/contra-voucher" },
+      { icon: TrendingUp, text: "Expense Voucher", to: "/expense-voucher" },
+    ].filter(() => allow("Admin", "Accountant"));
+
+    const accountsChildren = [
+      { icon: ShoppingCart, text: "Debit Accounts", to: "/debit-accounts" },
+      { icon: FileText, text: "Credit Accounts", to: "/credit-accounts" },
+      { icon: ArrowLeftRight, text: "Transactions", to: "/transactions" },
+      { icon: Users, text: "Transactors", to: "/transactors" },
+    ].filter(() => allow("Admin", "Accountant"));
+
+    const ordersChildren = [
+      { icon: ShoppingCart, text: "Purchase Order", to: "/purchase-order" },
+      { icon: FileText, text: "Sales Order", to: "/sales-order" },
+      { icon: ArrowLeftRight, text: "Purchase Return", to: "/purchase-return" },
+      { icon: ArrowLeftRight, text: "Sales Return", to: "/sales-return" },
+    ].filter(() => allow("Admin", "Purchase Officer", "Sales Executive"));
+
+    const inventoryChildren = [
+      { icon: Barcode, text: "Stock Items", to: "/stock-item-creation" },
+      { icon: Box, text: "Inventory", to: "/inventory" },
+      { icon: Ruler, text: "Unit of Measure", to: "/unit-setup" },
+      { icon: FileText, text: "Categories", to: "/category-management" },
+    ].filter(() => allow("Admin", "Inventory Manager"));
+
+    const items = [
       {
+        type: "label",
+        key: "label-finance",
+        text: "Finance",
+        show: financeChildren.length > 0 || accountsChildren.length > 0,
+      },
+      financeChildren.length > 0 && {
+        type: "group",
         key: "financial",
-        icon: <DollarSign strokeWidth={1.5} size={22} />,
+        icon: DollarSign,
         text: "Financial Modules",
-        children: [
-          {
-            icon: <Receipt strokeWidth={1.5} size={20} />,
-            text: "Receipt Voucher",
-            to: "/receipt-voucher",
-          },
-          {
-            icon: <CreditCard strokeWidth={1.5} size={20} />,
-            text: "Payment Voucher",
-            to: "/payment-voucher",
-          },
-          {
-            icon: <Calculator strokeWidth={1.5} size={20} />,
-            text: "Journal Voucher",
-            to: "/journal-voucher",
-          },
-          {
-            icon: <Wallet strokeWidth={1.5} size={20} />,
-            text: "Contra Voucher",
-            to: "/contra-voucher",
-          },
-          {
-            icon: <TrendingUp strokeWidth={1.5} size={20} />,
-            text: "Expense Voucher",
-            to: "/expense-voucher",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+        children: financeChildren,
       },
-      {
+      accountsChildren.length > 0 && {
+        type: "group",
         key: "accounts",
-        icon: <Calculator strokeWidth={1.5} size={22} />,
+        icon: Calculator,
         text: "Accounts Module",
-        children: [
-          {
-            icon: <ShoppingCart strokeWidth={1.5} size={20} />,
-            text: "Debit Accounts",
-            to: "/debit-accounts",
-          },
-          {
-            icon: <FileText strokeWidth={1.5} size={20} />,
-            text: "Credit Accounts",
-            to: "/credit-accounts",
-          },
-          {
-            icon: <ArrowLeftRight strokeWidth={1.5} size={20} />,
-            text: "Transactions",
-            to: "/transactions",
-          },
-          {
-            icon: <Users strokeWidth={1.5} size={20} />,
-            text: "Transactors",
-            to: "/transactors",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "Accountant"),
+        children: accountsChildren,
       },
       {
-        key: "vendorModules",
-        icon: <Briefcase strokeWidth={1.5} size={22} />,
-        text: "Vendor Modules",
-        children: [
-          {
-            icon: <UserPlus strokeWidth={1.5} size={20} />,
-            text: "Vendor Creation",
-            to: "/vendor-creation",
-          },
-        ].filter(
-          (item) => userRole === "Admin" || userRole === "Purchase Officer"
-        ),
+        type: "label",
+        key: "label-parties",
+        text: "Parties",
+        show: allow("Admin", "Purchase Officer", "Sales Executive"),
+      },
+      allow("Admin", "Purchase Officer") && {
+        type: "link",
+        key: "vendors",
+        icon: Briefcase,
+        text: "Vendors",
+        to: "/vendor-creation",
+      },
+      allow("Admin", "Sales Executive") && {
+        type: "link",
+        key: "customers",
+        icon: UserCheck,
+        text: "Customers",
+        to: "/customer-creation",
       },
       {
-        key: "customerModules",
-        icon: <UserCheck strokeWidth={1.5} size={22} />,
-        text: "Customer Modules",
-        children: [
-          {
-            icon: <UserPlus strokeWidth={1.5} size={20} />,
-            text: "Customer Creation",
-            to: "/customer-creation",
-          },
-        ].filter(
-          (item) => userRole === "Admin" || userRole === "Sales Executive"
-        ),
+        type: "label",
+        key: "label-ops",
+        text: "Operations",
+        show:
+          ordersChildren.length > 0 ||
+          inventoryChildren.length > 0 ||
+          allow("Admin", "HR"),
       },
-      {
+      ordersChildren.length > 0 && {
+        type: "group",
         key: "salesPurchase",
-        icon: <ShoppingBag strokeWidth={1.5} size={22} />,
+        icon: ShoppingBag,
         text: "Sales & Purchase",
-        children: [
-          {
-            icon: <ShoppingCart strokeWidth={1.5} size={20} />,
-            text: "Purchase Order",
-            to: "/purchase-order",
-          },
-          {
-            icon: <FileText strokeWidth={1.5} size={20} />,
-            text: "Sales Order",
-            to: "/sales-order",
-          },
-          {
-            icon: <ArrowLeftRight strokeWidth={1.5} size={20} />,
-            text: "Purchase Return",
-            to: "/purchase-return",
-          },
-          {
-            icon: <ArrowLeftRight strokeWidth={1.5} size={20} />,
-            text: "Sales Return",
-            to: "/sales-return",
-          },
-        ].filter(
-          (item) =>
-            userRole === "Admin" ||
-            userRole === "Purchase Officer" ||
-            userRole === "Sales Executive"
-        ),
+        children: ordersChildren,
       },
-      {
+      inventoryChildren.length > 0 && {
+        type: "group",
         key: "inventory",
-        icon: <Warehouse strokeWidth={1.5} size={22} />,
+        icon: Warehouse,
         text: "Inventory & Stock",
-        children: [
-          {
-            icon: <Barcode strokeWidth={1.5} size={20} />,
-            text: "Stock Item Creation",
-            to: "/stock-item-creation",
-          },
-          {
-            icon: <Box strokeWidth={1.5} size={20} />,
-            text: "Inventory",
-            to: "/inventory",
-          },
-        ].filter(
-          (item) => userRole === "Admin" || userRole === "Inventory Manager"
-        ),
+        children: inventoryChildren,
       },
-      {
-        key: "unitOfMeasure",
-        icon: <Scale strokeWidth={1.5} size={22} />,
-        text: "Unit of Measure",
-        children: [
-          {
-            icon: <Ruler strokeWidth={1.5} size={20} />,
-            text: "Unit Setup",
-            to: "/unit-setup",
-          },
-        ].filter(
-          (item) => userRole === "Admin" || userRole === "Inventory Manager"
-        ),
-      },
-      {
+      allow("Admin", "HR") && {
+        type: "link",
         key: "staff",
-        icon: <UserPlus strokeWidth={1.5} size={22} />,
-        text: "Staff Management",
-        children: [
-          {
-            icon: <Users strokeWidth={1.5} size={20} />,
-            text: "Staff Records",
-            to: "/staff-records",
-          },
-        ].filter((item) => userRole === "Admin" || userRole === "HR"),
+        icon: UserPlus,
+        text: "Staff",
+        to: "/staff-records",
       },
       {
-        key: "reports",
-        icon: <BarChart3 strokeWidth={1.5} size={22} />,
-        text: "Reports",
-        children: [
-          {
-            icon: <FileText strokeWidth={1.5} size={20} />,
-            text: "VAT Reports",
-            to: "/vat-reports", // Your VAT Reports page
-          },
-          // Add more reports later
-          // { icon: <PieChart strokeWidth={1.5} size={20} />, text: "Sales Report", to: "/sales-report" },
-        ].filter(() => userRole === "Admin" || userRole === "Accountant"),
+        type: "label",
+        key: "label-insights",
+        text: "Insights",
+        show: allow("Admin", "Accountant"),
+      },
+      allow("Admin", "Accountant") && {
+        type: "link",
+        key: "vat-reports",
+        icon: BarChart3,
+        text: "VAT Reports",
+        to: "/vat-reports",
       },
     ];
-    return sections.filter((section) => section.children.length > 0);
+
+    return items.filter(Boolean);
   }, [userRole]);
 
-  // Auto-expand sections with active children or main section on route change
+  // Auto-expand only the section that owns the current route (accordion)
   useEffect(() => {
-    const activeSection = navigationSections.find(
-      (section) =>
-        section.children.some((child) => child.to === currentPath) ||
-        section.to === currentPath
+    const activeGroup = navigation.find(
+      (item) =>
+        item.type === "group" &&
+        item.children?.some((child) => isPathActive(child.to, currentPath))
     );
-    if (activeSection) {
-      setExpandedSections((prev) => ({
-        ...prev,
-        [activeSection.key]: true,
-      }));
+    if (activeGroup) {
+      setExpandedSections({ [activeGroup.key]: true });
     }
-  }, [currentPath, navigationSections]);
+  }, [currentPath, navigation]);
 
-  const toggleSection = (sectionKey) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [sectionKey]: !prev[sectionKey],
-    }));
-  };
+  const toggleSection = useCallback((sectionKey) => {
+    setExpandedSections((prev) => {
+      const willOpen = !prev[sectionKey];
+      return willOpen ? { [sectionKey]: true } : {};
+    });
+  }, []);
 
   const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
+    setIsSidebarCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("erp-sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   };
 
-  const handleNavigation = (path) => {
-    navigate(path);
-  };
+  const handleNavigation = useCallback(
+    (path) => {
+      if (!path) return;
+      navigate(path);
+      onMobileClose?.();
+    },
+    [navigate, onMobileClose]
+  );
 
   const handleLogout = (e) => {
     e.preventDefault();
     try {
-      const sessionKeys = [
+      [
         "accessToken",
         "refreshToken",
         "adminId",
         "loginTime",
         "tokenExpiry",
         "rememberMe",
-      ];
-      const localKeys = [
-        "accessToken",
-        "refreshToken",
-        "adminId",
-        "loginTime",
-        "tokenExpiry",
-        "rememberMe",
-        "userPreferences",
-        "theme",
-      ];
-      sessionKeys.forEach((key) => sessionStorage.removeItem(key));
-      localKeys.forEach((key) => localStorage.removeItem(key));
+      ].forEach((key) => {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      });
+      localStorage.removeItem("userPreferences");
       navigate("/");
-    } catch (error) {
+    } catch {
       sessionStorage.clear();
       localStorage.clear();
       navigate("/");
     }
   };
 
+  const renderNavItem = (item, index) => {
+    if (item.type === "label") {
+      if (!item.show || isSidebarCollapsed) return null;
+      return (
+        <div
+          key={item.key}
+          className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground"
+        >
+          {item.text}
+        </div>
+      );
+    }
+
+    if (item.type === "link") {
+      const Icon = item.icon;
+      return (
+        <SidebarItem
+          key={item.key}
+          icon={<Icon strokeWidth={1.6} size={isSidebarCollapsed ? 20 : 18} />}
+          text={item.text}
+          active={isPathActive(item.to, currentPath)}
+          isCollapsed={isSidebarCollapsed}
+          onClick={() => handleNavigation(item.to)}
+        />
+      );
+    }
+
+    if (item.type === "group") {
+      const Icon = item.icon;
+      const childPaths = item.children.map((c) => c.to);
+      return (
+        <SidebarSection
+          key={item.key}
+          icon={<Icon strokeWidth={1.6} size={isSidebarCollapsed ? 20 : 18} />}
+          text={item.text}
+          expanded={!!expandedSections[item.key]}
+          onToggle={() => toggleSection(item.key)}
+          hasActiveChild={pathMatchesAny(childPaths, currentPath)}
+          isCollapsed={isSidebarCollapsed}
+          delay={index * 30}
+          children={item.children}
+          handleNavigation={handleNavigation}
+          currentPath={currentPath}
+        />
+      );
+    }
+
+    return null;
+  };
+
   return (
     <>
-      {/* Mobile overlay when sidebar is open on small screens */}
-      {!isSidebarCollapsed && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 sm:hidden" onClick={toggleSidebar} />
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm sm:hidden"
+          onClick={onMobileClose}
+        />
       )}
 
-      <div
-        className={`sm:relative fixed sm:static top-0 left-0 h-screen flex flex-col bg-white text-gray-800 shadow-2xl transition-all duration-500 ease-out border-r border-gray-200/50 z-50 ${
-          isSidebarCollapsed ? "w-0 sm:w-20 -ml-0" : "w-72 sm:w-72"
-        } ${!isSidebarCollapsed ? "translate-x-0" : "-translate-x-full sm:translate-x-0"}`}
+      <aside
+        className={`relative z-50 flex h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground font-sans transition-[width,transform] duration-300 ease-out ${
+          isSidebarCollapsed ? "sm:w-[4.75rem]" : "sm:w-[17rem]"
+        } ${
+          mobileOpen
+            ? "fixed inset-y-0 left-0 w-[17rem] translate-x-0 shadow-2xl"
+            : "fixed inset-y-0 left-0 w-[17rem] -translate-x-full sm:static sm:translate-x-0"
+        }`}
       >
-        {/* Header */}
-        <div className="relative flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 backdrop-blur-xl">
-          {!isSidebarCollapsed && (
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-lg flex items-center justify-center shadow-lg">
-                <Zap className="w-5 h-5 text-gray-800" />
-              </div>
-              <div className="hidden sm:block">
-                <span className="text-xl font-bold text-gray-800">
-                  ERP NEXUS
-                </span>
-                <div className="text-xs text-gray-600 -mt-1">
-                  Enterprise System
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="absolute top-1/2 right-0 z-[60] hidden h-11 w-6 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[var(--shadow-elevated)] transition hover:bg-secondary sm:flex"
+          aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={isSidebarCollapsed ? "Expand" : "Collapse"}
+        >
+          {isSidebarCollapsed ? (
+            <ChevronRight strokeWidth={2.25} size={14} />
+          ) : (
+            <ChevronLeft strokeWidth={2.25} size={14} />
+          )}
+        </button>
+
+        <div
+          className={`relative flex items-center pt-5 pb-3 ${
+            isSidebarCollapsed ? "justify-center px-2" : "justify-between px-4"
+          }`}
+        >
+          {!isSidebarCollapsed ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--highlight)] shadow-sm">
+                  <Zap className="h-5 w-5 text-[#171717]" strokeWidth={2.2} />
+                </div>
+                <div>
+                  <span className="block text-lg font-extrabold tracking-tight text-sidebar-foreground">
+                    NH FOODS
+                  </span>
+                  <div className="text-[11px] font-medium text-muted-foreground -mt-0.5">
+                    UAE · ERP
+                  </div>
                 </div>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={onMobileClose}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent sm:hidden"
+                aria-label="Close menu"
+              >
+                <ChevronLeft strokeWidth={2} size={16} className="text-muted-foreground" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--highlight)]"
+              aria-label="Expand sidebar"
+            >
+              <Zap className="h-5 w-5 text-[#171717]" strokeWidth={2.2} />
+            </button>
           )}
-          <button
-            onClick={toggleSidebar}
-            className="relative p-2 rounded-xl bg-gray-100/50 backdrop-blur-sm transition-all duration-300 border border-gray-200/50 hover:bg-gray-200/50 hover:border-gray-300/50 sm:ml-auto"
-            aria-label={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isSidebarCollapsed ? (
-              <ChevronRight strokeWidth={2} size={18} className="text-gray-600" />
-            ) : (
-              <ChevronLeft strokeWidth={2} size={18} className="text-gray-600" />
-            )}
-          </button>
         </div>
 
-        {/* User Profile */}
         {!isSidebarCollapsed && (
-          <div className="p-4 border-b border-gray-200/50">
-            <div className="flex items-center space-x-3 p-3 rounded-xl bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 shadow-lg">
-              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center shadow-md">
-                <User className="w-5 h-5 text-gray-800" />
+          <div className="px-4 pb-4">
+            <div className="flex items-center gap-3 rounded-full bg-sidebar-accent px-3 py-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground">
+                <User className="h-4 w-4" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-gray-800">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-sidebar-foreground">
                   Administrator
                 </div>
-                <div className="text-xs text-gray-600 truncate">
-                  admin@company.com
+                <div className="truncate text-[11px] text-muted-foreground">
+                  admin@nhfoods.ae
                 </div>
               </div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+              <div className="h-2 w-2 shrink-0 rounded-full bg-[var(--highlight)]" />
             </div>
           </div>
         )}
 
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-white">
-          <nav className="space-y-2 p-4">
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-500 scrollbar-track-transparent ${
+            isSidebarCollapsed ? "px-2" : "px-3"
+          }`}
+        >
+          <nav
+            className={`pb-3 ${
+              isSidebarCollapsed
+                ? "flex flex-col items-center gap-2.5"
+                : "space-y-1.5"
+            }`}
+          >
             <SidebarItem
-              icon={<LayoutDashboard strokeWidth={1.5} size={22} />}
+              icon={
+                <LayoutDashboard
+                  strokeWidth={1.6}
+                  size={isSidebarCollapsed ? 20 : 18}
+                />
+              }
               text="Dashboard"
-              to="/dashboard"
               active={currentPath === "/dashboard"}
               isCollapsed={isSidebarCollapsed}
-              special={true}
               onClick={() => handleNavigation("/dashboard")}
             />
 
-            {navigationSections.map((section, index) => (
-              <SidebarSection
-                key={section.key}
-                icon={section.icon}
-                text={section.text}
-                sectionKey={section.key}
-                sectionTo={section.to}
-                expanded={expandedSections[section.key]}
-                onToggle={() => toggleSection(section.key)}
-                hasActiveChild={
-                  section.children.some((child) => child.to === currentPath) ||
-                  section.to === currentPath
-                }
-                isCollapsed={isSidebarCollapsed}
-                delay={index * 50}
-                children={section.children}
-                handleNavigation={handleNavigation}
-                currentPath={currentPath}
-              />
-            ))}
+            {navigation.map((item, index) => renderNavItem(item, index))}
           </nav>
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-gray-200/50 p-4 space-y-2 backdrop-blur-xl">
+        <div
+          className={`shrink-0 border-t border-sidebar-border py-4 ${
+            isSidebarCollapsed
+              ? "flex flex-col items-center gap-2.5 px-2"
+              : "space-y-1.5 px-3"
+          }`}
+        >
           <SidebarItem
-            icon={<Settings strokeWidth={1.5} size={22} />}
+            icon={
+              <Settings strokeWidth={1.6} size={isSidebarCollapsed ? 20 : 18} />
+            }
             text="Settings"
-            to="/settings"
-            active={currentPath === "/settings"}
+            active={isPathActive("/settings", currentPath)}
             isCollapsed={isSidebarCollapsed}
             onClick={() => handleNavigation("/settings")}
           />
-          <SidebarItem
-            icon={<HelpCircle strokeWidth={1.5} size={22} />}
-            text="Help Center"
-            to="/help-center"
-            active={currentPath === "/help-center"}
-            isCollapsed={isSidebarCollapsed}
-            onClick={() => handleNavigation("/help-center")}
-          />
-          <div onClick={handleLogout} className="cursor-pointer">
-            <div
-              className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-                isSidebarCollapsed ? "justify-center" : ""
-              } bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 hover:bg-gray-200/50`}
-            >
-              <LogOut strokeWidth={1.5} size={22} className="text-gray-600" />
-              {!isSidebarCollapsed && (
-                <span className="font-medium text-gray-600">Log Out</span>
-              )}
-            </div>
+          <div
+            onClick={handleLogout}
+            className="cursor-pointer"
+            title={isSidebarCollapsed ? "Log Out" : undefined}
+          >
+            {isSidebarCollapsed ? (
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent text-muted-foreground transition hover:bg-secondary hover:text-sidebar-foreground">
+                <LogOut strokeWidth={1.6} size={20} />
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-full bg-sidebar-accent px-3 py-2.5 transition hover:opacity-90">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-sidebar-border bg-sidebar">
+                  <LogOut
+                    strokeWidth={1.75}
+                    size={16}
+                    className="text-muted-foreground"
+                  />
+                </span>
+                <span className="text-sm font-semibold text-muted-foreground">
+                  Log Out
+                </span>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      </aside>
     </>
   );
 };
 
-// Sidebar Item Component
 const SidebarItem = React.memo(
-  ({ icon, text, to, active, isCollapsed, special = false, onClick }) => (
+  ({ icon, text, active, isCollapsed, onClick }) => (
     <div
       className="block cursor-pointer group"
       title={isCollapsed ? text : ""}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
     >
-      <div
-        className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-          isCollapsed ? "justify-center" : ""
-        } ${
-          active
-            ? special
-              ? "bg-gray-200 text-gray-800 shadow-lg border border-gray-200/50"
-              : "bg-gray-100 text-gray-800 shadow-md border border-gray-200/50"
-            : "text-gray-600 hover:bg-gray-200/50 hover:border-gray-300/50"
-        }`}
-      >
+      {isCollapsed ? (
         <div
-          className={`relative z-10 p-2 rounded-lg ${
-            active && special ? "bg-gray-300/50" : "bg-gray-200/50"
+          className={`flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200 ${
+            active
+              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+              : "border border-sidebar-border bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
           }`}
         >
           {icon}
         </div>
-        {!isCollapsed && (
-          <span className="font-medium truncate relative z-10 text-sm">
+      ) : (
+        <div
+          className={`relative flex items-center gap-3 rounded-full px-3 py-2.5 transition-all duration-200 ${
+            active
+              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+              : "border border-sidebar-border bg-sidebar text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          }`}
+        >
+          <div
+            className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+              active ? "bg-black/10 dark:bg-black/20" : "bg-sidebar-accent"
+            }`}
+          >
+            {icon}
+          </div>
+          <span className="relative z-10 truncate text-sm font-semibold">
             {text}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 );
 
-// Sidebar Section Component
 const SidebarSection = React.memo(
   ({
     icon,
     text,
-    sectionKey,
-    sectionTo,
     expanded,
     onToggle,
     hasActiveChild,
@@ -486,85 +525,115 @@ const SidebarSection = React.memo(
     const handleSectionClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (e.target.closest(".toggle-arrow")) {
-        onToggle();
+      if (isCollapsed) {
+        const firstChild = children?.[0]?.to;
+        if (firstChild) handleNavigation(firstChild);
         return;
       }
-      handleNavigation(sectionTo);
+      // Parent only toggles accordion — never navigates to a missing route
       onToggle();
     };
 
-    return (
-      <div className="w-full group" style={{ animationDelay: `${delay}ms` }}>
+    if (isCollapsed) {
+      return (
         <div
+          className="cursor-pointer"
+          title={text}
           onClick={handleSectionClick}
-          className={`relative flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-300 ${
-            isCollapsed ? "justify-center" : ""
-          } ${
-            hasActiveChild || currentPath === sectionTo
-              ? "bg-gray-200 text-gray-800 shadow-lg border border-gray-200/50"
-              : "text-gray-600 hover:bg-gray-200/50 hover:border-gray-300/50"
-          }`}
-          title={isCollapsed ? text : ""}
+          style={{ animationDelay: `${delay}ms` }}
         >
-          <div className="relative z-10 p-2 rounded-lg bg-gray-200/50">
+          <div
+            className={`flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200 ${
+              hasActiveChild
+                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                : "border border-sidebar-border bg-sidebar-accent text-muted-foreground hover:text-sidebar-foreground"
+            }`}
+          >
             {icon}
           </div>
-          {!isCollapsed && (
-            <>
-              <span className="font-medium flex-1 truncate relative z-10 text-sm">
-                {text}
-              </span>
-              <div
-                className={`toggle-arrow transform transition-transform duration-300 relative z-10 p-1 rounded ${
-                  expanded ? "rotate-180" : ""
-                }`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggle();
-                }}
-              >
-                <ChevronDown strokeWidth={1.5} size={18} className="text-gray-600" />
-              </div>
-            </>
-          )}
         </div>
+      );
+    }
+
+    return (
+      <div className="w-full group" style={{ animationDelay: `${delay}ms` }}>
+        <button
+          type="button"
+          onClick={handleSectionClick}
+          aria-expanded={expanded}
+          className={`relative flex w-full cursor-pointer items-center gap-3 rounded-full border px-3 py-2.5 text-left transition-all duration-200 ${
+            hasActiveChild
+              ? "border-sidebar-border bg-sidebar-accent text-sidebar-foreground shadow-sm"
+              : "border-sidebar-border bg-sidebar text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          }`}
+          title={text}
+        >
+          <div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent">
+            {icon}
+          </div>
+          <span className="relative z-10 flex-1 truncate text-sm font-semibold">
+            {text}
+          </span>
+          <span
+            className={`relative z-10 rounded-full p-1 transition-transform duration-300 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          >
+            <ChevronDown
+              strokeWidth={1.75}
+              size={16}
+              className="text-muted-foreground"
+            />
+          </span>
+        </button>
 
         <div
-          className={`overflow-hidden transition-all duration-500 ease-out ${
-            expanded && !isCollapsed ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+          className={`overflow-hidden transition-all duration-300 ease-out ${
+            expanded ? "max-h-[28rem] opacity-100" : "max-h-0 opacity-0"
           }`}
         >
-          <div className="ml-6 mt-2 space-y-1 border-l border-gray-200/50 pl-4">
-            {children.map((child) => (
-              <div
-                key={child.to}
-                className="block cursor-pointer group"
-                title={isCollapsed ? child.text : ""}
-                onClick={() => handleNavigation(child.to)}
-              >
+          <div className="ml-5 mt-1.5 space-y-1 border-l border-sidebar-border pl-3">
+            {children.map((child) => {
+              const ChildIcon = child.icon;
+              const active = isPathActive(child.to, currentPath);
+              return (
                 <div
-                  className={`relative flex items-center gap-3 p-2.5 rounded-lg transition-all duration-300 ${
-                    currentPath === child.to
-                      ? "bg-gray-100 text-gray-800 border border-gray-200/50 shadow-md"
-                      : "text-gray-600 hover:bg-gray-200/50 hover:border-gray-300/50"
-                  }`}
+                  key={child.to}
+                  className="block cursor-pointer group"
+                  title={child.text}
+                  onClick={() => handleNavigation(child.to)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNavigation(child.to);
+                    }
+                  }}
                 >
-                  {currentPath === child.to && (
-                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-6 bg-gray-400 rounded-r-full"></div>
-                  )}
-                  <div className="relative z-10 ml-1 p-1.5 rounded-md bg-gray-200/50">
-                    {child.icon}
-                  </div>
-                  {!isCollapsed && (
-                    <span className="font-medium text-sm truncate relative z-10">
+                  <div
+                    className={`relative flex items-center gap-2.5 rounded-full px-2.5 py-2 transition-all duration-200 ${
+                      active
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                        active
+                          ? "bg-black/10 dark:bg-black/20"
+                          : "bg-sidebar-accent"
+                      }`}
+                    >
+                      <ChildIcon strokeWidth={1.6} size={16} />
+                    </div>
+                    <span className="relative z-10 truncate text-sm font-semibold">
                       {child.text}
                     </span>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
