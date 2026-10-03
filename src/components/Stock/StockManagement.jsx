@@ -40,6 +40,8 @@ import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 import BarcodeGenerator from "react-barcode";
 import { saveAs } from "file-saver";
+import { toInputDate } from "../../utils/format";
+import { toastClasses } from "../../lib/status";
 
 // SessionManager and getColorFilter remain unchanged
 const SessionManager = {
@@ -79,7 +81,7 @@ const getColorFilter = (colorClass) => {
     "text-gray-900": "none",
     "text-red-600":
       "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-    "text-yellow-600":
+    "text-status-warning":
       "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
     "text-green-600":
       "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
@@ -539,7 +541,7 @@ const StockManagement = () => {
       reorderLevel: item.reorderLevel.toString(),
       batchNumber: item.batchNumber || "",
       expiryDate: item.expiryDate
-        ? new Date(item.expiryDate).toISOString().split("T")[0]
+        ? toInputDate(item.expiryDate)
         : "",
       purchasePrice: item.purchasePrice.toString(),
       salesPrice: item.salesPrice.toString(),
@@ -798,7 +800,7 @@ const StockManagement = () => {
       return { color: "text-red-600", icon: AlertTriangle, label: "Low Stock" };
     } else if (currentStock <= reorderLevel * 2) {
       return {
-        color: "text-yellow-600",
+        color: "text-status-warning",
         icon: TrendingDown,
         label: "Medium Stock",
       };
@@ -815,7 +817,7 @@ const StockManagement = () => {
     if (diffDays < 0) {
       return { color: "text-red-600 bg-red-100", label: "Expired" };
     } else if (diffDays <= 30) {
-      return { color: "text-yellow-600 bg-yellow-100", label: "Expiring Soon" };
+      return { color: "text-status-warning bg-status-warning-soft", label: "Expiring Soon" };
     }
     return { color: "text-green-600", label: "Valid" };
   }, []);
@@ -1012,7 +1014,7 @@ const StockManagement = () => {
           </button>
           <button
             onClick={handleExport}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -1021,7 +1023,7 @@ const StockManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -1046,9 +1048,7 @@ const StockManagement = () => {
 
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -1304,7 +1304,7 @@ const StockManagement = () => {
                       ? "bg-red-50 border-l-4 border-red-500"
                       : expiryStatus.label === "Expired" ||
                         expiryStatus.label === "Expiring Soon"
-                      ? "bg-yellow-50 border-l-4 border-yellow-500"
+                      ? "bg-status-warning-soft border-l-4 border-status-warning"
                       : "";
 
                   return (
@@ -1879,7 +1879,7 @@ const StockManagement = () => {
                     formData.vendorId ||
                     formData.origin || // New field
                     formData.brand ? ( // New field
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>

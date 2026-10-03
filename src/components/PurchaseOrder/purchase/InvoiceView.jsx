@@ -2,7 +2,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Download, Loader2, Printer, Send } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
-import { formatNumber, formatDateGB, decimalSum } from "../../../utils/format";
+import {
+  formatNumber,
+  formatDateGB,
+  decimalSum,
+  decimalAdd,
+  decimalSub,
+  amountInWords as toAmountInWords,
+} from "../../../utils/format";
 
 const pad4 = (v = "") => {
   const n = String(v || "").replace(/\D/g, "");
@@ -103,21 +110,14 @@ const PurchaseInvoiceView = ({
   const grossAmount = useMemo(() => decimalSum((po.items || []).map((it) => it.rate)), [po.items]);
   const vatTotal = useMemo(() => decimalSum((po.items || []).map((it) => it.vatAmount)), [po.items]);
   const discount = useMemo(() => parseFloat(po.discount || 0) || 0, [po.discount]);
-  const grandTotal = useMemo(() => Math.max(0, grossAmount + vatTotal - discount), [grossAmount, vatTotal, discount]);
+  // decimal-safe: the last step previously used plain float arithmetic
+  const grandTotal = useMemo(
+    () => Math.max(0, decimalSub(decimalAdd(grossAmount, vatTotal), discount)),
+    [grossAmount, vatTotal, discount]
+  );
 
-  // words
-  const numberToWords = (n) => {
-    const a = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
-    const b = ["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
-    if (n === 0) return "Zero";
-    let w = "";
-    if (n >= 100) { w += a[Math.floor(n/100)] + " Hundred "; n = n % 100; }
-    if (n >= 20) { w += b[Math.floor(n/10)] + " "; n = n % 10; }
-    if (n > 0) w += a[n] + " ";
-    return w.trim();
-  };
-  const decimalWords = numberToWords(Math.round((grossAmount % 1) * 100));
-  const amountInWords = `${numberToWords(Math.floor(grossAmount))} Dirhams and ${decimalWords} Fils Only`;
+  // words: based on grandTotal (the amount actually payable), not grossAmount
+  const amountInWords = toAmountInWords(grandTotal);
 
   // pdf generation
   const generatePDF = async (copyType) => {

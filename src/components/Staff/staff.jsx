@@ -34,6 +34,8 @@ import {
   Eye,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import { toInputDate } from "../../utils/format";
+import { toastClasses } from "../../lib/status";
 
 // Session management utilities
 const SessionManager = {
@@ -329,7 +331,7 @@ const StaffManagement = () => {
       contactNo: staffMember.contactNo?.trim() || "",
       idNo: staffMember.idNo?.trim() || "",
       joiningDate: staffMember.joiningDate
-        ? new Date(staffMember.joiningDate).toISOString().split("T")[0]
+        ? toInputDate(staffMember.joiningDate)
         : "",
       idProof: null,
       addressProof: null,
@@ -589,9 +591,7 @@ const StaffManagement = () => {
 
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -1280,7 +1280,7 @@ const StaffManagement = () => {
                     formData.joiningDate ||
                     formData.idProof ||
                     formData.addressProof ? (
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>

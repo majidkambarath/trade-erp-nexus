@@ -28,6 +28,7 @@ import {
   Filter,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import { toastClasses } from "../../lib/status";
 
 // Session management utilities (using memory storage for Claude environment)
 const SessionManager = {
@@ -383,7 +384,7 @@ const VendorManagement = () => {
     const badges = {
       Compliant: "bg-green-100 text-green-800 border border-green-200",
       "Non-compliant": "bg-red-100 text-red-800 border border-red-200",
-      Pending: "bg-yellow-100 text-yellow-800 border border-yellow-200",
+      Pending: "bg-status-warning-soft text-status-warning border border-status-warning/25",
       Expired: "bg-gray-100 text-gray-800 border border-gray-200",
     };
     return badges[status] || "bg-gray-100 text-gray-800 border border-gray-200";
@@ -393,7 +394,7 @@ const VendorManagement = () => {
     const icons = {
       Compliant: <CheckCircle size={14} className="text-green-600" />,
       "Non-compliant": <XCircle size={14} className="text-red-600" />,
-      Pending: <Clock size={14} className="text-yellow-600" />,
+      Pending: <Clock size={14} className="text-status-warning" />,
       Expired: <AlertCircle size={14} className="text-gray-600" />,
     };
     return icons[status] || <AlertCircle size={14} className="text-gray-600" />;
@@ -493,7 +494,7 @@ const VendorManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -519,9 +520,7 @@ const VendorManagement = () => {
       {/* Toast Notification */}
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -1031,7 +1030,7 @@ const VendorManagement = () => {
                     formData.contactPerson ||
                     formData.email ||
                     formData.trnNO ? (
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>

@@ -15,6 +15,7 @@
     AlertTriangle,
   } from "lucide-react";
   import axiosInstance from "../../axios/axios";
+import { toastClasses } from "../../lib/status";
 
   const UnitMeasureConversion = () => {
     const [activeTab, setActiveTab] = useState("units");
@@ -374,9 +375,7 @@
         {/* Toast */}
         {showToast.visible && (
           <div
-            className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-              showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-            }`}
+            className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
           >
             <div className="flex items-center space-x-2">
               {showToast.type === "success" ? (

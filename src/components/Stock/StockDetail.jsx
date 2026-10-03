@@ -81,7 +81,7 @@ const StockDetail = () => {
       "text-gray-800": "none",
       "text-red-500":
         "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-      "text-amber-500":
+      "text-status-warning":
         "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
       "text-green-500":
         "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
@@ -108,7 +108,7 @@ const StockDetail = () => {
       return { color: "text-red-500", icon: AlertTriangle, label: "Low Stock" };
     } else if (currentStock <= reorderLevel * 2) {
       return {
-        color: "text-amber-500",
+        color: "text-status-warning",
         icon: TrendingDown,
         label: "Medium Stock",
       };
@@ -126,7 +126,7 @@ const StockDetail = () => {
     if (diffDays < 0) {
       return { color: "text-red-500 bg-red-50", label: "Expired" };
     } else if (diffDays <= 30) {
-      return { color: "text-amber-500 bg-amber-50", label: "Expiring Soon" };
+      return { color: "text-status-warning bg-status-warning-soft", label: "Expiring Soon" };
     }
     return { color: "text-green-500", label: "Valid" };
   }, []);
@@ -519,12 +519,12 @@ const StockDetail = () => {
                   </div>
                 )}
                 {expiryStatus.label === "Expiring Soon" && (
-                  <div className="p-4 bg-amber-50 border border-amber-100 rounded-lg">
-                    <p className="text-sm font-medium text-amber-600 flex items-center">
+                  <div className="p-4 bg-status-warning-soft border border-status-warning/25 rounded-lg">
+                    <p className="text-sm font-medium text-status-warning flex items-center">
                       <AlertCircle size={16} className="mr-2" />
                       Expiring Soon
                     </p>
-                    <p className="text-sm text-amber-500 mt-1">
+                    <p className="text-sm text-foreground mt-1">
                       This item will expire on{" "}
                       {new Date(stockItem.expiryDate).toLocaleDateString()}.
                       Plan accordingly.

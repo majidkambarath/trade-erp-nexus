@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const TableView = ({
   paginatedPOs,
@@ -206,7 +207,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      AED {parseFloat(po.totalAmount).toLocaleString()}
+                      AED {formatNumber(po.totalAmount)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {po.items.length} items

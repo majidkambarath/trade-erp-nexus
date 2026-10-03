@@ -31,6 +31,9 @@ import {
 import DirhamIcon from "../../../assets/dirham.svg";
 import axiosInstance from "../../../axios/axios";
 import JournalVoucherView from "./JournalVoucherView";
+import { formatNumber, todayInput } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 
 const FormInput = ({
   label,
@@ -87,11 +90,7 @@ const FormInput = ({
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl text-white z-50 animate-slide-in ${
-        type === "success"
-          ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
-          : "bg-gradient-to-r from-red-500 to-red-600"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -103,43 +102,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor = "bg-card",
-  textColor = "text-foreground",
-  borderColor = "border-border",
-  iconBg = "bg-secondary",
-  iconColor = "text-foreground",
-  subText,
-  trend,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-[1.35rem] border p-6 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)] cursor-pointer`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-2xl`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      {trend && (
-        <div
-          className={`text-xs ${textColor} font-semibold flex items-center rounded-full bg-secondary px-2 py-1`}
-        >
-          <TrendingUp size={12} className="mr-1" /> {trend}
-        </div>
-      )}
-    </div>
-    <h3
-      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
-    >
-      {title}
-    </h3>
-    <p className="text-3xl font-extrabold tracking-tight text-foreground mb-1">{count}</p>
-    <p className="text-xs text-muted-foreground font-medium">{subText}</p>
-  </div>
-);
 
 const SelectDropdown = ({
   label,
@@ -229,14 +191,14 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
     <span className={`inline-flex items-center font-semibold ${colorClass}`}>
       {isNegative && <span className="text-red-600">-</span>}
       <img src={DirhamIcon} alt="AED" className="w-5 h-5 mr-1" />
-      {absAmount.toLocaleString()}
+      {formatNumber(absAmount)}
     </span>
   );
 };
 
 const formatCurrencyText = (amount) => {
   const numAmount = Number(amount) || 0;
-  const absAmount = Math.abs(numAmount).toFixed(2).toLocaleString();
+  const absAmount = formatNumber(Math.abs(numAmount));
   const isNegative = numAmount < 0;
   return `${isNegative ? "-" : ""}AED ${absAmount}`;
 };
@@ -282,7 +244,7 @@ const JournalVoucherManagement = () => {
     creditAccount: "",
     amount: "",
     narration: "",
-    date: new Date().toISOString().split("T")[0],
+    date: todayInput(),
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -411,7 +373,7 @@ const JournalVoucherManagement = () => {
       creditAccount: "",
       amount: "",
       narration: "",
-      date: new Date().toISOString().split("T")[0],
+      date: todayInput(),
     });
     setErrors({});
     setShowModal(false);

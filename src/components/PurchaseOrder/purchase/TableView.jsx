@@ -43,7 +43,7 @@ const TableView = ({
   };
 
   return (
-    <div className="bg-card rounded-[1.75rem] shadow-[var(--shadow-card)] border border-border overflow-hidden">
+    <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>

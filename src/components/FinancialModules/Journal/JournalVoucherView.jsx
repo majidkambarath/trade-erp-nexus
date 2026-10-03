@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import DirhamIcon from "../../../assets/dirham.svg";
 import axiosInstance from "../../../axios/axios";
+import { todayInput } from "../../../utils/format";
 
 const JournalVoucherView = ({
   selectedVoucher,
@@ -157,7 +158,7 @@ const JournalVoucherView = ({
       );
 
       const filename = `Journal_${selectedVoucher.voucherNo}_${
-        new Date().toISOString().split("T")[0]
+        todayInput()
       }.pdf`;
       pdf.save(filename);
     } catch (error) {

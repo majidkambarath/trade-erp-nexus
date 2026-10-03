@@ -19,7 +19,7 @@ const ActionButtons = ({ onEdit, onDelete, onView }) => (
     </button>
     <button
       onClick={onView}
-      className="p-2 bg-secondary text-foreground rounded-full border border-border hover:bg-[var(--highlight)] hover:text-[#171717] transition-colors duration-300"
+      className="p-2 bg-secondary text-foreground rounded-full border border-border hover:bg-accent hover:text-foreground transition-colors duration-300"
       aria-label="View"
     >
       <Eye size={14} />

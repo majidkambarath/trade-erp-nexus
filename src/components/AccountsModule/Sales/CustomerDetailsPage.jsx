@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "../../../axios/axios";
 import { ArrowLeft, Users, DollarSign, RefreshCw } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const CustomerDetailsPage = () => {
   const { customerId } = useParams();
@@ -90,7 +91,7 @@ console.log(customerId)
           <div className="text-right">
             <p className="text-purple-100 text-sm uppercase tracking-wider">Outstanding Balance</p>
             <p className="text-4xl font-bold text-white mt-2">
-              AED {customer?.currentBalance?.toFixed(2).toLocaleString() || "0.00"}
+              AED {formatNumber(customer?.currentBalance) || "0.00"}
             </p>
           </div>
         </div>
@@ -220,7 +221,7 @@ console.log(customerId)
                         log.drCr === "Dr" ? "text-emerald-600" : "text-red-600"
                       }
                     >
-                      AED {log.amount.toLocaleString()}
+                      AED {formatNumber(log.amount)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-emerald-600">

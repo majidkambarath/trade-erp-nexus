@@ -11,6 +11,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const GridView = ({
   paginatedSOs,
@@ -30,7 +31,7 @@ const GridView = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {paginatedSOs.map((so) => (
-        <div key={so.id} className="bg-card rounded-[1.75rem] border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300 overflow-hidden group">
+        <div key={so.id} className="bg-card rounded-xl border border-border shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden group">
           {/* Card Header */}
           <div className="bg-secondary px-6 py-4 border-b border-border">
             <div className="flex justify-between items-start">
@@ -79,7 +80,7 @@ const GridView = ({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Total</p>
-                <p className="text-lg font-extrabold text-foreground">AED {parseFloat(so.totalAmount).toLocaleString()}</p>
+                <p className="text-lg font-extrabold text-foreground">AED {formatNumber(so.totalAmount)}</p>
               </div>
             </div>
 

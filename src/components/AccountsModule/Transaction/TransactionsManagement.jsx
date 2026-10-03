@@ -33,6 +33,9 @@ import {
 } from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
+import { formatNumber, todayInput } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 
 const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
   <div className="group relative">
@@ -67,11 +70,7 @@ const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl text-white z-50 animate-slide-in ${
-        type === "success"
-          ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
-          : "bg-gradient-to-r from-red-500 to-red-600"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -83,40 +82,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
-  subText,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-xl cursor-pointer hover:scale-105 hover:-translate-y-1`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      <button
-        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}
-      >
-        View Details →
-      </button>
-    </div>
-    <h3
-      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
-    >
-      {title}
-    </h3>
-    <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
-    <p className="text-xs text-gray-600 font-medium">{subText}</p>
-  </div>
-);
 
 const asArray = (x) => (Array.isArray(x) ? x : []);
 
@@ -137,7 +102,7 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
     <span className={`inline-flex items-center font-semibold ${colorClass}`}>
       {isNegative && <span className="text-red-600">-</span>}
       <span className="text-xs mr-1 opacity-70">AED</span>
-      {absAmount.toLocaleString()}
+      {formatNumber(absAmount)}
     </span>
   );
 };
@@ -147,7 +112,7 @@ const badgeClassForStatus = (status) => {
     Settled:
       "bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border border-emerald-300",
     Pending:
-      "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
+      "bg-status-warning-soft text-status-warning border border-status-warning/25",
   };
   return badges[status] || "bg-gray-100 text-gray-800";
 };
@@ -231,7 +196,7 @@ const AccountSelect = ({ accounts, value, onChange, onAccountSelect }) => {
           <span className="text-gray-600 font-medium">Loading accounts...</span>
         </div>
       ) : accounts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50">
+        <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-secondary">
           <Users size={32} className="text-orange-400 mb-2" />
           <p className="text-sm text-gray-600 font-medium mb-1">
             No accounts found
@@ -274,7 +239,7 @@ const TransactionsManagement = () => {
     accountId: "",
     accountName: "",
     voucherId: "",
-    date: new Date().toISOString().split("T")[0],
+    date: todayInput(),
     amount: "",
     type: "Debit",
     narration: "",
@@ -472,7 +437,7 @@ const TransactionsManagement = () => {
       accountId: "",
       accountName: "",
       voucherId: "",
-      date: new Date().toISOString().split("T")[0],
+      date: todayInput(),
       amount: "",
       type: "Debit",
       narration: "",

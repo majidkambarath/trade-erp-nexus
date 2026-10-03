@@ -9,6 +9,7 @@ import {
   Receipt,
   User,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const GridView = ({
   paginatedPOs,
@@ -105,7 +106,7 @@ const GridView = ({
                   Total
                 </p>
                 <p className="text-lg font-bold text-emerald-600">
-                  AED {parseFloat(po.totalAmount).toLocaleString()}
+                  AED {formatNumber(po.totalAmount)}
                 </p>
               </div>
             </div>

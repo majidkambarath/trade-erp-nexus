@@ -33,6 +33,9 @@ import {
 } from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
+import { formatNumber } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 
 const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
   <div className="group relative">
@@ -67,11 +70,7 @@ const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl text-white z-50 animate-slide-in ${
-        type === "success"
-          ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
-          : "bg-gradient-to-r from-red-500 to-red-600"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -83,40 +82,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
-  subText,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-xl cursor-pointer hover:scale-105 hover:-translate-y-1`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      <button
-        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-semibold`}
-      >
-        View Details →
-      </button>
-    </div>
-    <h3
-      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
-    >
-      {title}
-    </h3>
-    <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
-    <p className="text-xs text-gray-600 font-medium">{subText}</p>
-  </div>
-);
 
 const asArray = (x) => (Array.isArray(x) ? x : []);
 const takeArray = (resp) => {
@@ -138,7 +103,7 @@ const formatCurrency = (amount, colorClass = "text-gray-900") => {
     <span className={`inline-flex items-center font-semibold ${colorClass}`}>
       {neg && <span className="text-red-600">-</span>}
       <span className="text-xs mr-1 opacity-70">AED</span>
-      {abs.toLocaleString()}
+      {formatNumber(abs)}
     </span>
   );
 };
@@ -154,7 +119,7 @@ const badgeClassForStatus = (status) => {
     "Non-compliant":
       "bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300",
     Pending:
-      "bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800 border border-yellow-300",
+      "bg-status-warning-soft text-status-warning border border-status-warning/25",
     Expired:
       "bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border border-orange-300",
   };

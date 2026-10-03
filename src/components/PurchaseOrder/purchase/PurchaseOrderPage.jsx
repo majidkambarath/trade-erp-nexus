@@ -44,6 +44,8 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const PurchaseOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -69,7 +71,7 @@ const PurchaseOrderManagement = () => {
     transactionNo: "",
     partyId: "",
     vendorReference: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayInput(),
     deliveryDate: "",
     status: "DRAFT",
     items: [
@@ -214,9 +216,9 @@ const PurchaseOrderManagement = () => {
           vendorName,  // FIX: Use enriched vendorName
           vendorReference: t.vendorReference || "",
           refNo: t.vendorReference || t.refNo || "",
-          date: t.date ? new Date(t.date).toISOString().split("T")[0] : "",
+          date: t.date ? toInputDate(t.date) : "",
           deliveryDate: t.deliveryDate
-            ? new Date(t.deliveryDate).toISOString().split("T")[0]
+            ? toInputDate(t.deliveryDate)
             : "",
           status: t.status,
           totalAmount: Number(t.totalAmount || 0).toFixed(2),
@@ -257,8 +259,7 @@ const PurchaseOrderManagement = () => {
   }, [activeView]);
 
   const generateTransactionNumber = () => {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+    const dateStr = stampYMD();
     const sequence = String(Math.floor(Math.random() * 9999) + 1).padStart(
       3,
       "0"
@@ -449,20 +450,7 @@ const PurchaseOrderManagement = () => {
     currentPage * itemsPerPage
   );
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "DRAFT":
-        return "bg-secondary text-muted-foreground border-border";
-      case "PENDING":
-        return "bg-secondary text-foreground border-border";
-      case "APPROVED":
-        return "bg-foreground text-background border-foreground";
-      case "REJECTED":
-        return "bg-secondary text-muted-foreground border-border";
-      default:
-        return "bg-secondary text-muted-foreground border-border";
-    }
-  };
+  const getStatusColor = (status) => statusClasses(status);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -479,18 +467,7 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "High":
-        return "bg-foreground";
-      case "Medium":
-        return "bg-[var(--highlight)]";
-      case "Low":
-        return "bg-muted-foreground";
-      default:
-        return "bg-muted-foreground";
-    }
-  };
+  const getPriorityColor = (priority) => priorityDotClass(priority);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -542,18 +519,22 @@ const PurchaseOrderManagement = () => {
         }
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
-        const csv = [
-          "TransactionNo,Vendor,Date,DeliveryDate,Status,TotalAmount,Priority",
-          ...selectedPOs.map((poId) => {
-            const po = purchaseOrders.find((p) => p.id === poId);
-            return `${po.transactionNo},${po.vendorName},${po.date},${po.deliveryDate},${po.status},${po.totalAmount},${po.priority}`;
-          }),
-        ].join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "selected_purchase_orders.csv";
-        link.click();
+        downloadCSV(
+          "selected_purchase_orders.csv",
+          ["TransactionNo", "Vendor", "Date", "DeliveryDate", "Status", "TotalAmount", "Priority"],
+          selectedPOs
+            .map((poId) => purchaseOrders.find((p) => p.id === poId))
+            .filter(Boolean)
+            .map((po) => [
+              po.displayTransactionNo || po.transactionNo || "",
+              po.vendorName || "Unknown",
+              formatDateGB(po.date),
+              formatDateGB(po.deliveryDate),
+              po.status,
+              decimalRound(po.totalAmount),
+              po.priority,
+            ])
+        );
         addNotification("Orders exported successfully", "success");
       }
       setSelectedPOs([]);
@@ -569,19 +550,11 @@ const PurchaseOrderManagement = () => {
 
   // Notifications Component
   const NotificationList = () => (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed end-4 top-16 z-50 space-y-2">
       {notifications.map((notification, i) => (
         <div
           key={i}
-          className={`px-4 py-3 rounded-lg shadow-lg max-w-sm backdrop-blur-sm ${
-            notification.type === "success"
-              ? "bg-emerald-500/90 text-white"
-              : notification.type === "warning"
-              ? "bg-amber-500/90 text-white"
-              : notification.type === "error"
-              ? "bg-rose-500/90 text-white"
-              : "bg-blue-500/90 text-white"
-          } animate-slide-in border border-white/20`}
+          className={`max-w-sm ${toastClasses(notification.type)}`}
         >
           <div className="flex items-center space-x-2">
             {notification.type === "success" && (
@@ -604,7 +577,7 @@ const PurchaseOrderManagement = () => {
   const Dashboard = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
@@ -622,12 +595,12 @@ const PurchaseOrderManagement = () => {
                 </span>
               </div>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
               <ShoppingCart className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">
@@ -638,28 +611,28 @@ const PurchaseOrderManagement = () => {
               </p>
               <p className="text-sm text-muted-foreground mt-2">Requires attention</p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
               <Clock className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Value</p>
               <p className="text-3xl font-extrabold tracking-tight text-foreground">
-                AED {statistics.totalValue.toLocaleString()}
+                AED {formatNumber(statistics.totalValue)}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                Approved: AED {statistics.approvedValue.toLocaleString()}
+                Approved: AED {formatNumber(statistics.approvedValue)}
               </p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
               <DollarSign className="w-6 h-6 text-foreground" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-[1.35rem] p-6 border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
@@ -668,7 +641,7 @@ const PurchaseOrderManagement = () => {
               </p>
               <p className="text-sm text-muted-foreground mt-2">New orders created</p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
               <BarChart3 className="w-6 h-6 text-foreground" />
             </div>
           </div>
@@ -676,7 +649,7 @@ const PurchaseOrderManagement = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card rounded-[1.75rem] p-6 border border-border shadow-[var(--shadow-card)]">
+        <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border shadow-card">
           <h3 className="text-lg font-extrabold text-foreground mb-4">
             Recent Purchase Orders
           </h3>
@@ -709,7 +682,7 @@ const PurchaseOrderManagement = () => {
                     <span className="ml-1">{po.status.replace("_", " ")}</span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    AED {parseFloat(po.totalAmount).toLocaleString()}
+                    AED {formatNumber(po.totalAmount)}
                   </p>
                 </div>
               </div>
@@ -723,7 +696,7 @@ const PurchaseOrderManagement = () => {
           </button>
         </div>
 
-        <div className="bg-card rounded-[1.75rem] p-6 border border-border shadow-[var(--shadow-card)]">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card">
           <h3 className="text-lg font-extrabold text-foreground mb-4">
             Status Overview
           </h3>
@@ -764,7 +737,7 @@ const PurchaseOrderManagement = () => {
     const endItem = Math.min(currentPage * itemsPerPage, filteredPOs.length);
 
     return (
-      <div className="flex items-center justify-between bg-card rounded-[1.35rem] px-6 py-4 border border-border shadow-[var(--shadow-card)]">
+      <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
         <div className="flex items-center space-x-4">
           <span className="text-sm text-muted-foreground">
             Showing {startItem} to {endItem} of {filteredPOs.length} orders
@@ -775,7 +748,7 @@ const PurchaseOrderManagement = () => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="px-3 py-1 border border-border rounded-full text-sm bg-background text-foreground"
+            className="px-3 py-1.5 border border-input rounded-lg text-sm bg-card text-foreground"
           >
             <option value={10}>10 per page</option>
             <option value={25}>25 per page</option>
@@ -810,9 +783,9 @@ const PurchaseOrderManagement = () => {
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`px-3 py-2 text-sm rounded-full transition-colors ${
+                  className={`px-3 py-2 text-sm rounded-lg transition-colors ${
                     currentPage === pageNum
-                      ? "bg-foreground text-background"
+                      ? "border-foreground bg-foreground text-background"
                       : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
@@ -841,7 +814,7 @@ const PurchaseOrderManagement = () => {
       transactionNo: "",
       partyId: "",
       vendorReference: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: todayInput(),
       deliveryDate: "",
       status: "DRAFT",
       items: [
@@ -1026,11 +999,11 @@ const PurchaseOrderManagement = () => {
                   fetchStockItems();
                   fetchTransactions();
                 }}
-                className="p-3 bg-secondary rounded-full hover:bg-muted transition-colors"
+                className="grid h-10 w-10 place-items-center rounded-lg border border-input bg-card text-foreground transition-colors hover:bg-accent"
               >
                 <RefreshCw className="w-5 h-5 text-foreground" />
               </button>
-              <button className="p-3 bg-secondary rounded-full hover:bg-muted transition-colors">
+              <button className="grid h-10 w-10 place-items-center rounded-lg border border-input bg-card text-foreground transition-colors hover:bg-accent">
                 <Settings className="w-5 h-5 text-foreground" />
               </button>
             </div>
@@ -1051,7 +1024,7 @@ const PurchaseOrderManagement = () => {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-80 pl-10 pr-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
+                    className="w-80 pl-10 pr-4 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   />
                 </div>
 
@@ -1061,7 +1034,7 @@ const PurchaseOrderManagement = () => {
                     setStatusFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
+                  className="px-3 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="DRAFT">Draft</option>
@@ -1076,7 +1049,7 @@ const PurchaseOrderManagement = () => {
                     setVendorFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
+                  className="px-3 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 >
                   <option value="ALL">All Vendors</option>
                   {vendors.map((vendor) => (
@@ -1092,7 +1065,7 @@ const PurchaseOrderManagement = () => {
                     setDateFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-4 py-3 bg-background rounded-full border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 focus:border-transparent"
+                  className="px-3 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 >
                   <option value="ALL">All Dates</option>
                   <option value="TODAY">Today</option>
@@ -1104,10 +1077,10 @@ const PurchaseOrderManagement = () => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setActiveView("dashboard")}
-                  className={`p-3 rounded-full transition-colors ${
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "dashboard"
-                      ? "bg-foreground text-background"
-                      : "bg-card text-muted-foreground hover:bg-muted"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <BarChart3 className="w-5 h-5" />
@@ -1117,10 +1090,10 @@ const PurchaseOrderManagement = () => {
                     setViewMode("table");
                     setActiveView("list");
                   }}
-                  className={`p-3 rounded-full transition-colors ${
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "table" && activeView === "list"
-                      ? "bg-foreground text-background"
-                      : "bg-card text-muted-foreground hover:bg-muted"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <List className="w-5 h-5" />
@@ -1130,10 +1103,10 @@ const PurchaseOrderManagement = () => {
                     setViewMode("grid");
                     setActiveView("list");
                   }}
-                  className={`p-3 rounded-full transition-colors ${
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "grid" && activeView === "list"
-                      ? "bg-foreground text-background"
-                      : "bg-card text-muted-foreground hover:bg-muted"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <Grid className="w-5 h-5" />
@@ -1142,21 +1115,21 @@ const PurchaseOrderManagement = () => {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => handleBulkAction("approve")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
                     >
                       <CheckSquare className="w-4 h-4" />
                       <span>Approve Selected</span>
                     </button>
                     <button
                       onClick={() => handleBulkAction("delete")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Delete Selected</span>
                     </button>
                     <button
                       onClick={() => handleBulkAction("export")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
                     >
                       <Download className="w-4 h-4" />
                       <span>Export Selected</span>

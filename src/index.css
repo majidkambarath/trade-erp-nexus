@@ -1,116 +1,11 @@
 @import "tailwindcss";
 
-/* ─── NH FOODS ERP — PropValue-inspired soft theme ─── */
-
-:root {
-  --radius: 1.35rem;
-
-  --background: #ffffff;
-  --foreground: #171717;
-
-  --card: #ffffff;
-  --card-foreground: #171717;
-
-  --popover: #ffffff;
-  --popover-foreground: #171717;
-
-  --primary: #171717;
-  --primary-foreground: #ffffff;
-
-  --secondary: #f4f4f5;
-  --secondary-foreground: #171717;
-
-  --muted: #f4f4f5;
-  --muted-foreground: #6b6b6b;
-
-  --accent: #f6e27a;
-  --accent-foreground: #171717;
-
-  --highlight: #f0c929;
-  --highlight-soft: #fff6c8;
-
-  --destructive: #e11d48;
-  --destructive-foreground: #ffffff;
-
-  --border: #ececec;
-  --input: #ececec;
-  --ring: #171717;
-
-  --chart-1: #f0c929;
-  --chart-2: #171717;
-  --chart-3: #a8a29e;
-  --chart-4: #d6d3d1;
-  --chart-5: #78716c;
-
-  --sidebar: #ffffff;
-  --sidebar-foreground: #171717;
-  --sidebar-primary: #171717;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
-  --sidebar-accent-foreground: #171717;
-  --sidebar-border: #ececec;
-  --sidebar-ring: #171717;
-
-  --success: #16a34a;
-  --warning: #f0c929;
-  --info: #2563eb;
-
-  --shadow-card: 0 8px 28px rgba(23, 23, 23, 0.06), 0 1px 2px rgba(23, 23, 23, 0.04);
-  --shadow-elevated: 0 18px 48px rgba(23, 23, 23, 0.1);
-
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-}
-
-.dark {
-  --background: #121212;
-  --foreground: #fafafa;
-
-  --card: #1a1a1a;
-  --card-foreground: #fafafa;
-
-  --popover: #1a1a1a;
-  --popover-foreground: #fafafa;
-
-  --primary: #fafafa;
-  --primary-foreground: #121212;
-
-  --secondary: #262626;
-  --secondary-foreground: #fafafa;
-
-  --muted: #262626;
-  --muted-foreground: #a3a3a3;
-
-  --accent: #f0c929;
-  --accent-foreground: #121212;
-
-  --highlight: #f0c929;
-  --highlight-soft: #3d3510;
-
-  --destructive: #ef4444;
-  --destructive-foreground: #fafafa;
-
-  --border: #2a2a2a;
-  --input: #2a2a2a;
-  --ring: #f0c929;
-
-  --chart-1: #f0c929;
-  --chart-2: #fafafa;
-  --chart-3: #737373;
-  --chart-4: #525252;
-  --chart-5: #a3a3a3;
-
-  --sidebar: #0f0f0f;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #fafafa;
-  --sidebar-primary-foreground: #0f0f0f;
-  --sidebar-accent: #1c1c1c;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #2a2a2a;
-  --sidebar-ring: #f0c929;
-
-  --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 20px 50px rgba(0, 0, 0, 0.5);
-}
+/* Three-tier tokens: primitives -> semantic roles -> brand packs.
+   Order matters: later rules of equal specificity win, so brand packs come last. */
+@import "./styles/tokens/primitives.css";
+@import "./styles/tokens/semantic.css";
+@import "./styles/brands/_default.css";
+@import "./styles/brands/nhfoods-ae.css";
 
 @theme inline {
   --color-background: var(--background);
@@ -145,7 +40,24 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: var(--font-sans);
+  /* brand + status colours: defined in :root, previously unreachable as utilities */
+  --color-highlight: var(--highlight);
+  --color-highlight-soft: var(--highlight-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-on-soft: var(--brand-on-soft);
+  --color-status-success: var(--status-success);
+  --color-status-success-soft: var(--status-success-soft);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-soft: var(--status-warning-soft);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-soft: var(--status-danger-soft);
+  --color-status-info: var(--status-info);
+  --color-status-info-soft: var(--status-info-soft);
+  --font-sans: var(--font-body);
   --radius-sm: calc(var(--radius) * 0.55);
   --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
@@ -161,6 +73,85 @@ html,
 body,
 #root {
   min-height: 100%;
+}
+
+/* Depth utilities. Values live in semantic.css and differ per mode. Defined with
+   @utility rather than @theme because a theme entry named --shadow-card pointing at
+   var(--shadow-card) is a self-referencing cycle. */
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
+}
+
+@utility shadow-elevated {
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Toast entrance. Replaces animate-slide-in, which was used in 10 files but never defined. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility animate-toast-in {
+  animation: toast-in 180ms ease-out;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+/* Modal backdrops. Legacy modals use bg-white/50 on a fixed full-screen overlay, and the
+   shim above turns that class into the opaque card colour, so every modal hid the whole
+   app (sidebar and header included) behind a white sheet. Higher specificity restores a
+   translucent dim so the shell stays visible. Some overlays also carry
+   "transform scale-95", which shrank the overlay itself and left a gap at the edges. */
+.erp-scope .fixed.inset-0[class~="bg-white/50"] {
+  background-color: rgb(18 18 17 / 0.45) !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+
+/* Scrollable but without a visible scrollbar (tab rows). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Slim scrollbar for inner scroll areas (nav rail, drawer, command palette).
+   Replaces scrollbar-thin/scrollbar-thumb-* classes, which came from a Tailwind plugin
+   that was never installed, so those areas fell back to the heavy default scrollbar. */
+.erp-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.erp-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.erp-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.erp-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 9999px;
+}
+
+.erp-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--input);
+}
+
+table {
+  font-variant-numeric: tabular-nums;
 }
 
 body {
@@ -179,12 +170,6 @@ h4,
 .font-display {
   font-family: var(--font-sans);
   letter-spacing: -0.03em;
-}
-
-.erp-page {
-  min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
 }
 
 .erp-card {
@@ -364,10 +349,6 @@ h4,
 .erp-scope .bg-emerald-100,
 .erp-scope .bg-green-50,
 .erp-scope .bg-green-100,
-.erp-scope .bg-yellow-50,
-.erp-scope .bg-yellow-100,
-.erp-scope .bg-amber-50,
-.erp-scope .bg-amber-100,
 .erp-scope .bg-cyan-50,
 .erp-scope .bg-cyan-100,
 .erp-scope .bg-teal-50,
@@ -394,11 +375,6 @@ h4,
 .erp-scope .text-emerald-800,
 .erp-scope .text-green-600,
 .erp-scope .text-green-700,
-.erp-scope .text-yellow-600,
-.erp-scope .text-yellow-700,
-.erp-scope .text-yellow-800,
-.erp-scope .text-amber-600,
-.erp-scope .text-amber-700,
 .erp-scope .text-cyan-600,
 .erp-scope .text-cyan-700,
 .erp-scope .text-teal-600,
@@ -415,9 +391,6 @@ h4,
 .erp-scope .border-emerald-200,
 .erp-scope .border-emerald-300,
 .erp-scope .border-green-200,
-.erp-scope .border-yellow-200,
-.erp-scope .border-yellow-300,
-.erp-scope .border-amber-200,
 .erp-scope .border-cyan-200,
 .erp-scope .border-teal-200,
 .erp-scope .border-purple-500,
@@ -437,18 +410,15 @@ h4,
   background-color: var(--primary) !important;
 }
 
-/* Soft emerald/yellow gradient badges & panels */
+/* Soft emerald gradient badges & panels */
 .erp-scope [class~="from-emerald-50"],
 .erp-scope [class~="from-emerald-100"],
 .erp-scope [class~="to-emerald-50"],
 .erp-scope [class~="to-emerald-200"],
-.erp-scope [class~="from-yellow-100"],
-.erp-scope [class~="to-yellow-200"],
 .erp-scope [class~="from-teal-50"],
 .erp-scope [class~="to-teal-50"],
 .erp-scope [class~="from-red-100"],
 .erp-scope [class~="to-red-200"],
-.erp-scope [class~="from-amber-500"],
 .erp-scope [class~="to-orange-600"],
 .erp-scope [class~="from-emerald-500"],
 .erp-scope [class~="to-teal-600"],
@@ -475,14 +445,13 @@ h4,
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
+  border-radius: 0.5rem;
   background: var(--primary);
   color: var(--primary-foreground);
   font-weight: 600;
   font-family: var(--font-sans);
-  padding: 0.75rem 1.5rem;
+  padding: 0.625rem 1.25rem;
   border: none;
-  box-shadow: var(--shadow-card);
   transition: opacity 0.2s ease;
   cursor: pointer;
 }
@@ -494,14 +463,14 @@ h4,
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 9999px;
-  background: var(--highlight);
-  color: #171717;
+  border-radius: 0.5rem;
+  /* graphite primary: the gold brand accent is never a fill behind text */
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-weight: 700;
   font-family: var(--font-sans);
-  padding: 0.75rem 1.5rem;
+  padding: 0.625rem 1.25rem;
   border: none;
-  box-shadow: var(--shadow-card);
   cursor: pointer;
 }
 .erp-btn-accent:hover {

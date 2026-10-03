@@ -9,6 +9,13 @@ import {
 } from "lucide-react";
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
+import {
+  decimalAdd,
+  decimalSub,
+  decimalSum,
+  decimalRound,
+  weightedVatPercent,
+} from "../../../utils/format";
 
 const CustomerSelect = ({ customers, value, onChange, onInvoiceSelect }) => {
   const [invoices, setInvoices] = useState([]);
@@ -73,58 +80,46 @@ const CustomerSelect = ({ customers, value, onChange, onInvoiceSelect }) => {
             const invoiceItems = link.invoiceId?.items || [];
 
             // Calculate totals for the invoice
-            const totalLineTotal = invoiceItems.reduce((sum, item) => {
-              const rate = Number(item.rate) || 0; // Total base amount for the item
-              const qty = Number(item.qty) || 1;
-              const taxPercent = Number(item.taxPercent) || 0;
-              // Per-unit purchase value
-              const unitPurchaseValue = rate / qty;
-              // Tax for the item: (unitPurchaseValue * taxPercent/100) * qty
-              const taxAmount = unitPurchaseValue * (taxPercent / 100) * qty;
-              // Line total: rate + tax
-              const lineTotal = rate + taxAmount;
-              return sum + lineTotal;
-            }, 0);
+            // Totals come from the backend's own line arithmetic
+            // (transactionService.calculateItems): vatAmount is authoritative and
+            // lineTotal is VAT-INCLUSIVE. The previous code read item.taxPercent, a
+            // field that does not exist on a Transaction item, so VAT silently
+            // evaluated to zero here.
+            const perItem = invoiceItems.map((item) => {
+              const lineValue = Number(item.rate) || 0;
+              const vatAmount = Number(item.vatAmount) || 0;
+              return {
+                ...item,
+                lineValue,
+                vatAmount,
+                lineTotal:
+                  Number(item.lineTotal) || decimalAdd(lineValue, vatAmount),
+              };
+            });
 
-            // Calculate total tax amount for the invoice
-            const taxAmount = invoiceItems.reduce((sum, item) => {
-              const rate = Number(item.rate) || 0;
-              const qty = Number(item.qty) || 1;
-              const taxPercent = Number(item.taxPercent) || 0;
-              const unitPurchaseValue = rate / qty;
-              return sum + unitPurchaseValue * (taxPercent / 100) * qty;
-            }, 0);
-
-            // Average tax percent for display (optional)
-            const taxPercent =
-              invoiceItems.length > 0
-                ? invoiceItems.reduce(
-                    (sum, item) => sum + (Number(item.taxPercent) || 0),
-                    0
-                  ) / invoiceItems.length
-                : 0;
+            const totalLineTotal = decimalSum(perItem.map((i) => i.lineTotal));
+            const taxAmount = decimalSum(perItem.map((i) => i.vatAmount));
+            // Weighted by line value, not a mean of the per-line percentages: a
+            // mixed 0%/5% invoice must not report 2.5%.
+            const taxPercent = weightedVatPercent(perItem);
 
             const invoiceDetails = {
               _id: invoiceId,
               transactionNo: link.invoiceId?.transactionNo || "Unknown",
-              totalAmount: totalLineTotal.toFixed(2),
-              taxPercent: taxPercent.toFixed(2),
-              taxAmount: taxAmount.toFixed(2),
+              totalAmount: decimalRound(totalLineTotal),
+              taxPercent: decimalRound(taxPercent),
+              taxAmount: decimalRound(taxAmount),
               status: link.invoiceId?.status || "unpaid",
-              items: invoiceItems.map((item) => {
-                const rate = Number(item.rate) || 0;
-                const qty = Number(item.qty) || 1;
-                const taxPercent = Number(item.taxPercent) || 0;
-                const unitPurchaseValue = rate / qty; // Per-unit purchase value
-                const tax = unitPurchaseValue * (taxPercent / 100) * qty; // Total tax for the item
-                return {
-                  ...item,
-                  lineTotal: (rate + tax).toFixed(2), // Total for the item including tax
-                  unitPurchaseValue: unitPurchaseValue.toFixed(2), // Optional
-                };
-              }),
+              // kept numeric; callers format at render time
+              items: perItem.map((item) => ({
+                ...item,
+                lineTotal: decimalRound(item.lineTotal),
+                unitPurchaseValue: decimalRound(
+                  item.qty ? item.lineValue / Number(item.qty) : item.lineValue
+                ),
+              })),
               amount: link.amount || 0,
-              balance: (totalLineTotal - (link.amount || 0)).toFixed(2),
+              balance: decimalSub(totalLineTotal, link.amount || 0),
             };
             uniqueInvoices.push(invoiceDetails);
           }
@@ -311,7 +306,7 @@ const CustomerSelect = ({ customers, value, onChange, onInvoiceSelect }) => {
             </p>
           </div>
         ) : invoices.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50">
+          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl bg-secondary">
             <Receipt size={32} className="text-orange-400 mb-2" />
             <p className="text-sm text-gray-600 font-medium mb-1">
               No invoices found

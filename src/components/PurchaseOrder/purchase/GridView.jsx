@@ -9,6 +9,7 @@ import {
   Receipt,
   User,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const GridView = ({
   paginatedPOs,
@@ -29,7 +30,7 @@ const GridView = ({
       {paginatedPOs.map((po) => (
         <div
           key={po.id}
-          className="bg-card rounded-[1.75rem] border border-border shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elevated)] transition-all duration-300 overflow-hidden group"
+          className="bg-card rounded-xl border border-border shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden group"
         >
           <div className="bg-secondary px-6 py-4 border-b border-border">
             <div className="flex justify-between items-start">
@@ -105,7 +106,7 @@ const GridView = ({
                   Total
                 </p>
                 <p className="text-lg font-extrabold text-foreground">
-                  AED {parseFloat(po.totalAmount).toLocaleString()}
+                  AED {formatNumber(po.totalAmount)}
                 </p>
               </div>
             </div>

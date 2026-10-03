@@ -1,714 +1,289 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
-  User,
-  Lock,
+  Boxes,
+  Calculator,
   Eye,
   EyeOff,
-  ArrowRight,
-  Shield,
-  Zap,
-  Building2,
-  CheckCircle,
-  Smartphone,
-  Monitor,
-  Globe,
-  Layers,
-  LayoutDashboard,
-  TrendingUp,
-  Users,
+  Loader2,
+  Lock,
+  Mail,
   Package,
-  DollarSign,
-  BarChart3,
-  Settings,
-  Activity,
-  AlertCircle,
-  X,
+  Receipt,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import { cn } from "../../lib/utils";
+import { getBrand } from "../../config/brands";
+import BrandMark from "../shell/BrandMark";
 
-const ERPLogin = () => {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    rememberMe: false,
-  });
+const REMEMBER_KEY = "erp-remember-email";
+const APP_NAME = getBrand().shortName;
+
+const schema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Enter your email address")
+    .email("Enter a valid email address"),
+  password: z.string().min(1, "Enter your password"),
+  rememberMe: z.boolean(),
+});
+
+// Session tokens always live in sessionStorage: the shared axios client and the invoice
+// pages read from there. "Remember me" only keeps the email address.
+const storeSession = (tokens, adminId) => {
+  sessionStorage.setItem("accessToken", tokens.accessToken);
+  sessionStorage.setItem("refreshToken", tokens.refreshToken);
+  if (adminId) sessionStorage.setItem("adminId", adminId);
+};
+
+const readRememberedEmail = () => {
+  try {
+    return localStorage.getItem(REMEMBER_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+
+const writeRememberedEmail = (email, remember) => {
+  try {
+    if (remember) localStorage.setItem(REMEMBER_KEY, email);
+    else localStorage.removeItem(REMEMBER_KEY);
+  } catch {
+    // storage unavailable (private mode) - non-fatal
+  }
+};
+
+const FEATURES = [
+  { icon: Package, title: "Orders & returns", text: "Purchase and sales orders with approvals and invoices." },
+  { icon: Boxes, title: "Inventory & stock", text: "Live stock levels, movements and reorder alerts." },
+  { icon: Receipt, title: "Vouchers & ledgers", text: "Receipts, payments and journals with party statements." },
+  { icon: Calculator, title: "VAT reporting", text: "Period VAT reports at the UAE standard 5% rate." },
+];
+
+const Field = ({ id, label, error, icon, children }) => (
+  <div className="space-y-1.5">
+    <label htmlFor={id} className="text-sm font-semibold text-foreground">
+      {label}
+    </label>
+    <div className="relative">
+      {React.createElement(icon, {
+        "aria-hidden": "true",
+        className:
+          "pointer-events-none absolute start-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted-foreground",
+      })}
+      {children}
+    </div>
+    {error && (
+      <p id={`${id}-error`} className="text-sm text-destructive">
+        {error}
+      </p>
+    )}
+  </div>
+);
+
+const inputClass = (invalid) =>
+  cn(
+    "h-12 w-full rounded-xl border bg-card ps-11 pe-4 text-[15px] text-foreground",
+    "placeholder:text-muted-foreground transition-colors outline-none",
+    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent",
+    invalid ? "border-destructive" : "border-input"
+  );
+
+export default function Login() {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentFeature, setCurrentFeature] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [serverError, setServerError] = useState("");
+  const rememberedEmail = readRememberedEmail();
 
-  const features = [
-    {
-      icon: <LayoutDashboard className="w-8 h-8" />,
-      title: "Comprehensive Dashboard",
-      description: "Real-time insights at your fingertips",
+  const {
+    register,
+    handleSubmit,
+    setFocus,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      email: rememberedEmail,
+      password: "",
+      rememberMe: Boolean(rememberedEmail),
     },
-    {
-      icon: <TrendingUp className="w-8 h-8" />,
-      title: "Advanced Analytics",
-      description: "Data-driven decision making",
-    },
-    {
-      icon: <Users className="w-8 h-8" />,
-      title: "Team Collaboration",
-      description: "Seamless workflow management",
-    },
-    {
-      icon: <Package className="w-8 h-8" />,
-      title: "Inventory Control",
-      description: "Smart stock management",
-    },
-    {
-      icon: <DollarSign className="w-8 h-8" />,
-      title: "Financial Tracking",
-      description: "Complete financial oversight",
-    },
-    {
-      icon: <Settings className="w-8 h-8" />,
-      title: "Customizable Solutions",
-      description: "Tailored to your business needs",
-    },
-  ];
+  });
 
-  const stats = [
-    { number: "50K+", label: "Active Users" },
-    { number: "99.9%", label: "Uptime" },
-    { number: "24/7", label: "Support" },
-  ];
-
-  // Token management functions
-  const storeTokens = (tokens, data, adminData, rememberMe = false) => {
-    const storage = rememberMe ? localStorage : sessionStorage;
-
-    try {
-      storage.setItem("accessToken", tokens.accessToken);
-      storage.setItem("refreshToken", tokens.refreshToken);
-      storage.setItem("adminId", data._id);
-      storage.setItem("tokenExpiry", tokens.expiresIn);
-      //   storage.setItem('adminData', JSON.stringify(adminData));
-      storage.setItem("loginTime", new Date().toISOString());
-      storage.setItem("rememberMe", rememberMe.toString());
-
-      // Set up axios default authorization header
-      axiosInstance.defaults.headers.common[
-        "Authorization"
-      ] = `Bearer ${tokens.accessToken}`;
-
-      console.log("Tokens stored successfully");
-    } catch (error) {
-      console.error("Error storing tokens:", error);
-    }
-  };
-
-  const getStoredToken = () => {
-    return (
-      localStorage.getItem("accessToken") ||
-      sessionStorage.getItem("accessToken")
-    );
-  };
-
-  const getStoredRefreshToken = () => {
-    return (
-      localStorage.getItem("refreshToken") ||
-      sessionStorage.getItem("refreshToken")
-    );
-  };
-
-  //   const getStoredAdminData = () => {
-  //     try {
-  //       const adminData = localStorage.getItem('adminData') || sessionStorage.getItem('adminData');
-  //       return adminData ? JSON.parse(adminData) : null;
-  //     } catch (error) {
-  //       console.error('Error parsing admin data:', error);
-  //       return null;
-  //     }
-  //   };
-
-  const clearTokens = () => {
-    // Clear from both storages
-    const items = [
-      "accessToken",
-      "refreshToken",
-      "tokenExpiry",
-      "adminData",
-      "loginTime",
-      "rememberMe",
-    ];
-
-    items.forEach((item) => {
-      localStorage.removeItem(item);
-      sessionStorage.removeItem(item);
-    });
-
-    // Remove authorization header
-    delete axiosInstance.defaults.headers.common["Authorization"];
-
-    console.log("Tokens cleared");
-  };
-
-  // Initialize axios with stored token on component mount
   useEffect(() => {
-    const token = getStoredToken();
-    if (token) {
-      axiosInstance.defaults.headers.common[
-        "Authorization"
-      ] = `Bearer ${token}`;
-    }
+    setFocus(rememberedEmail ? "password" : "email");
+    // Focus once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refresh token function
-  const refreshAccessToken = async () => {
+  const onSubmit = async (values) => {
+    setServerError("");
     try {
-      const refreshToken = getStoredRefreshToken();
-      if (!refreshToken) {
-        throw new Error("No refresh token available");
-      }
-
-      console.log("Attempting to refresh token...");
-
-      const response = await axiosInstance.post("/auth/refresh", {
-        refreshToken: refreshToken,
+      const { data } = await axiosInstance.post("/login", {
+        email: values.email,
+        password: values.password,
       });
 
-      if (response.data.success && response.data.data.tokens) {
-        const { tokens, admin, data } = response.data.data;
-        const rememberMe = localStorage.getItem("rememberMe") === "true";
-
-        // Update stored tokens
-        storeTokens(tokens, data, admin || rememberMe);
-
-        console.log("Token refreshed successfully");
-        return tokens.accessToken;
-      } else {
-        throw new Error("Invalid refresh response");
+      if (!data?.success) {
+        setServerError(data?.message || "Sign-in failed. Please try again.");
+        return;
       }
+
+      const { admin, tokens } = data.data;
+      storeSession(tokens, admin?._id);
+      writeRememberedEmail(values.email, values.rememberMe);
+      navigate("/dashboard", { replace: true });
     } catch (error) {
-      console.error("Token refresh failed:", error);
-      clearTokens();
-      setError("Session expired. Please login again.");
-      return null;
-    }
-  };
-
-  // Axios interceptor for handling token refresh
-  useEffect(() => {
-    const requestInterceptor = axiosInstance.interceptors.request.use(
-      (config) => {
-        const token = getStoredToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
-
-    const responseInterceptor = axiosInstance.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-
-          const newToken = await refreshAccessToken();
-          if (newToken) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return axiosInstance(originalRequest);
-          } else {
-            // Redirect to login or handle logout
-            clearTokens();
-            window.location.reload();
-          }
-        }
-
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      axiosInstance.interceptors.request.eject(requestInterceptor);
-      axiosInstance.interceptors.response.eject(responseInterceptor);
-    };
-  }, []);
-
-  // Feature carousel effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentFeature((prev) => (prev + 1) % features.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [features.length]);
-
-  // Mouse position tracking
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
-
-  // Clear messages after 5 seconds
-  useEffect(() => {
-    if (error || success) {
-      const timer = setTimeout(() => {
-        setError("");
-        setSuccess("");
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error, success]);
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-
-    // Clear error when user starts typing
-    if (error) {
-      setError("");
-    }
-  };
-
-  const validateForm = () => {
-    if (!formData.email.trim()) {
-      setError("Email is required");
-      return false;
-    }
-
-    if (!formData.password.trim()) {
-      setError("Password is required");
-      return false;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError("Please enter a valid email address");
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      console.log("Attempting login with:", { email: formData.email });
-
-      const response = await axiosInstance.post("/login", {
-        email: formData.email.trim(),
-        password: formData.password,
-      });
-
-      console.log("Login response:", response.data);
-
-      if (response.data.success) {
-        const { admin, tokens, loginInfo } = response.data.data;
-
-        // Store tokens and user data
-        storeTokens(tokens, admin, formData.rememberMe);
-
-        setSuccess(`Welcome back, ${admin.name}!`);
-
-        // Log successful login
-        console.log("Login successful:", {
-          user: admin.name,
-          email: admin.email,
-          lastLogin: loginInfo.lastLogin,
-          permissions: admin.permissions,
-        });
-
-        // Redirect to dashboard after short delay
-        setTimeout(() => {
-          // Replace this with your routing logic
-          window.location.href = "/dashboard";
-          // or if using React Router: navigate('/dashboard');
-        }, 1500);
-      } else {
-        setError(response.data.message || "Login failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-
-      let errorMessage = "Login failed. Please try again.";
-
       if (error.response) {
-        // Server responded with error status
-        errorMessage =
-          error.response.data?.message || `Error: ${error.response.status}`;
+        setServerError(
+          error.response.data?.message ||
+            (error.response.status === 401
+              ? "Incorrect email or password."
+              : "Sign-in failed. Please try again.")
+        );
       } else if (error.request) {
-        // Network error
-        errorMessage =
-          "Unable to connect to server. Please check your connection.";
+        setServerError("Can't reach the server. Check your connection and try again.");
       } else {
-        // Other error
-        errorMessage = error.message || "An unexpected error occurred.";
+        setServerError("Sign-in failed. Please try again.");
       }
-
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSubmit();
-    }
-  };
-
-  const dismissMessage = () => {
-    setError("");
-    setSuccess("");
   };
 
   return (
-    <div className="erp-scope min-h-screen bg-background text-foreground relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gray-200/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gray-300/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-gray-100/30 rounded-full blur-2xl animate-pulse"></div>
-      </div>
+    <div className="grid min-h-dvh bg-background font-sans text-foreground lg:grid-cols-2">
+      {/* Brand panel: desktop only */}
+      <aside className="relative hidden overflow-hidden bg-brand-soft lg:flex lg:flex-col lg:justify-between lg:p-12">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -end-24 -top-24 h-96 w-96 rounded-full bg-brand opacity-[0.14]"
+        />
+        <div className="relative flex items-center gap-3">
+          <BrandMark className="h-11 w-11" />
+          <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
+        </div>
 
-      {/* Floating Icons Animation */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[
-          { icon: <Activity className="w-4 h-4" />, top: "10%", left: "10%" },
-          { icon: <BarChart3 className="w-5 h-5" />, top: "20%", right: "15%" },
-          { icon: <Globe className="w-4 h-4" />, bottom: "25%", left: "8%" },
-          { icon: <Layers className="w-5 h-5" />, bottom: "15%", right: "12%" },
-          { icon: <Shield className="w-4 h-4" />, top: "40%", left: "5%" },
-          { icon: <Zap className="w-5 h-5" />, top: "60%", right: "8%" },
-        ].map((item, index) => (
-          <div
-            key={index}
-            className="absolute text-gray-400/30 animate-bounce"
-            style={{
-              top: item.top,
-              left: item.left,
-              right: item.right,
-              bottom: item.bottom,
-              animationDelay: `${index * 0.5}s`,
-              animationDuration: "3s",
-            }}
-          >
-            {item.icon}
+        <div className="relative max-w-lg">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground/70">
+            Trade ERP
+          </p>
+          <h1 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight">
+            Run purchasing, sales and stock from one place.
+          </h1>
+          <ul className="mt-10 space-y-5">
+            {FEATURES.map(({ icon, title, text }) => (
+              <li key={title} className="flex gap-4">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card shadow-card">
+                  {React.createElement(icon, { className: "h-5 w-5", "aria-hidden": "true" })}
+                </span>
+                <span>
+                  <span className="block font-bold">{title}</span>
+                  <span className="block text-sm text-foreground/70">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-sm text-foreground/70">
+          Accounts are created by your administrator.
+        </p>
+      </aside>
+
+      {/* Form */}
+      <main className="flex items-center justify-center px-4 py-10 sm:px-8">
+        <div className="w-full max-w-md">
+          {/* Brand header: mobile only */}
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <BrandMark className="h-10 w-10" />
+            <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
           </div>
-        ))}
-      </div>
 
-      {/* Mouse Follower */}
-      <div
-        className="fixed w-96 h-96 bg-gray-200/10 rounded-full blur-3xl pointer-events-none transition-all duration-1000 ease-out"
-        style={{
-          left: mousePosition.x - 192,
-          top: mousePosition.y - 192,
-        }}
-      ></div>
+          <h2 className="text-3xl font-extrabold tracking-tight">Sign in</h2>
+          <p className="mt-2 text-muted-foreground">Use your ERP account to continue.</p>
 
-      {/* Error/Success Messages */}
-      {(error || success) && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm">
-          <div
-            className={`p-4 rounded-lg shadow-lg border ${
-              error
-                ? "bg-red-50 border-red-200 text-red-800"
-                : "bg-green-50 border-green-200 text-green-800"
-            }`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center">
-                {error ? (
-                  <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+          {serverError && (
+            <div
+              id="login-error"
+              role="alert"
+              className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            >
+              {serverError}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 space-y-5">
+            <Field id="email" label="Email address" icon={Mail} error={errors.email?.message}>
+              <input
+                id="email"
+                type="email"
+                autoComplete="username"
+                placeholder="you@company.com"
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                className={inputClass(Boolean(errors.email))}
+                {...register("email")}
+              />
+            </Field>
+
+            <Field id="password" label="Password" icon={Lock} error={errors.password?.message}>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? "password-error" : undefined}
+                className={cn(inputClass(Boolean(errors.password)), "pe-12")}
+                {...register("password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute end-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-[18px] w-[18px]" aria-hidden="true" />
                 ) : (
-                  <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                  <Eye className="h-[18px] w-[18px]" aria-hidden="true" />
                 )}
-                <span className="text-sm font-medium">{error || success}</span>
-              </div>
-              <button
-                onClick={dismissMessage}
-                className="ml-2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
               </button>
-            </div>
-          </div>
+            </Field>
+
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-input accent-foreground"
+                {...register("rememberMe")}
+              />
+              Remember my email on this device
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-[15px] font-bold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+                  Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-muted-foreground">
+            Forgot your password? Ask your administrator to reset it.
+          </p>
         </div>
-      )}
-
-      <div className="relative z-10 min-h-screen flex">
-        {/* Left Side - Feature Showcase */}
-        <div className="hidden lg:flex lg:w-1/2 pl-32 bg-gray-100/50 backdrop-blur-xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-200/20 to-gray-300/20"></div>
-
-          <div className="relative z-10 flex flex-col justify-center items-center p-12 text-center">
-            {/* Logo and Branding */}
-            <div className="mb-12">
-              <div className="w-20 h-20 bg-gray-200 rounded-3xl flex items-center justify-center shadow-2xl mb-6 mx-auto transform hover:scale-110 transition-all duration-500">
-                <Building2 className="w-10 h-10 text-gray-800" />
-              </div>
-              <h1 className="text-4xl font-bold text-gray-800 mb-4">
-                ERP NEXUS
-              </h1>
-              <p className="text-xl text-gray-600 mb-8">Enterprise System</p>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-8 mb-12">
-                {stats.map((stat, index) => (
-                  <div key={index} className="text-center">
-                    <div className="text-3xl font-bold text-gray-800 mb-2">
-                      {stat.number}
-                    </div>
-                    <div className="text-sm text-gray-600">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Feature Carousel */}
-            <div className="w-full max-w-md">
-              <div className="bg-gray-100/50 backdrop-blur-xl rounded-3xl p-8 border border-gray-200/50 shadow-2xl">
-                <div className="flex items-center justify-center mb-6 text-gray-700">
-                  {features[currentFeature].icon}
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">
-                  {features[currentFeature].title}
-                </h3>
-                <p className="text-gray-600">
-                  {features[currentFeature].description}
-                </p>
-              </div>
-
-              {/* Feature Indicators */}
-              <div className="flex justify-center mt-8 space-x-2">
-                {features.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                      index === currentFeature
-                        ? "bg-gray-600 w-8"
-                        : "bg-gray-300"
-                    }`}
-                  ></div>
-                ))}
-              </div>
-            </div>
-
-            {/* Trust Indicators */}
-            <div className="mt-12 flex items-center space-x-8">
-              {[
-                { icon: <Shield className="w-6 h-6" />, text: "Secure" },
-                { icon: <Monitor className="w-6 h-6" />, text: "Reliable" },
-                {
-                  icon: <Smartphone className="w-6 h-6" />,
-                  text: "Mobile Ready",
-                },
-              ].map((item, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-2 text-gray-600"
-                >
-                  {item.icon}
-                  <span className="text-sm font-medium">{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side - Login Form */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative">
-          {/* Mobile Logo */}
-          <div className="lg:hidden absolute top-8 left-1/2 transform -translate-x-1/2">
-            <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-              <Building2 className="w-8 h-8 text-gray-800" />
-            </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-gray-800">ERP NEXUS</h1>
-              <p className="text-gray-600">Enterprise System</p>
-            </div>
-          </div>
-
-          <div className="w-full max-w-md mt-24 lg:mt-0">
-            {/* Welcome Message */}
-            <div className="text-center mb-8">
-              <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-4">
-                Welcome Back
-              </h2>
-              <p className="text-gray-600">
-                Sign in to access your ERP dashboard
-              </p>
-            </div>
-
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Email Field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Email Address
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
-                  </div>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    disabled={isLoading}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent transition-all duration-300 text-gray-800 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="Enter your email"
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    onKeyPress={handleKeyPress}
-                    disabled={isLoading}
-                    className="w-full pl-12 pr-12 py-4 bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent transition-all duration-300 text-gray-800 placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    disabled={isLoading}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors disabled:cursor-not-allowed"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    name="rememberMe"
-                    checked={formData.rememberMe}
-                    onChange={handleInputChange}
-                    disabled={isLoading}
-                    className="w-4 h-4 text-gray-600 bg-gray-100 border-gray-300 rounded focus:ring-gray-300 focus:ring-2 disabled:cursor-not-allowed"
-                  />
-                  <span className="text-sm text-gray-700">Remember me</span>
-                </label>
-                <button
-                  type="button"
-                  className="text-sm text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading || !formData.email || !formData.password}
-                className="group w-full bg-primary hover:opacity-90 text-primary-foreground font-semibold py-4 px-6 rounded-2xl transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Signing In...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Sign In</span>
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </div>
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div className="my-8 flex items-center">
-              <div className="flex-1 border-t border-gray-200"></div>
-              <span className="px-4 text-sm text-gray-500">or</span>
-              <div className="flex-1 border-t border-gray-200"></div>
-            </div>
-
-            {/* Alternative Login Options */}
-            <div className="grid grid-cols-2 gap-4">
-              <button className="group flex items-center justify-center px-4 py-3 bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 rounded-xl hover:bg-gray-200/50 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                <div className="w-5 h-5 bg-gray-600 rounded mr-3"></div>
-                <span className="text-sm font-medium text-gray-700">SSO</span>
-              </button>
-              <button className="group flex items-center justify-center px-4 py-3 bg-gray-100/50 backdrop-blur-xl border border-gray-200/50 rounded-xl hover:bg-gray-200/50 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                <Shield className="w-5 h-5 text-gray-600 mr-3" />
-                <span className="text-sm font-medium text-gray-700">2FA</span>
-              </button>
-            </div>
-
-            {/* Footer */}
-            <div className="mt-8 text-center text-sm text-gray-600">
-              Don't have an account?{" "}
-              <button className="text-gray-800 hover:text-gray-600 font-medium transition-colors">
-                Contact Administrator
-              </button>
-            </div>
-
-            {/* Trust Badge */}
-            <div className="mt-6 flex items-center justify-center space-x-2 text-gray-500">
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-xs">
-                Secured with enterprise-grade encryption
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Version Info */}
-      <div className="absolute bottom-4 left-4 text-xs text-gray-400">
-        ERP NEXUS v2.4.1
-      </div>
-
-      <div className="absolute bottom-4 right-4 text-xs text-gray-400">
-        © 2025 Enterprise System
-      </div>
+      </main>
     </div>
   );
-};
-
-export default ERPLogin;
+}

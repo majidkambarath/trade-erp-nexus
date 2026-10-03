@@ -1,0 +1,134 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   TIER 2 — SEMANTIC TOKENS
+   Roles, not values. These keep the shadcn names the app already depends on
+   (--card, --muted-foreground, ...) because ~826 class usages and the legacy
+   .erp-scope shim reference them. Brand-specific roles (--brand*) live in
+   src/styles/brands/ so a new client never touches this file.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --radius: 0.625rem;
+
+  /* Surfaces */
+  --background: var(--stone-25);
+  --foreground: var(--stone-900);
+  --card: var(--stone-0);
+  --card-foreground: var(--stone-900);
+  --popover: var(--stone-0);
+  --popover-foreground: var(--stone-900);
+
+  /* Primary action is graphite ink, not a brand colour */
+  --primary: var(--stone-900);
+  --primary-foreground: var(--stone-0);
+  --secondary: var(--stone-50);
+  --secondary-foreground: var(--stone-900);
+  --muted: var(--stone-50);
+  --muted-foreground: var(--stone-500);
+  /* accent = hover/selected surface in shadcn, so it stays a quiet neutral */
+  --accent: var(--stone-50);
+  --accent-foreground: var(--stone-900);
+
+  /* Lines. --border is decorative; --input is a control boundary (needs 3:1). */
+  --border: var(--stone-100);
+  --input: var(--stone-400);
+  --ring: var(--stone-900);
+
+  /* Status. Soft variants are badge backgrounds. */
+  --status-success: var(--green-600);
+  --status-success-soft: var(--green-50);
+  --status-warning: var(--orange-700);
+  --status-warning-soft: var(--orange-50);
+  --status-danger: var(--red-700);
+  --status-danger-soft: var(--red-50);
+  --status-info: var(--blue-700);
+  --status-info-soft: var(--blue-50);
+
+  --destructive: var(--status-danger);
+  --destructive-foreground: var(--stone-0);
+  --success: var(--status-success);
+  --warning: var(--status-warning);
+  --info: var(--status-info);
+
+  /* Legacy brand aliases, kept so existing var(--highlight) usages follow the brand */
+  --highlight: var(--brand);
+  --highlight-soft: var(--brand-soft);
+
+  /* Charts: ordered categorical ramp. 1-4 carry meaning (>= 3:1 on --card).
+     5 is context only (baselines, targets) and must never be the sole encoding. */
+  --chart-1: var(--stone-900);
+  --chart-2: var(--brand);
+  --chart-3: var(--slate-600);
+  --chart-4: var(--stone-400);
+  --chart-5: var(--stone-200);
+
+  --sidebar: var(--stone-0);
+  --sidebar-foreground: var(--stone-900);
+  --sidebar-primary: var(--stone-900);
+  --sidebar-primary-foreground: var(--stone-0);
+  --sidebar-accent: var(--stone-50);
+  --sidebar-accent-foreground: var(--stone-900);
+  --sidebar-border: var(--stone-100);
+  --sidebar-ring: var(--stone-900);
+
+  /* Depth: restrained. Hairline borders do most of the separating work. */
+  --shadow-card: 0 1px 2px rgba(28, 28, 26, 0.05), 0 1px 1px rgba(28, 28, 26, 0.03);
+  --shadow-elevated: 0 8px 24px rgba(28, 28, 26, 0.08), 0 1px 2px rgba(28, 28, 26, 0.05);
+
+  /* Table row density */
+  --row-compact: 2rem;
+  --row-default: 2.5rem;
+  --row-relaxed: 3rem;
+
+  --font-body: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body);
+}
+
+.dark {
+  --background: var(--night-950);
+  --foreground: var(--night-50);
+  --card: var(--night-900);
+  --card-foreground: var(--night-50);
+  --popover: var(--night-900);
+  --popover-foreground: var(--night-50);
+
+  --primary: var(--night-50);
+  --primary-foreground: var(--night-950);
+  --secondary: var(--night-800);
+  --secondary-foreground: var(--night-50);
+  --muted: var(--night-800);
+  --muted-foreground: var(--night-300);
+  --accent: var(--night-800);
+  --accent-foreground: var(--night-50);
+
+  --border: var(--night-700);
+  --input: var(--night-500);
+  --ring: var(--night-50);
+
+  --status-success: var(--green-400);
+  --status-success-soft: var(--green-950);
+  --status-warning: var(--orange-400);
+  --status-warning-soft: var(--orange-950);
+  --status-danger: var(--red-400);
+  --status-danger-soft: var(--red-950);
+  --status-info: var(--blue-300);
+  --status-info-soft: var(--blue-950);
+
+  --destructive-foreground: var(--night-950);
+
+  --chart-1: var(--night-50);
+  --chart-3: var(--slate-300);
+  --chart-4: var(--night-500);
+  --chart-5: var(--night-700);
+
+  --sidebar: var(--night-900);
+  --sidebar-foreground: var(--night-50);
+  --sidebar-primary: var(--night-50);
+  --sidebar-primary-foreground: var(--night-950);
+  --sidebar-accent: var(--night-800);
+  --sidebar-accent-foreground: var(--night-50);
+  --sidebar-border: var(--night-700);
+  --sidebar-ring: var(--night-50);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5);
+}

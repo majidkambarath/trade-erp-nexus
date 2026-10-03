@@ -1,7 +1,14 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import { todayInput } from "../../../utils/format";
 
-export const downloadReceiptPDF = async (selectedReceipt, showToastMessage) => {
+// setIsGeneratingPDF is the caller's loading-state setter; optional so this module
+// works standalone (it previously called a free variable and threw a ReferenceError).
+export const downloadReceiptPDF = async (
+  selectedReceipt,
+  showToastMessage,
+  setIsGeneratingPDF = () => {}
+) => {
   try {
     setIsGeneratingPDF(true);
     const input = document.getElementById("receipt-content");
@@ -55,7 +62,7 @@ export const downloadReceiptPDF = async (selectedReceipt, showToastMessage) => {
     );
 
     const filename = `Receipt_${selectedReceipt.voucherNo}_${
-      new Date().toISOString().split("T")[0]
+      todayInput()
     }.pdf`;
     pdf.save(filename);
   } catch (error) {

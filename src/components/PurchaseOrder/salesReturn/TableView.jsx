@@ -9,6 +9,7 @@ import {
   FileText,
   CheckSquare as ConfirmIcon,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const TableView = ({
   paginatedSOs,
@@ -175,7 +176,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      AED {Math.abs(parseFloat(so.totalAmount)).toLocaleString()}
+                      AED {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
                     </p>
                     <p className="text-xs text-slate-500">{so.items.length} items</p>
                   </div>

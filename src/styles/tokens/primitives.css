@@ -1,0 +1,75 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   TIER 1 — PRIMITIVES
+   Raw colour ramps. They describe what a value IS, never what it means.
+   Components must not reference these directly; use the semantic tokens in
+   semantic.css, which are what change between themes and brands.
+   Every value here was contrast-tested; see src/styles/__tests__/contrast.test.js
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Warm neutral ramp (light mode) */
+  --stone-0: #ffffff;
+  --stone-25: #fafaf9;
+  --stone-50: #f3f2ef;
+  --stone-100: #e7e5e1;
+  --stone-200: #d6d3cc;
+  --stone-300: #b8b6ad;
+  --stone-400: #8a8a80;
+  --stone-500: #6b6b63;
+  --stone-600: #44443f;
+  --stone-900: #1c1c1a;
+
+  /* Warm neutral ramp (dark mode) */
+  --night-50: #f5f5f3;
+  --night-300: #a3a39a;
+  --night-500: #77776e;
+  --night-700: #2e2e2a;
+  --night-800: #232321;
+  --night-900: #1a1a18;
+  --night-950: #121211;
+
+  /* Gold: the NH Foods brand accent. Never used as a status colour. */
+  --gold-50: #f5efd9;
+  --gold-300: #e3c377;
+  --gold-400: #c9a449;
+  --gold-600: #9a7b2f;
+  --gold-800: #6b5518;
+  --gold-950: #2a2310;
+
+  /* Aurify navy: accent of the product's default theme (the vendor brand). Values are
+     sampled from the Aurify ERP Redesign deck; replace with official brand hexes when
+     available - the contrast suite re-validates whatever is set here.
+     Dark mode uses a desaturated slate-navy: a plainly lightened navy (#8FA8D8) sat only
+     20.7 perceptual units from the dark-mode info blue, below the 25 the suite requires. */
+  --navy-50: #eaeef5;
+  --navy-200: #c9d3e6;
+  --navy-300: #a9b6cc;
+  --navy-600: #1e3a6e;
+  --navy-800: #172c54;
+  --navy-950: #1b2335;
+
+  /* Status hues. Deliberately a different hue family from gold. */
+  --green-50: #e4f3ec;
+  --green-400: #34b77a;
+  --green-600: #0f7b4f;
+  --green-950: #10261d;
+
+  --orange-50: #fdf4e8;
+  --orange-400: #ee8236;
+  --orange-700: #b45309;
+  --orange-950: #2e1b0d;
+
+  --red-50: #fae6e4;
+  --red-400: #f0716a;
+  --red-700: #b3261e;
+  --red-950: #2c1513;
+
+  --blue-50: #e6ecfb;
+  --blue-300: #7aa2f7;
+  --blue-700: #1d4ed8;
+  --blue-950: #14203a;
+
+  /* Chart-only hue */
+  --slate-300: #8fa1ae;
+  --slate-600: #5b6b78;
+}

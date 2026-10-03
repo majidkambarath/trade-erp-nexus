@@ -44,6 +44,8 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const PurchaseReturnOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
@@ -70,7 +72,7 @@ const PurchaseReturnOrderManagement = () => {
   const [formData, setFormData] = useState({
     transactionNo: "",
     partyId: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayInput(),
     deliveryDate: "",
     status: "DRAFT",
     items: [
@@ -207,8 +209,7 @@ const PurchaseReturnOrderManagement = () => {
   }, [activeView]);
 
   const generateTransactionNumber = () => {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "");
+    const dateStr = stampYMD();
     const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
     setFormData((prev) => ({
       ...prev,
@@ -370,20 +371,7 @@ const PurchaseReturnOrderManagement = () => {
     currentPage * itemsPerPage
   );
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "DRAFT":
-        return "bg-slate-100 text-slate-700 border-slate-200";
-      case "PENDING":
-        return "bg-amber-100 text-amber-700 border-amber-200";
-      case "APPROVED":
-        return "bg-emerald-100 text-emerald-700 border-emerald-200";
-      case "REJECTED":
-        return "bg-rose-100 text-rose-700 border-rose-200";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
-    }
-  };
+  const getStatusColor = (status) => statusClasses(status);
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -400,18 +388,7 @@ const PurchaseReturnOrderManagement = () => {
     }
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "High":
-        return "bg-red-500";
-      case "Medium":
-        return "bg-yellow-500";
-      case "Low":
-        return "bg-green-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
+  const getPriorityColor = (priority) => priorityDotClass(priority);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -450,18 +427,20 @@ const PurchaseReturnOrderManagement = () => {
         }
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
-        const csv = [
-          "TransactionNo,Vendor,Date,DeliveryDate,Status,TotalAmount,Priority",
-          ...selectedPOs.map((poId) => {
-            const po = purchaseOrders.find((p) => p.id === poId);
-            return `${po.transactionNo},${po.vendorName},${po.date},${po.deliveryDate},${po.status},${po.totalAmount},${po.priority}`;
-          }),
-        ].join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "selected_purchase_return_orders.csv";
-        link.click();
+        const csvHeaders = ["TransactionNo", "Vendor", "Date", "DeliveryDate", "Status", "TotalAmount", "Priority"];
+        const csvRows = selectedPOs
+          .map((poId) => purchaseOrders.find((p) => p.id === poId))
+          .filter(Boolean)
+          .map((po) => [
+            po.displayTransactionNo || po.transactionNo || "",
+            po.vendorName || "Unknown",
+            formatDateGB(po.date),
+            formatDateGB(po.deliveryDate),
+            po.status,
+            decimalRound(po.totalAmount),
+            po.priority,
+          ]);
+        downloadCSV("selected_purchase_return_orders.csv", csvHeaders, csvRows);
         addNotification("Orders exported successfully", "success");
       }
       setSelectedPOs([]);
@@ -476,19 +455,11 @@ const PurchaseReturnOrderManagement = () => {
 
   // Notifications Component
   const NotificationList = () => (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed end-4 top-16 z-50 space-y-2">
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className={`px-4 py-3 rounded-lg shadow-lg max-w-sm backdrop-blur-sm ${
-            notification.type === "success"
-              ? "bg-emerald-500/90 text-white"
-              : notification.type === "warning"
-              ? "bg-amber-500/90 text-white"
-              : notification.type === "error"
-              ? "bg-rose-500/90 text-white"
-              : "bg-blue-500/90 text-white"
-          } animate-slide-in border border-white/20`}
+          className={`max-w-sm ${toastClasses(notification.type)}`}
         >
           <div className="flex items-center space-x-2">
             {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
@@ -505,7 +476,7 @@ const PurchaseReturnOrderManagement = () => {
   const Dashboard = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
@@ -525,55 +496,55 @@ const PurchaseReturnOrderManagement = () => {
                 </span>
               </div>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-              <ShoppingCart className="w-6 h-6 text-white" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <ShoppingCart className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Pending Approval</p>
-              <p className="text-3xl font-bold text-amber-600">{statistics.pending}</p>
+              <p className="text-3xl font-bold text-status-warning">{statistics.pending}</p>
               <p className="text-sm text-slate-500 mt-2">Requires attention</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-white" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-status-warning-soft text-status-warning">
+              <Clock className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Value</p>
               <p className="text-3xl font-bold text-emerald-600">
-                AED {statistics.totalValue.toLocaleString()}
+                AED {formatNumber(statistics.totalValue)}
               </p>
               <p className="text-sm text-slate-500 mt-2">
-                Approved: AED {statistics.approvedValue.toLocaleString()}
+                Approved: AED {formatNumber(statistics.approvedValue)}
               </p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-white" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <DollarSign className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
               <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
               <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
-            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-white" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <BarChart3 className="w-5 h-5" />
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
+        <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border shadow-card">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">
             Recent Purchase Return Orders
           </h3>
@@ -600,7 +571,7 @@ const PurchaseReturnOrderManagement = () => {
                     <span className="ml-1">{po.status.replace("_", " ")}</span>
                   </div>
                   <p className="text-sm text-slate-600 mt-1">
-                    AED {parseFloat(po.totalAmount).toLocaleString()}
+                    AED {formatNumber(po.totalAmount)}
                   </p>
                 </div>
               </div>
@@ -614,7 +585,7 @@ const PurchaseReturnOrderManagement = () => {
           </button>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
+        <div className="bg-card rounded-xl p-6 border border-border shadow-card">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
           <div className="space-y-4">
             <div>
@@ -636,13 +607,13 @@ const PurchaseReturnOrderManagement = () => {
             <div>
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-slate-700">Pending</span>
-                <span className="text-xs font-medium text-amber-600">
+                <span className="text-xs font-medium text-status-warning">
                   {statistics.pending}
                 </span>
               </div>
-              <div className="h-2 bg-amber-100 rounded-full overflow-hidden">
+              <div className="h-2 bg-status-warning-soft rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-amber-500 transition-all duration-500 ease-out"
+                  className="h-full bg-status-warning transition-all duration-500 ease-out"
                   style={{
                     width: `${(statistics.pending / statistics.total) * 100 || 0}%`,
                   }}
@@ -693,7 +664,7 @@ const PurchaseReturnOrderManagement = () => {
     const endItem = Math.min(currentPage * itemsPerPage, filteredPOs.length);
 
     return (
-      <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/20">
+      <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
         <div className="flex items-center space-x-4">
           <span className="text-sm text-slate-600">
             Showing {startItem} to {endItem} of {filteredPOs.length} orders
@@ -767,7 +738,7 @@ const PurchaseReturnOrderManagement = () => {
     setFormData({
       transactionNo: "",
       partyId: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: todayInput(),
       deliveryDate: "",
       status: "DRAFT",
       items: [
@@ -815,9 +786,9 @@ const PurchaseReturnOrderManagement = () => {
     setFormData({
       transactionNo: po.transactionNo,
       partyId: po.vendorId,
-      date: new Date(po.date).toISOString().slice(0, 10),
+      date: toInputDate(po.date),
       deliveryDate: po.deliveryDate
-        ? new Date(po.deliveryDate).toISOString().slice(0, 10)
+        ? toInputDate(po.deliveryDate)
         : "",
       status: po.status,
       items: po.items.map((item) => ({
@@ -890,9 +861,9 @@ const PurchaseReturnOrderManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="">
       <NotificationList />
-      <div className="relative bg-white/80 backdrop-blur-xl shadow-xl border-b border-gray-200/50">
+      <div className="relative bg-card border-b border-border">
         <div className="px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -914,7 +885,7 @@ const PurchaseReturnOrderManagement = () => {
                   setActiveView("create");
                   generateTransactionNumber();
                 }}
-                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
+                className="erp-btn-primary"
               >
                 <Plus className="w-5 h-5" />
                 <span>Create New PR</span>
@@ -937,7 +908,7 @@ const PurchaseReturnOrderManagement = () => {
         </div>
 
         {(activeView === "dashboard" || activeView === "list") && (
-          <div className="px-8 py-4 bg-gradient-to-r from-slate-50 to-slate-100 border-t border-slate-200">
+          <div className="px-8 py-4 bg-secondary/60 border-t border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                 <div className="relative">
@@ -1003,30 +974,36 @@ const PurchaseReturnOrderManagement = () => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setActiveView("dashboard")}
-                  className={`p-3 rounded-xl transition-colors ${
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "dashboard"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <BarChart3 className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setViewMode("table")}
-                  className={`p-3 rounded-xl transition-colors ${
-                    viewMode === "table"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => {
+                    setViewMode("table");
+                    setActiveView("list");
+                  }}
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
+                    activeView === "list" && viewMode === "table"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <List className="w-5 h-5" />
                 </button>
                 <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-3 rounded-xl transition-colors ${
-                    viewMode === "grid"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  onClick={() => {
+                    setViewMode("grid");
+                    setActiveView("list");
+                  }}
+                  className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
+                    activeView === "list" && viewMode === "grid"
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <Grid className="w-5 h-5" />

@@ -1,6 +1,7 @@
 import { Banknote, CreditCard, Landmark, Smartphone } from "lucide-react";
 
-import dirham  from
+import dirham from "../../../assets/dirham.svg";
+
 export const asArray = (data) => {
   if (!data) return [];
   if (Array.isArray(data)) return data;
@@ -53,7 +54,7 @@ export const formatCurrency = (amount, textClass = "text-gray-900") => {
   return (
     <span className={textClass}>
       <img
-        src="/dirham.svg"
+        src={dirham}
         alt="AED"
         className="inline w-4 h-4 mr-1"
         style={{ filter: getColorFilter(textClass) }}
@@ -80,12 +81,16 @@ export const SessionManager = {
   set: (key, value) => {
     try {
       sessionStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+    } catch {
+      // storage unavailable (private mode / quota) - non-fatal
+    }
   },
   remove: (key) => {
     try {
       sessionStorage.removeItem(key);
-    } catch {}
+    } catch {
+      // storage unavailable - non-fatal
+    }
   },
 };
 

@@ -9,10 +9,7 @@ import {
   Calendar,
   RefreshCw,
   MapPin,
-  Moon,
-  Sun,
   ArrowUpRight,
-  Bell,
   Receipt,
   Percent,
   Truck,
@@ -22,7 +19,6 @@ import {
   Wallet,
   MoreHorizontal,
   Plus,
-  Search,
   AlertTriangle,
 } from "lucide-react";
 import {
@@ -225,7 +221,7 @@ const hourlyPulse = [
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const rootRef = useRef(null);
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("overview");
@@ -290,9 +286,11 @@ function Dashboard() {
     fontFamily: "var(--font-sans)",
   };
 
-  const ink = theme === "dark" ? "#fafafa" : "#171717";
-  const gold = "#f0c929";
-  const mutedInk = theme === "dark" ? "#737373" : "#a8a29e";
+  // Chart colours are theme tokens (see src/styles/tokens/semantic.css), so they follow
+  // dark mode and the active brand pack. "gold" is a legacy name: it is the brand accent.
+  const ink = "var(--chart-1)";
+  const gold = "var(--chart-2)";
+  const mutedInk = "var(--chart-4)";
 
   const inventoryMixTheme = useMemo(
     () => [
@@ -345,7 +343,7 @@ function Dashboard() {
       { name: "Frozen Chicken", size: 88, fill: "#737373" },
       { name: "Dates Premium", size: 74, fill: theme === "dark" ? "#404040" : "#d6d3d1" },
       { name: "Olive Oil 1L", size: 62, fill: theme === "dark" ? "#2a2a2a" : "#a8a29e" },
-      { name: "Juice Assorted", size: 54, fill: "#b45309" },
+      { name: "Juice Assorted", size: 54, fill: "var(--chart-3)" },
     ],
     [ink, gold, mutedInk, theme]
   );
@@ -369,16 +367,16 @@ function Dashboard() {
   );
 
   const toneDot = {
-    ok: "bg-emerald-500",
-    warn: "bg-[var(--highlight)]",
-    danger: "bg-rose-500",
-    muted: "bg-stone-400",
+    ok: "bg-status-success",
+    warn: "bg-status-warning",
+    danger: "bg-status-danger",
+    muted: "bg-muted-foreground",
   };
 
   const toneBadge = {
-    ok: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-    warn: "bg-[var(--highlight-soft)] text-[var(--highlight)] border-transparent",
-    danger: "bg-rose-500/15 text-rose-400 border-rose-500/20",
+    ok: "bg-status-success-soft text-status-success border-transparent",
+    warn: "bg-status-warning-soft text-status-warning border-transparent",
+    danger: "bg-status-danger-soft text-status-danger border-transparent",
     muted: "bg-secondary text-muted-foreground border-transparent",
   };
 
@@ -417,30 +415,11 @@ function Dashboard() {
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
             </Button>
             <Button
-              className="rounded-full bg-[var(--highlight)] text-[#171717] hover:opacity-90"
+              className="rounded-full bg-primary text-primary-foreground hover:opacity-90"
               onClick={() => navigate("/sales-order")}
             >
               <Plus className="h-4 w-4" />
               New Order
-            </Button>
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => navigate("/sales-order")}
-            >
-              <Search className="h-4 w-4" />
-              Search
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="rounded-full"
-              onClick={toggleTheme}
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="icon" className="rounded-full">
-              <Bell className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -590,8 +569,8 @@ function Dashboard() {
                       <AreaChart data={salesTrend}>
                         <defs>
                           <linearGradient id="goldFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f0c929" stopOpacity={0.55} />
-                            <stop offset="100%" stopColor="#f0c929" stopOpacity={0.02} />
+                            <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.55} />
+                            <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0.02} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid
@@ -640,7 +619,7 @@ function Dashboard() {
                     <CardContent className="p-5">
                       <div className="mb-3 flex items-center justify-between">
                         <p className="text-sm font-bold">Top product</p>
-                        <Badge className="rounded-full border-0 bg-[var(--highlight)] text-foreground hover:bg-[var(--highlight)]">
+                        <Badge className="rounded-full border-0 bg-brand-soft text-brand-on-soft hover:bg-brand-soft">
                           Hot
                         </Badge>
                       </div>
@@ -656,7 +635,7 @@ function Dashboard() {
                             <Line
                               type="monotone"
                               dataKey="y"
-                              stroke="#f0c929"
+                              stroke="var(--chart-2)"
                               strokeWidth={2.5}
                               dot={false}
                             />
@@ -705,7 +684,7 @@ function Dashboard() {
               <div className="flex flex-col gap-4 xl:col-span-3">
                 <Card
                   data-anim="bento"
-                  className="overflow-hidden rounded-[1.75rem] border-0 bg-[var(--highlight)] text-foreground shadow-[var(--shadow-card)]"
+                  className="overflow-hidden rounded-[1.75rem] border border-border bg-brand-soft text-foreground shadow-[var(--shadow-card)]"
                 >
                   <CardContent className="relative p-6">
                     <p className="text-sm font-semibold opacity-80">Team hub</p>
@@ -813,9 +792,9 @@ function Dashboard() {
                       <Line
                         type="monotone"
                         dataKey="returns"
-                        stroke="#f0c929"
+                        stroke="var(--chart-2)"
                         strokeWidth={3}
-                        dot={{ r: 4, fill: "#f0c929", strokeWidth: 0 }}
+                        dot={{ r: 4, fill: "var(--chart-2)", strokeWidth: 0 }}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -920,8 +899,8 @@ function Dashboard() {
                     <ComposedChart data={salesTrend}>
                       <defs>
                         <linearGradient id="profitSoft" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f0c929" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="#f0c929" stopOpacity={0} />
+                          <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -946,7 +925,7 @@ function Dashboard() {
                         type="monotone"
                         dataKey="profit"
                         fill="url(#profitSoft)"
-                        stroke="#f0c929"
+                        stroke="var(--chart-2)"
                         strokeWidth={2.5}
                       />
                     </ComposedChart>
@@ -979,7 +958,7 @@ function Dashboard() {
                       />
                       <Tooltip contentStyle={tip} />
                       <Bar dataKey="target" fill="#e7e5e4" radius={[0, 8, 8, 0]} barSize={12} />
-                      <Bar dataKey="sales" fill="#f0c929" radius={[0, 8, 8, 0]} barSize={12} />
+                      <Bar dataKey="sales" fill="var(--chart-2)" radius={[0, 8, 8, 0]} barSize={12} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -1007,7 +986,7 @@ function Dashboard() {
                       <Legend />
                       <Bar dataKey="q1" name="Q1" fill="#d6d3d1" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="q2" name="Q2" fill={ink} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="q3" name="Q3" fill="#f0c929" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="q3" name="Q3" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -1032,8 +1011,8 @@ function Dashboard() {
                           <stop offset="100%" stopColor={ink} stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="outFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f0c929" stopOpacity={0.4} />
-                          <stop offset="100%" stopColor="#f0c929" stopOpacity={0} />
+                          <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -1050,7 +1029,7 @@ function Dashboard() {
                       <Area
                         type="monotone"
                         dataKey="outflow"
-                        stroke="#f0c929"
+                        stroke="var(--chart-2)"
                         fill="url(#outFill)"
                         strokeWidth={2}
                       />
@@ -1073,7 +1052,7 @@ function Dashboard() {
                   Live-style UAE wholesale KPIs · funnel · aging · SLA · category radar
                 </p>
               </div>
-              <Badge className="w-fit rounded-full bg-[var(--highlight)] text-[#171717] hover:bg-[var(--highlight)]">
+              <Badge className="w-fit rounded-full bg-brand-soft text-brand-on-soft hover:bg-brand-soft">
                 Demo data · AED 000s
               </Badge>
             </div>
@@ -1458,7 +1437,7 @@ function Dashboard() {
                   data-anim="bento"
                   className={cn(
                     "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]",
-                    i === 0 && "bg-[var(--highlight)]"
+                    i === 0 && "bg-brand-soft"
                   )}
                 >
                   <CardContent className="p-5">
@@ -1500,7 +1479,7 @@ function Dashboard() {
                         ]}
                       />
                       <Bar dataKey="sales" fill={ink} radius={[10, 10, 0, 0]} maxBarSize={26} />
-                      <Bar dataKey="purchase" fill="#f0c929" radius={[10, 10, 0, 0]} maxBarSize={26} />
+                      <Bar dataKey="purchase" fill="var(--chart-2)" radius={[10, 10, 0, 0]} maxBarSize={26} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -1549,8 +1528,8 @@ function Dashboard() {
                     <AreaChart data={weeklyOrders}>
                       <defs>
                         <linearGradient id="ordFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f0c929" stopOpacity={0.5} />
-                          <stop offset="100%" stopColor="#f0c929" stopOpacity={0} />
+                          <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="day" tickLine={false} axisLine={false} />
@@ -1608,7 +1587,7 @@ function Dashboard() {
                   data-anim="bento"
                   className={cn(
                     "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]",
-                    i === 0 && "bg-[var(--highlight)]"
+                    i === 0 && "bg-brand-soft"
                   )}
                 >
                   <CardContent className="space-y-3 p-5">
@@ -1731,7 +1710,7 @@ function Dashboard() {
                     <Tooltip contentStyle={tip} />
                     <Legend />
                     <Line type="monotone" dataKey="alQuoz" name="Al Quoz" stroke={ink} strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey="jafza" name="JAFZA" stroke="#f0c929" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="jafza" name="JAFZA" stroke="var(--chart-2)" strokeWidth={2.5} dot={false} />
                     <Line type="monotone" dataKey="icad" name="ICAD" stroke="#737373" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="sharjah" name="Sharjah" stroke="#a8a29e" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -1755,7 +1734,7 @@ function Dashboard() {
                     data-anim="bento"
                     className={cn(
                       "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]",
-                      i === 2 && "bg-[var(--highlight)]"
+                      i === 2 && "bg-brand-soft"
                     )}
                   >
                     <CardContent className="flex items-center justify-between p-5">
@@ -1787,8 +1766,8 @@ function Dashboard() {
                   <AreaChart data={salesTrend}>
                     <defs>
                       <linearGradient id="profitGold" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f0c929" stopOpacity={0.5} />
-                        <stop offset="100%" stopColor="#f0c929" stopOpacity={0} />
+                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="month" tickLine={false} axisLine={false} />

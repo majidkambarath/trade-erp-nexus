@@ -3,6 +3,7 @@ import { Package, Plus, Trash2, Calendar, User, Save, ArrowLeft, Hash } from "lu
 import Select from "react-select";
 import axiosInstance from "../../../axios/axios";
 import { debounce } from "lodash";
+import { todayInput } from "../../../utils/format";
 
 const POForm = React.memo(
   ({
@@ -102,7 +103,7 @@ const POForm = React.memo(
               ...prev,
               items: newItems.length > 0 ? newItems : prev.items,
               transactionNo: prev.transactionNo || `PR${Math.floor(Math.random() * 10000)}`,
-              date: prev.date || new Date().toISOString().split("T")[0],
+              date: prev.date || todayInput(),
               deliveryDate: prev.deliveryDate || po.deliveryDate.split("T")[0],
               vendorReference: po.vendorReference || "",
               vendorDetails: {
@@ -531,7 +532,7 @@ const POForm = React.memo(
                       <input
                         type="date"
                         name="date"
-                        value={formData.date || new Date().toISOString().split("T")[0]}
+                        value={formData.date || todayInput()}
                         onChange={handleInputChange}
                         className={`w-full pl-10 pr-4 py-3 bg-white rounded-xl border ${
                           formErrors.date ? "border-red-500" : "border-slate-200"

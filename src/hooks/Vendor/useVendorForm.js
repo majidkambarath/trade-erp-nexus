@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { stampYMD } from "../../utils/format";
 
 const useVendorForm = (initialData = {}) => {
   const [formData, setFormData] = useState({
@@ -18,7 +19,7 @@ const useVendorForm = (initialData = {}) => {
 
   useEffect(() => {
     const generateVendorId = () => {
-      const datePrefix = `VEND${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+      const datePrefix = `VEND${stampYMD()}`;
       const randomSuffix = Math.floor(100 + Math.random() * 900).toString().padStart(3, "0");
       return `${datePrefix}-${randomSuffix}`;
     };

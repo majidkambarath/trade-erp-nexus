@@ -6,6 +6,7 @@ import {
   Loader2,
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
+import { todayInput } from "../../../utils/format";
 
 const PaymentInvoiceView = ({
   selectedPayment,
@@ -157,7 +158,7 @@ const PaymentInvoiceView = ({
       );
 
       const filename = `${voucherType.toUpperCase()}_${selectedPayment.voucherNo}_${
-        new Date().toISOString().split("T")[0]
+        todayInput()
       }.pdf`;
       pdf.save(filename);
     } catch (error) {

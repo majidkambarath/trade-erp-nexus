@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import { toastClasses } from "../../lib/status";
 
 // Session management utilities
 const SessionManager = {
@@ -368,7 +369,7 @@ const CategoryManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleExport}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -376,7 +377,7 @@ const CategoryManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isLoading}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -400,9 +401,7 @@ const CategoryManagement = () => {
 
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -793,7 +792,7 @@ const CategoryManagement = () => {
                       Changes saved automatically
                     </span>
                   ) : formData.name || formData.description ? (
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <AlertCircle size={14} className="mr-1" />
                       Unsaved changes
                     </span>

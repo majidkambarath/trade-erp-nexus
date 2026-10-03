@@ -6,6 +6,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const GridView = ({
   paginatedSOs,
@@ -87,7 +88,7 @@ const GridView = ({
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total</p>
                 <p className="text-lg font-bold text-emerald-600">
-                  AED {Math.abs(parseFloat(so.totalAmount)).toLocaleString()}
+                  AED {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
                 </p>
               </div>
             </div>

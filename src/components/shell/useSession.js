@@ -1,0 +1,67 @@
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axiosInstance from "../../axios/axios";
+
+// The navigation's role names (Admin / Accountant / Purchase Officer / ...) do not match
+// the backend's admin.type enum (super_admin / admin / manager / operator / viewer).
+// Mapping them is a product decision, so the role stays "Admin" (full access, the
+// existing behaviour) until that mapping is agreed. Wiring admin.type straight in would
+// hide every module, because no role list in src/config/navigation.js contains
+// "super_admin".
+export const CURRENT_ROLE = "Admin";
+
+const SESSION_KEYS = [
+  "accessToken",
+  "refreshToken",
+  "adminId",
+  "loginTime",
+  "tokenExpiry",
+  "rememberMe",
+];
+
+export function useSession() {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    axiosInstance
+      .get("/profile/me")
+      .then(({ data }) => {
+        if (!cancelled && data?.success) setProfile(data.data);
+      })
+      .catch(() => {
+        // Not fatal: the shell falls back to generic labels, and the 401 interceptor in
+        // src/axios/axios.js already handles an expired session.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Clears the session only. The remembered login email (erp-remember-email) is kept
+  // on purpose: the user opted into it on the sign-in page.
+  const logout = useCallback(() => {
+    try {
+      for (const key of SESSION_KEYS) {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      }
+      localStorage.removeItem("userPreferences");
+    } catch {
+      // storage unavailable - nothing to clear
+    }
+    navigate("/", { replace: true });
+  }, [navigate]);
+
+  return { profile, role: CURRENT_ROLE, logout };
+}
+
+/** "Super Admin" -> "SA"; falls back to a neutral glyph-free initial. */
+export const initials = (name) =>
+  (name || "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");

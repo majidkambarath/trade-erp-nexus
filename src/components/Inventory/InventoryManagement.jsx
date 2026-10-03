@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import DirhamIcon from "../../assets/dirham.svg";
 import axiosInstance from "../../axios/axios";
+import { decimalRound, downloadCSV, formatDateGB } from "../../utils/format";
+import { toastClasses } from "../../lib/status";
 
 // Session management utilities
 const SessionManager = {
@@ -69,7 +71,7 @@ const getColorFilter = (colorClass) => {
   const colorMap = {
     "text-gray-900": "none",
     "text-red-600": "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-    "text-yellow-600": "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
+    "text-status-warning": "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
     "text-green-600": "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
   };
   return colorMap[colorClass] || "none";
@@ -383,27 +385,35 @@ const InventoryManagement = () => {
 
   const handleExport = useCallback(async () => {
     try {
-      const csv = [
-        "MovementID,StockID,ItemName,Quantity,EventType,ReferenceNumber,UnitCost,TotalValue,Location,Date,CreatedBy",
-        ...movements.map(
-          (m) =>
-            `${m._id},${m.stockId},"${m.itemName || m.stockId}",${m.quantity},${
-              m.eventType
-            },${m.referenceNumber},${m.unitCost},${m.totalValue},${
-              m.location
-            },${m.date},${m.createdBy || "Unknown"}`
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "inventory_movements_export.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadCSV(
+        "inventory_movements_export.csv",
+        [
+          "MovementID",
+          "StockID",
+          "ItemName",
+          "Quantity",
+          "EventType",
+          "ReferenceNumber",
+          "UnitCost",
+          "TotalValue",
+          "Location",
+          "Date",
+          "CreatedBy",
+        ],
+        movements.map((m) => [
+          m._id,
+          m.stockId,
+          m.itemName || m.stockId,
+          m.quantity,
+          m.eventType,
+          m.referenceNumber,
+          decimalRound(m.unitCost),
+          decimalRound(m.totalValue),
+          m.location,
+          formatDateGB(m.date),
+          m.createdBy || "Unknown",
+        ])
+      );
 
       showToastMessage("Inventory movements exported successfully!", "success");
     } catch (error) {
@@ -463,7 +473,7 @@ const InventoryManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleExport}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -471,7 +481,7 @@ const InventoryManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isLoading}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -496,9 +506,7 @@ const InventoryManagement = () => {
       {/* Toast Notification */}
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -1135,7 +1143,7 @@ const InventoryManagement = () => {
                       Changes saved automatically
                     </span>
                   ) : formData.stockId || formData.quantity || formData.referenceNumber ? (
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>

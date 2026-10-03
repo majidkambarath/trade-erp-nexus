@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
+import { toastClasses } from "../../lib/status";
 
 // Utility to apply color filter based on class
 const getColorFilter = (colorClass) => {
@@ -614,7 +615,7 @@ const CustomerManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -625,10 +626,10 @@ const CustomerManagement = () => {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+            className={`grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
               showFilters
-                ? "bg-purple-100 text-purple-600"
-                : "bg-white text-gray-600"
+                ? "border-brand bg-brand-soft text-brand-on-soft"
+                : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
             title="Toggle filters"
           >
@@ -640,9 +641,7 @@ const CustomerManagement = () => {
       {/* Toast Notification */}
       {showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            showToast.type === "success" ? "bg-emerald-500" : "bg-red-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -1304,7 +1303,7 @@ const CustomerManagement = () => {
                   ) : formData.customerName ||
                     formData.contactPerson ||
                     formData.email ? (
-                    <span className="flex items-center text-amber-600">
+                    <span className="flex items-center text-status-warning">
                       <Clock size={14} className="mr-1" />
                       Unsaved changes
                     </span>

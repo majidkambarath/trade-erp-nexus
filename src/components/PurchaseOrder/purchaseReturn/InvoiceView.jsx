@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
+import { decimalRound, decimalSum, formatNumber, todayInput } from "../../../utils/format";
 
 const InvoiceView = ({
   selectedPO,
@@ -86,8 +87,12 @@ const InvoiceView = ({
     vatNumber: "N/A",
   };
 
-  const subtotal = po.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = po.items.reduce((sum, item) => sum + item.taxPercent, 0);
+  // Backend contract (transactionService.calculateItems): lineTotal is VAT-INCLUSIVE and
+  // vatAmount is authoritative. There is no taxPercent field, so the previous
+  // `sum + item.taxPercent` produced NaN and printed VAT percentages as a money amount.
+  const grandTotal = decimalSum(po.items.map((item) => item.lineTotal));
+  const vatTotal = decimalSum(po.items.map((item) => item.vatAmount));
+  const subtotal = decimalRound(grandTotal - vatTotal);
 
   const handleDownloadPDF = async () => {
     try {
@@ -147,7 +152,7 @@ const InvoiceView = ({
       );
 
       const filename = `PR_${po.transactionNo}_${
-        new Date().toISOString().split("T")[0]
+        todayInput()
       }.pdf`;
 
       pdf.save(filename);
@@ -550,7 +555,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {item.taxPercent}
+                    {formatNumber(item.vatAmount || 0)}
                   </td>
                   <td
                     style={{
@@ -622,7 +627,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {subtotal.toFixed(2)}
+                    {formatNumber(subtotal)}
                   </td>
                 </tr>
                 <tr>
@@ -643,7 +648,7 @@ const InvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {tax.toFixed(2)}
+                    {formatNumber(vatTotal)}
                   </td>
                 </tr>
               </table>
@@ -686,7 +691,7 @@ const InvoiceView = ({
                   GRAND TOTAL
                 </span>
                 <span style={{ fontSize: "14px", fontWeight: "bold" }}>
-                  {subtotal}
+                  {formatNumber(grandTotal)}
                 </span>
               </div>
             </div>

@@ -37,6 +37,9 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios"; // Ensure this path is correct
 import DirhamIcon from "../../../assets/dirham.svg";
+import { toInputDate, todayInput } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
     <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -330,9 +333,7 @@ const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${
-        type === "success" ? "bg-emerald-500" : "bg-red-500"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -340,35 +341,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
-  subText,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      <button
-        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-medium`}
-      >
-        View Details →
-      </button>
-    </div>
-    <h3 className={`text-sm font-medium ${textColor} mb-2`}>{title}</h3>
-    <p className="text-3xl font-bold text-gray-900">{count}</p>
-    <p className="text-xs text-gray-500 mt-1">{subText}</p>
-  </div>
-);
 const SessionManager = {
   storage: {},
   key: (k) => `expense_voucher_${k}`,
@@ -447,7 +419,7 @@ const ExpenseVoucherManagement = () => {
     amount: "",
     description: "",
     attachReceipt: null,
-    date: new Date().toISOString().split("T")[0],
+    date: todayInput(),
     submittedBy: "Logged-in User",
     approvalStatus: "Pending",
     includeVAT: false,
@@ -657,7 +629,7 @@ const ExpenseVoucherManagement = () => {
       amount: "",
       description: "",
       attachReceipt: null,
-      date: new Date().toISOString().split("T")[0],
+      date: todayInput(),
       submittedBy: "Logged-in User",
       approvalStatus: "Pending",
       includeVAT: false,
@@ -832,8 +804,8 @@ const ExpenseVoucherManagement = () => {
         description: voucher.description || "",
         attachReceipt: null,
         date: voucher.date
-          ? new Date(voucher.date).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
+          ? toInputDate(voucher.date)
+          : todayInput(),
         submittedBy: voucher.submittedBy || "Logged-in User",
         approvalStatus: voucher.approvalStatus || "Pending",
         includeVAT: !!voucher.vatAmount,
@@ -1071,7 +1043,7 @@ const ExpenseVoucherManagement = () => {
         "FAST"
       );
       const filename = `Expense_${selectedVoucher.voucherNo}_${
-        new Date().toISOString().split("T")[0]
+        todayInput()
       }.pdf`;
       pdf.save(filename);
     } catch (error) {
@@ -1695,7 +1667,7 @@ const ExpenseVoucherManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -1705,10 +1677,10 @@ const ExpenseVoucherManagement = () => {
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+            className={`grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
               showFilters
-                ? "bg-purple-100 text-purple-600"
-                : "bg-white text-gray-600"
+                ? "border-brand bg-brand-soft text-brand-on-soft"
+                : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
             title="Toggle filters"
           >

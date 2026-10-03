@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
+import { decimalRound, decimalSum, formatNumber, todayInput } from "../../../utils/format";
 
 const SaleInvoiceView = ({
   selectedSO,
@@ -99,8 +100,12 @@ const SaleInvoiceView = ({
 
 
 
-  const subtotal = so.items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = so.items.reduce((sum, item) => sum +  item.taxPercent, 0);
+  // Backend contract (transactionService.calculateItems): lineTotal is VAT-INCLUSIVE and
+  // vatAmount is authoritative. There is no taxPercent field, so the previous
+  // `sum + item.taxPercent` produced NaN and printed VAT percentages as a money amount.
+  const grandTotal = decimalSum(so.items.map((item) => item.lineTotal));
+  const vatTotal = decimalSum(so.items.map((item) => item.vatAmount));
+  const subtotal = decimalRound(grandTotal - vatTotal);
 
   const handleDownloadPDF = async () => {
     try {
@@ -160,7 +165,7 @@ const SaleInvoiceView = ({
         "FAST"
       );
 
-      const filename = `SO_${so.transactionNo || "Unknown"}_${new Date().toISOString().split("T")[0]}.pdf`;
+      const filename = `SO_${so.transactionNo || "Unknown"}_${todayInput()}.pdf`;
       pdf.save(filename);
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -503,10 +508,9 @@ const SaleInvoiceView = ({
               {so.items.map((item, index) => {
                 const qty = parseFloat(item.qty) || 0;
                 const rate = parseFloat(item.rate) / qty || 0;
-                const taxPercent = parseFloat(item.taxPercent) || 0;
-                const value =  item.rate;
-                const vat =  taxPercent;
-                const amount = value + vat;
+                // vat is the VAT *amount* for the line, not the percentage.
+                const value = Number(item.rate) || 0;
+                const vat = Number(item.vatAmount) || 0;
                 return (
                   <tr key={index}>
                     <td
@@ -559,7 +563,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {value.toFixed(2)}
+                      {formatNumber(value)}
                     </td>
                     <td
                       style={{
@@ -568,7 +572,7 @@ const SaleInvoiceView = ({
                         textAlign: "center",
                       }}
                     >
-                      {vat.toFixed(2)}
+                      {formatNumber(vat)}
                     </td>
                     <td
                       style={{
@@ -578,7 +582,7 @@ const SaleInvoiceView = ({
                         fontWeight: "bold",
                       }}
                     >
-                      {item.lineTotal.toFixed(2)}
+                      {formatNumber(item.lineTotal)}
                     </td>
                   </tr>
                 );
@@ -639,7 +643,7 @@ const SaleInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {subtotal.toFixed(2)}
+                    {formatNumber(subtotal)}
                   </td>
                 </tr>
                 <tr>
@@ -660,7 +664,7 @@ const SaleInvoiceView = ({
                       textAlign: "center",
                     }}
                   >
-                    {tax.toFixed(2)}
+                    {formatNumber(vatTotal)}
                   </td>
                 </tr>
               </table>
@@ -705,7 +709,7 @@ const SaleInvoiceView = ({
                   GRAND TOTAL
                 </span>
                 <span style={{ fontSize: "14px", fontWeight: "bold" }}>
-                  {subtotal}
+                  {formatNumber(grandTotal)}
                 </span>
               </div>
             </div>

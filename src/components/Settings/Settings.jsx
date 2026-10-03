@@ -40,6 +40,8 @@ import {
   Monitor,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
+import { todayInput } from "../../utils/format";
+import { toastClasses } from "../../lib/status";
 
 const SettingsModule = () => {
   // Get real session data
@@ -94,7 +96,7 @@ const SettingsModule = () => {
         taxName: "VAT",
         taxCode: "VAT001",
         taxRate: 5.0,
-        effectiveFrom: new Date().toISOString().split("T")[0],
+        effectiveFrom: todayInput(),
         taxType: "VAT",
         taxApplicability: ["UAE"],
         status: "Active",
@@ -692,45 +694,43 @@ const SettingsModule = () => {
       const IconComponent = section.icon;
 
       return (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl">
+        <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
           <div
-            className={`p-6 cursor-pointer bg-gradient-to-r from-${section.color}-50 to-${section.color}-100 hover:from-${section.color}-100 hover:to-${section.color}-200 transition-all duration-300`}
+            className="cursor-pointer bg-secondary/50 p-5 transition-colors hover:bg-secondary sm:p-6"
             onClick={() => toggleSection(section.id)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div
-                  className={`p-3 bg-${section.color}-500 text-white rounded-xl shadow-lg`}
-                >
-                  <IconComponent size={24} />
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-on-soft">
+                  <IconComponent size={22} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">
+                  <h3 className="text-lg font-bold tracking-tight text-foreground">
                     {section.label}
                   </h3>
-                  <p className="text-gray-600 text-sm">{section.description}</p>
+                  <p className="text-muted-foreground text-sm">{section.description}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 {section.id === "company" && uiState.isDirty && (
-                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <div className="h-2 w-2 rounded-full bg-status-warning" title="Unsaved changes"></div>
                 )}
                 <div
                   className={`transition-transform duration-300 ${
                     isExpanded ? "rotate-90" : ""
                   }`}
                 >
-                  <ChevronRight size={20} className="text-gray-400" />
+                  <ChevronRight size={20} className="text-muted-foreground" />
                 </div>
               </div>
             </div>
           </div>
           {isExpanded && (
-            <div className="p-6 border-t border-gray-100">
+            <div className="p-6 border-t border-border">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="animate-spin h-8 w-8 text-indigo-600" />
-                  <span className="ml-2 text-gray-600">Loading...</span>
+                  <Loader2 className="animate-spin h-8 w-8 text-brand" />
+                  <span className="ml-2 text-muted-foreground">Loading...</span>
                 </div>
               ) : (
                 children
@@ -751,14 +751,14 @@ const SettingsModule = () => {
   const InputField = useCallback(
     ({ label, icon: Icon, error, children, required = false, description }) => (
       <div className="space-y-2">
-        <label className="block text-sm font-semibold text-gray-700">
+        <label className="block text-sm font-semibold text-foreground">
           {Icon && <Icon size={16} className="inline mr-2" />}
-          {label} {required && <span className="text-red-500">*</span>}
+          {label} {required && <span className="text-status-danger">*</span>}
         </label>
-        {description && <p className="text-xs text-gray-500">{description}</p>}
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
         {children}
         {error && (
-          <div className="flex items-center mt-1 text-red-600 text-sm">
+          <div className="flex items-center mt-1 text-status-danger text-sm">
             <AlertCircle size={14} className="mr-1" />
             {error}
           </div>
@@ -777,10 +777,10 @@ const SettingsModule = () => {
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-gray-500 text-white rounded-xl">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary text-muted-foreground">
                 <Lock size={20} />
               </div>
-              <h3 className="text-xl font-bold text-gray-900">
+              <h3 className="text-xl font-bold text-foreground">
                 Change Password
               </h3>
             </div>
@@ -791,9 +791,9 @@ const SettingsModule = () => {
                   uiState: { ...prev.uiState, showPasswordModal: false },
                 }))
               }
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
             >
-              <X size={20} className="text-gray-400" />
+              <X size={20} className="text-muted-foreground" />
             </button>
           </div>
 
@@ -815,10 +815,10 @@ const SettingsModule = () => {
                       e.target.value
                     )
                   }
-                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                     uiState.errors.currentPassword
-                      ? "border-red-300"
-                      : "border-gray-300"
+                      ? "border-status-danger"
+                      : "border-input"
                   }`}
                   placeholder="Enter current password"
                 />
@@ -833,7 +833,7 @@ const SettingsModule = () => {
                       },
                     }))
                   }
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {uiState.showCurrentPassword ? (
                     <EyeOff size={18} />
@@ -858,10 +858,10 @@ const SettingsModule = () => {
                   onChange={(e) =>
                     handleInputChange("security", "newPassword", e.target.value)
                   }
-                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                     uiState.errors.newPassword
-                      ? "border-red-300"
-                      : "border-gray-300"
+                      ? "border-status-danger"
+                      : "border-input"
                   }`}
                   placeholder="Enter new password"
                 />
@@ -876,7 +876,7 @@ const SettingsModule = () => {
                       },
                     }))
                   }
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {uiState.showNewPassword ? (
                     <EyeOff size={18} />
@@ -889,18 +889,18 @@ const SettingsModule = () => {
               {/* Password Strength Indicator */}
               {settings.security.newPassword && (
                 <div className="mt-2">
-                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>Password Strength</span>
                     <span>{uiState.passwordStrength}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-secondary rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all duration-300 ${
                         uiState.passwordStrength < 50
-                          ? "bg-red-500"
+                          ? "bg-status-danger"
                           : uiState.passwordStrength < 75
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
+                          ? "bg-status-warning"
+                          : "bg-status-success"
                       }`}
                       style={{ width: `${uiState.passwordStrength}%` }}
                     ></div>
@@ -926,10 +926,10 @@ const SettingsModule = () => {
                       e.target.value
                     )
                   }
-                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 ${
+                  className={`w-full px-4 py-3 pr-12 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                     uiState.errors.confirmPassword
-                      ? "border-red-300"
-                      : "border-gray-300"
+                      ? "border-status-danger"
+                      : "border-input"
                   }`}
                   placeholder="Confirm new password"
                 />
@@ -944,7 +944,7 @@ const SettingsModule = () => {
                       },
                     }))
                   }
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {uiState.showConfirmPassword ? (
                     <EyeOff size={18} />
@@ -960,7 +960,7 @@ const SettingsModule = () => {
             <button
               onClick={handlePasswordChange}
               disabled={uiState.loading}
-              className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 font-semibold transition-opacity shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {uiState.loading ? (
                 <Loader2 className="animate-spin h-4 w-4" />
@@ -985,7 +985,7 @@ const SettingsModule = () => {
                   },
                 }))
               }
-              className="px-4 py-3 text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-300"
+              className="px-4 py-3 text-muted-foreground border border-input rounded-xl hover:bg-accent transition-all duration-300"
             >
               Cancel
             </button>
@@ -1009,15 +1009,15 @@ const SettingsModule = () => {
   // Loading state
   if (uiState.loading && !uiState.profileData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-lg">
           <div className="flex items-center space-x-4">
-            <Loader2 className="animate-spin h-12 w-12 text-indigo-600" />
+            <Loader2 className="animate-spin h-10 w-10 text-brand" />
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-foreground">
                 Loading Settings
               </h3>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Please wait while we fetch your data...
               </p>
             </div>
@@ -1028,17 +1028,17 @@ const SettingsModule = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6">
+    <div className="p-4 sm:p-6">
       {/* Header Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <div className="p-4 bg-white rounded-2xl shadow-lg">
-              <Settings size={32} className="text-indigo-600" />
+              <Settings size={26} className="text-foreground" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900">Settings</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Settings</h1>
+              <p className="text-muted-foreground mt-1">
                 Configure your ERP system preferences
               </p>
             </div>
@@ -1047,7 +1047,7 @@ const SettingsModule = () => {
           {/* Action Buttons */}
           <div className="flex space-x-3">
             {uiState.isDirty && (
-              <div className="flex items-center space-x-2 px-4 py-2 bg-orange-100 border border-orange-200 rounded-xl text-orange-800">
+              <div className="flex items-center space-x-2 px-4 py-2 bg-status-warning-soft border border-status-warning/25 rounded-lg text-status-warning">
                 <AlertCircle size={16} />
                 <span className="text-sm font-medium">Unsaved Changes</span>
               </div>
@@ -1060,7 +1060,7 @@ const SettingsModule = () => {
                   uiState: { ...prev.uiState, showPasswordModal: true },
                 }))
               }
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+              className="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Lock size={18} />
               <span>Change Password</span>
@@ -1069,7 +1069,7 @@ const SettingsModule = () => {
             <button
               onClick={handleReset}
               disabled={uiState.loading || !uiState.isDirty}
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw size={18} />
               <span>Reset Changes</span>
@@ -1078,7 +1078,7 @@ const SettingsModule = () => {
             <button
               onClick={handleSave}
               disabled={uiState.loading || !uiState.isDirty}
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {uiState.loading ? (
                 <>
@@ -1097,28 +1097,28 @@ const SettingsModule = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-blue-500 text-white rounded-xl">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
                 <Building size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Company</h3>
-                <p className="text-xl font-bold text-gray-900">
+                <h3 className="text-sm font-medium text-muted-foreground">Company</h3>
+                <p className="text-xl font-bold text-foreground">
                   {settings.company.companyName || "Not Set"}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-green-100">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-green-500 text-white rounded-xl">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
                 <DollarSign size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Currency</h3>
-                <p className="text-xl font-bold text-gray-900">
+                <h3 className="text-sm font-medium text-muted-foreground">Currency</h3>
+                <p className="text-xl font-bold text-foreground">
                   {settings.currency.defaultCurrency} (
                   {settings.currency.currencySymbol})
                 </p>
@@ -1126,16 +1126,16 @@ const SettingsModule = () => {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-purple-100">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-purple-500 text-white rounded-xl">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
                 <FileText size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-600">
+                <h3 className="text-sm font-medium text-muted-foreground">
                   Document Format
                 </h3>
-                <p className="text-xl font-bold text-gray-900">
+                <p className="text-xl font-bold text-foreground">
                   {settings.numbering.prefix}
                   {settings.numbering.startingNumber
                     .toString()
@@ -1145,14 +1145,14 @@ const SettingsModule = () => {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-red-100">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-red-500 text-white rounded-xl">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
                 <Calculator size={20} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Tax Rate</h3>
-                <p className="text-xl font-bold text-gray-900">
+                <h3 className="text-sm font-medium text-muted-foreground">Tax Rate</h3>
+                <p className="text-xl font-bold text-foreground">
                   {settings.taxation.taxRate}% {settings.taxation.taxName}
                 </p>
               </div>
@@ -1164,15 +1164,7 @@ const SettingsModule = () => {
       {/* Toast Notification */}
       {uiState.showToast.visible && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 transform transition-all duration-300 ${
-            uiState.showToast.type === "success"
-              ? "bg-green-500"
-              : uiState.showToast.type === "error"
-              ? "bg-red-500"
-              : uiState.showToast.type === "info"
-              ? "bg-blue-500"
-              : "bg-gray-500"
-          }`}
+          className={`fixed end-4 top-16 z-50 ${toastClasses(uiState.showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {uiState.showToast.type === "success" && <CheckCircle size={20} />}
@@ -1200,10 +1192,10 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "companyName", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                   uiState.errors.companyName
-                    ? "border-red-300"
-                    : "border-gray-300"
+                    ? "border-status-danger"
+                    : "border-input"
                 }`}
                 placeholder="Enter your company name"
               />
@@ -1220,8 +1212,8 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "email", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
-                  uiState.errors.email ? "border-red-300" : "border-gray-300"
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
+                  uiState.errors.email ? "border-status-danger" : "border-input"
                 }`}
                 placeholder="company@example.com"
               />
@@ -1239,10 +1231,10 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "addressLine1", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                   uiState.errors.addressLine1
-                    ? "border-red-300"
-                    : "border-gray-300"
+                    ? "border-status-danger"
+                    : "border-input"
                 }`}
                 placeholder="Street address"
               />
@@ -1258,7 +1250,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "addressLine2", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="Apartment, suite, etc. (optional)"
               />
             </InputField>
@@ -1270,8 +1262,8 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "city", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
-                  uiState.errors.city ? "border-red-300" : "border-gray-300"
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
+                  uiState.errors.city ? "border-status-danger" : "border-input"
                 }`}
                 placeholder="City name"
               />
@@ -1288,10 +1280,10 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "stateProvince", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                   uiState.errors.stateProvince
-                    ? "border-red-300"
-                    : "border-gray-300"
+                    ? "border-status-danger"
+                    : "border-input"
                 }`}
                 placeholder="State or Province"
               />
@@ -1303,7 +1295,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "country", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.countries.map((country) => (
                   <option key={country} value={country}>
@@ -1320,7 +1312,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "postalCode", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="ZIP / Postal Code"
               />
             </InputField>
@@ -1336,10 +1328,10 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "phoneNumber", e.target.value)
                 }
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ${
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 ${
                   uiState.errors.phoneNumber
-                    ? "border-red-300"
-                    : "border-gray-300"
+                    ? "border-status-danger"
+                    : "border-input"
                 }`}
                 placeholder="+971 50 123 4567"
               />
@@ -1352,7 +1344,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("company", "website", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="https://www.example.com"
               />
             </InputField>
@@ -1374,7 +1366,7 @@ const SettingsModule = () => {
                     />
                     <label
                       htmlFor="logo-upload"
-                      className="flex items-center space-x-2 px-6 py-3 bg-blue-50 border border-blue-200 rounded-xl cursor-pointer hover:bg-blue-100 transition-all duration-300 text-blue-700"
+                      className="flex items-center space-x-2 px-6 py-3 bg-card border border-input rounded-lg cursor-pointer hover:bg-accent transition-colors text-foreground"
                     >
                       <Upload size={18} />
                       <span>Choose Logo</span>
@@ -1383,7 +1375,7 @@ const SettingsModule = () => {
                     {settings.company.logo && (
                       <button
                         onClick={handleLogoRemove}
-                        className="flex items-center space-x-2 px-6 py-3 bg-red-50 border border-red-200 rounded-xl cursor-pointer hover:bg-red-100 transition-all duration-300 text-red-700"
+                        className="flex items-center space-x-2 px-6 py-3 bg-status-danger-soft border border-status-danger/25 rounded-lg cursor-pointer hover:opacity-90 transition-opacity text-status-danger"
                       >
                         <Trash2 size={18} />
                         <span>Remove</span>
@@ -1393,7 +1385,7 @@ const SettingsModule = () => {
 
                   {settings.company.logo && (
                     <div className="relative">
-                      <div className="w-40 h-40 rounded-xl overflow-hidden border-2 border-gray-200 shadow-lg bg-gray-50">
+                      <div className="w-40 h-40 rounded-xl overflow-hidden border-2 border-border bg-secondary">
                         <img
                           src={settings.company.logo}
                           alt="Company Logo"
@@ -1418,7 +1410,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("bank", "bankName", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="Enter bank name"
               />
             </InputField>
@@ -1430,7 +1422,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("bank", "accountName", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="Account holder name"
               />
             </InputField>
@@ -1442,7 +1434,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("bank", "accountNumber", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="Bank account number"
               />
             </InputField>
@@ -1454,7 +1446,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("bank", "ibanNumber", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="International Bank Account Number"
               />
             </InputField>
@@ -1465,7 +1457,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("bank", "currency", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.currencies.map((currency) => (
                   <option key={currency.code} value={currency.code}>
@@ -1500,7 +1492,7 @@ const SettingsModule = () => {
                     );
                   }
                 }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.currencies.map((currency) => (
                   <option key={currency.code} value={currency.code}>
@@ -1521,7 +1513,7 @@ const SettingsModule = () => {
                     e.target.value
                   )
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="$, €, £, etc."
               />
             </InputField>
@@ -1536,7 +1528,7 @@ const SettingsModule = () => {
                     parseInt(e.target.value)
                   )
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 <option value={0}>0 (No decimals)</option>
                 <option value={1}>1 decimal place</option>
@@ -1557,7 +1549,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("numbering", "documentType", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.documentTypes.map((type) => (
                   <option key={type} value={type}>
@@ -1574,7 +1566,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("numbering", "prefix", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="INV, PO, QT, etc."
               />
             </InputField>
@@ -1586,7 +1578,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("numbering", "suffix", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="Suffix (optional)"
               />
             </InputField>
@@ -1603,7 +1595,7 @@ const SettingsModule = () => {
                   )
                 }
                 min="1"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="1"
               />
             </InputField>
@@ -1618,7 +1610,7 @@ const SettingsModule = () => {
                     parseInt(e.target.value)
                   )
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                   <option key={num} value={num}>
@@ -1629,7 +1621,7 @@ const SettingsModule = () => {
             </InputField>
 
             <InputField label="Preview">
-              <div className="w-full px-4 py-3 bg-purple-50 border border-purple-200 rounded-xl text-purple-800 font-mono text-center font-semibold">
+              <div className="w-full px-4 py-3 bg-brand-soft border border-brand/25 rounded-lg text-brand-on-soft font-mono text-center font-semibold">
                 {settings.numbering.prefix}
                 {settings.numbering.startingNumber
                   .toString()
@@ -1650,7 +1642,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("email", "smtpServer", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="smtp.gmail.com"
               />
             </InputField>
@@ -1666,7 +1658,7 @@ const SettingsModule = () => {
                     parseInt(e.target.value) || 587
                   )
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="587"
               />
             </InputField>
@@ -1678,7 +1670,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("email", "username", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="your-email@example.com"
               />
             </InputField>
@@ -1691,7 +1683,7 @@ const SettingsModule = () => {
                   onChange={(e) =>
                     handleInputChange("email", "password", e.target.value)
                   }
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                  className="w-full px-4 py-3 pr-12 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                   placeholder="App password or email password"
                 />
                 <button
@@ -1705,7 +1697,7 @@ const SettingsModule = () => {
                       },
                     }))
                   }
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {uiState.showPassword ? (
                     <EyeOff size={18} />
@@ -1723,7 +1715,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("email", "fromEmailAddress", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="noreply@yourcompany.com"
               />
             </InputField>
@@ -1737,9 +1729,9 @@ const SettingsModule = () => {
                     onChange={(e) =>
                       handleInputChange("email", "useSslTls", e.target.checked)
                     }
-                    className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                    className="w-5 h-5 accent-foreground border-input rounded focus:ring-ring"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     Use SSL/TLS encryption
                   </span>
                 </label>
@@ -1758,7 +1750,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("taxation", "taxName", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="VAT, GST, Sales Tax, etc."
               />
             </InputField>
@@ -1770,7 +1762,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("taxation", "taxCode", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="VAT001, GST123, etc."
               />
             </InputField>
@@ -1789,7 +1781,7 @@ const SettingsModule = () => {
                 step="0.01"
                 min="0"
                 max="100"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
                 placeholder="5.00"
               />
             </InputField>
@@ -1801,7 +1793,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("taxation", "effectiveFrom", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               />
             </InputField>
 
@@ -1811,7 +1803,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("taxation", "taxType", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.taxTypes.map((type) => (
                   <option key={type} value={type}>
@@ -1827,7 +1819,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("taxation", "status", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
@@ -1866,9 +1858,9 @@ const SettingsModule = () => {
                             );
                           }
                         }}
-                        className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                        className="w-4 h-4 text-status-danger border-input rounded focus:ring-ring"
                       />
-                      <span className="text-sm text-gray-700">{state}</span>
+                      <span className="text-sm text-foreground">{state}</span>
                     </label>
                   ))}
                 </div>
@@ -1883,7 +1875,7 @@ const SettingsModule = () => {
                     handleInputChange("taxation", "description", e.target.value)
                   }
                   rows="3"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-300 resize-none"
+                  className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300 resize-none"
                   placeholder="Brief description of this tax configuration..."
                 />
               </InputField>
@@ -1894,16 +1886,16 @@ const SettingsModule = () => {
         {/* Security Section */}
         <SectionCard section={staticData.sections[6]}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <div className="bg-secondary p-6 rounded-xl border border-border">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-2 bg-gray-500 text-white rounded-lg">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-muted-foreground">
                   <Lock size={20} />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
+                  <h4 className="text-lg font-semibold text-foreground">
                     Password Security
                   </h4>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Manage your account password
                   </p>
                 </div>
@@ -1915,29 +1907,29 @@ const SettingsModule = () => {
                     uiState: { ...prev.uiState, showPasswordModal: true },
                   }))
                 }
-                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-300"
+                className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 font-semibold transition-opacity"
               >
                 <Key size={18} />
                 <span>Change Password</span>
               </button>
             </div>
 
-            <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+            <div className="bg-secondary p-6 rounded-xl border border-border">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-2 bg-blue-500 text-white rounded-lg">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-muted-foreground">
                   <Shield size={20} />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
+                  <h4 className="text-lg font-semibold text-foreground">
                     Two-Factor Authentication
                   </h4>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Extra security for your account
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-foreground">
                   Enable 2FA
                 </span>
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -1953,21 +1945,21 @@ const SettingsModule = () => {
                     }
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-secondary peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-input after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
             </div>
 
-            <div className="bg-orange-50 p-6 rounded-xl border border-orange-200">
+            <div className="bg-status-warning-soft p-6 rounded-xl border border-status-warning/25">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-2 bg-orange-500 text-white rounded-lg">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-secondary text-muted-foreground">
                   <Clock size={20} />
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">
+                  <h4 className="text-lg font-semibold text-foreground">
                     Session Timeout
                   </h4>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     Auto-logout after inactivity
                   </p>
                 </div>
@@ -1981,7 +1973,7 @@ const SettingsModule = () => {
                     parseInt(e.target.value)
                   )
                 }
-                className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-input rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent"
               >
                 <option value={15}>15 minutes</option>
                 <option value={30}>30 minutes</option>
@@ -2002,7 +1994,7 @@ const SettingsModule = () => {
                 {staticData.themes.map((theme) => (
                   <label
                     key={theme.id}
-                    className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-pink-50 transition-colors"
+                    className="flex items-center space-x-3 p-3 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
                   >
                     <input
                       type="radio"
@@ -2016,13 +2008,13 @@ const SettingsModule = () => {
                           e.target.value
                         )
                       }
-                      className="w-4 h-4 text-pink-600 border-gray-300 focus:ring-pink-500"
+                      className="w-4 h-4 accent-foreground border-input focus:ring-ring"
                     />
                     <div>
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-foreground">
                         {theme.name}
                       </div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         {theme.description}
                       </div>
                     </div>
@@ -2037,7 +2029,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("preferences", "language", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.languages.map((lang) => (
                   <option key={lang.code} value={lang.code}>
@@ -2053,7 +2045,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("preferences", "timezone", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.timezones.map((tz) => (
                   <option key={tz} value={tz}>
@@ -2069,7 +2061,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("preferences", "dateFormat", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.dateFormats.map((format) => (
                   <option key={format} value={format}>
@@ -2093,7 +2085,7 @@ const SettingsModule = () => {
                 onChange={(e) =>
                   handleInputChange("preferences", "timeFormat", e.target.value)
                 }
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-300"
+                className="w-full px-4 py-3 border border-input rounded-xl focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-300"
               >
                 {staticData.timeFormats.map((format) => (
                   <option key={format} value={format}>
@@ -2106,10 +2098,10 @@ const SettingsModule = () => {
             <div className="lg:col-span-3">
               <InputField label="Notification Preferences" icon={Bell}>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                  <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-pink-50 transition-colors">
+                  <label className="flex items-center justify-between p-4 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors">
                     <div className="flex items-center space-x-3">
-                      <Mail size={20} className="text-blue-500" />
-                      <span className="font-medium text-gray-900">
+                      <Mail size={20} className="text-muted-foreground" />
+                      <span className="font-medium text-foreground">
                         Email Notifications
                       </span>
                     </div>
@@ -2122,14 +2114,14 @@ const SettingsModule = () => {
                           email: e.target.checked,
                         })
                       }
-                      className="w-5 h-5 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                      className="w-5 h-5 accent-foreground border-input rounded focus:ring-ring"
                     />
                   </label>
 
-                  <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-pink-50 transition-colors">
+                  <label className="flex items-center justify-between p-4 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors">
                     <div className="flex items-center space-x-3">
-                      <Bell size={20} className="text-green-500" />
-                      <span className="font-medium text-gray-900">
+                      <Bell size={20} className="text-muted-foreground" />
+                      <span className="font-medium text-foreground">
                         Push Notifications
                       </span>
                     </div>
@@ -2142,14 +2134,14 @@ const SettingsModule = () => {
                           push: e.target.checked,
                         })
                       }
-                      className="w-5 h-5 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                      className="w-5 h-5 accent-foreground border-input rounded focus:ring-ring"
                     />
                   </label>
 
-                  <label className="flex items-center justify-between p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-pink-50 transition-colors">
+                  <label className="flex items-center justify-between p-4 border border-border rounded-lg cursor-pointer hover:bg-accent transition-colors">
                     <div className="flex items-center space-x-3">
-                      <Phone size={20} className="text-orange-500" />
-                      <span className="font-medium text-gray-900">
+                      <Phone size={20} className="text-muted-foreground" />
+                      <span className="font-medium text-foreground">
                         SMS Notifications
                       </span>
                     </div>
@@ -2162,7 +2154,7 @@ const SettingsModule = () => {
                           sms: e.target.checked,
                         })
                       }
-                      className="w-5 h-5 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                      className="w-5 h-5 accent-foreground border-input rounded focus:ring-ring"
                     />
                   </label>
                 </div>

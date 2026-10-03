@@ -15,52 +15,21 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Select from "react-select";
+import { formatNumber } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 
 // Reusable Components (same as before)
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl text-white z-50 animate-slide-in ${
-        type === "success" ? "bg-emerald-600" : "bg-red-600"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? "Success" : "Error"} {message}
       </div>
     </div>
   );
-
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
-  subText,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border-2 transition-all duration-300 hover:shadow-xl hover:scale-105 hover:-translate-y-1 cursor-default`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl shadow-md`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      <span className={`text-xs ${textColor} font-semibold opacity-80`}>
-        View Details →
-      </span>
-    </div>
-    <h3
-      className={`text-sm font-semibold ${textColor} mb-2 uppercase tracking-wide`}
-    >
-      {title}
-    </h3>
-    <p className="text-3xl font-bold text-gray-900 mb-1">{count}</p>
-    <p className="text-xs text-gray-600 font-medium">{subText}</p>
-  </div>
-);
 
 const Pagination = ({
   currentPage,
@@ -228,7 +197,7 @@ const CreditAccountsManagement = () => {
         />
         <StatCard
           title="Total Receivable"
-          count={`AED ${stats.totalReceivable?.toFixed(2).toLocaleString()}`}
+          count={`AED ${formatNumber(stats.totalReceivable)}`}
           icon={<TrendingUp size={24} />}
           bgColor="bg-purple-50"
           textColor="text-purple-700"
@@ -239,7 +208,7 @@ const CreditAccountsManagement = () => {
         />
         <StatCard
           title="Total Paid"
-          count={`AED ${stats?.totalPaid.toFixed(2).toLocaleString()}`}
+          count={`AED ${formatNumber(stats?.totalPaid)}`}
           icon={<DollarSign size={24} />}
           bgColor="bg-blue-50"
           textColor="text-blue-700"
@@ -250,7 +219,7 @@ const CreditAccountsManagement = () => {
         />
         <StatCard
           title="Outstanding"
-          count={`AED ${stats?.totalBalance.toFixed(2).toLocaleString()}`}
+          count={`AED ${formatNumber(stats?.totalBalance)}`}
           icon={<AlertCircle size={24} />}
           bgColor="bg-red-50"
           textColor="text-red-700"
@@ -326,10 +295,10 @@ const CreditAccountsManagement = () => {
                   </td>
                   <td className="px-6 py-4 text-center">{v.totalInvoices}</td>
                   <td className="px-6 py-4">
-                    AED {v.totalReceivable?.toFixed(2).toLocaleString()}
+                    AED {formatNumber(v.totalReceivable)}
                   </td>
                   <td className="px-6 py-4 text-emerald-600">
-                    AED {v.totalPaid?.toFixed(2).toLocaleString()}
+                    AED {formatNumber(v.totalPaid)}
                   </td>
                   <td className="px-6 py-4 text-red-600 font-bold">
                     AED {v.balance?.toFixed(2)}

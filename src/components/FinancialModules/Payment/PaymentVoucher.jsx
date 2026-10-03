@@ -38,6 +38,9 @@ import {
 import axiosInstance from "../../../axios/axios";
 import VendorSelect from "./PartySelect";
 import PaymentInvoiceView from "./PaymentInvoiceView";
+import { toInputDate, todayInput } from "../../../utils/format";
+import { toastClasses } from "../../../lib/status";
+import StatCard from "../../ui/stat-card";
 
 const FormInput = ({ label, icon: Icon, error, ...props }) => (
   <div>
@@ -86,9 +89,7 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg text-white z-50 ${
-        type === "success" ? "bg-emerald-500" : "bg-red-500"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -96,36 +97,6 @@ const Toast = ({ show, message, type }) =>
       </div>
     </div>
   );
-
-const StatCard = ({
-  title,
-  count,
-  icon,
-  bgColor,
-  textColor,
-  borderColor,
-  iconBg,
-  iconColor,
-  subText,
-}) => (
-  <div
-    className={`${bgColor} ${borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
-  >
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 ${iconBg} rounded-xl`}>
-        <div className={iconColor}>{icon}</div>
-      </div>
-      <button
-        className={`text-xs ${textColor} hover:opacity-80 transition-opacity font-medium`}
-      >
-        View Details →
-      </button>
-    </div>
-    <h3 className={`text-sm font-medium ${textColor} mb-2`}>{title}</h3>
-    <p className="text-3xl font-bold text-gray-900">{count}</p>
-    <p className="text-xs text-gray-500 mt-1">{subText}</p>
-  </div>
-);
 
 const getColorFilter = (colorClass) => {
   switch (colorClass) {
@@ -267,7 +238,7 @@ const PaymentVoucherManagement = () => {
   const [editPaymentId, setEditPaymentId] = useState(null);
   const [formData, setFormData] = useState({
     voucherNo: "",
-    date: new Date().toISOString().split("T")[0],
+    date: todayInput(),
     vendorName: "",
     vendorId: "",
     linkedInvoices: [],
@@ -608,7 +579,7 @@ const PaymentVoucherManagement = () => {
     setEditPaymentId(null);
     setFormData({
       voucherNo: "",
-      date: new Date().toISOString().split("T")[0],
+      date: todayInput(),
       vendorName: "",
       vendorId: "",
       linkedInvoices: [],
@@ -716,8 +687,8 @@ const PaymentVoucherManagement = () => {
       setFormData({
         voucherNo: payment.voucherNo || "",
         date: payment.date
-          ? new Date(payment.date).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
+          ? toInputDate(payment.date)
+          : todayInput(),
         vendorName:
           payment.partyName ||
           payment.vendorName ||

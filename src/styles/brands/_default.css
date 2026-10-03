@@ -1,0 +1,13 @@
+/* Product default theme: Aurify navy. Every client starts here until it has its own
+   brand pack (see nhfoods-ae.css). */
+:root {
+  --brand: var(--navy-600);
+  --brand-soft: var(--navy-50);
+  --brand-on-soft: var(--navy-800);
+}
+
+.dark {
+  --brand: var(--navy-300);
+  --brand-soft: var(--navy-950);
+  --brand-on-soft: var(--navy-200);
+}

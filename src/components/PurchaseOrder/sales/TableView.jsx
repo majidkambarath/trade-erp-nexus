@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import { formatNumber } from "../../../utils/format";
 
 const TableView = ({
   paginatedSOs,
@@ -32,7 +33,7 @@ const TableView = ({
 }) => {
   console.log(paginatedSOs)
   return (
-    <div className="bg-card rounded-[1.75rem] shadow-[var(--shadow-card)] border border-border overflow-hidden">
+    <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-secondary border-b border-border">
@@ -205,7 +206,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-foreground">
-                      AED {parseFloat(so.totalAmount).toLocaleString()}
+                      AED {formatNumber(so.totalAmount)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {so.items.length} items

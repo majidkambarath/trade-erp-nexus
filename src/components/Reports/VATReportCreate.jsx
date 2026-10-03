@@ -21,15 +21,13 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import Select from "react-select";
+import { formatNumber } from "../../utils/format";
+import { statusClasses, toastClasses } from "../../lib/status";
 
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl text-white z-50 animate-slide-in ${
-        type === "success"
-          ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
- : "bg-gradient-to-r from-red-500 to-red-600"
-      }`}
+      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -50,19 +48,13 @@ const formatCurrency = (amount, color = "text-gray-900") => {
     <span className={`inline-flex items-center font-semibold ${color}`}>
       {neg && <span className="text-red-600">-</span>}
       <span className="text-xs mr-1 opacity-70">AED</span>
-      {abs.toLocaleString()}
+      {formatNumber(abs)}
     </span>
   );
 };
 
-const badgeStatus = (status) => {
-  const map = {
-    DRAFT: "bg-yellow-100 text-yellow-800 border-yellow-300",
-    FINALIZED: "bg-blue-100 text-blue-800 border-blue-300",
-    SUBMITTED: "bg-emerald-100 text-emerald-800 border-emerald-300",
-  };
-  return `px-3 py-1 rounded-full text-xs font-semibold border ${map[status] || "bg-gray-100 text-gray-800"}`;
-};
+const badgeStatus = (status) =>
+  `px-3 py-1 rounded-full text-xs font-semibold border ${statusClasses(status)}`;
 
 const VATReportsManagement = () => {
   const [reports, setReports] = useState([]);
@@ -360,7 +352,7 @@ const VATReportsManagement = () => {
                       <span className={badgeStatus(r.status)}>{r.status}</span>
                     </td>
                     <td className="px-6 py-4">{formatCurrency(r.totalVATOutput, "text-emerald-700")}</td>
-                    <td className="px-6 py-4">{formatCurrency(r.totalVATInput, "text-amber-700")}</td>
+                    <td className="px-6 py-4">{formatCurrency(r.totalVATInput, "text-brand-on-soft")}</td>
                     <td className="px-6 py-4">{formatCurrency(r.netVATPayable, "text-purple-700")}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {new Date(r.generatedAt).toLocaleDateString()}
@@ -482,9 +474,9 @@ const VATReportsManagement = () => {
                     {formatCurrency(selectedReport.totalVATOutput)}
                   </p>
                 </div>
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                  <p className="text-sm text-amber-700 font-medium">Input VAT</p>
-                  <p className="text-2xl font-bold text-amber-900">
+                <div className="bg-brand-soft p-4 rounded-xl border border-brand/25">
+                  <p className="text-sm text-brand-on-soft font-medium">Input VAT</p>
+                  <p className="text-2xl font-bold text-foreground">
                     {formatCurrency(selectedReport.totalVATInput)}
                   </p>
                 </div>
