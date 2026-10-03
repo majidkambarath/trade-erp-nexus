@@ -36,6 +36,7 @@ import {
 import axiosInstance from "../../axios/axios";
 import { toInputDate } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
+import StatCard from "../ui/stat-card";
 
 // Session management utilities
 const SessionManager = {
@@ -545,7 +546,7 @@ const StaffManagement = () => {
       </p>
       <button
         onClick={openAddModal}
-        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+        className="erp-btn-primary"
       >
         <Plus size={20} />
         Add First Staff Member
@@ -572,10 +573,10 @@ const StaffManagement = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button
-            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             onClick={() => navigate(-1)}
           >
-            <ArrowLeft size={20} className="text-gray-600" />
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-clip-text">
@@ -591,7 +592,7 @@ const StaffManagement = () => {
 
       {showToast.visible && (
         <div
-          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
+          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -611,77 +612,32 @@ const StaffManagement = () => {
               title: "Total Staff",
               count: staffStats.totalStaff,
               icon: <Users size={24} />,
-              bgColor: "bg-indigo-50",
-              textColor: "text-indigo-700",
-              borderColor: "border-indigo-200",
-              iconBg: "bg-indigo-100",
-              iconColor: "text-indigo-600",
             },
             {
               title: "Active Staff",
               count: staffStats.activeStaff,
               icon: <UserCheck size={24} />,
-              bgColor: "bg-emerald-50",
-              textColor: "text-emerald-700",
-              borderColor: "border-emerald-200",
-              iconBg: "bg-emerald-100",
-              iconColor: "text-emerald-600",
             },
             {
               title: "Inactive Staff",
               count: staffStats.inactiveStaff,
               icon: <UserX size={24} />,
-              bgColor: "bg-red-50",
-              textColor: "text-red-700",
-              borderColor: "border-red-200",
-              iconBg: "bg-red-100",
-              iconColor: "text-red-600",
             },
             {
               title: "Active Rate",
               count: `${staffStats.activeRate}%`,
               icon: <Briefcase size={24} />,
-              bgColor: "bg-purple-50",
-              textColor: "text-purple-700",
-              borderColor: "border-purple-200",
-              iconBg: "bg-purple-100",
-              iconColor: "text-purple-600",
             },
           ].map((card, index) => (
-            <div
+            <StatCard
               key={index}
-              className={`${card.bgColor} ${card.borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 ${card.iconBg} rounded-xl`}>
-                  <div className={card.iconColor}>{card.icon}</div>
-                </div>
-                <button
-                  className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity font-medium`}
-                  onClick={() => {
-                    if (card.title.includes("Active"))
-                      setFilterStatus("Active");
-                    else if (card.title.includes("Inactive"))
-                      setFilterStatus("Inactive");
-                  }}
-                >
-                  View All →
-                </button>
-              </div>
-              <h3 className={`text-sm font-medium ${card.textColor} mb-2`}>
-                {card.title}
-              </h3>
-              <p className="text-3xl font-bold text-gray-900">{card.count}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {card.title.includes("Total Staff")
-                  ? "All team members"
-                  : card.title.includes("Active")
-                  ? "Currently working"
-                  : card.title.includes("Inactive")
-                  ? "Not currently active"
-                  : "Staff engagement"}
-              </p>
-            </div>
+              title={card.title}
+              count={card.count}
+              icon={card.icon}
+              subText={card.subText}
+              tone={["teal", "plum", "olive", "rose"][index % 4]}
+              onClick={card.onClick}
+            />
           ))}
         </div>
       </div>
@@ -699,7 +655,7 @@ const StaffManagement = () => {
             </div>
             <button
               onClick={openAddModal}
-              className="flex items-center gap-3 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+              className="erp-btn-primary"
             >
               <Plus size={18} />
               Add Staff Member
@@ -883,7 +839,7 @@ const StaffManagement = () => {
       </div>
 
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
             <div className="p-6">
               <div className="flex justify-center mb-4">
@@ -936,7 +892,7 @@ const StaffManagement = () => {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>

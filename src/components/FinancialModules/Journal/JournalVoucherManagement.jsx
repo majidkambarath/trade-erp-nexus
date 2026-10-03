@@ -90,7 +90,7 @@ const FormInput = ({
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -583,7 +583,7 @@ const JournalVoucherManagement = () => {
           <div className="flex items-center space-x-4">
             <button className="p-3 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-300 group">
               <ArrowLeft
-                size={20}
+                size={16}
                 className="text-foreground transition-colors"
               />
             </button>
@@ -663,11 +663,7 @@ const JournalVoucherManagement = () => {
             title="Total Vouchers"
             count={stats.totalVouchers}
             icon={<Receipt size={24} />}
-            bgColor="bg-card"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-secondary"
-            iconColor="text-foreground"
+            tone="teal"
             subText="All journal entries"
             trend="+12%"
           />
@@ -675,11 +671,7 @@ const JournalVoucherManagement = () => {
             title="Total Amount"
             count={formatCurrency(stats.totalAmount, "text-foreground")}
             icon={<DollarSign size={24} />}
-            bgColor="bg-card"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-secondary"
-            iconColor="text-foreground"
+            tone="plum"
             subText="Sum of all vouchers"
             trend="+8%"
           />
@@ -687,22 +679,14 @@ const JournalVoucherManagement = () => {
             title="Approved"
             count={stats.approvedCount}
             icon={<CheckCircle size={24} />}
-            bgColor="bg-card"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-secondary"
-            iconColor="text-foreground"
+            tone="olive"
             subText="Approved vouchers"
           />
           <StatCard
             title="Pending"
             count={stats.pendingCount}
             icon={<Clock size={24} />}
-            bgColor="bg-card"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-secondary"
-            iconColor="text-foreground"
+            tone="rose"
             subText="Awaiting approval"
           />
         </div>
@@ -929,7 +913,7 @@ const JournalVoucherManagement = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/50 modal-backdrop flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div
             ref={modalRef}
             className="bg-card rounded-[1.75rem] shadow-[var(--shadow-elevated)] border border-border max-w-4xl w-full max-h-[90vh] overflow-hidden transform scale-95 opacity-0 transition-all duration-300"

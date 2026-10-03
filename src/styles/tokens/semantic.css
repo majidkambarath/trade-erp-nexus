@@ -10,7 +10,7 @@
   --radius: 0.625rem;
 
   /* Surfaces */
-  --background: var(--stone-25);
+  --background: var(--stone-page);
   --foreground: var(--stone-900);
   --card: var(--stone-0);
   --card-foreground: var(--stone-900);
@@ -24,8 +24,9 @@
   --secondary-foreground: var(--stone-900);
   --muted: var(--stone-50);
   --muted-foreground: var(--stone-500);
-  /* accent = hover/selected surface in shadcn, so it stays a quiet neutral */
-  --accent: var(--stone-50);
+  /* accent = hover/selected surface in shadcn: one step up from --secondary so a hover
+     is visible on top of an already-tinted surface */
+  --accent: var(--stone-100);
   --accent-foreground: var(--stone-900);
 
   /* Lines. --border is decorative; --input is a control boundary (needs 3:1). */
@@ -43,6 +44,20 @@
   --status-info: var(--blue-700);
   --status-info-soft: var(--blue-50);
 
+  /* Categorical accents. Used for grouping, never for status. */
+  --accent-teal: var(--teal-600);
+  --accent-teal-soft: var(--teal-50);
+  --accent-teal-on-soft: var(--teal-800);
+  --accent-plum: var(--plum-600);
+  --accent-plum-soft: var(--plum-50);
+  --accent-plum-on-soft: var(--plum-800);
+  --accent-rose: var(--rose-600);
+  --accent-rose-soft: var(--rose-50);
+  --accent-rose-on-soft: var(--rose-800);
+  --accent-olive: var(--olive-600);
+  --accent-olive-soft: var(--olive-50);
+  --accent-olive-on-soft: var(--olive-800);
+
   --destructive: var(--status-danger);
   --destructive-foreground: var(--stone-0);
   --success: var(--status-success);
@@ -56,16 +71,17 @@
   /* Charts: ordered categorical ramp. 1-4 carry meaning (>= 3:1 on --card).
      5 is context only (baselines, targets) and must never be the sole encoding. */
   --chart-1: var(--stone-900);
-  --chart-2: var(--brand);
-  --chart-3: var(--slate-600);
-  --chart-4: var(--stone-400);
-  --chart-5: var(--stone-200);
+  --chart-2: var(--accent-teal);
+  --chart-3: var(--accent-plum);
+  --chart-4: var(--accent-olive);
+  --chart-5: var(--accent-rose);
 
-  --sidebar: var(--stone-0);
+  /* chrome (rail, top bar) sits between the page and a card */
+  --sidebar: var(--stone-25);
   --sidebar-foreground: var(--stone-900);
   --sidebar-primary: var(--stone-900);
   --sidebar-primary-foreground: var(--stone-0);
-  --sidebar-accent: var(--stone-50);
+  --sidebar-accent: var(--stone-100);
   --sidebar-accent-foreground: var(--stone-900);
   --sidebar-border: var(--stone-100);
   --sidebar-ring: var(--stone-900);
@@ -97,7 +113,7 @@
   --secondary-foreground: var(--night-50);
   --muted: var(--night-800);
   --muted-foreground: var(--night-300);
-  --accent: var(--night-800);
+  --accent: var(--night-700);
   --accent-foreground: var(--night-50);
 
   --border: var(--night-700);
@@ -113,18 +129,31 @@
   --status-info: var(--blue-300);
   --status-info-soft: var(--blue-950);
 
+  --accent-teal: var(--teal-400);
+  --accent-teal-soft: var(--teal-950);
+  --accent-teal-on-soft: var(--teal-200);
+  --accent-plum: var(--plum-400);
+  --accent-plum-soft: var(--plum-950);
+  --accent-plum-on-soft: var(--plum-200);
+  --accent-rose: var(--rose-400);
+  --accent-rose-soft: var(--rose-950);
+  --accent-rose-on-soft: var(--rose-200);
+  --accent-olive: var(--olive-400);
+  --accent-olive-soft: var(--olive-950);
+  --accent-olive-on-soft: var(--olive-200);
+
   --destructive-foreground: var(--night-950);
 
   --chart-1: var(--night-50);
-  --chart-3: var(--slate-300);
-  --chart-4: var(--night-500);
-  --chart-5: var(--night-700);
+  --chart-3: var(--accent-plum);
+  --chart-4: var(--accent-olive);
+  --chart-5: var(--accent-rose);
 
-  --sidebar: var(--night-900);
+  --sidebar: var(--night-chrome);
   --sidebar-foreground: var(--night-50);
   --sidebar-primary: var(--night-50);
   --sidebar-primary-foreground: var(--night-950);
-  --sidebar-accent: var(--night-800);
+  --sidebar-accent: var(--night-700);
   --sidebar-accent-foreground: var(--night-50);
   --sidebar-border: var(--night-700);
   --sidebar-ring: var(--night-50);

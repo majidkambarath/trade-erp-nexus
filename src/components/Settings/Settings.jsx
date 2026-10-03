@@ -43,6 +43,60 @@ import axiosInstance from "../../axios/axios";
 import { todayInput } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 
+// Defined at module scope on purpose: a component declared inside Settings with a
+// useCallback dependency on changing state gets a new identity on every change, which
+// makes React remount it and drop input focus.
+const SectionCard = ({ section, children, isExpanded, isLoading, isDirty, onToggle }) => {
+  const IconComponent = section.icon;
+  return (
+
+      <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
+        <div
+          className="cursor-pointer bg-secondary/50 p-5 transition-colors hover:bg-secondary sm:p-6"
+          onClick={() => onToggle(section.id)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-on-soft">
+                <IconComponent size={22} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold tracking-tight text-foreground">
+                  {section.label}
+                </h3>
+                <p className="text-muted-foreground text-sm">{section.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              {section.id === "company" && isDirty && (
+                <div className="h-2 w-2 rounded-full bg-status-warning" title="Unsaved changes"></div>
+              )}
+              <div
+                className={`transition-transform duration-300 ${
+                  isExpanded ? "rotate-90" : ""
+                }`}
+              >
+                <ChevronRight size={16} className="text-muted-foreground" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {isExpanded && (
+          <div className="p-6 border-t border-border">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="animate-spin h-8 w-8 text-brand" />
+                <span className="ml-2 text-muted-foreground">Loading...</span>
+              </div>
+            ) : (
+              children
+            )}
+          </div>
+        )}
+      </div>
+    );
+};
+
 const SettingsModule = () => {
   // Get real session data
   const adminId = sessionStorage.getItem("adminId");
@@ -686,67 +740,6 @@ const SettingsModule = () => {
     }));
   }, [settings.security.newPassword, calculatePasswordStrength]);
 
-  // Reusable components
-  const SectionCard = useCallback(
-    ({ section, children }) => {
-      const isExpanded = uiState.expandedSections[section.id];
-      const isLoading = uiState.sectionLoading[section.id];
-      const IconComponent = section.icon;
-
-      return (
-        <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
-          <div
-            className="cursor-pointer bg-secondary/50 p-5 transition-colors hover:bg-secondary sm:p-6"
-            onClick={() => toggleSection(section.id)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-soft text-brand-on-soft">
-                  <IconComponent size={22} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold tracking-tight text-foreground">
-                    {section.label}
-                  </h3>
-                  <p className="text-muted-foreground text-sm">{section.description}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                {section.id === "company" && uiState.isDirty && (
-                  <div className="h-2 w-2 rounded-full bg-status-warning" title="Unsaved changes"></div>
-                )}
-                <div
-                  className={`transition-transform duration-300 ${
-                    isExpanded ? "rotate-90" : ""
-                  }`}
-                >
-                  <ChevronRight size={20} className="text-muted-foreground" />
-                </div>
-              </div>
-            </div>
-          </div>
-          {isExpanded && (
-            <div className="p-6 border-t border-border">
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="animate-spin h-8 w-8 text-brand" />
-                  <span className="ml-2 text-muted-foreground">Loading...</span>
-                </div>
-              ) : (
-                children
-              )}
-            </div>
-          )}
-        </div>
-      );
-    },
-    [
-      uiState.expandedSections,
-      uiState.sectionLoading,
-      uiState.isDirty,
-      toggleSection,
-    ]
-  );
 
   const InputField = useCallback(
     ({ label, icon: Icon, error, children, required = false, description }) => (
@@ -769,11 +762,11 @@ const SettingsModule = () => {
   );
 
   // Password Modal Component
-  const PasswordModal = useCallback(() => {
+  const renderPasswordModal = () => {
     if (!uiState.showPasswordModal) return null;
 
     return (
-      <div className="fixed inset-0 bg-white/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-white/50 bg-opacity-50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
         <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
@@ -993,18 +986,7 @@ const SettingsModule = () => {
         </div>
       </div>
     );
-  }, [
-    uiState.showPasswordModal,
-    uiState.errors,
-    uiState.showCurrentPassword,
-    uiState.showNewPassword,
-    uiState.showConfirmPassword,
-    uiState.loading,
-    uiState.passwordStrength,
-    settings.security,
-    handleInputChange,
-    handlePasswordChange,
-  ]);
+  };
 
   // Loading state
   if (uiState.loading && !uiState.profileData) {
@@ -1099,7 +1081,7 @@ const SettingsModule = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
                 <Building size={20} />
               </div>
               <div>
@@ -1113,7 +1095,7 @@ const SettingsModule = () => {
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-plum-soft text-accent-plum">
                 <DollarSign size={20} />
               </div>
               <div>
@@ -1128,7 +1110,7 @@ const SettingsModule = () => {
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
                 <FileText size={20} />
               </div>
               <div>
@@ -1147,7 +1129,7 @@ const SettingsModule = () => {
 
           <div className="rounded-xl border border-border bg-card p-5 shadow-card">
             <div className="flex items-center space-x-4">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-secondary text-muted-foreground">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-rose-soft text-accent-rose">
                 <Calculator size={20} />
               </div>
               <div>
@@ -1164,7 +1146,7 @@ const SettingsModule = () => {
       {/* Toast Notification */}
       {uiState.showToast.visible && (
         <div
-          className={`fixed end-4 top-16 z-50 ${toastClasses(uiState.showToast.type)}`}
+          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(uiState.showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {uiState.showToast.type === "success" && <CheckCircle size={20} />}
@@ -1178,7 +1160,13 @@ const SettingsModule = () => {
       {/* Settings Sections */}
       <div className="space-y-6">
         {/* Company Details Section */}
-        <SectionCard section={staticData.sections[0]}>
+        <SectionCard
+          section={staticData.sections[0]}
+          isExpanded={uiState.expandedSections[staticData.sections[0].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[0].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputField
               label="Company Name"
@@ -1401,7 +1389,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Bank Details Section */}
-        <SectionCard section={staticData.sections[1]}>
+        <SectionCard
+          section={staticData.sections[1]}
+          isExpanded={uiState.expandedSections[staticData.sections[1].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[1].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputField label="Bank Name">
               <input
@@ -1470,7 +1464,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Currency Settings Section */}
-        <SectionCard section={staticData.sections[2]}>
+        <SectionCard
+          section={staticData.sections[2]}
+          isExpanded={uiState.expandedSections[staticData.sections[2].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[2].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <InputField label="Default Currency">
               <select
@@ -1541,7 +1541,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Document Numbering Section */}
-        <SectionCard section={staticData.sections[3]}>
+        <SectionCard
+          section={staticData.sections[3]}
+          isExpanded={uiState.expandedSections[staticData.sections[3].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[3].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <InputField label="Document Type">
               <select
@@ -1633,7 +1639,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Email Server Section */}
-        <SectionCard section={staticData.sections[4]}>
+        <SectionCard
+          section={staticData.sections[4]}
+          isExpanded={uiState.expandedSections[staticData.sections[4].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[4].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputField label="SMTP Server" icon={Server}>
               <input
@@ -1741,7 +1753,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Taxation Settings Section */}
-        <SectionCard section={staticData.sections[5]}>
+        <SectionCard
+          section={staticData.sections[5]}
+          isExpanded={uiState.expandedSections[staticData.sections[5].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[5].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <InputField label="Tax Name">
               <input
@@ -1884,7 +1902,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Security Section */}
-        <SectionCard section={staticData.sections[6]}>
+        <SectionCard
+          section={staticData.sections[6]}
+          isExpanded={uiState.expandedSections[staticData.sections[6].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[6].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-secondary p-6 rounded-xl border border-border">
               <div className="flex items-center space-x-3 mb-4">
@@ -1987,7 +2011,13 @@ const SettingsModule = () => {
         </SectionCard>
 
         {/* Preferences Section */}
-        <SectionCard section={staticData.sections[7]}>
+        <SectionCard
+          section={staticData.sections[7]}
+          isExpanded={uiState.expandedSections[staticData.sections[7].id]}
+          isLoading={uiState.sectionLoading[staticData.sections[7].id]}
+          isDirty={uiState.isDirty}
+          onToggle={toggleSection}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <InputField label="Theme" icon={Palette}>
               <div className="space-y-2">
@@ -2165,7 +2195,7 @@ const SettingsModule = () => {
       </div>
 
       {/* Password Modal */}
-      <PasswordModal />
+      {renderPasswordModal()}
 
       {/* Bottom Spacing */}
       <div className="h-8"></div>

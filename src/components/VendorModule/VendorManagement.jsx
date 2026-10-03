@@ -477,7 +477,7 @@ const VendorManagement = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
-            <ArrowLeft size={20} className="text-gray-600" />
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -520,7 +520,7 @@ const VendorManagement = () => {
       {/* Toast Notification */}
       {showToast.visible && (
         <div
-          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
+          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -535,7 +535,7 @@ const VendorManagement = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
             <div className="p-6">
               <div className="flex justify-center mb-4">
@@ -806,7 +806,7 @@ const VendorManagement = () => {
 
       {/* Enhanced Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 w-full flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 w-full flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">

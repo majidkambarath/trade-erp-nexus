@@ -461,7 +461,7 @@ const SalesReturnOrderManagement = () => {
 
   // Notifications Component
   const NotificationList = () => (
-    <div className="fixed end-4 top-16 z-50 space-y-2">
+    <div className="fixed end-4 bottom-4 z-[70] space-y-2">
       {notifications.map((notification) => (
         <div
           key={notification.id}
@@ -502,7 +502,7 @@ const SalesReturnOrderManagement = () => {
                 </span>
               </div>
             </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
               <ShoppingCart className="w-5 h-5" />
             </div>
           </div>
@@ -530,7 +530,7 @@ const SalesReturnOrderManagement = () => {
                 Invoiced: AED {formatNumber(Math.abs(statistics.invoicedValue))}
               </p>
             </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-plum-soft text-accent-plum">
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
@@ -542,7 +542,7 @@ const SalesReturnOrderManagement = () => {
               <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthSOs}</p>
               <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
               <BarChart3 className="w-5 h-5" />
             </div>
           </div>

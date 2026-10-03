@@ -358,8 +358,8 @@ import { toastClasses } from "../../lib/status";
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
-            <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-              <ArrowLeft size={20} className="text-gray-600" />
+            <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+              <ArrowLeft size={16} className="text-gray-600" />
             </button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
@@ -375,7 +375,7 @@ import { toastClasses } from "../../lib/status";
         {/* Toast */}
         {showToast.visible && (
           <div
-            className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
+            className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
           >
             <div className="flex items-center space-x-2">
               {showToast.type === "success" ? (
@@ -390,7 +390,7 @@ import { toastClasses } from "../../lib/status";
 
         {/* Delete Confirmation Modal */}
         {deleteConfirmation.visible && (
-          <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
               <div className="p-6">
                 <div className="flex justify-center mb-4">
@@ -589,7 +589,7 @@ import { toastClasses } from "../../lib/status";
                 </p>
                 <button
                   onClick={() => openModal("unit")}
-                  className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200"
+                  className="erp-btn-primary"
                 >
                   <Plus size={18} />
                   Add Unit
@@ -692,7 +692,7 @@ import { toastClasses } from "../../lib/status";
               </p>
               <button
                 onClick={() => openModal("conversion")}
-                className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200"
+                className="erp-btn-primary"
               >
                 <Plus size={18} />
                 Add Conversion
@@ -783,7 +783,7 @@ import { toastClasses } from "../../lib/status";
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div
               className={`flex justify-between items-center p-6 border-b border-gray-200 ${

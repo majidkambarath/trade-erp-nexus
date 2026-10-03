@@ -7,8 +7,15 @@ import { cn } from "../../lib/utils";
 //
 // Colour now means something: neutral by default, red only for amounts that need action.
 
+// Categorical tones (teal/plum/rose/olive) group the tiles in a row; they carry no meaning
+// beyond "these are different things". Status tones (warning/danger) do carry meaning, so
+// the value text is coloured only for those.
 const TONES = {
   neutral: { tile: "bg-secondary text-muted-foreground", value: "text-foreground" },
+  teal: { tile: "bg-accent-teal-soft text-accent-teal", value: "text-foreground" },
+  plum: { tile: "bg-accent-plum-soft text-accent-plum", value: "text-foreground" },
+  rose: { tile: "bg-accent-rose-soft text-accent-rose", value: "text-foreground" },
+  olive: { tile: "bg-accent-olive-soft text-accent-olive", value: "text-foreground" },
   warning: { tile: "bg-status-warning-soft text-status-warning", value: "text-status-warning" },
   danger: { tile: "bg-status-danger-soft text-status-danger", value: "text-status-danger" },
 };

@@ -102,7 +102,7 @@ const NotFound = () => {
                 whileTap={{ scale: 0.95 }}
                 className="flex items-center gap-3 bg-transparent border-2 border-blue-600 text-blue-200 hover:text-blue-100 hover:border-blue-500 px-8 py-3 rounded-xl font-semibold transition-colors"
               >
-                <ArrowLeft size={20} /> Get Help
+                <ArrowLeft size={16} /> Get Help
               </motion.button>
             </Link>
           </motion.div>

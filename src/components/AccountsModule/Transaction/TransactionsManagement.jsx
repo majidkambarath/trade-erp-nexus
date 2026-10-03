@@ -70,7 +70,7 @@ const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -643,8 +643,8 @@ const TransactionsManagement = () => {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -658,14 +658,14 @@ const TransactionsManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={openAddModal}
-            className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
+            className="erp-btn-primary"
           >
             <Plus size={18} /> Add Ledger Entry
           </button>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 hover:scale-105"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -693,44 +693,28 @@ const TransactionsManagement = () => {
             title="Total Entries"
             count={stats.totalTransactions}
             icon={<Receipt size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            tone="teal"
             subText="All records"
           />
           <StatCard
             title="Total Debits"
             count={formatCurrency(stats.totalDebits, "text-red-700")}
             icon={<TrendingUp size={24} />}
-            bgColor="bg-red-50"
-            textColor="text-red-700"
-            borderColor="border-red-200"
-            iconBg="bg-red-100"
-            iconColor="text-red-600"
+            tone="danger"
             subText="Debit outflows"
           />
           <StatCard
             title="Total Credits"
             count={formatCurrency(stats.totalCredits, "text-green-700")}
             icon={<DollarSign size={24} />}
-            bgColor="bg-green-50"
-            textColor="text-green-700"
-            borderColor="border-green-200"
-            iconBg="bg-green-100"
-            iconColor="text-green-600"
+            tone="olive"
             subText="Credit inflows"
           />
           <StatCard
             title="Net Balance"
             count={formatCurrency(stats.netBalance, "text-purple-700")}
             icon={<DollarSign size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
+            tone="rose"
             subText="Overall balance"
           />
         </div>
@@ -967,7 +951,7 @@ const TransactionsManagement = () => {
                   disabled={pagination.page === 1}
                   className="p-2 rounded-xl bg-white border border-gray-200 disabled:opacity-50 hover:bg-gray-100 transition-all"
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={16} />
                 </button>
                 <span className="text-sm font-semibold">
                   Page {pagination.page} of {pagination.totalPages}
@@ -977,7 +961,7 @@ const TransactionsManagement = () => {
                   disabled={pagination.page === pagination.totalPages}
                   className="p-2 rounded-xl bg-white border border-gray-200 disabled:opacity-50 hover:bg-gray-100 transition-all"
                 >
-                  <ChevronRight size={18} />
+                  <ChevronRight size={16} />
                 </button>
                 <select
                   value={pagination.limit}
@@ -1003,7 +987,7 @@ const TransactionsManagement = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div
             ref={modalRef}
             className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden transform scale-95 opacity-0 transition-all duration-300"
@@ -1234,7 +1218,7 @@ const TransactionsManagement = () => {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold disabled:opacity-50 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 min-w-[160px]"
+                className="erp-btn-primary"
               >
                 {isSubmitting ? (
                   <>

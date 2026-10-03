@@ -550,7 +550,7 @@ const PurchaseOrderManagement = () => {
 
   // Notifications Component
   const NotificationList = () => (
-    <div className="fixed end-4 top-16 z-50 space-y-2">
+    <div className="fixed end-4 bottom-4 z-[70] space-y-2">
       {notifications.map((notification, i) => (
         <div
           key={i}
@@ -577,7 +577,7 @@ const PurchaseOrderManagement = () => {
   const Dashboard = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
@@ -595,12 +595,12 @@ const PurchaseOrderManagement = () => {
                 </span>
               </div>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-              <ShoppingCart className="w-6 h-6 text-foreground" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
+              <ShoppingCart className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">
@@ -611,12 +611,12 @@ const PurchaseOrderManagement = () => {
               </p>
               <p className="text-sm text-muted-foreground mt-2">Requires attention</p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-              <Clock className="w-6 h-6 text-foreground" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-plum-soft text-accent-plum">
+              <Clock className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Value</p>
@@ -627,12 +627,12 @@ const PurchaseOrderManagement = () => {
                 Approved: AED {formatNumber(statistics.approvedValue)}
               </p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-foreground" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
+              <DollarSign className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
+        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
@@ -641,8 +641,8 @@ const PurchaseOrderManagement = () => {
               </p>
               <p className="text-sm text-muted-foreground mt-2">New orders created</p>
             </div>
-            <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-foreground" />
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-rose-soft text-accent-rose">
+              <BarChart3 className="w-5 h-5" />
             </div>
           </div>
         </div>

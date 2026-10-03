@@ -23,7 +23,7 @@ import StatCard from "../../ui/stat-card";
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? "Success" : "Error"} {message}
@@ -167,9 +167,9 @@ const CreditAccountsManagement = () => {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => navigate(-1)}
-            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
           >
-            <ArrowLeft size={20} className="text-gray-600" />
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600">
@@ -188,44 +188,28 @@ const CreditAccountsManagement = () => {
           title="Total Customer"
           count={stats.totalV}
           icon={<Users size={24} />}
-          bgColor="bg-emerald-50"
-          textColor="text-emerald-700"
-          borderColor="border-emerald-200"
-          iconBg="bg-emerald-100"
-          iconColor="text-emerald-600"
+          tone="teal"
           subText="Active suppliers"
         />
         <StatCard
           title="Total Receivable"
           count={`AED ${formatNumber(stats.totalReceivable)}`}
           icon={<TrendingUp size={24} />}
-          bgColor="bg-purple-50"
-          textColor="text-purple-700"
-          borderColor="border-purple-200"
-          iconBg="bg-purple-100"
-          iconColor="text-purple-600"
+          tone="plum"
           subText="All invoices"
         />
         <StatCard
           title="Total Paid"
           count={`AED ${formatNumber(stats?.totalPaid)}`}
           icon={<DollarSign size={24} />}
-          bgColor="bg-blue-50"
-          textColor="text-blue-700"
-          borderColor="border-blue-200"
-          iconBg="bg-blue-100"
-          iconColor="text-blue-600"
+          tone="olive"
           subText="Cleared amount"
         />
         <StatCard
           title="Outstanding"
           count={`AED ${formatNumber(stats?.totalBalance)}`}
           icon={<AlertCircle size={24} />}
-          bgColor="bg-red-50"
-          textColor="text-red-700"
-          borderColor="border-red-200"
-          iconBg="bg-red-100"
-          iconColor="text-red-600"
+          tone="danger"
           subText="Due balance"
         />
       </div>

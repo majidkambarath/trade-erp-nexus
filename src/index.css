@@ -46,6 +46,18 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-teal-soft: var(--accent-teal-soft);
+  --color-accent-teal-on-soft: var(--accent-teal-on-soft);
+  --color-accent-plum: var(--accent-plum);
+  --color-accent-plum-soft: var(--accent-plum-soft);
+  --color-accent-plum-on-soft: var(--accent-plum-on-soft);
+  --color-accent-rose: var(--accent-rose);
+  --color-accent-rose-soft: var(--accent-rose-soft);
+  --color-accent-rose-on-soft: var(--accent-rose-on-soft);
+  --color-accent-olive: var(--accent-olive);
+  --color-accent-olive-soft: var(--accent-olive-soft);
+  --color-accent-olive-on-soft: var(--accent-olive-on-soft);
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-brand-on-soft: var(--brand-on-soft);
@@ -105,14 +117,24 @@ body,
   }
 }
 
-/* Modal backdrops. Legacy modals use bg-white/50 on a fixed full-screen overlay, and the
-   shim above turns that class into the opaque card colour, so every modal hid the whole
-   app (sidebar and header included) behind a white sheet. Higher specificity restores a
-   translucent dim so the shell stays visible. Some overlays also carry
-   "transform scale-95", which shrank the overlay itself and left a gap at the edges. */
-.erp-scope .fixed.inset-0[class~="bg-white/50"] {
-  background-color: rgb(18 18 17 / 0.45) !important;
+/* Modal overlays open INSIDE the workspace: the nav rail and the header stay visible and
+   clickable while a dialog is open, and there is no dimming sheet over them.
+   --modal-inset-* are published by Layout from the live position of <main>, so this
+   follows the real chrome height instead of hard-coded numbers. */
+.erp-scope .fixed.inset-0.flex {
+  inset-block-start: var(--modal-inset-top, 0px);
+  inset-inline-start: var(--modal-inset-start, 0px);
+  overflow-y: auto;
+  align-items: safe center;
+  background-color: transparent !important;
   backdrop-filter: none !important;
+}
+
+/* The panel is the only thing that reads as raised, so it carries the elevation. */
+.erp-scope .fixed.inset-0.flex > * {
+  max-height: calc(100dvh - var(--modal-inset-top, 0px) - 2rem);
+  overflow-y: auto;
+  box-shadow: var(--shadow-elevated);
   transform: none !important;
 }
 
@@ -172,19 +194,7 @@ h4,
   letter-spacing: -0.03em;
 }
 
-.erp-card {
-  background: var(--card);
-  color: var(--card-foreground);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-card);
-}
 
-.erp-soft-panel {
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
 
 .erp-highlight {
   background: var(--highlight);
@@ -432,12 +442,6 @@ h4,
   background-image: none !important;
   color: var(--foreground) !important;
   -webkit-text-fill-color: var(--foreground) !important;
-}
-
-.erp-scope button[class*="text-white"] {
-  border-radius: 9999px !important;
-  font-weight: 600 !important;
-  font-family: var(--font-sans) !important;
 }
 
 .erp-btn-primary {

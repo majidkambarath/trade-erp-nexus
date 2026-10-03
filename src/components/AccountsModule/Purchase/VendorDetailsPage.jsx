@@ -77,11 +77,11 @@ const VendorDetailsPage = () => {
         onClick={() => navigate(-1)}
         className="mb-6 flex items-center gap-3 text-purple-700 hover:text-purple-900 font-semibold transition-all hover:scale-105"
       >
-        <ArrowLeft size={24} /> Back to Debit Accounts
+        <ArrowLeft size={16} /> Back to Debit Accounts
       </button>
 
       {/* Header Card */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-3xl shadow-2xl p-8 mb-8">
+      <div className="erp-btn-primary">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-4 mb-3">

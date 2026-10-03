@@ -175,7 +175,7 @@ const StockDetail = () => {
           </p>
           <button
             onClick={() => navigate("/stock-management")}
-            className="w-full px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center gap-2"
+            className="erp-btn-primary"
           >
             <ArrowLeft size={16} />
             Back to Stock Management
@@ -202,7 +202,7 @@ const StockDetail = () => {
               className="p-2.5 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:bg-gray-50"
               aria-label="Go back"
             >
-              <ArrowLeft size={20} className="text-gray-600" />
+              <ArrowLeft size={16} className="text-gray-600" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">

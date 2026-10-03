@@ -70,7 +70,7 @@ const FormInput = ({ label, icon: Icon, error, readOnly, hint, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -502,8 +502,8 @@ const TransactorsManagement = () => {
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
@@ -517,14 +517,14 @@ const TransactorsManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={openAddModal}
-            className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 font-semibold"
+            className="erp-btn-primary"
           >
             <Plus size={18} /> Add Transactor
           </button>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 hover:scale-105"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh"
           >
             <RefreshCw
@@ -552,44 +552,28 @@ const TransactorsManagement = () => {
             title="Total"
             count={stats.total}
             icon={<Users size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            tone="teal"
             subText="All accounts"
           />
           <StatCard
             title="Active"
             count={stats.active}
             icon={<CheckCircle size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
+            tone="plum"
             subText="Active or compliant"
           />
           <StatCard
             title="Outstanding"
-            count={formatCurrency(stats.totalBalance, "text-blue-700")}
+            count={formatCurrency(stats.totalBalance, "text-status-danger")}
             icon={<DollarSign size={24} />}
-            bgColor="bg-blue-50"
-            textColor="text-blue-700"
-            borderColor="border-blue-200"
-            iconBg="bg-blue-100"
-            iconColor="text-blue-600"
+            tone="danger"
             subText="Total balance"
           />
           <StatCard
             title="Types"
             count={new Set(combinedList.map((t) => t.type)).size}
             icon={<Package size={24} />}
-            bgColor="bg-red-50"
-            textColor="text-red-700"
-            borderColor="border-red-200"
-            iconBg="bg-red-100"
-            iconColor="text-red-600"
+            tone="rose"
             subText="Distinct categories"
           />
         </div>
@@ -765,10 +749,10 @@ const TransactorsManagement = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div
             ref={modalRef}
-            className="bg-white rounded-3xl shadow-2xl w-1/2 overflow-hidden transform scale-95 opacity-0 transition-all duration-300"
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden transform scale-95 opacity-0 transition-all duration-300"
           >
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 sticky top-0 z-10">
               <div>
@@ -914,7 +898,7 @@ const TransactorsManagement = () => {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-200 font-semibold disabled:opacity-50 flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 min-w-[160px]"
+                className="erp-btn-primary"
               >
                 {isSubmitting ? (
                   <>

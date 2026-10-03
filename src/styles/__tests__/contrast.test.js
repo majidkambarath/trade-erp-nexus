@@ -87,6 +87,8 @@ const deltaE = (a, b) => {
 
 // ── what to check ───────────────────────────────────────────────────────────
 const STATUSES = ["success", "warning", "danger", "info"];
+// Categorical accents: used for grouping (KPI tiles, charts), never for status.
+const ACCENTS = ["teal", "plum", "rose", "olive"];
 
 const TEXT_PAIRS = [
   ["foreground", "background"],
@@ -109,6 +111,7 @@ const TEXT_PAIRS = [
     [`status-${s}`, "background"],
     [`status-${s}`, `status-${s}-soft`],
   ]),
+  ...ACCENTS.map((a) => [`accent-${a}-on-soft`, `accent-${a}-soft`]),
 ];
 
 // WCAG 1.4.11: control boundaries, focus indicators and meaning-bearing graphics.
@@ -124,6 +127,11 @@ const NON_TEXT_PAIRS = [
   ["chart-2", "card"],
   ["chart-3", "card"],
   ["chart-4", "card"],
+  // accents appear as icons and chart marks on both surfaces
+  ...ACCENTS.flatMap((a) => [
+    [`accent-${a}`, "card"],
+    [`accent-${a}`, "background"],
+  ]),
 ];
 
 const packs = Object.keys(BRANDS);
@@ -150,6 +158,33 @@ describe.each(scopes)("$label", ({ mode, brand }) => {
   // must also carry a text label or icon; this guards the colours themselves.
   it.each(STATUSES)("brand is perceptually distinct from status-%s", (s) => {
     expect(deltaE(c("brand"), c(`status-${s}`))).toBeGreaterThanOrEqual(25);
+  });
+
+  // An accent that sits near a status colour would read as meaning something it does not;
+  // two accents that sit near each other stop telling four KPI tiles apart.
+  it.each(ACCENTS.flatMap((a) => STATUSES.map((st) => [a, st])))(
+    "accent %s is perceptually distinct from status-%s",
+    (a, st) => {
+      expect(deltaE(c(`accent-${a}`), c(`status-${st}`))).toBeGreaterThanOrEqual(25);
+    }
+  );
+
+  it.each(ACCENTS)("accent %s is perceptually distinct from the brand", (a) => {
+    expect(deltaE(c(`accent-${a}`), c("brand"))).toBeGreaterThanOrEqual(25);
+  });
+
+  it.each(
+    ACCENTS.flatMap((a, i) => ACCENTS.slice(i + 1).map((b) => [a, b]))
+  )("accents %s and %s are distinguishable from each other", (a, b) => {
+    expect(deltaE(c(`accent-${a}`), c(`accent-${b}`))).toBeGreaterThanOrEqual(25);
+  });
+
+  // Surfaces must layer: a card has to read as raised above the page, and the rail/top bar
+  // as distinct from both. Before this, --sidebar === --card === --popover === white.
+  it("page, chrome and card are distinguishable surfaces", () => {
+    expect(ratio(c("card"), c("background"))).toBeGreaterThanOrEqual(1.04);
+    expect(ratio(c("card"), c("sidebar"))).toBeGreaterThanOrEqual(1.02);
+    expect(ratio(c("secondary"), c("card"))).toBeGreaterThanOrEqual(1.06);
   });
 
   it("warning and danger do not collapse into one another", () => {

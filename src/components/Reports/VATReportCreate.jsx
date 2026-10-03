@@ -27,7 +27,7 @@ import { statusClasses, toastClasses } from "../../lib/status";
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-3">
         {type === "success" ? (
@@ -220,7 +220,7 @@ const VATReportsManagement = () => {
           <button
             onClick={fetchReports}
             disabled={isLoading}
-            className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all hover:scale-105"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
           >
             <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
           </button>
@@ -417,7 +417,7 @@ const VATReportsManagement = () => {
               disabled={pagination.page === 1}
               className="p-2 rounded-xl bg-white border disabled:opacity-50 hover:bg-gray-100"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={16} />
             </button>
             <span className="text-sm font-semibold">
               Page {pagination.page} of {pagination.totalPages}
@@ -427,7 +427,7 @@ const VATReportsManagement = () => {
               disabled={pagination.page === pagination.totalPages}
               className="p-2 rounded-xl bg-white border disabled:opacity-50 hover:bg-gray-100"
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={16} />
             </button>
             <select
               value={pagination.limit}
@@ -446,9 +446,9 @@ const VATReportsManagement = () => {
 
       {/* Modal: View Report */}
       {showModal && selectedReport && (
-        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/30 modal-backdrop flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 p-6 text-white flex justify-between items-center">
+            <div className="erp-btn-primary">
               <div>
                 <h3 className="text-2xl font-bold flex items-center gap-2">
                   <FileText size={28} /> VAT Report Details

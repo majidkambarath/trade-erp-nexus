@@ -34,6 +34,7 @@ import {
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 import { toastClasses } from "../../lib/status";
+import StatCard from "../ui/stat-card";
 
 // Utility to apply color filter based on class
 const getColorFilter = (colorClass) => {
@@ -570,7 +571,7 @@ const CustomerManagement = () => {
       </p>
       <button
         onClick={openAddModal}
-        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+        className="erp-btn-primary"
       >
         <Plus size={20} />
         Add First Customer
@@ -597,8 +598,8 @@ const CustomerManagement = () => {
       {/* Enhanced Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black bg-clip-text">
@@ -641,7 +642,7 @@ const CustomerManagement = () => {
       {/* Toast Notification */}
       {showToast.visible && (
         <div
-          className={`fixed end-4 top-16 z-50 ${toastClasses(showToast.type)}`}
+          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
         >
           <div className="flex items-center space-x-2">
             {showToast.type === "success" ? (
@@ -656,27 +657,21 @@ const CustomerManagement = () => {
 
       {/* Enhanced Statistics Cards */}
       <div className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {[
             {
               title: "Active Customers",
               count: customerStats.activeCustomers,
               icon: <Users size={24} />,
-              bgColor: "bg-emerald-50",
-              textColor: "text-emerald-700",
-              borderColor: "border-emerald-200",
-              iconBg: "bg-emerald-100",
-              iconColor: "text-emerald-600",
+              subText: "Show only active",
+              onClick: () => setFilterStatus("Active"),
             },
             {
               title: "Inactive Customers",
               count: customerStats.inactiveCustomers,
               icon: <Clock size={24} />,
-              bgColor: "bg-slate-50",
-              textColor: "text-slate-700",
-              borderColor: "border-slate-200",
-              iconBg: "bg-slate-100",
-              iconColor: "text-slate-600",
+              subText: "Show only inactive",
+              onClick: () => setFilterStatus("Inactive"),
             },
             // {
             //   title: "Total Revenue",
@@ -708,42 +703,15 @@ const CustomerManagement = () => {
             //   iconColor: "text-indigo-600",
             // },
           ].map((card, index) => (
-            <div
+            <StatCard
               key={index}
-              className={`${card.bgColor} ${card.borderColor} rounded-2xl p-6 border transition-all duration-300 hover:shadow-lg cursor-pointer hover:scale-105`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 ${card.iconBg} rounded-xl`}>
-                  <div className={card.iconColor}>{card.icon}</div>
-                </div>
-                <button
-                  className={`text-xs ${card.textColor} hover:opacity-80 transition-opacity font-medium`}
-                  onClick={() => {
-                    if (card.title.includes("Active"))
-                      setFilterStatus("Active");
-                    else if (card.title.includes("Inactive"))
-                      setFilterStatus("Inactive");
-                  }}
-                >
-                  {card.title.includes("Revenue") || card.title.includes("Avg")
-                    ? "View Details →"
-                    : "View All →"}
-                </button>
-              </div>
-              <h3 className={`text-sm font-medium ${card.textColor} mb-2`}>
-                {card.title}
-              </h3>
-              <p className="text-3xl font-bold text-gray-900">{card.count}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {card.title.includes("Active")
-                  ? "Currently engaged"
-                  : card.title.includes("Inactive")
-                  ? "Need re-engagement"
-                  : card.title.includes("Revenue")
-                  ? "All-time earnings"
-                  : "Per transaction"}
-              </p>
-            </div>
+              title={card.title}
+              count={card.count}
+              icon={card.icon}
+              subText={card.subText}
+              tone={["teal", "plum", "olive", "rose"][index % 4]}
+              onClick={card.onClick}
+            />
           ))}
         </div>
       </div>
@@ -763,7 +731,7 @@ const CustomerManagement = () => {
             </div>
             <button
               onClick={openAddModal}
-              className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+              className="erp-btn-primary"
             >
               <Plus size={18} />
               Add Customer
@@ -977,7 +945,7 @@ const CustomerManagement = () => {
 
       {/* Enhanced Delete Confirmation Modal */}
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
             <div className="p-6">
               <div className="flex justify-center mb-4">
@@ -1034,7 +1002,7 @@ const CustomerManagement = () => {
 
       {/* Enhanced Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">

@@ -304,7 +304,7 @@ const SalesReturnForm = React.memo(
               <div className="flex items-center space-x-3">
                 <button
                   onClick={saveSO}
-                  className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
+                  className="erp-btn-primary"
                 >
                   <Save className="w-5 h-5" />
                   <span>
@@ -567,7 +567,7 @@ const SalesReturnForm = React.memo(
                 </h3>
                 <button
                   onClick={addItem}
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg"
+                  className="erp-btn-primary"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add Item</span>

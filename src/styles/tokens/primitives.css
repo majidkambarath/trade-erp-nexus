@@ -7,26 +7,29 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Warm neutral ramp (light mode) */
+  /* Light neutrals. Cool-tinted, not flat grey: a card must read as raised against the
+     page, and the rail/top bar must read as distinct from both. */
   --stone-0: #ffffff;
-  --stone-25: #fafaf9;
-  --stone-50: #f3f2ef;
-  --stone-100: #e7e5e1;
-  --stone-200: #d6d3cc;
-  --stone-300: #b8b6ad;
-  --stone-400: #8a8a80;
-  --stone-500: #6b6b63;
-  --stone-600: #44443f;
-  --stone-900: #1c1c1a;
+  --stone-25: #fafbfc;
+  --stone-50: #edeff3;
+  --stone-100: #e2e5ea;
+  --stone-200: #d2d6de;
+  --stone-300: #b3b8c2;
+  --stone-400: #8a8f99;
+  --stone-500: #646a75;
+  --stone-600: #414651;
+  --stone-900: #1a1c20;
+  --stone-page: #f5f6f8;
 
-  /* Warm neutral ramp (dark mode) */
-  --night-50: #f5f5f3;
-  --night-300: #a3a39a;
-  --night-500: #77776e;
-  --night-700: #2e2e2a;
-  --night-800: #232321;
-  --night-900: #1a1a18;
-  --night-950: #121211;
+  /* Dark neutrals, same role split as above. */
+  --night-50: #f4f5f7;
+  --night-300: #9ba2ad;
+  --night-500: #747a86;
+  --night-700: #2b2e35;
+  --night-800: #1f2228;
+  --night-900: #181a1e;
+  --night-chrome: #141519;
+  --night-950: #101114;
 
   /* Gold: the NH Foods brand accent. Never used as a status colour. */
   --gold-50: #f5efd9;
@@ -68,6 +71,37 @@
   --blue-300: #7aa2f7;
   --blue-700: #1d4ed8;
   --blue-950: #14203a;
+
+  /* Categorical accents for data (KPI tiles, charts, section icons). NOT status colours:
+     blue/green/orange/red stay reserved for info/success/warning/danger, gold for the brand.
+     Validated by src/styles/__tests__/contrast.test.js. */
+  --teal-50: #e2f1f6;
+  --teal-200: #a9e0ec;
+  --teal-400: #4fbdd4;
+  --teal-600: #0e7490;
+  --teal-800: #0a5468;
+  --teal-950: #0e272e;
+
+  --plum-50: #f3e9f6;
+  --plum-200: #e5c6ed;
+  --plum-400: #c892d6;
+  --plum-600: #7a3e8e;
+  --plum-800: #582a68;
+  --plum-950: #2a1a30;
+
+  --rose-50: #f9e8ee;
+  --rose-200: #f5c2d2;
+  --rose-400: #e98aa8;
+  --rose-600: #9d2b53;
+  --rose-800: #701e3c;
+  --rose-950: #2e1620;
+
+  --olive-50: #eff2e4;
+  --olive-200: #cfdda2;
+  --olive-400: #a3bb5e;
+  --olive-600: #5b6b2f;
+  --olive-800: #3f4a20;
+  --olive-950: #1e2411;
 
   /* Chart-only hue */
   --slate-300: #8fa1ae;

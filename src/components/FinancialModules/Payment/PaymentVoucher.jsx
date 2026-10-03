@@ -89,7 +89,7 @@ const FormSelect = ({ label, icon: Icon, error, options, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -937,7 +937,7 @@ const PaymentVoucherManagement = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button className="p-3 rounded-full bg-card border border-border shadow-[var(--shadow-card)] hover:bg-secondary transition-all duration-300">
-            <ArrowLeft size={20} className="text-foreground" />
+            <ArrowLeft size={16} className="text-foreground" />
           </button>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Payment Voucher</h1>
@@ -978,44 +978,28 @@ const PaymentVoucherManagement = () => {
             title="Total Payments"
             count={paymentStats.totalPayments}
             icon={<Receipt size={24} />}
-            bgColor="bg-secondary"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-card"
-            iconColor="text-foreground"
+            tone="teal"
             subText="All time records"
           />
           <StatCard
             title="Today's Payments"
             count={paymentStats.todayPayments}
             icon={<Calendar size={24} />}
-            bgColor="bg-secondary"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-card"
-            iconColor="text-foreground"
+            tone="plum"
             subText="Current day activity"
           />
           <StatCard
             title="Total Amount"
             count={formatCurrency(paymentStats.totalAmount, "text-foreground")}
             icon={<TrendingUp size={24} />}
-            bgColor="bg-secondary"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-card"
-            iconColor="text-foreground"
+            tone="olive"
             subText="All disbursed payments"
           />
           <StatCard
             title="Avg Payment Value"
             count={formatCurrency(paymentStats.avgAmount, "text-foreground")}
             icon={<Banknote size={24} />}
-            bgColor="bg-secondary"
-            textColor="text-foreground"
-            borderColor="border-border"
-            iconBg="bg-card"
-            iconColor="text-foreground"
+            tone="rose"
             subText="Per payment average"
           />
         </div>
@@ -1225,7 +1209,7 @@ const PaymentVoucherManagement = () => {
         )}
       </div>
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
               <div className="flex justify-center mb-4">
@@ -1275,7 +1259,7 @@ const PaymentVoucherManagement = () => {
         </div>
       )}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-border bg-secondary sticky top-0 z-10">
               <div>

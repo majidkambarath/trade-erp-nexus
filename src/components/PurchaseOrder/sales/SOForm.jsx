@@ -318,7 +318,7 @@ const SOForm = React.memo(
               } else {
                 saveSO();
               }
-            }} className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 shadow-lg">
+            }} className="erp-btn-primary">
               <Save className="w-5 h-5" />
               <span>{isEditing ? "Update SO" : "Save SO"}</span>
             </button>
@@ -445,7 +445,7 @@ const SOForm = React.memo(
             <div className="mt-8 pt-8 border-t border-slate-200">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-slate-800 flex items-center"><Package className="w-6 h-6 mr-2 text-blue-600" /> Items</h3>
-                <button onClick={addItem} className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 shadow"><Plus className="w-4 h-4" /> <span>Add Item</span></button>
+                <button onClick={addItem} className="erp-btn-primary"><Plus className="w-4 h-4" /> <span>Add Item</span></button>
               </div>
               {formErrors.items && <p className="text-red-500 text-sm mb-4 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{formErrors.items}</p>}
 

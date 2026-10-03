@@ -190,7 +190,7 @@ const FormSelect = ({
                   e.stopPropagation();
                   onAddNew();
                 }}
-                className="flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-sm hover:shadow-md"
+                className="erp-btn-primary"
                 title="Add new expense type"
               >
                 <Plus size={14} /> <span className="text-xs">New</span>
@@ -333,7 +333,7 @@ const FormTextArea = ({ label, icon: Icon, error, ...props }) => (
 const Toast = ({ show, message, type }) =>
   show && (
     <div
-      className={`fixed end-4 top-16 z-50 ${toastClasses(type)}`}
+      className={`fixed end-4 bottom-4 z-[70] ${toastClasses(type)}`}
     >
       <div className="flex items-center space-x-2">
         {type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
@@ -1636,7 +1636,7 @@ const ExpenseVoucherManagement = () => {
       </p>
       <button
         onClick={openAddModal}
-        className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+        className="erp-btn-primary"
       >
         <Plus size={20} /> Create First Expense
       </button>
@@ -1652,8 +1652,8 @@ const ExpenseVoucherManagement = () => {
       />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-3 rounded-xl bg-white shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105">
-            <ArrowLeft size={20} className="text-gray-600" />
+          <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+            <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
             <h1 className="text-3xl font-bold text-black">Expense Voucher</h1>
@@ -1694,22 +1694,14 @@ const ExpenseVoucherManagement = () => {
             title="Total Expenses"
             count={voucherStats.totalVouchers}
             icon={<Receipt size={24} />}
-            bgColor="bg-emerald-50"
-            textColor="text-emerald-700"
-            borderColor="border-emerald-200"
-            iconBg="bg-emerald-100"
-            iconColor="text-emerald-600"
+            tone="teal"
             subText="All time records"
           />
           <StatCard
             title="Today's Expenses"
             count={voucherStats.todayVouchers}
             icon={<Calendar size={24} />}
-            bgColor="bg-blue-50"
-            textColor="text-blue-700"
-            borderColor="border-blue-200"
-            iconBg="bg-blue-100"
-            iconColor="text-blue-600"
+            tone="plum"
             subText="Current day activity"
           />
           <StatCard
@@ -1720,11 +1712,7 @@ const ExpenseVoucherManagement = () => {
               true
             )}
             icon={<TrendingUp size={24} />}
-            bgColor="bg-purple-50"
-            textColor="text-purple-700"
-            borderColor="border-purple-200"
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
+            tone="olive"
             subText="All expense amounts"
           />
           <StatCard
@@ -1735,11 +1723,7 @@ const ExpenseVoucherManagement = () => {
               true
             )}
             icon={<Banknote size={24} />}
-            bgColor="bg-indigo-50"
-            textColor="text-indigo-700"
-            borderColor="border-indigo-200"
-            iconBg="bg-indigo-100"
-            iconColor="text-indigo-600"
+            tone="rose"
             subText="Per expense average"
           />
         </div>
@@ -1757,7 +1741,7 @@ const ExpenseVoucherManagement = () => {
             </div>
             <button
               onClick={openAddModal}
-              className="flex items-center gap-3 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+              className="erp-btn-primary"
             >
               <Plus size={18} /> Add Expense
             </button>
@@ -1910,7 +1894,7 @@ const ExpenseVoucherManagement = () => {
       </div>
       {/* Main Modal for Expense Voucher */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
               <div>
@@ -2086,7 +2070,7 @@ const ExpenseVoucherManagement = () => {
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                  className="erp-btn-primary"
                 >
                   {isSubmitting ? (
                     <>
@@ -2107,7 +2091,7 @@ const ExpenseVoucherManagement = () => {
       )}
       {/* Category Management Modal */}
       {showCategoryModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 category-modal-container transform scale-95 transition-transform duration-300">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 category-modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
               <div>
@@ -2295,7 +2279,7 @@ const ExpenseVoucherManagement = () => {
                 <button
                   onClick={handleCategorySubmit}
                   disabled={isCategorySubmitting}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
+                  className="erp-btn-primary"
                 >
                   {isCategorySubmitting ? (
                     <>
@@ -2316,7 +2300,7 @@ const ExpenseVoucherManagement = () => {
       )}
       {/* Delete Confirmation Modals */}
       {categoryDeleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-60">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-60" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
               <div className="flex justify-center mb-4">
@@ -2404,7 +2388,7 @@ const ExpenseVoucherManagement = () => {
         </div>
       )}
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-6">
               <div className="flex justify-center mb-4">

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { findActive, getVisibleModules, pageTitle } from "../config/navigation";
 import { getBrand } from "../config/brands";
@@ -35,6 +35,52 @@ const Layout = () => {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Publish where the workspace starts so modals can open inside it, leaving the rail and
+  // header visible and usable. Measured from the live element rather than hard-coded, so
+  // it stays correct when the module tab row appears or the layout changes.
+  const mainRef = useRef(null);
+  const measureChrome = useCallback(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    const { top, left } = el.getBoundingClientRect();
+    const root = document.documentElement;
+    root.style.setProperty("--modal-inset-top", `${Math.round(top)}px`);
+    root.style.setProperty("--modal-inset-start", `${Math.round(left)}px`);
+  }, []);
+
+  useEffect(() => {
+    measureChrome();
+    const observer = new ResizeObserver(measureChrome);
+    if (mainRef.current) observer.observe(mainRef.current);
+    window.addEventListener("resize", measureChrome);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measureChrome);
+    };
+  }, [measureChrome]);
+
+  // the tab row appears and disappears per module, which moves the top of the workspace
+  useEffect(measureChrome, [measureChrome, active]);
+
+  // Lock page scroll while any modal is open. The app has 30 hand-rolled modal overlays
+  // and only two of them did this, so scrolling inside an open form chained through to the
+  // list behind it and scrolled it out from under the user. Watching the DOM fixes all of
+  // them centrally; the Radix dialogs in the shell manage their own lock.
+  useEffect(() => {
+    const root = document.body;
+    const anyDialogOpen = () => document.querySelector('[role="dialog"]') !== null;
+    const sync = () => {
+      root.style.overflow = anyDialogOpen() ? "hidden" : "";
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { childList: true, subtree: true });
+    sync();
+    return () => {
+      observer.disconnect();
+      root.style.overflow = "";
+    };
   }, []);
 
   // The drawer is mobile-only; close it if the window grows past the breakpoint so its
@@ -75,6 +121,7 @@ const Layout = () => {
             makes it as tall as the window and slides the whole shell off screen. */}
         <main
           id="main"
+          ref={mainRef}
           tabIndex={-1}
           className="erp-scope min-h-0 flex-1 overflow-y-auto focus:outline-none"
         >
