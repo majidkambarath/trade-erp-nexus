@@ -97,7 +97,15 @@ describe("pageTitle", () => {
   });
 
   it("omits the redundant tab for single-page modules", () => {
-    expect(pageTitle(findActive("/vat-reports"), "NH FOODS")).toBe("Reports · NH FOODS");
+    // Staff is the single-page module here. Reports used to be one, until e-Invoicing
+    // was added alongside VAT.
+    expect(pageTitle(findActive("/staff-records"), "NH FOODS")).toBe("People · NH FOODS");
+  });
+
+  it("includes the tab now that Reports has more than one page", () => {
+    expect(pageTitle(findActive("/vat-reports"), "NH FOODS")).toBe(
+      "VAT · Reports · NH FOODS"
+    );
   });
 
   it("falls back to the app name for unmapped pages", () => {

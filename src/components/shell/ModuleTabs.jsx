@@ -41,6 +41,11 @@ export default function ModuleTabs({ module, activeTab }) {
                   )}
                 >
                   {tab.label}
+              {tab.soon && (
+                <span className="ms-2 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-on-soft">
+                  Soon
+                </span>
+              )}
                   {isActive && (
                     <span
                       aria-hidden="true"

@@ -24,7 +24,19 @@ export default function CommandPalette({ open, onOpenChange, modules }) {
           className="fixed inset-x-0 top-[12vh] z-50 mx-auto w-[min(36rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-elevated"
         >
           <Dialog.Title className="sr-only">Go to page</Dialog.Title>
-          <Command label="Go to page" loop>
+          {/* Navigation search wants predictable matching, not fuzzy scoring: cmdk's
+              default ranked "peppol" against "Payables Purchase" above the page whose
+              keywords literally contain it. Every whitespace-separated term must appear
+              in the item's text, so "pay vouch" finds Payments and nothing else does. */}
+          <Command
+            label="Go to page"
+            loop
+            filter={(value, search) => {
+              const haystack = value.toLowerCase();
+              const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+              return terms.every((t) => haystack.includes(t)) ? 1 : 0;
+            }}
+          >
             <div className="flex items-center gap-3 border-b border-border px-4">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <Command.Input
@@ -46,8 +58,10 @@ export default function CommandPalette({ open, onOpenChange, modules }) {
                     <Command.Item
                       key={tab.to}
                       // Unique and searchable: "Orders" exists in both Sales and Purchase.
-                      value={`${tab.label} ${module.label} ${tab.to}`}
-                      keywords={tab.keywords}
+                      // Keywords are folded into the value rather than passed as cmdk's
+                      // `keywords` prop, which the default filter does not score against -
+                      // aliases like "peppol" or "suppliers" matched nothing before.
+                      value={`${tab.label} ${module.label} ${tab.to} ${(tab.keywords ?? []).join(" ")}`}
                       onSelect={() => go(tab.to)}
                       className="group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground data-[selected=true]:bg-accent"
                     >
@@ -56,6 +70,11 @@ export default function CommandPalette({ open, onOpenChange, modules }) {
                         "aria-hidden": "true",
                       })}
                       <span className="font-medium">{tab.label}</span>
+                      {tab.soon && (
+                        <span className="rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-on-soft">
+                          Soon
+                        </span>
+                      )}
                       {module.tabs.length > 1 && (
                         <span className="text-muted-foreground">{module.label}</span>
                       )}

@@ -34,6 +34,13 @@ function RailItem({ module, isActive }) {
           strokeWidth: isActive ? 2.2 : 1.8,
         })}
         <span className="max-w-full text-center">{module.label}</span>
+        {module.tabs.some((t) => t.soon) && (
+          <span
+            // marks a module containing an announced-but-unreleased feature
+            title="Includes a feature coming soon"
+            className="absolute end-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand"
+          />
+        )}
       </Link>
     </li>
   );

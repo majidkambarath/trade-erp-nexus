@@ -45,6 +45,7 @@ import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
 import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const PurchaseReturnOrderManagement = () => {
@@ -758,28 +759,11 @@ const PurchaseReturnOrderManagement = () => {
   }, []);
 
   // Calculate totals for items
-  const calculateTotals = (items) => {
-    let subtotal = 0;
-    let tax = 0;
-
-    items.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0;
-      const rate = parseFloat(item.rate) || 0;
-      const taxPercent = parseFloat(item.taxPercent) || 0;
-
-      const lineSubtotal = rate;
-      const lineTax = lineSubtotal * (taxPercent / 100);
-
-      subtotal += lineSubtotal;
-      tax += lineTax;
-    });
-
-    const total = (subtotal + tax).toFixed(2);
-    subtotal = subtotal.toFixed(2);
-    tax = tax.toFixed(2);
-
-    return { subtotal, tax, total };
-  };
+  // Purchase-return rows carry qty, currentPurchasePrice and vatPercent (see POForm's addItem).
+  // This used to sum item.rate and item.taxPercent, which those rows never have, so every
+  // purchase return saved totalAmount 0. It now uses the same helper as the form, so the
+  // posted total always agrees with the line totals the user sees.
+  const calculateTotals = (items) => purchaseReturnTotals(items);
 
   // Edit PO
   const editPO = (po) => {

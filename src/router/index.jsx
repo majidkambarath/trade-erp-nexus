@@ -28,6 +28,7 @@ import ContraVoucherManagement from "../components/FinancialModules/Contra/Contr
 import ExpenseVoucherManagement from "../components/FinancialModules/Expense/ExpenseVoucherManagement.jsx";
 import StockDetail from "../components/Stock/StockDetail.jsx";
 import VatReports from "../components/Reports/VATReportCreate.jsx";
+import EInvoicingComingSoon from "../components/EInvoicing/EInvoicingComingSoon.jsx";
 import VendorDetailsPage from "../components/AccountsModule/Purchase/VendorDetailsPage.jsx";
 import CustomerDetailsPage from "../components/AccountsModule/Sales/CustomerDetailsPage.jsx";
 export default function AdminRouter() {
@@ -67,6 +68,7 @@ export default function AdminRouter() {
         <Route path="/transactions" element={<TransactionsManagement />} />
         <Route path="/transactors" element={<TransactorsManagement />} />
         <Route path="/vat-reports" element={<VatReports />} />
+        <Route path="/e-invoicing" element={<EInvoicingComingSoon />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

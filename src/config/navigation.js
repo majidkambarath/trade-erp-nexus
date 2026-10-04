@@ -95,7 +95,18 @@ export const MODULES = [
     id: "reports",
     label: "Reports",
     icon: BarChart3,
-    tabs: [{ label: "VAT", to: "/vat-reports", roles: ACCOUNTS, keywords: ["vat report", "fta", "tax"] }],
+    tabs: [
+      { label: "VAT", to: "/vat-reports", roles: ACCOUNTS, keywords: ["vat report", "fta", "tax"] },
+      {
+        label: "e-Invoicing",
+        to: "/e-invoicing",
+        roles: ACCOUNTS,
+        // `soon` marks a feature that is announced but not built: the rail and tab show a
+        // "Soon" badge and the page says plainly that nothing is submitted electronically yet.
+        soon: true,
+        keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice"],
+      },
+    ],
   },
   {
     id: "people",

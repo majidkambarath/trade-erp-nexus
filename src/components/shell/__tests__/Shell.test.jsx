@@ -115,6 +115,19 @@ describe("command palette", () => {
     });
   });
 
+  // "suppliers" appears only in the tab's keywords - not in its label ("Vendors") and not
+  // in its URL. This failed before: keywords were passed to cmdk as a prop its default
+  // filter never scores against, so every alias silently matched nothing.
+  it("finds a page by a keyword that is in neither its label nor its URL", async () => {
+    renderAt("/dashboard");
+    openWithShortcut();
+    const dialog = await screen.findByRole("dialog", { name: "Go to page" });
+    fireEvent.change(within(dialog).getByRole("combobox"), { target: { value: "suppliers" } });
+    await waitFor(() => {
+      expect(within(dialog).getByRole("option", { name: /Vendors/ })).toBeInTheDocument();
+    });
+  });
+
   it("navigates to the chosen page and closes", async () => {
     renderAt("/dashboard");
     openWithShortcut();

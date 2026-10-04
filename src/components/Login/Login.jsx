@@ -13,6 +13,7 @@ import {
   Mail,
   Package,
   Receipt,
+  FileCode2,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { cn } from "../../lib/utils";
@@ -62,6 +63,12 @@ const FEATURES = [
   { icon: Boxes, title: "Inventory & stock", text: "Live stock levels, movements and reorder alerts." },
   { icon: Receipt, title: "Vouchers & ledgers", text: "Receipts, payments and journals with party statements." },
   { icon: Calculator, title: "VAT reporting", text: "Period VAT reports at the UAE standard 5% rate." },
+  {
+    icon: FileCode2,
+    title: "UAE e-invoicing",
+    text: "Peppol and PINT AE support, ahead of the 2027 mandate.",
+    soon: true,
+  },
 ];
 
 const Field = ({ id, label, error, icon, children }) => (
@@ -173,13 +180,20 @@ export default function Login() {
             Run purchasing, sales and stock from one place.
           </h1>
           <ul className="mt-10 space-y-5">
-            {FEATURES.map(({ icon, title, text }) => (
+            {FEATURES.map(({ icon, title, text, soon }) => (
               <li key={title} className="flex gap-4">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-card shadow-card">
                   {React.createElement(icon, { className: "h-5 w-5", "aria-hidden": "true" })}
                 </span>
                 <span>
-                  <span className="block font-bold">{title}</span>
+                  <span className="flex items-center gap-2 font-bold">
+                    {title}
+                    {soon && (
+                      <span className="rounded-full bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                        Coming soon
+                      </span>
+                    )}
+                  </span>
                   <span className="block text-sm text-foreground/70">{text}</span>
                 </span>
               </li>
