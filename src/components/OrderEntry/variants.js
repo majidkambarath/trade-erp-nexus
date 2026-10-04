@@ -5,30 +5,51 @@
 // existing list screens keep working. Where a name is confusing (e.g. "Tax %" that the
 // backend reads as vatPercent) the translation is written out in full next to it.
 
-import { rowLine, documentTotals } from "./lineMath";
+import { rowLine, documentTotals, chargesTotals } from "./lineMath";
 import { decimalRound } from "../../utils/format";
 
 const num = (v) => parseFloat(v) || 0;
 const CREATED_BY = "Current User";
 
 // ---- columns ---------------------------------------------------------------------------
-// kind: item | text | number  -> editable, reachable with the arrow keys
-//       ro | money | remove   -> display only (remove is a button, still reachable)
+// kind: item | text | number | select | date -> editable, reachable with the arrow keys
+//       ro | money | remove                    -> display only (remove is a button, still reachable)
 const col = (key, label, kind, extra = {}) => ({ key, label, kind, ...extra });
+
+// Every document: a discount on the line, and the tax treatment. The server prices the document;
+// the form only previews it.
+const DISCOUNT_COL = col("discountPercent", "Disc %", "number", { min: "min-w-[80px]", align: "end" });
+const TAXCODE_COL = col("taxCodeId", "Tax code", "select", { min: "min-w-[150px]" });
+// Purchases record which delivery a line belongs to, so stock can be sold first-expiry-first-out.
+const BATCH_COL = col("batchNumber", "Batch", "text", { min: "min-w-[110px]" });
+const EXPIRY_COL = col("expiryDate", "Expiry", "date", { min: "min-w-[150px]" });
+// A return against an invoice shows how much of each line can still be returned.
+const MAXQTY_COL = col("maxQty", "Can return", "ro", { min: "min-w-[90px]", align: "end" });
 
 const PURCHASE_COLUMNS = [
   col("itemId", "Item", "item", { min: "min-w-[240px]" }),
   col("description", "Description", "text", { min: "min-w-[180px]" }),
   col("brand", "Brand", "ro", { min: "min-w-[110px]" }),
   col("origin", "Origin", "ro", { min: "min-w-[110px]" }),
+  BATCH_COL,
+  EXPIRY_COL,
   col("qty", "Qty", "number", { min: "min-w-[84px]", align: "end" }),
   col("purchasePrice", "System price", "money", { min: "min-w-[120px]", align: "end" }),
   col("currentPurchasePrice", "Unit price", "number", { min: "min-w-[120px]", align: "end", money: true }),
-  col("vatPercent", "VAT %", "number", { min: "min-w-[80px]", align: "end" }),
+  DISCOUNT_COL,
   col("total", "Net", "money", { min: "min-w-[110px]", align: "end" }),
+  TAXCODE_COL,
+  col("vatPercent", "VAT %", "number", { min: "min-w-[80px]", align: "end" }),
   col("vatAmount", "VAT", "money", { min: "min-w-[100px]", align: "end" }),
   col("grandTotal", "Total", "money", { min: "min-w-[120px]", align: "end", strong: true }),
   col("_remove", "", "remove", { min: "w-12" }),
+];
+
+// Returned goods keep no batch of their own on the form; the batch is whatever it was received in.
+const PURCHASE_RETURN_COLUMNS = [
+  ...PURCHASE_COLUMNS.filter((c) => c !== BATCH_COL && c !== EXPIRY_COL).flatMap((c) =>
+    c.key === "qty" ? [c, MAXQTY_COL] : [c]
+  ),
 ];
 
 const SALES_COLUMNS = [
@@ -38,7 +59,9 @@ const SALES_COLUMNS = [
   col("rate", "Unit price", "number", { min: "min-w-[120px]", align: "end", money: true }),
   col("qty", "Qty", "number", { min: "min-w-[84px]", align: "end" }),
   col("currentStock", "In stock", "ro", { min: "min-w-[90px]", align: "end" }),
+  DISCOUNT_COL,
   col("subtotal", "Net", "money", { min: "min-w-[110px]", align: "end" }),
+  TAXCODE_COL,
   col("vatPercent", "VAT %", "number", { min: "min-w-[80px]", align: "end" }),
   col("vatAmount", "VAT", "money", { min: "min-w-[100px]", align: "end" }),
   col("lineTotal", "Total", "money", { min: "min-w-[120px]", align: "end", strong: true }),
@@ -53,7 +76,10 @@ const SALES_RETURN_COLUMNS = [
   col("category", "Category", "ro", { min: "min-w-[120px]" }),
   col("salesPrice", "Price", "money", { min: "min-w-[110px]", align: "end" }),
   col("qty", "Qty", "number", { min: "min-w-[84px]", align: "end" }),
+  MAXQTY_COL,
+  DISCOUNT_COL,
   col("rate", "Net", "money", { min: "min-w-[110px]", align: "end" }),
+  TAXCODE_COL,
   col("taxPercent", "VAT %", "number", { min: "min-w-[80px]", align: "end" }),
   col("vatAmount", "VAT", "money", { min: "min-w-[100px]", align: "end" }),
   col("lineTotal", "Total", "money", { min: "min-w-[120px]", align: "end", strong: true }),
@@ -90,7 +116,33 @@ const hydrateSalesReturn = (row, stock) => ({
   currentStock: stock.currentStock ?? 0,
 });
 
+// Recompute the three display totals of a row from its own inputs. Field names come from the
+// variant, so the same code serves purchase ("total") and sales ("subtotal") lines.
+export const recalcRow = (V, row) => {
+  const F = V.fields;
+  const l = rowLine({ qty: row.qty, price: row[F.unitPrice], vatPercent: row[F.vatPercent], discountPercent: row.discountPercent });
+  return {
+    ...row,
+    [F.lineValue]: l.lineValue.toFixed(2),
+    [F.vat]: l.vatAmount.toFixed(2),
+    [F.gross]: l.lineTotal.toFixed(2),
+  };
+};
+
 // ---- line payloads ---------------------------------------------------------------------
+// The fields every line sends beyond price, quantity and VAT. Empty values are omitted so a line
+// that does not use them is identical to what it always was.
+const extras = (row) => {
+  const out = {};
+  const discount = num(row.discountPercent);
+  if (discount > 0) out.discountPercent = Math.min(100, discount);
+  if (row.taxCodeId) out.taxCodeId = row.taxCodeId;
+  if (row.batchNumber) out.batchNumber = String(row.batchNumber).trim();
+  if (row.expiryDate) out.expiryDate = row.expiryDate;
+  if (row.returnOfLineId) out.returnOfLineId = row.returnOfLineId;
+  return out;
+};
+
 // The backend recalculates every line from `price` (calculateItems), so `price` MUST be the
 // unit price the user entered. The purchase return used to send the stock record's system
 // price here, which silently overrode what was typed.
@@ -98,7 +150,7 @@ const itemPayload = (V, row, stock) => {
   const qty = num(row.qty);
   const unit = num(row[V.fields.unitPrice]);
   const vatPercent = num(row[V.fields.vatPercent]);
-  const line = rowLine({ qty, price: unit, vatPercent });
+  const line = rowLine({ qty, price: unit, vatPercent, discountPercent: row.discountPercent });
   return {
     itemId: row.itemId,
     itemCode: row.itemCode || stock?.itemId || stock?.itemCode || "",
@@ -112,6 +164,7 @@ const itemPayload = (V, row, stock) => {
     grandTotal: line.lineTotal,
     brand: row.brand || "",
     origin: row.origin || "",
+    ...extras(row),
   };
 };
 
@@ -119,7 +172,7 @@ const salesReturnItem = (row) => {
   const qty = Math.abs(num(row.qty));
   const price = num(row.salesPrice);
   const vatPercent = num(row.taxPercent);
-  const line = rowLine({ qty, price, vatPercent });
+  const line = rowLine({ qty, price, vatPercent, discountPercent: row.discountPercent });
   return {
     itemId: row.itemId,
     description: row.description,
@@ -130,8 +183,57 @@ const salesReturnItem = (row) => {
     vatAmount: line.vatAmount,
     lineTotal: line.lineTotal,
     category: row.category || "",
+    ...extras(row),
   };
 };
+
+// ---- saved line -> form row ------------------------------------------------------------
+// Editing a saved document rebuilds its rows from the stored line. The unit price is the stored
+// `price`: older records only have `rate`, which is the line VALUE, so it is divided by quantity.
+// Doing this in one place (rather than in each page) is what keeps a discount, a tax code or a
+// batch from being lost the moment a document is opened for editing.
+const unitOf = (i) => {
+  if (i.price != null && i.price !== "") return num(i.price);
+  return num(i.qty) ? num(i.rate) / num(i.qty) : 0;
+};
+const savedBase = (i) => ({
+  itemId: i.itemId?._id || i.itemId,
+  itemCode: i.itemCode || "",
+  description: i.description || "",
+  qty: String(i.qty ?? ""),
+  discountPercent: i.discountPercent ? String(i.discountPercent) : "",
+  taxCodeId: i.taxCodeId || "",
+  batchNumber: i.batchNumber || "",
+  expiryDate: i.expiryDate ? String(i.expiryDate).slice(0, 10) : "",
+  returnOfLineId: i.returnOfLineId || "",
+  maxQty: "",
+  brand: i.brand || "",
+  origin: i.origin || "",
+});
+
+const purchaseRowFromSaved = (i) => ({
+  ...savedBase(i),
+  currentPurchasePrice: String(unitOf(i)),
+  purchasePrice: i.purchasePrice ?? 0,
+  vatPercent: String(i.vatPercent ?? 5),
+  total: "0.00", vatAmount: "0.00", grandTotal: "0.00",
+});
+const salesRowFromSaved = (i) => ({
+  ...savedBase(i),
+  rate: String(unitOf(i)),
+  purchasePrice: i.purchasePrice ?? 0,
+  currentStock: i.currentStock ?? 0,
+  vatPercent: String(i.vatPercent ?? 5),
+  subtotal: "0.00", vatAmount: "0.00", lineTotal: "0.00",
+});
+const salesReturnRowFromSaved = (i) => ({
+  ...savedBase(i),
+  category: i.category || "",
+  salesPrice: String(unitOf(i)),
+  taxPercent: String(i.vatPercent ?? 5),
+  currentStock: i.currentStock ?? 0,
+  rate: "0.00", vatAmount: "0.00", lineTotal: "0.00",
+});
 
 // ---- the four documents ----------------------------------------------------------------
 const PURCHASE_STATUS = (editing) => [
@@ -182,6 +284,7 @@ const purchaseLike = (docType, extra) => ({
   rowTemplate: () => ({
     itemId: "", description: "", qty: "",
     purchasePrice: 0, currentPurchasePrice: "", vatPercent: "5",
+    discountPercent: "", taxCodeId: "", batchNumber: "", expiryDate: "", returnOfLineId: "", maxQty: "",
     brand: "", origin: "", total: "0.00", vatAmount: "0.00", grandTotal: "0.00",
   }),
   hydrate: hydratePurchase,
@@ -189,6 +292,7 @@ const purchaseLike = (docType, extra) => ({
   preview: vendorPreview,
   itemPayload: (row, stock) => ({ ...itemPayload({ fields: purchaseFields }, row, stock), currentPurchasePrice: num(row.currentPurchasePrice) }),
   totals: (rows) => documentTotals(rows, (r) => num(r.currentPurchasePrice), (r) => num(r.vatPercent)),
+  rowFromSaved: purchaseRowFromSaved,
   ...extra,
 });
 
@@ -213,11 +317,15 @@ export const VARIANTS = {
     noun: "Purchase return",
     title: { create: "Create purchase return", edit: "Edit purchase return", save: "Save return", saveEdit: "Update return", items: "Returned items" },
     labels: { doc: "Return number", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Return date", reference: "Vendor reference" },
+    columns: PURCHASE_RETURN_COLUMNS,
     referenceRequired: true,
     hasSecondDate: true,
     priority: false,
-    // Returns are usually raised against an approved purchase order; picking one prefills it.
-    sourceDocument: { label: "Return against purchase order", fetchStatus: "APPROVED" },
+    // A return is raised against an approved purchase order. Choosing one fills in the lines with
+    // what can still be returned, and the server will not accept more than that.
+    sourceDocument: { label: "Return against purchase order", fetchStatus: "APPROVED", docType: "purchase_order" },
+    // price and VAT for a line prefilled from the original
+    fromReturnLine: (l) => ({ currentPurchasePrice: String(l.price ?? 0), vatPercent: String(l.vatPercent ?? 5), purchasePrice: l.price ?? 0 }),
     discount: false,
     numberMode: false,
     payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
@@ -236,13 +344,15 @@ export const VARIANTS = {
     columns: SALES_COLUMNS,
     rowTemplate: () => ({
       itemId: "", description: "", qty: "", rate: "", purchasePrice: 0, currentStock: 0,
-      vatPercent: "5", subtotal: "0.00", vatAmount: "0.00", lineTotal: "0.00",
+      vatPercent: "5", discountPercent: "", taxCodeId: "", returnOfLineId: "", maxQty: "",
+      subtotal: "0.00", vatAmount: "0.00", lineTotal: "0.00",
     }),
     hydrate: hydrateSales,
     statusOptions: SALES_STATUS,
     preview: customerPreview,
     itemPayload: (row, stock) => ({ ...itemPayload({ fields: { unitPrice: "rate", vatPercent: "vatPercent" } }, row, stock), salesPrice: num(row.rate) }),
     totals: (rows) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent)),
+    rowFromSaved: salesRowFromSaved,
     referenceRequired: false,
     hasSecondDate: true,
     priority: false,
@@ -266,6 +376,7 @@ export const VARIANTS = {
     columns: SALES_RETURN_COLUMNS,
     rowTemplate: () => ({
       itemId: "", description: "", category: "", salesPrice: "0", qty: "",
+      discountPercent: "", taxCodeId: "", returnOfLineId: "", maxQty: "",
       rate: "0.00", taxPercent: "5", vatAmount: "0.00", lineTotal: "0.00", currentStock: 0,
     }),
     hydrate: hydrateSalesReturn,
@@ -273,10 +384,12 @@ export const VARIANTS = {
     preview: customerPreview,
     itemPayload: (row) => salesReturnItem(row),
     totals: (rows) => documentTotals(rows, (r) => num(r.salesPrice), (r) => num(r.taxPercent)),
+    rowFromSaved: salesReturnRowFromSaved,
     referenceRequired: false,
     hasSecondDate: true,
     priority: true,
-    sourceDocument: null,
+    sourceDocument: { label: "Return against sales invoice", fetchStatus: "APPROVED", docType: "sales_order" },
+    fromReturnLine: (l) => ({ salesPrice: String(l.price ?? 0), taxPercent: String(l.vatPercent ?? 5) }),
     discount: false,
     numberMode: false,
     payloadHeader: (f) => ({ terms: f.terms || "", priority: f.priority || "Medium" }),
@@ -284,12 +397,34 @@ export const VARIANTS = {
   },
 };
 
+// A form row for a line prefilled from the document being returned (see /accounting/returnable).
+export const rowFromReturnLine = (V, line) =>
+  recalcRow(V, {
+    ...V.rowTemplate(),
+    itemId: line.itemId,
+    itemCode: line.itemCode || "",
+    description: line.description || "",
+    qty: String(line.remainingQty),
+    maxQty: String(line.remainingQty),
+    returnOfLineId: line.lineId,
+    discountPercent: line.discountPercent ? String(line.discountPercent) : "",
+    ...V.fromReturnLine(line),
+  });
+
+// Header charges as the form keeps them -> as the server takes them.
+export const chargesPayload = (charges = []) =>
+  charges
+    .filter((c) => num(c.amount) > 0)
+    .map((c) => ({ code: c.code || undefined, description: (c.description || "").trim() || "Charge", amount: num(c.amount), vatPercent: num(c.vatPercent) }));
+
 // Per-document payload: the one place a saved record's top-level shape is decided.
-export const buildPayload = (V, f, rows, stockById, { linkedRef } = {}) => {
+export const buildPayload = (V, f, rows, stockById, { linkedRef, charges } = {}) => {
   const items = rows
     .filter((r) => r.itemId && num(r.qty) > 0)
     .map((r) => V.itemPayload(r, stockById.get(String(r.itemId))));
   const totals = V.totals(rows);
+  const headerCharges = chargesPayload(charges ?? f.charges);
+  const chargesTotal = chargesTotals(headerCharges).total;
   const payload = {
     transactionNo: f.transactionNo,
     type: V.docType,
@@ -300,11 +435,15 @@ export const buildPayload = (V, f, rows, stockById, { linkedRef } = {}) => {
     status: f.status,
     notes: f.notes || "",
     createdBy: CREATED_BY,
-    totalAmount: num(V.totalAmount(totals, f)),
+    // lines (after discounts) + their VAT - document discount + charges with their VAT
+    totalAmount: decimalRound(num(V.totalAmount(totals, f)) + chargesTotal),
     items,
     ...V.payloadHeader(f),
   };
+  if (headerCharges.length) payload.charges = headerCharges;
   if (linkedRef !== undefined) payload.linkedRef = linkedRef || null;
+  // A return names the document it returns; the server checks quantities and values against it.
+  if (V.sourceDocument && linkedRef) payload.returnOf = { transactionId: linkedRef };
   return payload;
 };
 

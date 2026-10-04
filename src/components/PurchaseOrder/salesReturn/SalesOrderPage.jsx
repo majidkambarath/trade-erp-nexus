@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { processTransaction } from "../../../lib/processTransaction";
+import { VARIANTS } from "../../OrderEntry/variants";
+import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
   Building,
@@ -44,7 +47,7 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const SalesReturnOrderManagement = () => {
@@ -217,16 +220,12 @@ const SalesReturnOrderManagement = () => {
   }, [activeView]);
 
   const generateTransactionNumber = () => {
-    const dateStr = stampYMD();
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
-    setFormData((prev) => ({
-      ...prev,
-      transactionNo: `SR-${dateStr}-${sequence}`,
-    }));
+    // The number is assigned by the server's numbering series when the document is saved.
+    setFormData((prev) => ({ ...prev, transactionNo: "" }));
   };
 
   const addNotification = (message, type = "info") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifications((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -409,9 +408,7 @@ const SalesReturnOrderManagement = () => {
     try {
       if (action === "confirm") {
         for (const soId of selectedSOs) {
-          await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
-            action: "approve",
-          });
+          await processTransaction(soId, "approve");
         }
         addNotification(
           `${selectedSOs.length} return orders confirmed successfully`,
@@ -421,9 +418,7 @@ const SalesReturnOrderManagement = () => {
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedSOs.length} selected return orders?`)) {
           for (const soId of selectedSOs) {
-              await axiosInstance.patch(`/transactions/transactions/${soId}/process`, {
-            action: "reject",
-          });
+              await processTransaction(soId, "reject");
           }
           addNotification(`${selectedSOs.length} return orders deleted`, "success");
           fetchTransactions();
@@ -770,37 +765,26 @@ const SalesReturnOrderManagement = () => {
   };
 
   // Edit sales return order
-  const editSO = (so) => {
-    setFormData({
-      transactionNo: so.transactionNo,
-      partyId: so.customerId,
-      date: toInputDate(so.date),
-      deliveryDate: so.deliveryDate
-        ? toInputDate(so.deliveryDate)
-        : "",
-      status: so.status,
-      items: so.items.map((item) => ({
-        itemId: item.itemId,
-        description: item.description,
-        qty: item.qty.toString(),
-        rate: item.rate.toString(),
-        taxPercent: item.taxPercent.toString(),
-      })),
-      terms: so.terms || "",
-      notes: so.notes || "",
-      priority: so.priority || "Medium",
-      reason: so.reason || "",
-    });
-    setSelectedSO(so);
-    setActiveView("edit");
+  const editSO = async (so) => {
+    try {
+      // The full saved document, not the trimmed list copy: nothing on it may be lost on save.
+      setFormData(await loadFormForEdit(VARIANTS.salesReturn, so.id));
+      setSelectedSO(so);
+      setActiveView("edit");
+    } catch (err) {
+      addNotification(
+        "Could not open the sales return: " + (err.response?.data?.message || err.message),
+        "error"
+      );
+    }
   };
 
   // Confirm sales return order
   const confirmSO = async (id) => {
     try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "confirm",
-      });
+      // The server's actions are approve / reject / cancel; it has no "confirm", so this used to
+      // fail every time and a sales return could never put its stock back.
+      await processTransaction(id, "approve");
       addNotification("Sales Return Order confirmed successfully", "success");
       fetchTransactions();
     } catch (error) {

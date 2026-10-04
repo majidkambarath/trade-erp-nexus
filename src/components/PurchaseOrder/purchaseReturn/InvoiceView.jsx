@@ -609,6 +609,7 @@ const InvoiceView = ({
                   fontSize: "10px",
                 }}
               >
+              <tbody>
                 <tr>
                   <td
                     style={{
@@ -651,6 +652,7 @@ const InvoiceView = ({
                     {formatNumber(vatTotal)}
                   </td>
                 </tr>
+              </tbody>
               </table>
             </div>
           </div>

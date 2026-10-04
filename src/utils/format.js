@@ -216,3 +216,10 @@ export const amountInWords = (value, currency = "Dirhams", subunit = "Fils") => 
   const filsPart = fils > 0 ? ` and ${numberToWords(fils)} ${subunit}` : "";
   return `${sign}${numberToWords(whole)} ${currency}${filsPart} Only`;
 };
+
+// A balance as accountants write it: the amount and which side it is on. `net` is debit minus
+// credit, so positive is a debit balance and negative a credit balance; zero has no side.
+export const drCr = (net, digits = 2) => {
+  const n = Math.round((Number(net) || 0) * 100) / 100;
+  return { text: formatNumber(Math.abs(n), digits), side: n > 0 ? "Dr" : n < 0 ? "Cr" : "" };
+};

@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { processTransaction } from "../../../lib/processTransaction";
+import { VARIANTS } from "../../OrderEntry/variants";
+import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
   Building,
@@ -44,7 +47,7 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const PurchaseOrderManagement = () => {
@@ -259,19 +262,12 @@ const PurchaseOrderManagement = () => {
   }, [activeView]);
 
   const generateTransactionNumber = () => {
-    const dateStr = stampYMD();
-    const sequence = String(Math.floor(Math.random() * 9999) + 1).padStart(
-      3,
-      "0"
-    );
-    setFormData((prev) => ({
-      ...prev,
-      transactionNo: `PO${sequence}`,
-    }));
+    // The number is assigned by the server's numbering series when the document is saved.
+    setFormData((prev) => ({ ...prev, transactionNo: "" }));
   };
 
   const addNotification = (message, type = "info") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifications((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -491,12 +487,7 @@ const PurchaseOrderManagement = () => {
     try {
       if (action === "approve") {
         for (const poId of selectedPOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${poId}/process`,
-            {
-              action: "approve",
-            }
-          );
+          await processTransaction(poId, "approve");
         }
         addNotification(
           `${selectedPOs.length} orders approved successfully`,
@@ -507,12 +498,7 @@ const PurchaseOrderManagement = () => {
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
           for (const poId of selectedPOs) {
-            await axiosInstance.patch(
-              `/transactions/transactions/${poId}/process`,
-              {
-                action: "reject",
-              }
-            );
+            await processTransaction(poId, "reject");
           }
           addNotification(`${selectedPOs.length} orders deleted`, "success");
           fetchTransactions();
@@ -862,54 +848,24 @@ const PurchaseOrderManagement = () => {
     };
   };
 
-  const editPO = (po) => {
-    const edited = {
-      transactionNo: po.transactionNo,
-      partyId: po.vendorId,
-      partyType: "Vendor",
-      vendorReference: po.vendorReference,
-      date: po.date,
-      deliveryDate: po.deliveryDate,
-      status: po.status,
-      priority: po.priority,
-      terms: po.terms,
-      notes: po.notes,  
-      items: po.items.map((i) => {
-        console.log("DEBUG: Editing item:", i);  // TEMP: Verify itemCode/sku
-        return {
-          itemId: i.itemId,
-          itemCode: i.itemCode,  // FIX: Preserve for form display
-          description: i.description,
-          qty: String(i.qty),
-          rate: String(i.rate),
-          taxPercent: String(i.vatPercent),
-          purchasePrice: i.purchasePrice,
-          currentPurchasePrice: i.rate / i.qty || i.purchasePrice || 0,  // FIX: Better fallback
-          category: i.category,
-          brand: i.brand,
-          origin: i.origin,
-          total: String(i.rate),
-          vatAmount: String(i.vatAmount),
-          grandTotal: String(i.lineTotal),
-          vatPercent: String(i.vatPercent),
-          // Add enriched fields for dropdowns
-          itemName: i.itemName,
-          sku: i.sku || i.itemCode,  // FIX: Fallback to itemCode
-        };
-      }),
-    };
-
-    setFormData(edited);
-    setSelectedPO(po);
-    setActiveView("edit");
+  const editPO = async (po) => {
+    try {
+      // The full saved document, not the trimmed list copy: nothing on it may be lost on save.
+      setFormData(await loadFormForEdit(VARIANTS.purchase, po.id));
+      setSelectedPO(po);
+      setActiveView("edit");
+    } catch (err) {
+      addNotification(
+        "Could not open the purchase order: " + (err.response?.data?.message || err.message),
+        "error"
+      );
+    }
   };
 
   // Approve PO
   const approvePO = async (id) => {
     try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "approve",
-      });
+      await processTransaction(id, "approve");
       addNotification("Purchase Order approved successfully", "success");
       fetchTransactions();
       fetchStockItems();
@@ -926,9 +882,7 @@ const PurchaseOrderManagement = () => {
   // Reject PO
   const rejectPO = async (id) => {
     try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "reject",
-      });
+      await processTransaction(id, "reject");
       addNotification("Purchase Order rejected successfully", "success");
       fetchTransactions();
     } catch (error) {
@@ -947,9 +901,7 @@ const PurchaseOrderManagement = () => {
       window.confirm("Are you sure you want to delete this purchase order?")
     ) {
       try {
-        await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-          action: "reject",
-        });
+        await processTransaction(id, "reject");
         addNotification("Purchase Order deleted successfully", "success");
         fetchTransactions();
       } catch (error) {

@@ -16,7 +16,7 @@ import { cn } from "../../lib/utils";
 // and the grid leaves that key alone. Text boxes keep Left/Right for the caret until the
 // caret reaches the edge.
 
-const EDITABLE = new Set(["item", "text", "number"]);
+const EDITABLE = new Set(["item", "text", "number", "select", "date"]);
 const navigable = (c) => EDITABLE.has(c.kind) || c.kind === "remove";
 
 const compactSelect = {
@@ -46,6 +46,10 @@ const compactSelect = {
 const fieldInput =
   "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
 
+// Date inputs use the arrow keys for their own day / month / year parts, so the grid leaves
+// them alone; Tab or Enter moves on. A native <select> keeps Up/Down for choosing a value.
+const ownsArrows = (e) => e.target instanceof HTMLInputElement && e.target.type === "date";
+
 const caretCanMove = (e, dir) => {
   const el = e.target;
   if (!(el instanceof HTMLInputElement) || el.type !== "text") return true;
@@ -65,6 +69,7 @@ export default function LineItemsGrid({
   onAddRow,
   onCreateItem,
   focusRequest,
+  selectOptions = {},
 }) {
   const navCols = useMemo(
     () => columns.map((c, i) => (navigable(c) ? i : -1)).filter((i) => i >= 0),
@@ -120,13 +125,16 @@ export default function LineItemsGrid({
 
   const onKeyDown = (e) => {
     if (e.defaultPrevented) return;
+    if (ownsArrows(e) && e.key.startsWith("Arrow")) return;
     const { row, col } = active;
     switch (e.key) {
       case "ArrowDown":
+        if (e.target instanceof HTMLSelectElement && !e.altKey) return; // choose a value
         e.preventDefault();
         move(row + 1, colNearest(col));
         break;
       case "ArrowUp":
+        if (e.target instanceof HTMLSelectElement && !e.altKey) return;
         e.preventDefault();
         move(row - 1, colNearest(col));
         break;
@@ -225,6 +233,32 @@ export default function LineItemsGrid({
             value={value ?? ""}
             onChange={(e) => onCellChange(r, col.key, e.target.value)}
             className={cn(fieldInput, col.align === "end" && "text-end tabular-nums")}
+          />
+        );
+      case "select": {
+        const options = selectOptions[col.key] || [];
+        return (
+          <select
+            {...common}
+            value={value ?? ""}
+            onChange={(e) => onCellChange(r, col.key, e.target.value)}
+            className={cn(fieldInput, "pe-7")}
+          >
+            <option value="">—</option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        );
+      }
+      case "date":
+        return (
+          <input
+            {...common}
+            type="date"
+            value={value ?? ""}
+            onChange={(e) => onCellChange(r, col.key, e.target.value)}
+            className={fieldInput}
           />
         );
       case "money":

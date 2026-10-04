@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { processTransaction } from "../../../lib/processTransaction";
+import { VARIANTS } from "../../OrderEntry/variants";
+import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
   Building,
@@ -243,15 +246,12 @@ const formatDisplayTransactionNo = (t) => {
   };
 
   const generateTransactionNumber = () => {
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(
-      3,
-      "0"
-    );
-    setFormData((prev) => ({ ...prev, transactionNo: `SO${sequence}` }));
+    // The number is assigned by the server's numbering series when the document is saved.
+    setFormData((prev) => ({ ...prev, transactionNo: "" }));
   };
 
   const addNotification = (message, type = "info") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifications((prev) => [...prev, { id, message, type }]);
     setTimeout(
       () => setNotifications((prev) => prev.filter((n) => n.id !== id)),
@@ -276,49 +276,18 @@ const formatDisplayTransactionNo = (t) => {
   );
 
   // EDIT SO – FULLY WORKING
-  const editSO = (so) => {
-    const formItems = so.items.map((it) => {
-      const stock = getStockItemById(it.itemId) || {};
-
-      return {
-        _id: it._id || "",
-        itemId: it.itemId,
-        description: it.description,
-        itemName: stock.itemName || it.description,
-        qty: it.qty.toString(),
-        rate: it.rate  ,
-        salesPrice: (stock.salesPrice || 0).toString(),
-        purchasePrice:(stock.purchasePrice || 0).toString(),
-        vatPercent: (it.vatPercent || 5).toString(),
-        vatAmount: (it.vatAmount || 0).toString(),
-        lineTotal: (it.lineTotal || 0).toString(),
-        category: stock.category || "",
-        unitOfMeasure: stock.unitOfMeasure || "",
-        unitOfMeasureDetails: stock.unitOfMeasureDetails || {},
-        stockDetails: it.stockDetails || {},
-      };
-    });
-
-    setFormData({
-      transactionNo: so.transactionNo,
-      partyId: so.customerId,
-      partyName: so.customerName,
-      date: toInputDate(so.date),
-      deliveryDate: so.deliveryDate
-        ? toInputDate(so.deliveryDate)
-        : "",
-      status: so.status,
-      priority: so.priority || "Medium",
-      terms: so.terms || "",
-      notes: so.notes || "",
-      refNo: so.refNo || "",
-      docNo: so.docNo || "",
-      discount: (so.discount ?? 0).toString(),
-      items: formItems,
-    });
-
-    setSelectedSO(so);
-    setActiveView("edit");
+  const editSO = async (so) => {
+    try {
+      // The full saved document, not the trimmed list copy: nothing on it may be lost on save.
+      setFormData(await loadFormForEdit(VARIANTS.sales, so.id));
+      setSelectedSO(so);
+      setActiveView("edit");
+    } catch (err) {
+      addNotification(
+        "Could not open the sales order: " + (err.response?.data?.message || err.message),
+        "error"
+      );
+    }
   };
 
   // CALCULATE TOTALS – MATCHES BACKEND
@@ -547,10 +516,7 @@ const formatDisplayTransactionNo = (t) => {
     try {
       if (action === "confirm") {
         for (const soId of selectedSOs) {
-          await axiosInstance.patch(
-            `/transactions/transactions/${soId}/process`,
-            { action: "approve" }
-          );
+          await processTransaction(soId, "approve");
         }
         addNotification(
           `${selectedSOs.length} orders approved successfully`,
@@ -559,10 +525,7 @@ const formatDisplayTransactionNo = (t) => {
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedSOs.length} selected orders?`)) {
           for (const soId of selectedSOs) {
-            await axiosInstance.patch(
-              `/transactions/transactions/${soId}/process`,
-              { action: "reject" }
-            );
+            await processTransaction(soId, "reject");
           }
           addNotification(`${selectedSOs.length} orders deleted`, "success");
         }
@@ -646,9 +609,7 @@ const formatDisplayTransactionNo = (t) => {
         });
       }
 
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "approve",
-      });
+      await processTransaction(id, "approve");
       addNotification("Sales Order approved successfully", "success");
       fetchTransactions();
     } catch (error) {
@@ -737,9 +698,7 @@ const formatDisplayTransactionNo = (t) => {
   const deleteSO = async (id) => {
     if (window.confirm("Delete this sales order?")) {
       try {
-        await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-          action: "reject",
-        });
+        await processTransaction(id, "reject");
         addNotification("Sales Order deleted", "success");
         fetchTransactions();
       } catch (error) {

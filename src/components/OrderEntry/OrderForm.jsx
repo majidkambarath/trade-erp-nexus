@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Calendar, Hash, Plus, Save, User } from "lucide-react";
+import { ArrowLeft, Calendar, Hash, Plus, Save, Trash2, User } from "lucide-react";
 import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
+import { applyAfterSave } from "../../lib/processTransaction";
 import axiosInstance from "../../axios/axios";
 import LineItemsGrid from "./LineItemsGrid";
 import QuickCreateDialog from "./QuickCreateDialog";
 import { QUICK_CREATE, MEASURE_TYPES } from "./quickCreate";
-import { buildPayload } from "./variants";
-import { rowLine } from "./lineMath";
+import { buildPayload, recalcRow, rowFromReturnLine } from "./variants";
+import { chargesTotals } from "./lineMath";
+import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
 import { formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
@@ -55,18 +57,7 @@ const uniqById = (list) => {
   return [...m.values()];
 };
 
-// Recompute the three display totals of a row from its own inputs. Field names come from the
-// variant, so the same code serves purchase ("total") and sales ("subtotal") lines.
-const recalc = (V, row) => {
-  const F = V.fields;
-  const l = rowLine({ qty: row.qty, price: row[F.unitPrice], vatPercent: row[F.vatPercent] });
-  return {
-    ...row,
-    [F.lineValue]: l.lineValue.toFixed(2),
-    [F.vat]: l.vatAmount.toFixed(2),
-    [F.gross]: l.lineTotal.toFixed(2),
-  };
-};
+const recalc = recalcRow;
 
 const fieldCls = (invalid) =>
   cn(
@@ -145,10 +136,27 @@ export default function OrderForm({
   const [sourceOpts, setSourceOpts] = useState([]);
   const [linkedRef, setLinkedRef] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [taxCodes, setTaxCodes] = useState([]);
+  const [files, setFiles] = useState([]); // attachments added while the document is still being typed
   // Where focus goes when the stock dialog closes: the Qty cell of the line it was opened from.
   const returnFocus = useRef(null);
 
   const rows = useMemo(() => formData.items || [], [formData.items]);
+
+  // Tax codes feed the "Tax code" column. If they cannot be loaded the column simply offers none
+  // and the VAT % typed on the line is used, exactly as before.
+  useEffect(() => {
+    let live = true;
+    axiosInstance
+      .get("/accounting/tax-codes")
+      .then((r) => live && setTaxCodes((r.data?.data || []).filter((c) => c.isActive)))
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const selectOptions = useMemo(
+    () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: `${c.name} (${c.ratePercent}%)` })) }),
+    [taxCodes]
+  );
 
   // A page that opens the form with no lines still gets one editable row.
   const hasRows = rows.length > 0;
@@ -172,7 +180,9 @@ export default function OrderForm({
 
   const totals = useMemo(() => V.totals(rows), [rows, V]);
   const discount = V.discount ? num(formData.discount) : 0;
-  const grandTotal = num(V.totalAmount(totals, formData));
+  const charges = useMemo(() => formData.charges || [], [formData.charges]);
+  const chargeSums = useMemo(() => chargesTotals(charges), [charges]);
+  const grandTotal = num(V.totalAmount(totals, formData)) + chargeSums.total;
 
   const clearErrors = useCallback((keys) => {
     setErrors((prev) => {
@@ -212,11 +222,32 @@ export default function OrderForm({
 
   const changeCell = useCallback(
     (r, key, value) => {
-      setRows((items) => items.map((row, i) => (i === r ? recalc(V, { ...row, [key]: value }) : row)));
+      setRows((items) =>
+        items.map((row, i) => {
+          if (i !== r) return row;
+          let next = { ...row, [key]: value };
+          // A tax code carries its own rate; the server applies the rate in force on the document
+          // date, this is the preview.
+          if (key === "taxCodeId" && value) {
+            const code = taxCodes.find((c) => c._id === value);
+            if (code) next = { ...next, [V.fields.vatPercent]: String(code.ratePercent) };
+          }
+          return recalc(V, next);
+        })
+      );
       clearErrors([`${key}_${r}`]);
     },
-    [V, setRows, clearErrors]
+    [V, setRows, clearErrors, taxCodes]
   );
+
+  // ---- charges ------------------------------------------------------------------------
+  const setCharges = (fn) => setFormData((prev) => ({ ...prev, charges: fn(prev.charges || []) }));
+  const addCharge = () => setCharges((c) => [...c, { description: "Freight", amount: "", vatPercent: "5" }]);
+  const changeCharge = (i, k, v) => {
+    setCharges((c) => c.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+    clearErrors([`charge_${k}_${i}`]);
+  };
+  const removeCharge = (i) => setCharges((c) => c.filter((_, j) => j !== i));
 
   const addRow = useCallback(() => setRows((items) => [...items, V.rowTemplate()]), [V, setRows]);
 
@@ -248,7 +279,6 @@ export default function OrderForm({
     const priceEditable = V.columns.some((c) => c.key === F.unitPrice && c.kind === "number");
     if (!formData.partyId) e.partyId = `${V.labels.partyNoun} is required`;
     if (!formData.date) e.date = "Date is required";
-    if (!formData.deliveryDate) e.deliveryDate = `${V.labels.secondDate} is required`;
     if (V.referenceRequired && !formData.vendorReference) e.vendorReference = "Vendor reference is required";
     if (!rows.some((r) => r.itemId && num(r.qty) > 0)) e.items = "Add at least one item with a quantity above 0";
     rows.forEach((r, i) => {
@@ -257,6 +287,14 @@ export default function OrderForm({
       if (!(num(r.qty) > 0)) e[`qty_${i}`] = "Enter a quantity above 0";
       if (priceEditable && !(num(r[F.unitPrice]) > 0)) e[`${F.unitPrice}_${i}`] = "Enter a price above 0";
       if (num(r[F.vatPercent]) < 0) e[`${F.vatPercent}_${i}`] = "VAT cannot be negative";
+      if (num(r.discountPercent) < 0 || num(r.discountPercent) > 100) e[`discountPercent_${i}`] = "Discount is 0 to 100%";
+      // a return against an invoice cannot take back more than is left on that line
+      if (r.maxQty !== "" && r.maxQty != null && num(r.qty) > num(r.maxQty)) e[`qty_${i}`] = `At most ${r.maxQty} can be returned`;
+    });
+    charges.forEach((c, i) => {
+      if (c.amount === "" && !c.description) return;
+      if (!(num(c.amount) > 0)) e[`charge_amount_${i}`] = "Enter an amount above 0";
+      if (num(c.vatPercent) < 0) e[`charge_vatPercent_${i}`] = "VAT cannot be negative";
     });
     return e;
   };
@@ -298,12 +336,25 @@ export default function OrderForm({
       return;
     }
     setSaving(true);
-    const payload = buildPayload(V, formData, rows, stockById, V.sourceDocument ? { linkedRef } : {});
+    const payload = buildPayload(V, formData, rows, stockById, { charges, ...(V.sourceDocument ? { linkedRef } : {}) });
+    // Approving or rejecting is an action of its own on the server (stock, ledger, credit control), so the
+    // document is saved first and the action follows; saving never sets those statuses directly.
+    const afterSave = { APPROVED: "approve", REJECTED: "reject" }[payload.status] || null;
+    if (afterSave) payload.status = "DRAFT";
     try {
       const res = selected
         ? await axiosInstance.put(`/transactions/transactions/${selected.id}`, payload)
         : await axiosInstance.post("/transactions/transactions", payload);
       const doc = hydrateSaved(res.data.data, payload);
+      if (afterSave) {
+        const r = await applyAfterSave(res.data.data._id, afterSave);
+        if (r.done) doc.status = r.status;
+        else notify?.(`${V.noun} saved, but not ${afterSave === "approve" ? "approved" : "rejected"} - it was left as a draft${r.message ? `: ${r.message}` : ""}`, r.cancelled ? "info" : "error");
+      }
+      if (!selected && files.length) {
+        const failed = await linkPending(files, "transaction", res.data.data._id);
+        if (failed.length) notify?.(`${failed.length} attachment(s) could not be attached; open the document to add them again`, "error");
+      }
       notify?.(`${V.noun} ${selected ? "updated" : "created"} successfully`, "success");
       setList?.((prev) => (selected ? prev.map((d) => (d.id === selected.id ? doc : d)) : [doc, ...prev]));
       onSuccess?.(doc);
@@ -361,7 +412,7 @@ export default function OrderForm({
     axiosInstance.get("/uom/units").then((r) => setLookups((l) => ({ ...l, units: listOf(r.data, "units") }))).catch(() => {});
   }, [quick?.kind]);
 
-  // ---- source document (purchase return against an approved order) -------------------
+  // ---- source document (a return against an approved invoice or order) ---------------
   useEffect(() => {
     if (!V.sourceDocument || !formData.partyId) {
       setSourceOpts([]);
@@ -369,8 +420,8 @@ export default function OrderForm({
     }
     const params = new URLSearchParams({
       partyId: formData.partyId,
-      partyType: "Vendor",
-      type: "purchase_order",
+      partyType: V.partyType,
+      type: V.sourceDocument.docType,
       status: V.sourceDocument.fetchStatus,
     });
     axiosInstance
@@ -379,37 +430,34 @@ export default function OrderForm({
       .catch(() => setSourceOpts([]));
   }, [V, formData.partyId]);
 
-  const chooseSource = (opt) => {
+  // Choosing the original asks the server what can still be returned on each line, so the form
+  // starts from valid quantities and cannot be saved over the limit.
+  const chooseSource = async (opt) => {
     if (!opt) {
       setLinkedRef(null);
       setRows(() => [V.rowTemplate()]);
       return;
     }
-    const po = sourceOpts.find((p) => p._id === opt.value);
-    if (!po) return;
-    setLinkedRef(po._id);
-    const items = (po.items || []).map((item) => {
-      const qty = num(item.qty);
-      const unit = qty ? num(item.rate) / qty : num(item.stockDetails?.purchasePrice);
-      return recalc(V, {
-        ...V.rowTemplate(),
-        itemId: item.itemId,
-        description: item.description || "",
-        qty: String(qty),
-        currentPurchasePrice: unit.toFixed(2),
-        vatPercent: String(item.vatPercent ?? 5),
-        purchasePrice: item.stockDetails?.purchasePrice || unit,
-        brand: item.stockDetails?.brand || "",
-        origin: item.stockDetails?.origin || "",
-      });
-    });
-    setRows(() => (items.length ? items : [V.rowTemplate()]));
-    setFormData((prev) => ({
-      ...prev,
-      deliveryDate: prev.deliveryDate || (po.deliveryDate ? String(po.deliveryDate).split("T")[0] : prev.deliveryDate),
-      vendorReference: po.vendorReference || "",
-    }));
-    notify?.(`Purchase order ${po.transactionNo} selected`, "success");
+    const original = sourceOpts.find((p) => p._id === opt.value);
+    if (!original) return;
+    try {
+      const r = await axiosInstance.get(`/accounting/returnable/${original._id}`);
+      const lines = (r.data?.data?.lines || []).filter((l) => l.remainingQty > 0);
+      if (!lines.length) {
+        notify?.(`Everything on ${original.transactionNo} has already been returned`, "error");
+        return;
+      }
+      setLinkedRef(original._id);
+      setRows(() => lines.map((l) => rowFromReturnLine(V, l)));
+      setFormData((prev) => ({
+        ...prev,
+        deliveryDate: prev.deliveryDate || (original.deliveryDate ? String(original.deliveryDate).split("T")[0] : prev.deliveryDate),
+        ...(V.referenceRequired ? { vendorReference: original.vendorReference || original.transactionNo } : {}),
+      }));
+      notify?.(`${original.transactionNo} selected: lines filled with what can still be returned`, "success");
+    } catch (err) {
+      notify?.(err.response?.data?.message || "Could not read that document", "error");
+    }
   };
 
   const stockDialogOptions = {
@@ -417,6 +465,9 @@ export default function OrderForm({
     units: lookups.units.map((u) => ({ value: u._id, label: `${u.unitName} (${u.shortCode})` })),
   };
 
+  const attachmentsLabel = V.party.idInDoc === "customerId"
+    ? "Attachments (customer order, signed delivery note, proof of delivery)"
+    : "Attachments (supplier invoice, delivery note, proof of delivery)";
   const numberIsEditable = V.numberMode && manualNumber;
 
   return (
@@ -479,6 +530,7 @@ export default function OrderForm({
                       name="transactionNo"
                       type="text"
                       value={formData.transactionNo || ""}
+                      placeholder={numberIsEditable ? "Enter a number" : "Assigned when saved"}
                       onChange={(e) => setHeader("transactionNo", e.target.value)}
                       readOnly={!numberIsEditable}
                       className={cn(fieldCls(false), "ps-9", !numberIsEditable && "bg-secondary text-muted-foreground")}
@@ -529,13 +581,13 @@ export default function OrderForm({
               </Field>
 
               {V.sourceDocument && formData.partyId && (
-                <Field id={fid("source")} label={V.sourceDocument.label} hint={sourceOpts.length ? `${sourceOpts.length} approved order(s) for this vendor` : "No approved orders for this vendor"} className="sm:col-span-2">
+                <Field id={fid("source")} label={V.sourceDocument.label} hint={sourceOpts.length ? `${sourceOpts.length} approved document(s) for this ${V.labels.partyNoun.toLowerCase()}` : `No approved documents for this ${V.labels.partyNoun.toLowerCase()}`} className="sm:col-span-2">
                   <Select
                     inputId={fid("source")}
                     options={sourceOpts.map((p) => ({ value: p._id, label: `${p.transactionNo} · ${String(p.date || "").split("T")[0]}` }))}
                     value={linkedRef ? { value: linkedRef, label: sourceOpts.find((p) => p._id === linkedRef)?.transactionNo || linkedRef } : null}
                     onChange={chooseSource}
-                    placeholder="Optional: choose an approved order to prefill from"
+                    placeholder="Choose the document being returned"
                     isClearable
                     styles={selectStyles(false)}
                     menuPortalTarget={typeof document !== "undefined" ? document.body : null}
@@ -649,6 +701,12 @@ export default function OrderForm({
                 <div className="flex justify-between"><dt className="text-muted-foreground">Lines</dt><dd>{rows.filter((r) => r.itemId).length}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.subtotal))}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">VAT</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
+                {num(totals.discount) > 0 && (
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Line discounts (included in net)</dt><dd>−{formatNumber(num(totals.discount))}</dd></div>
+                )}
+                {chargeSums.total > 0 && (
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Charges (incl. VAT)</dt><dd>{formatNumber(chargeSums.total)}</dd></div>
+                )}
                 {V.discount && discount > 0 && (
                   <div className="flex justify-between"><dt className="text-muted-foreground">Discount</dt><dd>−{formatNumber(discount)}</dd></div>
                 )}
@@ -685,7 +743,43 @@ export default function OrderForm({
             onAddRow={addRow}
             onCreateItem={(r, text) => setQuick({ kind: "stockItem", rowIndex: r, initial: { itemName: text } })}
             focusRequest={focusRequest}
+            selectOptions={selectOptions}
           />
+        </section>
+
+        <section aria-labelledby={fid("charges")} className="rounded-xl border border-border bg-card p-6 shadow-card">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 id={fid("charges")} className="text-base font-bold text-foreground">Additional charges</h2>
+              <p className="text-xs text-muted-foreground">Freight, handling or other costs on this document, each with its own VAT.</p>
+            </div>
+            <button type="button" onClick={addCharge} className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Plus className="h-4 w-4" aria-hidden="true" />Add charge
+            </button>
+          </div>
+          {charges.length === 0 && <p className="text-sm text-muted-foreground">None.</p>}
+          {charges.map((c, i) => (
+            <div key={i} className="mb-2 grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_160px_110px_auto]">
+              <Field id={fid(`chargeDesc${i}`)} label={i === 0 ? "Description" : <span className="sr-only">Description</span>}>
+                <input id={fid(`chargeDesc${i}`)} type="text" value={c.description || ""} onChange={(e) => changeCharge(i, "description", e.target.value)} placeholder="e.g. Freight" className={fieldCls(false)} />
+              </Field>
+              <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? "Amount (AED)" : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
+                <input id={fid(`chargeAmt${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} className={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
+              </Field>
+              <Field id={fid(`chargeVat${i}`)} label={i === 0 ? "VAT %" : <span className="sr-only">VAT %</span>}>
+                <input id={fid(`chargeVat${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.vatPercent ?? ""} onChange={(e) => changeCharge(i, "vatPercent", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />
+              </Field>
+              <button type="button" onClick={() => removeCharge(i)} aria-label={`Remove charge ${i + 1}`} className={cn("grid h-10 w-10 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-status-danger", i === 0 && "sm:mt-[1.75rem]")}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          ))}
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 shadow-card">
+          {selected?.id
+            ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />
+            : <AttachmentPanel value={files} onChange={setFiles} label={attachmentsLabel} />}
         </section>
       </form>
 

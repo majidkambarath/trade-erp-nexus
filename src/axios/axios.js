@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// One place for the API address. Set VITE_API_URL (e.g. in .env.local) to point the app at another
+// backend; with nothing set it is the local server, as before.
+export const API_BASE_URL = import.meta.env?.VITE_API_URL || "http://localhost:3000/api/v1";
+
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:3000/api/v1",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -30,7 +34,7 @@ axiosInstance.interceptors.response.use(
       originalRequest._retry = true;
       try {
         const { data } = await axios.post(
-          "http://localhost:3000/api/v1/refresh-token",
+          `${API_BASE_URL}/refresh-token`,
           {},
           { withCredentials: true }
         );

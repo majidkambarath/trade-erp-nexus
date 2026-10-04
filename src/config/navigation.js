@@ -6,6 +6,7 @@
 // its URL. src/config/__tests__/navigation.test.js fails if a route is left unmapped.
 import {
   BarChart3,
+  BookOpen,
   LayoutDashboard,
   Landmark,
   Settings,
@@ -75,6 +76,7 @@ export const MODULES = [
       { label: "Movements", to: "/inventory", roles: INVENTORY, keywords: ["inventory", "stock movement"] },
       { label: "Categories", to: "/category-management", roles: INVENTORY },
       { label: "Units", to: "/unit-setup", roles: INVENTORY, keywords: ["unit of measure", "uom"] },
+      { label: "Batches", to: "/batches", roles: INVENTORY, keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },
     ],
   },
   {
@@ -87,8 +89,23 @@ export const MODULES = [
       { label: "Journal", to: "/journal-voucher", roles: ACCOUNTS, keywords: ["journal voucher"] },
       { label: "Contra", to: "/contra-voucher", roles: ACCOUNTS, keywords: ["contra voucher"] },
       { label: "Expenses", to: "/expense-voucher", roles: ACCOUNTS, keywords: ["expense voucher"] },
-      { label: "Ledger", to: "/transactions", roles: ACCOUNTS, keywords: ["transactions"] },
-      { label: "Accounts", to: "/transactors", roles: ACCOUNTS, keywords: ["transactors", "cash", "bank"] },
+      { label: "Notes", to: "/debit-credit-notes", roles: ACCOUNTS, keywords: ["debit note", "credit note", "price adjustment", "dn", "cn"] },
+      { label: "Cheques", to: "/cheques", roles: ACCOUNTS, keywords: ["cheque register", "pdc", "post-dated", "bounced", "clearing"] },
+      { label: "Cash & bank", to: "/cash-and-bank", match: ["/cash-and-bank", "/transactors"], roles: ACCOUNTS, keywords: ["cash", "bank", "balances", "accounts", "transfer"] },
+      { label: "Ledger", to: "/ledger", match: ["/ledger", "/transactions"], roles: ACCOUNTS, keywords: ["account ledger", "running balance", "transactions", "day book"] },
+    ],
+  },
+  {
+    // The ledger itself: what accounts exist, how they are grouped, and how transactions post to them.
+    id: "accounts",
+    label: "Accounts",
+    icon: BookOpen,
+    tabs: [
+      { label: "Chart of accounts", to: "/chart-of-accounts", roles: ACCOUNTS, keywords: ["coa", "ledger accounts", "account groups", "assets", "liabilities", "equity", "income", "expenses", "opening balance", "documents", "create account"] },
+      { label: "Banks", to: "/banks", roles: ACCOUNTS, keywords: ["bank master", "swift", "iban", "branches"] },
+      { label: "Card types", to: "/card-types", roles: ACCOUNTS, keywords: ["visa", "mastercard", "card fee", "processing fee"] },
+      { label: "Cards", to: "/cards", roles: ACCOUNTS, keywords: ["card master", "pos terminal", "credit card", "merchant", "debit card", "prepaid"] },
+      { label: "Setup", to: "/accounting-setup", roles: ACCOUNTS, keywords: ["posting accounts", "account configuration", "fiscal year", "period lock", "tax codes", "credit control", "audit log", "numbering"] },
     ],
   },
   {
@@ -96,16 +113,13 @@ export const MODULES = [
     label: "Reports",
     icon: BarChart3,
     tabs: [
+      { label: "Statements", to: "/financial-statements", roles: ACCOUNTS, keywords: ["trial balance", "profit and loss", "p&l", "balance sheet", "financial statements"] },
+      { label: "Ageing", to: "/ageing", roles: ACCOUNTS, keywords: ["aged receivables", "aged payables", "overdue", "outstanding"] },
+      { label: "Account statement", to: "/statement", roles: ACCOUNTS, keywords: ["statement of account", "customer statement", "vendor statement"] },
       { label: "VAT", to: "/vat-reports", roles: ACCOUNTS, keywords: ["vat report", "fta", "tax"] },
-      {
-        label: "e-Invoicing",
-        to: "/e-invoicing",
-        roles: ACCOUNTS,
-        // `soon` marks a feature that is announced but not built: the rail and tab show a
-        // "Soon" badge and the page says plainly that nothing is submitted electronically yet.
-        soon: true,
-        keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice"],
-      },
+      // `soon`: the screens work against a built-in sandbox, but the connection to an accredited
+      // service provider (live exchange with other businesses and the FTA) is not built yet.
+      { label: "e-Invoicing", to: "/e-invoicing", roles: ACCOUNTS, soon: true, keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tax invoice", "credit note"] },
     ],
   },
   {

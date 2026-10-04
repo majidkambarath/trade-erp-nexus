@@ -5,11 +5,9 @@ import axiosInstance from "../../../axios/axios";
 import {
   formatNumber,
   formatDateGB,
-  decimalSum,
-  decimalAdd,
-  decimalSub,
   amountInWords as toAmountInWords,
 } from "../../../utils/format";
+import { documentTotals } from "../../../utils/documentTotals";
 
 const pad4 = (v = "") => {
   const n = String(v || "").replace(/\D/g, "");
@@ -107,15 +105,9 @@ const PurchaseInvoiceView = ({
   }, [po, vendor, isApproved]);
 
   // totals
-  const grossAmount = useMemo(() => decimalSum((po.items || []).map((it) => it.rate)), [po.items]);
-  const vatTotal = useMemo(() => decimalSum((po.items || []).map((it) => it.vatAmount)), [po.items]);
-  const discount = useMemo(() => parseFloat(po.discount || 0) || 0, [po.discount]);
-  // decimal-safe: the last step previously used plain float arithmetic
-  const grandTotal = useMemo(
-    () => Math.max(0, decimalSub(decimalAdd(grossAmount, vatTotal), discount)),
-    [grossAmount, vatTotal, discount]
-  );
-
+  // the server's own pricing (charges, header discount, round-off), not a re-sum of the lines
+  const totals = useMemo(() => documentTotals(po), [po]);
+  const { gross: grossAmount, vat: vatTotal, grandTotal } = totals;
   // words: based on grandTotal (the amount actually payable), not grossAmount
   const amountInWords = toAmountInWords(grandTotal);
 
@@ -320,10 +312,28 @@ const PurchaseInvoiceView = ({
                   <div>GROSS AMOUNT</div>
                   <div style={{ minWidth: 100, textAlign: "right" }}>{formatNumber(grossAmount)}</div>
                 </div>
+                {totals.charges.map((c, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div>{(c.description || "Charge").toUpperCase()}</div>
+                    <div style={{ minWidth: 100, textAlign: "right" }}>{formatNumber(c.amount)}</div>
+                  </div>
+                ))}
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                   <div>VAT (5%)</div>
                   <div style={{ minWidth: 100, textAlign: "right" }}>{formatNumber(vatTotal)}</div>
                 </div>
+                {totals.headerDiscount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div>DISCOUNT</div>
+                    <div style={{ minWidth: 100, textAlign: "right" }}>-{formatNumber(totals.headerDiscount)}</div>
+                  </div>
+                )}
+                {totals.roundOff !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <div>ROUND OFF</div>
+                    <div style={{ minWidth: 100, textAlign: "right" }}>{formatNumber(totals.roundOff)}</div>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, paddingTop: 6, borderTop: "1px solid #000", fontWeight: 800 }}>
                   <div>GRAND TOTAL</div>
                   <div style={{ minWidth: 100, textAlign: "right" }}>{formatNumber(grandTotal)}</div>

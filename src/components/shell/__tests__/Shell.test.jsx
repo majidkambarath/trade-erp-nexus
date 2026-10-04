@@ -53,7 +53,7 @@ describe("rail", () => {
     renderAt("/dashboard");
     const labels = within(rail()).getAllByRole("link").map((a) => a.textContent.trim());
     expect(labels).toEqual(
-      expect.arrayContaining(["Home", "Sales", "Purchase", "Inventory", "Finance", "Reports", "People", "Settings"])
+      expect.arrayContaining(["Home", "Sales", "Purchase", "Inventory", "Finance", "Accounts", "Reports", "People", "Settings"])
     );
   });
 
@@ -71,13 +71,32 @@ describe("rail", () => {
   });
 });
 
+describe("accounts section", () => {
+  it("has its own place in the rail, holding the chart of accounts, the bank and card masters, and the setup", () => {
+    renderAt("/chart-of-accounts");
+    const current = within(rail()).getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
+    expect(current.map((a) => a.textContent.trim())).toEqual(["Accounts"]);
+    const tabs = screen.getByRole("navigation", { name: "Accounts" });
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Chart of accounts", "Banks", "Card types", "Cards", "Setup"]);
+    expect(within(tabs).getByRole("link", { name: "Chart of accounts" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("is reachable from the command palette by the words people use", async () => {
+    renderAt("/dashboard");
+    act(() => { fireEvent.keyDown(window, { key: "k", ctrlKey: true }); });
+    const dialog = await screen.findByRole("dialog", { name: "Go to page" });
+    fireEvent.change(within(dialog).getByRole("combobox"), { target: { value: "liabilities" } });
+    await waitFor(() => expect(within(dialog).getByRole("option", { name: /Chart of accounts/ })).toBeInTheDocument());
+  });
+});
+
 describe("module tabs", () => {
   it("shows the active module's pages with the current one marked", () => {
     renderAt("/payment-voucher");
     const tabs = screen.getByRole("navigation", { name: "Finance" });
     const links = within(tabs).getAllByRole("link");
     expect(links.map((a) => a.textContent)).toEqual([
-      "Receipts", "Payments", "Journal", "Contra", "Expenses", "Ledger", "Accounts",
+      "Receipts", "Payments", "Journal", "Contra", "Expenses", "Notes", "Cheques", "Cash & bank", "Ledger",
     ]);
     expect(within(tabs).getByRole("link", { name: "Payments" })).toHaveAttribute("aria-current", "page");
   });

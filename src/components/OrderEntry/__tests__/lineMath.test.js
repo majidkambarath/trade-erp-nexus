@@ -30,7 +30,7 @@ describe("purchase return totals (regression: every return saved totalAmount 0)"
   });
 
   it("returns zeros for an empty document", () => {
-    expect(purchaseReturnTotals([])).toEqual({ subtotal: "0.00", tax: "0.00", total: "0.00" });
+    expect(purchaseReturnTotals([])).toEqual({ subtotal: "0.00", tax: "0.00", total: "0.00", discount: "0.00" });
   });
 });
 

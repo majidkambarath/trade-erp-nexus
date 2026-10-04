@@ -1,4 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { processTransaction } from "../../../lib/processTransaction";
+import { VARIANTS } from "../../OrderEntry/variants";
+import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
   Building,
@@ -44,7 +47,7 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, stampYMD, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
 import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
@@ -210,16 +213,12 @@ const PurchaseReturnOrderManagement = () => {
   }, [activeView]);
 
   const generateTransactionNumber = () => {
-    const dateStr = stampYMD();
-    const sequence = String(Math.floor(Math.random() * 999) + 1).padStart(3, "0");
-    setFormData((prev) => ({
-      ...prev,
-      transactionNo: `PR${sequence}`,
-    }));
+    // The number is assigned by the server's numbering series when the document is saved.
+    setFormData((prev) => ({ ...prev, transactionNo: "" }));
   };
 
   const addNotification = (message, type = "info") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifications((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
@@ -410,18 +409,14 @@ const PurchaseReturnOrderManagement = () => {
     try {
       if (action === "approve") {
         for (const poId of selectedPOs) {
-          await axiosInstance.patch(`/transactions/transactions/${poId}/process`, {
-            action: "approve",
-          });
+          await processTransaction(poId, "approve");
         }
         addNotification(`${selectedPOs.length} orders approved successfully`, "success");
         fetchTransactions();
       } else if (action === "delete") {
         if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
           for (const poId of selectedPOs) {
-              await axiosInstance.patch(`/transactions/transactions/${poId}/process`, {
-            action: "reject",
-          });
+              await processTransaction(poId, "reject");
           }
           addNotification(`${selectedPOs.length} orders deleted`, "success");
           fetchTransactions();
@@ -766,36 +761,24 @@ const PurchaseReturnOrderManagement = () => {
   const calculateTotals = (items) => purchaseReturnTotals(items);
 
   // Edit PO
-  const editPO = (po) => {
-    setFormData({
-      transactionNo: po.transactionNo,
-      partyId: po.vendorId,
-      date: toInputDate(po.date),
-      deliveryDate: po.deliveryDate
-        ? toInputDate(po.deliveryDate)
-        : "",
-      status: po.status,
-      items: po.items.map((item) => ({
-        itemId: item.itemId,
-        description: item.description,
-        qty: item.qty.toString(),
-        rate: item.rate.toString(),
-        taxPercent: item.taxPercent.toString(),
-      })),
-      terms: po.terms || "",
-      notes: po.notes || "",
-      priority: po.priority || "Medium",
-    });
-    setSelectedPO(po);
-    setActiveView("edit");
+  const editPO = async (po) => {
+    try {
+      // The full saved document, not the trimmed list copy: nothing on it may be lost on save.
+      setFormData(await loadFormForEdit(VARIANTS.purchaseReturn, po.id));
+      setSelectedPO(po);
+      setActiveView("edit");
+    } catch (err) {
+      addNotification(
+        "Could not open the purchase return: " + (err.response?.data?.message || err.message),
+        "error"
+      );
+    }
   };
 
   // Approve PO
   const approvePO = async (id) => {
     try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "approve",
-      });
+      await processTransaction(id, "approve");
       addNotification("Purchase Return Order approved successfully", "success");
       fetchTransactions();
     } catch (error) {
@@ -811,9 +794,7 @@ const PurchaseReturnOrderManagement = () => {
   // Reject PO
   const rejectPO = async (id) => {
     try {
-      await axiosInstance.patch(`/transactions/transactions/${id}/process`, {
-        action: "reject",
-      });
+      await processTransaction(id, "reject");
       addNotification("Purchase Return Order rejected successfully", "success");
       fetchTransactions();
     } catch (error) {
