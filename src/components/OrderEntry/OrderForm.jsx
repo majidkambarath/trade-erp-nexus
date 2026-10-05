@@ -13,6 +13,7 @@ import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
 import { formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
+import { DateInput } from "../accounting/kit";
 const num = (v) => parseFloat(v) || 0;
 
 // Lookup endpoints answer either a bare array or an object keyed by the collection name.
@@ -546,18 +547,13 @@ export default function OrderForm({
               </Field>
 
               <Field id={fid("date")} label="Date" error={errors.date}>
-                <div className="relative">
-                  <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                  <input
-                    id={fid("date")}
-                    name="date"
-                    type="date"
-                    value={formData.date || ""}
-                    onChange={(e) => setHeader("date", e.target.value)}
-                    aria-invalid={Boolean(errors.date) || undefined}
-                    className={cn(fieldCls(Boolean(errors.date)), "ps-9")}
-                  />
-                </div>
+                <DateInput
+                  id={fid("date")}
+                  name="date"
+                  value={formData.date || ""}
+                  onChange={(e) => setHeader("date", e.target.value)}
+                  aria-invalid={Boolean(errors.date) || undefined}
+                />
               </Field>
 
               <Field id={fid("partyId")} label={V.labels.partyNoun} error={errors.partyId} className="sm:col-span-2">
@@ -598,18 +594,13 @@ export default function OrderForm({
 
               {V.hasSecondDate && (
                 <Field id={fid("deliveryDate")} label={V.labels.secondDate} error={errors.deliveryDate}>
-                  <div className="relative">
-                    <Calendar className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                    <input
-                      id={fid("deliveryDate")}
-                      name="deliveryDate"
-                      type="date"
-                      value={formData.deliveryDate || ""}
-                      onChange={(e) => setHeader("deliveryDate", e.target.value)}
-                      aria-invalid={Boolean(errors.deliveryDate) || undefined}
-                      className={cn(fieldCls(Boolean(errors.deliveryDate)), "ps-9")}
-                    />
-                  </div>
+                  <DateInput
+                    id={fid("deliveryDate")}
+                    name="deliveryDate"
+                    value={formData.deliveryDate || ""}
+                    onChange={(e) => setHeader("deliveryDate", e.target.value)}
+                    aria-invalid={Boolean(errors.deliveryDate) || undefined}
+                  />
                 </Field>
               )}
 

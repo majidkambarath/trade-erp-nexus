@@ -37,14 +37,15 @@ const account = (over) => ({
   _id: "a1", accountCode: "BANK0001", accountName: "Emirates NBD", description: "", isActive: true, isSystemAccount: false,
   allowDirectPosting: true, isMapped: false, hasEntries: true, documents: 0, balance: 5000, net: 5000, ...over,
 });
-const group = (over) => ({ _id: "g1", name: "Bank", prefix: "BANK", category: "ASSET", isActive: true, accounts: [account()], children: [], total: 5000, net: 5000, ...over });
+// `role` is what the server works out from the posting map (bank | receivable | payable | cash | creditCard | other)
+const group = (over) => ({ _id: "g1", name: "Bank", prefix: "BANK", category: "ASSET", isActive: true, role: "bank", accounts: [account()], children: [], total: 5000, net: 5000, ...over });
 const CHART = {
   counts: { groups: 3, accounts: 2 },
   categories: [
-    { category: "ASSET", total: 5000, net: 5000, ungrouped: [], groups: [group({ _id: "ca", name: "Current Assets", prefix: "CA", accounts: [], total: 5000, net: 5000, children: [group()] })] },
+    { category: "ASSET", total: 5000, net: 5000, ungrouped: [], groups: [group({ _id: "ca", name: "Current Assets", prefix: "CA", role: "other", accounts: [], total: 5000, net: 5000, children: [group()] })] },
     { category: "LIABILITY", total: 0, ungrouped: [], groups: [] },
     { category: "EQUITY", total: 0, ungrouped: [], groups: [] },
-    { category: "INCOME", total: 0, ungrouped: [], groups: [group({ _id: "gs", name: "Sales Income", prefix: "SAL", category: "INCOME", accounts: [account({ _id: "a2", accountCode: "SAL0001", accountName: "Sales Revenue", isMapped: true, isSystemAccount: true, balance: 0, net: 0 }), account({ _id: "a3", accountCode: "SAL0002", accountName: "Old discounts", isActive: false, balance: 0, net: 0 })], total: 0 })] },
+    { category: "INCOME", total: 0, ungrouped: [], groups: [group({ _id: "gs", name: "Sales Income", prefix: "SAL", category: "INCOME", role: "other", accounts: [account({ _id: "a2", accountCode: "SAL0001", accountName: "Sales Revenue", isMapped: true, isSystemAccount: true, balance: 0, net: 0 }), account({ _id: "a3", accountCode: "SAL0002", accountName: "Old discounts", isActive: false, balance: 0, net: 0 })], total: 0 })] },
     { category: "EXPENSE", total: 0, ungrouped: [], groups: [] },
   ],
 };
@@ -75,7 +76,7 @@ describe("chart of accounts", () => {
     mocks.chart.mockResolvedValue({
       ...CHART,
       categories: CHART.categories.map((c) => (c.category === "LIABILITY"
-        ? { ...c, total: 300, net: -300, groups: [group({ _id: "gp", name: "Accounts Payable", prefix: "AP", category: "LIABILITY", total: 300, net: -300, accounts: [account({ _id: "v1", accountCode: "AP0001", accountName: "Vendor - Gulf Mills", balance: 300, net: -300 })], children: [] })] }
+        ? { ...c, total: 300, net: -300, groups: [group({ _id: "gp", name: "Accounts Payable", prefix: "AP", category: "LIABILITY", role: "payable", total: 300, net: -300, accounts: [account({ _id: "v1", accountCode: "AP0001", accountName: "Vendor - Gulf Mills", balance: 300, net: -300 })], children: [] })] }
         : c)),
     });
     render(<ChartOfAccounts />);
@@ -121,6 +122,19 @@ describe("chart of accounts", () => {
     expect(mocks.createAccount).not.toHaveBeenCalled();
   });
 
+  it("finds a group by typing its name or its code prefix, instead of scrolling a long list", async () => {
+    render(<ChartOfAccounts />);
+    await screen.findByText("Emirates NBD");
+    fireEvent.click(screen.getByRole("button", { name: /New account/ }));
+    const dialog = await screen.findByRole("dialog", { name: "New account" });
+    expect(within(dialog).getByText("Search or choose a group…")).toBeInTheDocument();
+    const picker = within(dialog).getByLabelText(/Group/);
+    fireEvent.change(picker, { target: { value: "ban" } });
+    fireEvent.keyDown(picker, { key: "Enter" });
+    expect(await within(dialog).findByText("Code will start with BANK")).toBeInTheDocument();
+    expect(dialog.querySelector(".search-select__single-value")).toHaveTextContent("Bank");
+  });
+
   it("creates an account with an opening balance and attaches the files that were added", async () => {
     mocks.createAccount.mockResolvedValue({ _id: "new1", accountCode: "BANK0002", accountName: "ADCB" });
     mocks.uploadAttachment.mockResolvedValue({ attachmentId: "f1", fileName: "letter.pdf", fileType: "application/pdf", fileSize: 2048 });
@@ -130,7 +144,7 @@ describe("chart of accounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add account to Bank" }));
     const dialog = await screen.findByRole("dialog", { name: "New account" });
 
-    expect(within(dialog).getByLabelText(/Group/)).toHaveValue("g1"); // preselected from the row
+    expect(dialog.querySelector(".search-select__single-value")).toHaveTextContent("Bank"); // preselected from the row
     expect(within(dialog).getByText("Code will start with BANK")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText(/Account name/), { target: { value: "ADCB" } });
     fireEvent.change(within(dialog).getByLabelText(/Amount/), { target: { value: "2500.50" } });

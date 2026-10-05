@@ -77,7 +77,7 @@ import { toastClasses } from "../../lib/status";
         // Ensure response.data is an array
         console.log(response.data.data);
         setUnits(Array.isArray(response.data.data) ? response.data.data : []);
-      } catch (error) {
+      } catch {
         showToastMessage("Failed to fetch units", "error");
         setUnits([]); // Fallback to empty array on error
       }
@@ -91,7 +91,7 @@ import { toastClasses } from "../../lib/status";
         setConversions(
           Array.isArray(response.data.data) ? response.data.data : []
         );
-      } catch (error) {
+      } catch {
         showToastMessage("Failed to fetch conversions", "error");
         setConversions([]); // Fallback to empty array on error
       }
@@ -362,7 +362,7 @@ import { toastClasses } from "../../lib/status";
               <ArrowLeft size={16} className="text-gray-600" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900">
                 Unit of Measure & Conversion
               </h1>
               <p className="text-gray-600 mt-1">
@@ -453,7 +453,7 @@ import { toastClasses } from "../../lib/status";
               <div className="text-xs text-blue-600 font-medium">Total</div>
             </div>
             <h3 className="text-sm font-medium text-blue-600 mb-2">Units</h3>
-            <p className="text-3xl font-bold text-gray-900">{totalUnits}</p>
+            <p className="text-2xl font-bold text-gray-900">{totalUnits}</p>
             <p className="text-xs text-gray-500 mt-1">{activeUnits} active</p>
           </div>
 
@@ -467,7 +467,7 @@ import { toastClasses } from "../../lib/status";
             <h3 className="text-sm font-medium text-purple-600 mb-2">
               Conversions
             </h3>
-            <p className="text-3xl font-bold text-gray-900">{totalConversions}</p>
+            <p className="text-2xl font-bold text-gray-900">{totalConversions}</p>
             <p className="text-xs text-gray-500 mt-1">
               {activeConversions} active
             </p>
@@ -485,7 +485,7 @@ import { toastClasses } from "../../lib/status";
             <h3 className="text-sm font-medium text-emerald-600 mb-2">
               Categories
             </h3>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-2xl font-bold text-gray-900">
               {categories.length}
             </p>
             <p className="text-xs text-gray-500 mt-1">Available types</p>
@@ -501,7 +501,7 @@ import { toastClasses } from "../../lib/status";
             <h3 className="text-sm font-medium text-orange-600 mb-2">
               Auto Convert
             </h3>
-            <p className="text-3xl font-bold text-gray-900">ON</p>
+            <p className="text-2xl font-bold text-gray-900">ON</p>
             <p className="text-xs text-gray-500 mt-1">Enabled</p>
           </div>
         </div>
@@ -724,7 +724,7 @@ import { toastClasses } from "../../lib/status";
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredConversions.map((conversion, i) => (
+                  {filteredConversions.map((conversion) => (
                     <tr
                       key={conversion._id}
                       className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 transition-all duration-200"

@@ -7,9 +7,9 @@ import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, u
 
 // Where to go to fix each company-level check.
 const FIX = {
-  trn: ["/accounting-setup?tab=rules", "Company profile"],
-  legalName: ["/accounting-setup?tab=rules", "Company profile"],
-  address: ["/accounting-setup?tab=rules", "Company profile"],
+  trn: ["/settings?tab=rules", "Tax identity"],
+  legalName: ["/settings?tab=rules", "Tax identity"],
+  address: ["/settings?tab=rules", "Tax identity"],
   taxCodes: ["/accounting-setup?tab=tax", "Tax codes"],
   participantId: ["/e-invoicing?tab=settings", "Settings"],
 };

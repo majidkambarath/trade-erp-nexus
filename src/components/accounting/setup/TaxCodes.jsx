@@ -3,7 +3,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../../utils/format";
 import { Button } from "../../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, errorMessage, useAsync } from "../kit";
+import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../kit";
 
 export const KINDS = {
   standard: "Standard-rated",
@@ -114,7 +114,7 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
           <legend className="px-1 text-sm font-medium">Rate changes <span className="font-normal text-muted-foreground">(optional)</span></legend>
           {form.history.map((h, i) => (
             <div key={i} className="mb-2 flex items-end gap-2">
-              <Field label="From" className="flex-1"><TextInput type="date" value={h.date} onChange={(e) => setHist(i, "date", e.target.value)} /></Field>
+              <Field label="From" className="flex-1"><DateInput value={h.date} onChange={(e) => setHist(i, "date", e.target.value)} /></Field>
               <Field label="New rate (%)" className="w-32"><TextInput type="number" step="0.01" min="0" max="100" value={h.ratePercent} onChange={(e) => setHist(i, "ratePercent", e.target.value)} /></Field>
               <button type="button" aria-label={`Remove rate change ${i + 1}`} onClick={() => setForm((f) => ({ ...f, history: f.history.filter((_, j) => j !== i) }))} className="mb-1 grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
             </div>

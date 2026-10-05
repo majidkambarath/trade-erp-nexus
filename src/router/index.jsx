@@ -20,7 +20,6 @@ import CategoryManagement from "../components/Inventory/CategoryManagement.jsx";
 import PurchaseAccounts from "../components/AccountsModule/Purchase/PurchaseAccount.jsx";
 import SaleAccountsManagement from "../components/AccountsModule//Sales/SaleAccountsManagement.jsx";
 import StockDetail from "../components/Stock/StockDetail.jsx";
-import VatReports from "../components/Reports/VATReportCreate.jsx";
 import EInvoicing from "../components/EInvoicing/EInvoicing.jsx";
 import ChartOfAccounts from "../components/accounting/ChartOfAccounts.jsx";
 import LedgerBook from "../components/accounting/LedgerBook.jsx";
@@ -35,6 +34,15 @@ import CardMaster from "../components/banking/CardMaster.jsx";
 import ChequeRegister from "../components/banking/ChequeRegister.jsx";
 import CashAndBank from "../components/banking/CashAndBank.jsx";
 import AccountingSetup from "../components/accounting/AccountingSetup.jsx";
+import LedgerReports from "../components/Reports/LedgerReports.jsx";
+import PartyBalances from "../components/Reports/PartyBalances.jsx";
+import VatReturn from "../components/Reports/VatReturn.jsx";
+import StockReports from "../components/Reports/StockReports.jsx";
+import IfrsStatements from "../components/Reports/IfrsStatements.jsx";
+import OpeningBalances from "../components/accounting/OpeningBalances.jsx";
+import KycDocuments from "../components/parties/KycDocuments.jsx";
+import Currencies from "../components/accounting/Currencies.jsx";
+import CurrencyRegister from "../components/accounting/CurrencyRegister.jsx";
 import FinancialStatements from "../components/Reports/FinancialStatements.jsx";
 import AgeingReport from "../components/Reports/AgeingReport.jsx";
 import StatementOfAccount from "../components/Reports/StatementOfAccount.jsx";
@@ -85,11 +93,19 @@ export default function AdminRouter() {
         {/* the old transaction list and cash/bank "transactors" were replaced by the Ledger and Cash & bank pages on the chart of accounts */}
         <Route path="/transactions" element={<Navigate to="/ledger" replace />} />
         <Route path="/transactors" element={<Navigate to="/cash-and-bank" replace />} />
-        <Route path="/vat-reports" element={<VatReports />} />
+        <Route path="/vat-reports" element={<VatReturn />} />
         <Route path="/e-invoicing" element={<EInvoicing />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/accounting-setup" element={<AccountingSetup />} />
         <Route path="/financial-statements" element={<FinancialStatements />} />
+        <Route path="/ledger-reports" element={<LedgerReports />} />
+        <Route path="/party-balances" element={<PartyBalances />} />
+        <Route path="/stock-reports" element={<StockReports />} />
+        <Route path="/ifrs-statements" element={<IfrsStatements />} />
+        <Route path="/opening-balances" element={<OpeningBalances />} />
+        <Route path="/kyc-documents" element={<KycDocuments />} />
+        <Route path="/currencies" element={<Currencies />} />
+        <Route path="/currency-register" element={<CurrencyRegister />} />
         <Route path="/ageing" element={<AgeingReport />} />
         <Route path="/statement" element={<StatementOfAccount />} />
         <Route path="/batches" element={<BatchManagement />} />

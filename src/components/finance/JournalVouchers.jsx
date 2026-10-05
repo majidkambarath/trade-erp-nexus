@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, errorMessage, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, errorMessage, useToasts, DateInput } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
@@ -124,7 +124,7 @@ export function JournalForm({ voucher, onClose, onSaved }) {
         {loadingAccounts && <Spinner label="Loading accounts" />}
         <ErrorNote error={accountsError || problem} />
         <div className="grid gap-4 sm:grid-cols-[12rem_1fr]">
-          <Field label="Date" required><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} data-autofocus /></Field>
+          <Field label="Date" required><DateInput value={date} onChange={(e) => setDate(e.target.value)} data-autofocus /></Field>
           <Field label="Narration" hint="What this journal is for."><TextInput value={narration} onChange={(e) => setNarration(e.target.value)} maxLength={200} placeholder="e.g. Month-end accrual" /></Field>
         </div>
 

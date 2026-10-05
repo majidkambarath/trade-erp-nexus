@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { accounting } from "../../../lib/accountingApi";
-import { Button } from "../../ui/button";
-import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../kit";
+import { accounting } from "../../lib/accountingApi";
+import { Button } from "../ui/button";
+import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
 
 const MODES = [
   { value: "off", label: "Off", help: "No credit check. Approvals are never held up." },
@@ -9,8 +9,11 @@ const MODES = [
   { value: "block", label: "Block", help: "A sale that goes over the limit, or to a customer with a seriously overdue invoice, cannot be approved." },
 ];
 
-// Business rules: credit control, returns and the company's tax identity.
-export default function Rules({ notify }) {
+// Business rules: credit control, returns and the company's tax identity. They live in Settings
+// because they are the company's policy, not part of the ledger's structure (Accounting setup).
+// `companyDefaults` is the saved company profile; it fills any tax-identity field still empty, so
+// nothing is typed twice.
+export default function BusinessRules({ notify, companyDefaults }) {
   const { data, loading, error, reload } = useAsync(() => accounting.settings(), []);
   if (loading && !data) return <Spinner />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
@@ -18,7 +21,7 @@ export default function Rules({ notify }) {
     <div className="space-y-5">
       <CreditControl settings={data} notify={notify} onSaved={reload} />
       <Returns settings={data} notify={notify} onSaved={reload} />
-      <Profile settings={data} notify={notify} onSaved={reload} />
+      <TaxIdentity settings={data} defaults={companyDefaults} notify={notify} onSaved={reload} />
     </div>
   );
 }
@@ -90,20 +93,34 @@ function Returns({ settings, notify, onSaved }) {
   );
 }
 
-function Profile({ settings, notify, onSaved }) {
-  const [p, setP] = useState({ legalName: "", trn: "", addressLine1: "", city: "", emirate: "", countryCode: "AE", email: "", phone: "", vatRegistered: true, ...settings.profile });
-  useEffect(() => setP((x) => ({ ...x, ...settings.profile })), [settings]);
+const EMIRATES = ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
+
+// What the tax authority knows: the saved tax identity, with anything still blank taken from the
+// company profile (name, address, city, emirate, email, phone).
+export function taxIdentityFrom(profile = {}, company) {
+  const fallback = company ? {
+    legalName: company.companyName, addressLine1: company.addressLine1, city: company.city,
+    emirate: EMIRATES.includes(company.state) ? company.state : "", email: company.emailAddress, phone: company.phoneNumber,
+  } : {};
+  const merged = { legalName: "", trn: "", addressLine1: "", city: "", emirate: "", countryCode: "AE", email: "", phone: "", vatRegistered: true, ...profile };
+  for (const [k, v] of Object.entries(fallback)) if (!merged[k] && v) merged[k] = v;
+  return merged;
+}
+
+function TaxIdentity({ settings, defaults, notify, onSaved }) {
+  const [p, setP] = useState(() => taxIdentityFrom(settings.profile, defaults));
+  useEffect(() => setP(taxIdentityFrom(settings.profile, defaults)), [settings, defaults]);
   const [fieldError, setFieldError] = useState(null);
   const set = (k) => (e) => setP((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const s = useSection(async () => {
     if (p.trn && !/^\d{15}$/.test(p.trn)) { setFieldError("A UAE TRN is exactly 15 digits"); throw new Error("Check the TRN"); }
     setFieldError(null);
     await accounting.saveSettings({ profile: p });
-  }, notify, onSaved, "Company profile saved");
+  }, notify, onSaved, "Tax identity saved");
   return (
-    <Panel title="Company profile" description="Printed on tax invoices and sent as the seller on every e-invoice.">
+    <Panel title="Tax identity" description="The seller on tax invoices and on every e-invoice. Taken from your company profile until you change it here.">
       <form onSubmit={s.submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Legal name" className="sm:col-span-2"><TextInput value={p.legalName || ""} onChange={set("legalName")} maxLength={150} /></Field>
+        <Field label="Registered name" className="sm:col-span-2"><TextInput value={p.legalName || ""} onChange={set("legalName")} maxLength={150} /></Field>
         <Field label="Tax registration number (TRN)" error={fieldError} hint="15 digits."><TextInput inputMode="numeric" value={p.trn || ""} onChange={set("trn")} maxLength={15} /></Field>
         <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-4 w-4 accent-[var(--color-primary)]" />Registered for VAT</label>
         <Field label="Address" className="sm:col-span-2"><TextInput value={p.addressLine1 || ""} onChange={set("addressLine1")} /></Field>
@@ -111,13 +128,13 @@ function Profile({ settings, notify, onSaved }) {
         <Field label="Emirate">
           <Select value={p.emirate || ""} onChange={set("emirate")}>
             <option value="">Choose…</option>
-            {["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"].map((e) => <option key={e}>{e}</option>)}
+            {EMIRATES.map((e) => <option key={e}>{e}</option>)}
           </Select>
         </Field>
         <Field label="Email"><TextInput type="email" value={p.email || ""} onChange={set("email")} /></Field>
         <Field label="Phone"><TextInput value={p.phone || ""} onChange={set("phone")} /></Field>
         {s.error && !fieldError && <div className="sm:col-span-2"><ErrorNote error={s.error} /></div>}
-        <div className="sm:col-span-2"><Button type="submit" disabled={s.busy}>{s.busy ? "Saving…" : "Save company profile"}</Button></div>
+        <div className="sm:col-span-2"><Button type="submit" disabled={s.busy}>{s.busy ? "Saving…" : "Save tax identity"}</Button></div>
       </form>
     </Panel>
   );

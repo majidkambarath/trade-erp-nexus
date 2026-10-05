@@ -30,4 +30,14 @@ export default [
       ],
     },
   },
+  {
+    // Vite/Vitest config runs under Node (uses __dirname).
+    files: ['vitest.config.js'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    // vitest.config.js sets `globals: true`, so `vi` is a global in the setup file.
+    files: ['vitest.setup.js'],
+    languageOptions: { globals: { vi: 'readonly' } },
+  },
 ]

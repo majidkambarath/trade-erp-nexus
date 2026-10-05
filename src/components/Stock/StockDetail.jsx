@@ -24,6 +24,7 @@ import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 import BarcodeGenerator from "react-barcode";
 
+import { formatDate } from "../../utils/format";
 const StockDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -325,7 +326,7 @@ const StockDetail = () => {
                   </p>
                   <p className={`text-gray-800 mt-1 ${expiryStatus.color}`}>
                     {stockItem.expiryDate
-                      ? new Date(stockItem.expiryDate).toLocaleDateString()
+                      ? formatDate(stockItem.expiryDate)
                       : "N/A"}
                     {expiryStatus.label !== "N/A" && ` (${expiryStatus.label})`}
                   </p>
@@ -453,7 +454,7 @@ const StockDetail = () => {
                             {log.transactionNo}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                            {new Date(log.date).toLocaleDateString()}
+                            {formatDate(log.date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                             {log.party || "N/A"}
@@ -470,7 +471,7 @@ const StockDetail = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                             {item.expiryDate
-                              ? new Date(item.expiryDate).toLocaleDateString()
+                              ? formatDate(item.expiryDate)
                               : "N/A"}
                           </td>
                         </tr>
@@ -513,7 +514,7 @@ const StockDetail = () => {
                     </p>
                     <p className="text-sm text-red-500 mt-1">
                       This item expired on{" "}
-                      {new Date(stockItem.expiryDate).toLocaleDateString()}.
+                      {formatDate(stockItem.expiryDate)}.
                       Review or dispose of the stock.
                     </p>
                   </div>
@@ -526,7 +527,7 @@ const StockDetail = () => {
                     </p>
                     <p className="text-sm text-foreground mt-1">
                       This item will expire on{" "}
-                      {new Date(stockItem.expiryDate).toLocaleDateString()}.
+                      {formatDate(stockItem.expiryDate)}.
                       Plan accordingly.
                     </p>
                   </div>

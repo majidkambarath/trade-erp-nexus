@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { Eye, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts, DateInput } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
@@ -170,7 +170,7 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
           <Field label="Set against invoice" hint={canSettle ? (partyId ? "Optional. Lowers what is open on that invoice." : "Choose the party first.") : `A ${TYPES[type].one} to a ${partyType.toLowerCase()} adds to what they owe, so it stays on account.`}>
             <SearchSelect value={invoiceId} onChange={setInvoiceId} options={invoiceOptions} clearable disabled={!canSettle || !partyId} loading={invoices.loading} placeholder="On account" noOptionsText="No open invoices" />
           </Field>
-          <Field label="Date" required><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+          <Field label="Date" required><DateInput value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
 
         <EntryGrid

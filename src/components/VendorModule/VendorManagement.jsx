@@ -13,14 +13,9 @@ import {
   Trash2,
   X,
   User,
-  Mail,
-  Phone,
-  MapPin,
-  CreditCard,
   AlertTriangle,
   Loader2,
   RefreshCw,
-  Save,
   Clock,
   CheckCircle,
   XCircle,
@@ -30,6 +25,8 @@ import {
 import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
 
+import PartyModal from "../parties/PartyModal";
+import ExpiryPill from "../parties/ExpiryPill";
 // Session management utilities (using memory storage for Claude environment)
 const SessionManager = {
   storage: {},
@@ -69,22 +66,8 @@ const SessionManager = {
 
 const VendorManagement = () => {
   const [vendors, setVendors] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  const [partyModal, setPartyModal] = useState(null); // { vendor } to edit one, {} for a new vendor
   const [searchTerm, setSearchTerm] = useState("");
-  const [editVendorId, setEditVendorId] = useState(null);
-  const [formData, setFormData] = useState({
-    vendorName: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    address: "",
-    trnNO: "",
-    paymentTerms: "",
-    status: "",
-    vendorId: "",
-  });
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState({
     visible: false,
@@ -101,31 +84,19 @@ const VendorManagement = () => {
   });
 
   // New UX enhancement states
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState("table"); // table, card
-  const [selectedVendors, setSelectedVendors] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   // Refs for enhanced UX
-  const formRef = useRef(null);
-  const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
 
   // Load session data on component mount
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
     const savedViewMode = SessionManager.get("viewMode");
-
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-    }
 
     if (savedFilters) {
       setFilterStatus(savedFilters.status || "");
@@ -140,24 +111,6 @@ const VendorManagement = () => {
       setViewMode(savedViewMode);
     }
   }, []);
-
-  // Auto-save form data to session
-  useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
-      autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", formData);
-        SessionManager.set("lastSaveTime", new Date().toISOString());
-        setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
-      }, 2000); // Auto-save after 2 seconds of inactivity
-    }
-
-    return () => {
-      if (autoSaveInterval.current) {
-        clearTimeout(autoSaveInterval.current);
-      }
-    };
-  }, [formData, showModal]);
 
   // Save search and filter preferences
   useEffect(() => {
@@ -213,83 +166,19 @@ const VendorManagement = () => {
     );
   }, []);
 
-  const handleChange = useCallback((e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => (prev[name] ? { ...prev, [name]: "" } : prev));
-    setIsDraftSaved(false);
-  }, []);
-
-  const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.vendorName.trim())
-      newErrors.vendorName = "Vendor name is required";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required";
-    if (!formData.address.trim()) newErrors.address = "Address is required";
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Invalid email format";
-    if (formData.trnNO && !/^[A-Za-z0-9]{5,15}$/.test(formData.trnNO))
-      newErrors.trnNO = "TRN NO must be 5-15 alphanumeric characters";
-    return newErrors;
-  }, [formData]);
-
-  const handleSubmit = useCallback(async () => {
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload = { ...formData, status: formData.status || "Compliant" };
-      delete payload.vendorId;
-
-      if (editVendorId) {
-        await axiosInstance.put(`/vendors/vendors/${editVendorId}`, payload);
-        showToastMessage("Vendor updated successfully!", "success");
-      } else {
-        await axiosInstance.post("/vendors/vendors", payload);
-        showToastMessage("Vendor created successfully!", "success");
-      }
-
+  // The add / edit form is the shared party form (components/parties); the page only opens it and
+  // reloads the list when it saves.
+  const handleEdit = useCallback((vendor) => setPartyModal({ vendor }), []);
+  const openAddModal = useCallback(() => setPartyModal({}), []);
+  const closePartyModal = useCallback(() => setPartyModal(null), []);
+  const handlePartySaved = useCallback(
+    async (_saved, message) => {
+      setPartyModal(null);
       await fetchVendors();
-      resetForm();
-
-      // Clear session data after successful submission
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
-    } catch (error) {
-      showToastMessage(
-        error.response?.data?.message || "Failed to save vendor.",
-        "error"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [editVendorId, formData, fetchVendors, validateForm, showToastMessage]);
-
-  const handleEdit = useCallback((vendor) => {
-    setEditVendorId(vendor._id);
-    setFormData({
-      vendorName: vendor.vendorName,
-      contactPerson: vendor.contactPerson,
-      email: vendor.email,
-      phone: vendor.phone,
-      address: vendor.address,
-      trnNO: vendor.trnNO || "",
-      paymentTerms: vendor.paymentTerms,
-      status: vendor.status,
-      vendorId: vendor.vendorId,
-    });
-    setShowModal(true);
-    setIsDraftSaved(false);
-
-    // Clear any existing draft when editing
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
+      showToastMessage(message, "success");
+    },
+    [fetchVendors, showToastMessage]
+  );
 
   const handleDelete = useCallback((id, vendorName) => {
     setDeleteConfirmation({
@@ -323,48 +212,6 @@ const VendorManagement = () => {
       isDeleting: false,
     });
   }, []);
-
-  const resetForm = useCallback(() => {
-    setEditVendorId(null);
-    setFormData({
-      vendorName: "",
-      contactPerson: "",
-      email: "",
-      phone: "",
-      address: "",
-      trnNO: "",
-      paymentTerms: "",
-      status: "",
-      vendorId: "",
-    });
-    setErrors({});
-    setShowModal(false);
-    setIsDraftSaved(false);
-    setLastSaveTime(null);
-
-    // Clear session draft
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
-
-  const openAddModal = useCallback(() => {
-    resetForm();
-    setShowModal(true);
-    setTimeout(() => {
-      const modal = document.querySelector(".modal-container");
-      if (modal) {
-        modal.classList.add("scale-100");
-      }
-
-      // Focus first input
-      if (formRef.current) {
-        const firstInput = formRef.current.querySelector(
-          'input[name="vendorName"]'
-        );
-        if (firstInput) firstInput.focus();
-      }
-    }, 10);
-  }, [resetForm]);
 
   const handleRefresh = useCallback(() => {
     fetchVendors(true);
@@ -445,18 +292,6 @@ const VendorManagement = () => {
     [vendors]
   );
 
-  const formatLastSaveTime = useCallback((timeString) => {
-    if (!timeString) return "";
-    const time = new Date(timeString);
-    const now = new Date();
-    const diffMs = now - time;
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
-  }, []);
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -480,7 +315,7 @@ const VendorManagement = () => {
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900">
               Vendor Management
             </h1>
             <p className="text-gray-600 text-sm mt-1">
@@ -734,6 +569,7 @@ const VendorManagement = () => {
                         </div>
                         <div>
                           <div className="font-medium">{vendor.vendorName}</div>
+                          <ExpiryPill documents={vendor.documents} />
                         </div>
                       </div>
                     </td>
@@ -804,276 +640,14 @@ const VendorManagement = () => {
         </div>
       </div>
 
-      {/* Enhanced Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-white/50 w-full flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {editVendorId ? "Edit Vendor" : "Add New Vendor"}
-                </h3>
-                {isDraftSaved && lastSaveTime && (
-                  <p className="text-sm text-green-600 flex items-center mt-1">
-                    <Save size={12} className="mr-1" />
-                    Draft saved {formatLastSaveTime(lastSaveTime)}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={resetForm}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-4 sm:p-6" ref={formRef}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {editVendorId && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Vendor ID
-                    </label>
-                    <input
-                      type="text"
-                      name="vendorId"
-                      value={formData.vendorId}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-                      readOnly
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <User size={16} className="inline mr-1" /> Vendor Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="vendorName"
-                    value={formData.vendorName}
-                    onChange={handleChange}
-                    placeholder="Enter vendor name"
-                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.vendorName
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.vendorName && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.vendorName}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <User size={16} className="inline mr-1" /> Contact Person *
-                  </label>
-                  <input
-                    type="text"
-                    name="contactPerson"
-                    value={formData.contactPerson}
-                    onChange={handleChange}
-                    placeholder="Enter contact person name"
-                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.contactPerson
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.contactPerson && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.contactPerson}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Mail size={16} className="inline mr-1" /> Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="vendor@example.com"
-                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.email
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Phone size={16} className="inline mr-1" /> Phone
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+1-555-0123"
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <MapPin size={16} className="inline mr-1" /> Billing Address *
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Enter complete billing address"
-                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none ${
-                      errors.address
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.address && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.address}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <CreditCard size={16} className="inline mr-1" /> TRN NO
-                  </label>
-                  <input
-                    type="text"
-                    name="trnNO"
-                    value={formData.trnNO}
-                    onChange={handleChange}
-                    placeholder="Enter TRN number"
-                    className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                      errors.trnNO ? "border-red-300 bg-red-50" : "border-gray-300"
-                    }`}
-                  />
-                  {errors.trnNO && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.trnNO}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <CreditCard size={16} className="inline mr-1" /> Payment Terms
-                  </label>
-                  <select
-                    name="paymentTerms"
-                    value={formData.paymentTerms}
-                    onChange={handleChange}
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Select payment terms</option>
-                    <option value="30 days">30 days</option>
-                    <option value="Net 30">Net 30</option>
-                    <option value="45 days">45 days</option>
-                    <option value="Net 60">Net 60</option>
-                    <option value="60 days">60 days</option>
-                    <option value="COD">Cash On Delivery</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Select status</option>
-                    <option value="Compliant">Compliant</option>
-                    <option value="Non-compliant">Non-compliant</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Expired">Expired</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.vendorName ||
-                    formData.contactPerson ||
-                    formData.email ||
-                    formData.trnNO ? (
-                    <span className="flex items-center text-status-warning">
-                      <Clock size={14} className="mr-1" />
-                      Unsaved changes
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    disabled={isSubmitting}
-                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors duration-200 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : editVendorId ? (
-                      <>
-                        <Save size={16} className="mr-2" />
-                        Update Vendor
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={16} className="mr-2" />
-                        Add Vendor
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Add / edit: the shared party form */}
+      {partyModal && (
+        <PartyModal
+          kind="vendor"
+          record={partyModal.vendor}
+          onClose={closePartyModal}
+          onSaved={handlePartySaved}
+        />
       )}
     </div>
   );

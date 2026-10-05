@@ -5,7 +5,6 @@ import axiosInstance from "../../../axios/axios";
 import {
   formatNumber,
   formatDateGB,
-  amountInWords as toAmountInWords,
 } from "../../../utils/format";
 import { documentTotals } from "../../../utils/documentTotals";
 
@@ -13,6 +12,9 @@ const pad4 = (v = "") => {
   const n = String(v || "").replace(/\D/g, "");
   return n ? n.padStart(4, "0") : "".padStart(4, "0");
 };
+
+// a stable stand-in while the party is not found (a new {} each render would re-run the effect below)
+const NO_PARTY = {};
 
 const SaleInvoiceView = ({
   selectedSO,
@@ -80,22 +82,22 @@ const SaleInvoiceView = ({
     load();
   }, [adminId, token]);
 
+  // The hooks below run on every render; the "nothing selected" return comes after them.
   const so = createdSO || selectedSO;
-  if (!so) return null;
-
-  const customer = customers.find((c) => c._id === so.customerId) || {};
-  const isApproved = so.status === "APPROVED";
+  const customer = (so && customers.find((c) => c._id === so.customerId)) || NO_PARTY;
+  const isApproved = so?.status === "APPROVED";
 
   // invoice meta: not editable in UI (display-only)
   const [invoiceMeta, setInvoiceMeta] = useState({
-    invoiceNo: pad4(so.invoiceNumber || so.displayTransactionNo || ""),
-    soNo: isApproved ? (so.displayTransactionNo || so.transactionNo) : so.transactionNo,
-    lpoOrRef: so.refNo ?? so.lpono ?? "",
-    docNo: so.docNo ?? so.docno ?? "",
+    invoiceNo: pad4(so?.invoiceNumber || so?.displayTransactionNo || ""),
+    soNo: isApproved ? (so?.displayTransactionNo || so?.transactionNo) : so?.transactionNo,
+    lpoOrRef: so?.refNo ?? so?.lpono ?? "",
+    docNo: so?.docNo ?? so?.docno ?? "",
     paymentTerms: customer.paymentTerms || "COD",
   });
 
   useEffect(() => {
+    if (!so) return;
     setInvoiceMeta((m) => ({
       ...m,
       invoiceNo: pad4(so.invoiceNumber || so.displayTransactionNo || m.invoiceNo),
@@ -104,15 +106,14 @@ const SaleInvoiceView = ({
       docNo: (so.docNo ?? so.docno ?? m.docNo ?? ""),
       paymentTerms: customer.paymentTerms || m.paymentTerms || "COD",
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [so, customer, isApproved]);
 
   /* totals */
   // the server's own pricing (charges, header discount, round-off), not a re-sum of the lines
-  const totals = useMemo(() => documentTotals(so), [so]);
+  const totals = useMemo(() => (so ? documentTotals(so) : { gross: 0, vat: 0, grandTotal: 0 }), [so]);
   const { gross: grossAmount, vat: vatTotal, grandTotal } = totals;
-  // words: based on grandTotal (the amount actually payable), not grossAmount
-  const amountInWords = toAmountInWords(grandTotal);
+
+  if (!so) return null;
 
   /* pdf generation */
   const generatePDF = async (copyType) => {
@@ -137,7 +138,7 @@ const SaleInvoiceView = ({
     try {
       await generatePDF("Internal Copy");
       await generatePDF("Customer Copy");
-    } catch (e) {
+    } catch {
       alert("PDF generation failed");
     } finally {
       setIsGeneratingPDF(false);

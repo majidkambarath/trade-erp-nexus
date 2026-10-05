@@ -217,8 +217,8 @@ describe("readiness", () => {
   it("points each failing company check at where to fix it", async () => {
     m.readiness.mockResolvedValue(READY);
     at("/e-invoicing?tab=readiness");
-    const fix = await screen.findByRole("link", { name: "Fix in Company profile" });
-    expect(fix).toHaveAttribute("href", "/accounting-setup?tab=rules");
+    const fix = await screen.findByRole("link", { name: "Fix in Tax identity" });
+    expect(fix).toHaveAttribute("href", "/settings?tab=rules");
     expect(screen.getByLabelText("Ready")).toBeInTheDocument();
     expect(screen.getByText("1 of 2 ready")).toBeInTheDocument();
     expect(screen.getByText("Missing City · VAT Number must be 15 digits")).toBeInTheDocument();

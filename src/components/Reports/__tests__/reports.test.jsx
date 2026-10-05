@@ -4,11 +4,11 @@ import { render, screen, within, fireEvent, waitFor } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 
 const m = vi.hoisted(() => ({
-  ageing: vi.fn(), statement: vi.fn(), trialBalance: vi.fn(), profitLoss: vi.fn(), balanceSheet: vi.fn(),
+  ageing: vi.fn(), statement: vi.fn(), trialBalance: vi.fn(), profitLossDetail: vi.fn(), cashFlow: vi.fn(), balanceSheet: vi.fn(),
   accountLedger: vi.fn(), attachments: vi.fn(), axiosGet: vi.fn(),
 }));
 vi.mock("../../../lib/accountingApi", () => ({
-  accounting: { ageing: m.ageing, statement: m.statement, trialBalance: m.trialBalance, profitLoss: m.profitLoss, balanceSheet: m.balanceSheet, accountLedger: m.accountLedger, attachments: m.attachments },
+  accounting: { ageing: m.ageing, statement: m.statement, trialBalance: m.trialBalance, profitLossDetail: m.profitLossDetail, cashFlow: m.cashFlow, balanceSheet: m.balanceSheet, accountLedger: m.accountLedger, attachments: m.attachments },
 }));
 vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 vi.mock("../../../utils/format", async (orig) => ({ ...(await orig()), downloadCSV: vi.fn() }));
@@ -152,14 +152,60 @@ describe("financial statements", () => {
     expect(screen.getByText("Difference 50.00")).toBeInTheDocument();
   });
 
-  it("profit and loss shows net profit, or a loss", async () => {
-    m.profitLoss.mockResolvedValue({ income: [{ _id: "i", accountCode: "SAL0001", accountName: "Sales Revenue", amount: 400 }], expenses: [{ _id: "e", accountCode: "OPEX0001", accountName: "Rent", amount: 150 }], totalIncome: 400, totalExpenses: 150, netProfit: 250 });
+  const PL = (over = {}) => ({
+    revenue: { groups: [{ groupId: "g1", name: "Sales Income", total: 400, accounts: [{ accountId: "i", accountCode: "SAL0001", accountName: "Sales Revenue", amount: 400 }] }], total: 400 },
+    directCosts: { groups: [{ groupId: "g2", name: "Cost of Goods Sold", total: 100, accounts: [{ accountId: "c", accountCode: "COGS0001", accountName: "Cost of Goods Sold", amount: 100 }] }], total: 100 },
+    grossProfit: 300, grossMargin: 75,
+    otherIncome: { groups: [], total: 0 },
+    operatingExpenses: { groups: [{ groupId: "g3", name: "Operating Expenses", total: 150, accounts: [{ accountId: "e", accountCode: "OPEX0001", accountName: "Rent", amount: 150 }] }], total: 150 },
+    netProfit: 150, ...over,
+  });
+
+  it("profit and loss reads as a statement: revenue, cost of sales, gross profit with its margin, then net profit", async () => {
+    m.profitLossDetail.mockResolvedValue(PL());
     at(<FinancialStatements />, "/?tab=pl");
-    expect(await screen.findByText("Net profit")).toBeInTheDocument();
+    expect(await screen.findByText("Gross profit", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("75.0% of revenue")).toBeInTheDocument();
     expect(screen.getByText("Rent")).toBeInTheDocument();
-    m.profitLoss.mockResolvedValue({ income: [], expenses: [], totalIncome: 0, totalExpenses: 90, netProfit: -90 });
+    expect(screen.getByText("Net profit", { selector: "td" })).toBeInTheDocument();
+    expect(m.profitLossDetail).toHaveBeenCalledWith(expect.objectContaining({ from: expect.stringMatching(/^\d{4}-01-01$/), to: expect.any(String) }));
+    const exported = downloadCSV.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    expect(downloadCSV.mock.calls.length).toBe(exported + 1);
+    expect(downloadCSV.mock.calls.at(-1)[0]).toMatch(/^profit-and-loss-/);
+  });
+
+  it("profit and loss shows a loss as a loss, and re-queries when the dates change", async () => {
+    m.profitLossDetail.mockResolvedValue(PL());
+    at(<FinancialStatements />, "/?tab=pl");
+    await screen.findByText("Rent");
+    m.profitLossDetail.mockResolvedValue(PL({ revenue: { groups: [], total: 0 }, directCosts: { groups: [], total: 0 }, grossProfit: 0, grossMargin: null, operatingExpenses: { groups: [{ groupId: "g3", name: "Opex", total: 90, accounts: [{ accountId: "e", accountCode: "OPEX0001", accountName: "Rent", amount: 90 }] }], total: 90 }, netProfit: -90 }));
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-01-31" } });
-    expect(await screen.findByText("Net loss")).toBeInTheDocument();
+    expect(await screen.findByText("Net loss", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("No revenue yet")).toBeInTheDocument();
+  });
+
+  it("the quick ranges move both dates", async () => {
+    m.profitLossDetail.mockResolvedValue(PL());
+    at(<FinancialStatements />, "/?tab=pl");
+    await screen.findByText("Rent");
+    fireEvent.click(screen.getByRole("button", { name: "This month" }));
+    await waitFor(() => expect(m.profitLossDetail).toHaveBeenLastCalledWith(expect.objectContaining({ from: expect.stringMatching(/-01$/) })));
+  });
+
+  it("cash flow: opening, money in and out by source, closing, and whether it agrees with the ledgers", async () => {
+    const flow = {
+      opening: 1000, totalIn: 600, totalOut: 250, net: 350, closing: 1350, closingPerLedger: 1350, reconciles: true, accounts: 2,
+      lines: [{ voucherType: "receipt", label: "Received from customers", inflow: 600, outflow: 0, net: 600, count: 3 }, { voucherType: "payment", label: "Paid to vendors", inflow: 0, outflow: 250, net: -250, count: 2 }],
+    };
+    m.cashFlow.mockResolvedValue(flow);
+    at(<FinancialStatements />, "/?tab=cash");
+    expect(await screen.findByText("Received from customers")).toBeInTheDocument();
+    expect(screen.getByText("Agrees with the cash and bank ledgers")).toBeInTheDocument();
+    expect(screen.getByText("Paid to vendors")).toBeInTheDocument();
+    m.cashFlow.mockResolvedValue({ ...flow, closingPerLedger: 1300, reconciles: false });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-02-01" } });
+    expect(await screen.findByText("Differs from the ledgers by 50.00")).toBeInTheDocument();
   });
 
   it("balance sheet shows profit within equity and whether it balances", async () => {

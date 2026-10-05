@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
-import { decimalRound, decimalSum, formatNumber, todayInput } from "../../../utils/format";
+import { decimalRound, decimalSum, formatNumber, todayInput, formatDate } from "../../../utils/format";
 
 const InvoiceView = ({
   selectedPO,
   vendors,
-  calculateTotals,
   setActiveView,
   createdPO,
   setSelectedPO,
@@ -362,7 +361,7 @@ const InvoiceView = ({
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}>
                 Date:{" "}
-                {new Date(po.date || Date.now()).toLocaleDateString("en-GB")}
+                {formatDate(po.date || Date.now())}
               </p>
               <p style={{ margin: "2px 0" }}>Invoice: {po.transactionNo}</p>
               <p style={{ margin: "2px 0" }}>PR. NO: {po.transactionNo}</p>

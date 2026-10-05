@@ -26,10 +26,11 @@ import {
 } from "lucide-react";
 import DirhamIcon from "../../assets/dirham.svg";
 import axiosInstance from "../../axios/axios";
-import { decimalRound, downloadCSV, formatDateGB } from "../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
+import { DateInput } from "../accounting/kit";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -358,13 +359,7 @@ const InventoryManagement = () => {
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatDateTime(dateString) || "N/A";
   }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
@@ -376,7 +371,7 @@ const InventoryManagement = () => {
 
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return formatTime(time);
   }, []);
 
   const showMovementDetails = useCallback((movement) => {
@@ -417,7 +412,7 @@ const InventoryManagement = () => {
       );
 
       showToastMessage("Inventory movements exported successfully!", "success");
-    } catch (error) {
+    } catch {
       showToastMessage("Failed to export data", "error");
     }
   }, [movements, showToastMessage]);
@@ -463,7 +458,7 @@ const InventoryManagement = () => {
             <ChevronLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-black bg-clip-text">
               Inventory Movements
             </h1>
             <p className="text-gray-600 mt-1">
@@ -636,21 +631,21 @@ const InventoryManagement = () => {
                   <option value="IN">Stock In</option>
                   <option value="OUT">Stock Out</option>
                 </select>
-                <input
-                  type="date"
+                <DateInput
+                  aria-label="Movements from"
                   value={dateRange.start}
                   onChange={(e) =>
                     setDateRange((prev) => ({ ...prev, start: e.target.value }))
                   }
-                  className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-44"
                 />
-                <input
-                  type="date"
+                <DateInput
+                  aria-label="Movements to"
                   value={dateRange.end}
                   onChange={(e) =>
                     setDateRange((prev) => ({ ...prev, end: e.target.value }))
                   }
-                  className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-44"
                 />
                 <button
                   onClick={() => {
@@ -1060,12 +1055,11 @@ const InventoryManagement = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Expiry Date
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     name="expiryDate"
+                    aria-label="Expiry date"
                     value={formData.expiryDate}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
               </div>

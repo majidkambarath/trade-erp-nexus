@@ -7,42 +7,74 @@ import React, {
   useState,
 } from "react";
 
+// `preference` is what the person chose: "light", "dark" or "system" (follow the device).
+// `theme` is what is actually showing - always "light" or "dark" - so existing code that
+// checks `theme === "dark"` keeps working whichever preference is set.
 const ThemeContext = createContext({
   theme: "light",
+  preference: "light",
   setTheme: () => {},
   toggleTheme: () => {},
 });
 
+const KEY = "erp-bw-theme";
+const PREFERENCES = ["light", "dark", "system"];
+
+const systemTheme = () => {
+  try {
+    return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  } catch {
+    return "light";
+  }
+};
+
 export function ThemeProvider({ children, defaultTheme = "light" }) {
-  const [theme, setThemeState] = useState(() => {
+  const [preference, setPreference] = useState(() => {
     try {
-      return localStorage.getItem("erp-bw-theme") || defaultTheme;
+      const stored = localStorage.getItem(KEY);
+      return PREFERENCES.includes(stored) ? stored : defaultTheme;
     } catch {
       return defaultTheme;
     }
   });
+  const [device, setDevice] = useState(systemTheme);
+  const theme = preference === "system" ? device : preference;
+
+  // follow the device while "system" is chosen
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => setDevice(query.matches ? "dark" : "light");
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  useEffect(() => {
     try {
-      localStorage.setItem("erp-bw-theme", theme);
+      localStorage.setItem(KEY, preference);
     } catch {
       /* ignore */
     }
-  }, [theme]);
+  }, [preference]);
 
   const setTheme = useCallback((value) => {
-    setThemeState(value === "dark" ? "dark" : "light");
+    setPreference(PREFERENCES.includes(value) ? value : "light");
   }, []);
 
+  // the header switch flips what is showing now, and from then on that is the choice
   const toggleTheme = useCallback(() => {
-    setThemeState((t) => (t === "dark" ? "light" : "dark"));
-  }, []);
+    setPreference(theme === "dark" ? "light" : "dark");
+  }, [theme]);
 
   const value = useMemo(
-    () => ({ theme, setTheme, toggleTheme }),
-    [theme, setTheme, toggleTheme]
+    () => ({ theme, preference, setTheme, toggleTheme }),
+    [theme, preference, setTheme, toggleTheme]
   );
 
   return (

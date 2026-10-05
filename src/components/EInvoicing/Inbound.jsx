@@ -3,7 +3,7 @@ import { Check, Plus, X } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, DateInput } from "../accounting/kit";
 
 const TONE = { RECEIVED: "warning", ACCEPTED: "success", REJECTED: "danger" };
 const LABEL = { RECEIVED: "To review", ACCEPTED: "Accepted", REJECTED: "Rejected" };
@@ -131,7 +131,7 @@ function AddModal({ onClose, onSaved }) {
       <form id="inbound-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
         {topError && <div className="sm:col-span-2"><ErrorNote error={topError} /></div>}
         <Field label="Supplier's invoice number" required error={errors.documentId}><TextInput value={f.documentId} onChange={set("documentId")} data-autofocus /></Field>
-        <Field label="Invoice date"><TextInput type="date" value={f.issueDate} onChange={set("issueDate")} /></Field>
+        <Field label="Invoice date"><DateInput value={f.issueDate} onChange={set("issueDate")} /></Field>
         <Field label="Supplier name" required error={errors.sellerName} className="sm:col-span-2"><TextInput value={f.sellerName} onChange={set("sellerName")} /></Field>
         <Field label="Supplier TRN" error={errors.sellerVatTrn} hint="Used to find the vendor."><TextInput inputMode="numeric" value={f.sellerVatTrn} onChange={set("sellerVatTrn")} maxLength={15} /></Field>
         <Field label="Participant ID" error={errors.sellerParticipantId}><TextInput value={f.sellerParticipantId} onChange={set("sellerParticipantId")} placeholder="0235:…" /></Field>

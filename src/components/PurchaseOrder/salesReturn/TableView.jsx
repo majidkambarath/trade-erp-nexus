@@ -9,7 +9,7 @@ import {
   FileText,
   CheckSquare as ConfirmIcon,
 } from "lucide-react";
-import { formatNumber } from "../../../utils/format";
+import { formatNumber, formatDate } from "../../../utils/format";
 
 const TableView = ({
   paginatedSOs,
@@ -146,10 +146,10 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div>
                     <p className="text-sm text-slate-900">
-                      {new Date(so.date).toLocaleDateString("en-GB")}
+                      {formatDate(so.date)}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Delivery: {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
+                      Delivery: {formatDate(so.deliveryDate)}
                     </p>
                   </div>
                 </td>

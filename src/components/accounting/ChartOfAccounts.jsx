@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, FolderPlus, Link2, Lock, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
@@ -7,7 +7,10 @@ import { isValidIban } from "../../lib/iban";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import AttachmentPanel, { linkPending } from "./AttachmentPanel";
-import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts } from "./kit";
+import PartyForm from "../parties/PartyForm";
+import { partyMaster } from "../../lib/partyMasterApi";
+import { emptyParty, fieldForServerError, firstSectionWithErrors, formToPayload, partyToForm, validateParty } from "../../lib/partyForms";
+import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts, DateInput } from "./kit";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
 const CATEGORY_TONE = { ASSET: "teal", LIABILITY: "plum", EQUITY: "neutral", INCOME: "olive", EXPENSE: "rose" };
@@ -22,7 +25,7 @@ export function flattenGroups(chart) {
   const out = [];
   const walk = (nodes, depth, category) =>
     nodes.forEach((g) => {
-      out.push({ _id: g._id, name: g.name, prefix: g.prefix, category, depth });
+      out.push({ _id: g._id, name: g.name, prefix: g.prefix, category, depth, role: g.role || "other" });
       walk(g.children, depth + 1, category);
     });
   chart?.categories.forEach((c) => walk(c.groups, 0, c.category));
@@ -220,6 +223,12 @@ function AccountRow({ account, depth, onEdit, onLedger }) {
 
 // ---------- account form ----------
 
+// What the form asks for follows the group's role (from the posting map, inherited by sub-groups):
+//   bank                 bank details (the bank master, account number, IBAN...)
+//   receivable | payable the customer / vendor record: basic details, VAT, credit limit and terms,
+//                        contacts, bank accounts and KYC documents. The account is "Customer - <name>"
+//   anything else        the basics only
+// Editing a customer or vendor account shows the same sections, filled from the party record.
 export function AccountModal({ account, groupId, groups, onClose, onSaved, onError }) {
   const editing = Boolean(account);
   const [form, setForm] = useState({
@@ -239,14 +248,44 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const group = groups.find((g) => g._id === form.groupId);
-  const isBank = group?.prefix === "BANK";
+  const role = group?.role || "other";
+  const isBank = role === "bank";
+  const partyKind = role === "receivable" ? "customer" : role === "payable" ? "vendor" : null;
+
+  // the customer / vendor fields: new ones start empty; an existing account's come from its party record
+  const [partyState, setPartyState] = useState(null); // { kind, fields }
+  const [partySection, setPartySection] = useState("basic");
+  const [submitted, setSubmitted] = useState(false); // after the first try, mistakes show and clear as they are fixed
+  const [serverErrors, setServerErrors] = useState({});
+  const types = useAsync(() => (partyKind ? partyMaster.documentTypes.list({ active: "true" }) : Promise.resolve([])), [Boolean(partyKind)]);
+  const saved = useAsync(() => (editing && partyKind ? partyMaster.accountParty.get(account._id) : Promise.resolve(null)), [account?._id, partyKind]);
+  useEffect(() => {
+    if (editing && saved.data?.party && saved.data.kind === partyKind) setPartyState({ kind: partyKind, fields: partyToForm(partyKind, saved.data.party) });
+  }, [editing, partyKind, saved.data]);
+  const loadingParty = Boolean(editing && partyKind && saved.loading);
+  const partyFailed = Boolean(editing && partyKind && saved.error); // without the record, saving would treat it as an ordinary account
+  const party = partyKind && partyState?.kind === partyKind ? partyState.fields : partyKind && !editing ? emptyParty(partyKind) : null;
+  const documentTypes = types.data || [];
+  const partyErrors = useMemo(
+    () => (party && submitted ? validateParty(partyKind, party, { documentTypes: types.data || [] }) : {}),
+    [party, submitted, partyKind, types.data]
+  );
+  const changeParty = (fields) => {
+    setPartyState({ kind: partyKind, fields });
+    if (Object.keys(serverErrors).length) setServerErrors({});
+  };
+  // an existing customer / vendor account can only move to another group of its own kind
+  const groupChoices = editing && party ? groups.filter((g) => g.role === role) : groups;
+  const noun = partyKind === "vendor" ? "vendor" : "customer";
+
+  const selectedBank = (banks.data || []).find((b) => b._id === form.bankId);
   const bankBody = () => ({ bank: { bankId: form.bankId || null, accountNumber: form.accountNumber.trim(), iban: form.iban.trim(), branchCode: form.branchCode.trim(), accountHolder: form.accountHolder.trim() } });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
 
   function validate() {
     const e = {};
     if (!form.groupId) e.groupId = "Choose the group this account belongs to";
-    if (!form.accountName.trim()) e.accountName = "Give the account a name";
+    if (!party && !form.accountName.trim()) e.accountName = "Give the account a name";
     const ob = Number(form.openingBalance || 0);
     if (!editing && form.openingBalance !== "" && (!Number.isFinite(ob) || ob < 0)) e.openingBalance = "Enter an amount of zero or more";
     if (isBank && form.iban.trim() && !isValidIban(form.iban)) e.iban = "That IBAN is not valid. Check it for a typing mistake.";
@@ -257,10 +296,25 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
     ev.preventDefault();
     const e = validate();
     setErrors(e);
-    if (Object.keys(e).length) return;
+    setSubmitted(true);
+    const pe = party ? validateParty(partyKind, party, { documentTypes }) : {};
+    if (Object.keys(pe).length) setPartySection(firstSectionWithErrors(pe));
+    if (Object.keys(e).length || Object.keys(pe).length) return;
     setBusy(true);
     try {
-      if (editing) {
+      if (party) {
+        const own = { groupId: form.groupId, description: form.description, allowDirectPosting: form.allowDirectPosting };
+        if (editing) {
+          await partyMaster.accountParty.update(account._id, { party: formToPayload(partyKind, party), ...own, isActive: form.isActive });
+          onSaved(`${account.accountCode} updated`);
+        } else {
+          const made = await partyMaster.accountParty.create({
+            party: formToPayload(partyKind, party), ...own,
+            ...(Number(form.openingBalance) > 0 ? { openingBalance: Number(form.openingBalance), openingSide: form.openingSide, openingDate: form.openingDate } : {}),
+          });
+          onSaved(`${made.account.accountCode} ${made.account.accountName} created`);
+        }
+      } else if (editing) {
         await accounting.updateAccount(account._id, {
           accountName: form.accountName, description: form.description, groupId: form.groupId,
           allowDirectPosting: form.allowDirectPosting, isActive: form.isActive,
@@ -278,8 +332,12 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
         onSaved(failed.length ? `${created.accountCode} created, but ${failed.length} file(s) could not be attached` : `${created.accountCode} ${created.accountName} created`);
       }
     } catch (err) {
-      const field = { DUPLICATE_ACCOUNT: "accountName", OPENING_SIDE_REQUIRED: "openingBalance", GROUP_REQUIRED: "groupId", INVALID_IBAN: "iban", INVALID_ACCOUNT_NUMBER: "accountNumber" }[err.code];
-      if (field) setErrors({ [field]: errorMessage(err) });
+      const field = { DUPLICATE_ACCOUNT: "accountName", OPENING_SIDE_REQUIRED: "openingBalance", GROUP_REQUIRED: "groupId", PARTY_GROUP_REQUIRED: "groupId", INVALID_IBAN: "iban", INVALID_ACCOUNT_NUMBER: "accountNumber" }[err.code];
+      const partyField = party ? fieldForServerError(err) : null;
+      if (partyField) {
+        setServerErrors({ [partyField]: errorMessage(err) });
+        setPartySection(firstSectionWithErrors({ [partyField]: true }));
+      } else if (field) setErrors({ [field]: errorMessage(err) });
       else onError?.(errorMessage(err));
       setBusy(false);
     }
@@ -287,25 +345,41 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
 
   return (
     <Modal
-      size="lg" onClose={onClose} title={editing ? `Edit ${account.accountCode}` : "New account"}
-      description={editing ? account.accountName : "The code is assigned automatically when you save."}
+      size={party || loadingParty ? "xl" : "lg"} onClose={onClose} title={editing ? `Edit ${account.accountCode}` : "New account"}
+      description={editing ? account.accountName : partyKind ? `Creates the ${noun} and its ledger account. The code is assigned automatically when you save.` : "The code is assigned automatically when you save."}
       footer={
         <>
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="account-form" disabled={busy}>{busy ? "Saving…" : editing ? "Save changes" : "Create account"}</Button>
+          <Button type="submit" form="account-form" disabled={busy || loadingParty || partyFailed}>{busy ? "Saving…" : editing ? "Save changes" : party ? `Create ${noun}` : "Create account"}</Button>
         </>
       }
     >
       <form id="account-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-        <Field label="Group" required error={errors.groupId} hint={group ? `Code will start with ${group.prefix}` : undefined} className="sm:col-span-2">
-          <Select value={form.groupId} onChange={set("groupId")} data-autofocus={editing ? undefined : true}>
-            <option value="">Choose a group…</option>
-            {groups.map((g) => <option key={g._id} value={g._id}>{`${"  ".repeat(g.depth)}${g.name} (${CATEGORY_LABEL[g.category]})`}</option>)}
-          </Select>
+        <Field label="Group" required error={errors.groupId} hint={group ? (partyKind ? `Code will start with ${group.prefix}. The account is named "${partyKind === "vendor" ? "Vendor" : "Customer"} - <name>".` : `Code will start with ${group.prefix}`) : undefined} className="sm:col-span-2">
+          <SearchSelect
+            value={form.groupId} onChange={(v) => setForm((f) => ({ ...f, groupId: v }))} autoFocus={!editing}
+            options={groupChoices.map((g) => ({ value: g._id, label: g.name, hint: CATEGORY_LABEL[g.category], depth: g.depth, searchText: g.prefix }))}
+            placeholder="Search or choose a group…" noOptionsText="No group matches"
+          />
         </Field>
-        <Field label="Account name" required error={errors.accountName} className="sm:col-span-2">
-          <TextInput value={form.accountName} onChange={set("accountName")} maxLength={100} placeholder="e.g. Emirates NBD current account" data-autofocus={editing ? true : undefined} />
-        </Field>
+
+        {loadingParty && <div className="sm:col-span-2"><Spinner label={`Loading the ${noun}'s details`} /></div>}
+        {partyFailed && <div className="sm:col-span-2"><ErrorNote error={saved.error} onRetry={saved.reload} /></div>}
+        {party ? (
+          <div className="sm:col-span-2">
+            <PartyForm
+              kind={partyKind} value={party} onChange={changeParty} errors={{ ...partyErrors, ...serverErrors }}
+              section={partySection} onSection={setPartySection} autoFocus={false}
+              banks={banks.data || []} banksLoading={banks.loading} documentTypes={documentTypes} typesLoading={types.loading}
+            />
+          </div>
+        ) : (
+          !loadingParty && !partyFailed && (
+            <Field label="Account name" required error={errors.accountName} className="sm:col-span-2">
+              <TextInput value={form.accountName} onChange={set("accountName")} maxLength={100} placeholder="e.g. Emirates NBD current account" data-autofocus={editing ? true : undefined} />
+            </Field>
+          )
+        )}
         <Field label="Description" className="sm:col-span-2" hint="Optional. Shown to anyone choosing this account.">
           <Textarea value={form.description} onChange={set("description")} maxLength={500} />
         </Field>
@@ -321,6 +395,7 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
             <Field label="IBAN" error={errors.iban} hint="Checked for typing mistakes."><TextInput value={form.iban} onChange={(e) => setForm((f) => ({ ...f, iban: e.target.value.toUpperCase() }))} maxLength={40} placeholder="AE07 0331 2345 6789 0123 456" /></Field>
             <Field label="Branch code"><TextInput value={form.branchCode} onChange={set("branchCode")} maxLength={20} /></Field>
             <Field label="Account holder"><TextInput value={form.accountHolder} onChange={set("accountHolder")} maxLength={150} /></Field>
+            <Field label="SWIFT / BIC" hint="From the bank master."><TextInput value={selectedBank?.swiftCode || ""} readOnly disabled placeholder={form.bankId ? "Not set for this bank" : "Choose a bank"} /></Field>
           </fieldset>
         )}
 
@@ -337,7 +412,7 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
               </Select>
             </Field>
             <Field label="As at">
-              <TextInput type="date" value={form.openingDate} onChange={set("openingDate")} />
+              <DateInput value={form.openingDate} onChange={set("openingDate")} />
             </Field>
             <p className="text-xs text-muted-foreground sm:col-span-3">Posted against Opening Balance Equity so the Trial Balance stays balanced.</p>
           </fieldset>
@@ -354,11 +429,14 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
           </label>
         )}
 
-        <div className="sm:col-span-2">
-          {editing
-            ? <AttachmentPanel ownerType="account" ownerId={account._id} label="Documents" />
-            : <AttachmentPanel value={files} onChange={setFiles} label="Documents" />}
-        </div>
+        {/* a customer's or vendor's files are its KYC documents, in the sections above */}
+        {!party && !loadingParty && !partyFailed && (
+          <div className="sm:col-span-2">
+            {editing
+              ? <AttachmentPanel ownerType="account" ownerId={account._id} label="Documents" />
+              : <AttachmentPanel value={files} onChange={setFiles} label="Documents" />}
+          </div>
+        )}
       </form>
     </Modal>
   );
@@ -416,10 +494,11 @@ export function GroupModal({ group, groups, onClose, onSaved }) {
           </Select>
         </Field>
         <Field label="Inside" className="sm:col-span-2" hint="Optional. Nest this group under another group of the same category.">
-          <Select value={form.parentGroup || ""} onChange={set("parentGroup")}>
-            <option value="">Top level</option>
-            {parents.map((g) => <option key={g._id} value={g._id}>{`${"  ".repeat(g.depth)}${g.name}`}</option>)}
-          </Select>
+          <SearchSelect
+            value={form.parentGroup || ""} onChange={(v) => setForm((f) => ({ ...f, parentGroup: v }))} clearable
+            options={parents.map((g) => ({ value: g._id, label: g.name, depth: g.depth, searchText: g.prefix }))}
+            placeholder="Top level" noOptionsText="No group matches"
+          />
         </Field>
       </form>
     </Modal>
@@ -439,8 +518,8 @@ export function LedgerBody({ account }) {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="From"><TextInput type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} /></Field>
-        <Field label="To"><TextInput type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} /></Field>
+        <Field label="From"><DateInput value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} /></Field>
+        <Field label="To"><DateInput value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} /></Field>
         {(range.from || range.to) && <Button variant="ghost" size="sm" onClick={() => setRange({ from: "", to: "" })}>Clear dates</Button>}
       </div>
       {loading && !data && <Spinner label="Loading the ledger" />}

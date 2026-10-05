@@ -1,11 +1,58 @@
 import React, { useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { Button } from "../../ui/button";
 import { ConfirmDialog, ErrorNote, Panel, Pill, SearchSelect, Spinner, errorMessage, useAsync } from "../kit";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
-const SECTION_LABEL = { null: "General", "purchase-group": "When you buy", "sales-group": "When you sell" };
+
+// What each setting is for, in the words an accountant or a buyer would use. The key itself is an
+// internal name, so it is kept out of sight (it is the row's tooltip).
+const HINTS = {
+  "cash-account-group": "Where cash on hand is kept. Cash receipts and payments post here.",
+  "bank-account-group": "Bank accounts. Bank, transfer and card receipts settle here.",
+  "account-receivable-group": "Each customer gets an account in this group when they are created.",
+  "account-payable-group": "Each vendor gets an account in this group when they are created.",
+  "inventory-asset-group": "Stock on hand, valued at average cost.",
+  "sales-income-group": "Revenue earned from selling goods.",
+  "purchase-expense-group": "What you spend buying goods to resell.",
+  "direct-income-group": "Other income earned directly from trading.",
+  "indirect-income-group": "Other income such as interest and rebates.",
+  "direct-expense-group": "Costs that belong to trading, such as freight in and handling.",
+  "indirect-expense-group": "Running costs such as rent, salaries and utilities.",
+  "share-capital-group": "Owner's capital and retained earnings.",
+  "pdc-receipt-group": "Cheques received that are dated for a later day.",
+  "pdc-issue-group": "Cheques you issued that are dated for a later day.",
+  "credit-card-group": "Company credit cards. Each card gets its own account here.",
+  "pdc-receipt": "Holds a received cheque until the bank clears it.",
+  "pdc-issue": "Holds an issued cheque until it clears.",
+  "card-charges": "The fee a card processor keeps from each card sale.",
+  "stock-adjustment": "Gains and losses found when stock is counted.",
+  "inventory-asset": "Debited when stock arrives and credited when it is sold.",
+  "opening-balance-equity": "Offsets the opening balances you enter on accounts.",
+  "vat-purchase": "VAT paid on purchases, which you claim back.",
+  "rcm-purchase": "VAT you account for yourself on reverse-charge purchases.",
+  "discount-purchase": "Discounts your vendors give you.",
+  "freight-purchase": "Freight and handling added to purchases.",
+  "round-off-purchase": "Rounding differences on purchase documents.",
+  "purchase-variance": "The difference between the billed and the expected cost.",
+  "sales-revenue": "Credited when a sale is approved.",
+  "vat-sales": "VAT collected on sales, owed to the tax authority.",
+  "discount-sales": "Discounts you give to customers.",
+  "freight-sales": "Freight and handling charged to customers.",
+  "round-off-sales": "Rounding differences on sales documents.",
+  cogs: "The cost of the stock sold, booked on every sale.",
+  "write-off-expiry": "Stock thrown away after its expiry date.",
+  "damage-loss": "Stock lost or damaged.",
+};
+
+const SECTIONS = [
+  { id: "groups", title: "Account groups", description: "The family each kind of account is filed under." },
+  { id: "standing", title: "Standing accounts", description: "Single accounts used by cheques, cards, stock and opening balances." },
+  { id: "buy", title: "When you buy", description: "Accounts a purchase posts to besides the vendor and the stock." },
+  { id: "sell", title: "When you sell", description: "Accounts a sale posts to besides the customer." },
+];
+const sectionOf = (r) => (r.parentConfigKey === "purchase-group" ? "buy" : r.parentConfigKey === "sales-group" ? "sell" : r.targetKind === "account" ? "standing" : "groups");
 
 function flatGroups(chart) {
   const out = [];
@@ -40,13 +87,15 @@ export default function PostingAccounts({ notify }) {
   const mappable = rows.filter((r) => r.isActive && r.targetKind !== "none");
   const current = (r) => (r.targetKind === "group" ? r.targetGroup?._id : r.targetAccount?._id) || "";
   const value = (r) => draft[r.configKey] ?? current(r);
+  const changed = (r) => draft[r.configKey] !== undefined && draft[r.configKey] !== current(r);
   const dirty = Object.keys(draft).filter((k) => draft[k] !== current(rows.find((r) => r.configKey === k)));
   const unmapped = mappable.filter((r) => !value(r));
   const enabled = cfg.data.ledgerPostingEnabled;
+  const mappedPct = mappable.length ? Math.round(((mappable.length - unmapped.length) / mappable.length) * 100) : 0;
 
-  const sections = [null, "purchase-group", "sales-group"].map((p) => ({
-    key: p, title: SECTION_LABEL[p], rows: rows.filter((r) => (r.parentConfigKey || null) === p && r.targetKind !== "none" || (p === null && r.targetKind === "none" && r.configKey === "share-capital-group")),
-  })).filter((s) => s.rows.length);
+  const visible = rows.filter((r) => r.isActive && r.targetKind !== "none" && r.configKey !== "purchase-group" && r.configKey !== "sales-group");
+  const equityRow = rows.find((r) => r.configKey === "share-capital-group" && r.targetKind === "none");
+  const sections = SECTIONS.map((s) => ({ ...s, rows: visible.filter((r) => sectionOf(r) === s.id) })).filter((s) => s.rows.length);
 
   async function save() {
     setBusy(true);
@@ -102,41 +151,63 @@ export default function PostingAccounts({ notify }) {
             {unmapped.length > 0 && <> · still to map: <span className="text-foreground">{unmapped.map((r) => r.displayName).join(", ")}</span></>}
           </span>
         </div>
-        {!enabled && unmapped.length > 0 && <p className="mt-2 text-xs text-muted-foreground">Map every account below, save, then switch posting on.</p>}
+        <div className="mt-3 h-1.5 w-full max-w-md overflow-hidden rounded-full bg-secondary" role="presentation">
+          <div className={`h-full rounded-full transition-all ${unmapped.length ? "bg-status-warning" : "bg-status-success"}`} style={{ width: `${mappedPct}%` }} />
+        </div>
+        {!enabled && unmapped.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Map every account below, save, then switch posting on.</p>}
       </Panel>
 
-      {sections.map((s) => (
-        <Panel key={String(s.key)} title={s.title} bodyClassName="p-0">
-          <ul className="divide-y divide-border">
-            {s.rows.map((r) => (
-              <li key={r.configKey} className="grid items-center gap-2 px-5 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{r.displayName}</p>
-                  <p className="text-xs text-muted-foreground"><span className="font-mono">{r.configKey}</span>{r.accountCategory ? ` · ${CATEGORY_LABEL[r.accountCategory]}` : ""}</p>
-                </div>
-                {r.targetKind === "none" ? (
-                  <p className="text-sm text-muted-foreground">Every equity group is included automatically.</p>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <SearchSelect
-                      aria-label={`Account for ${r.displayName}`} value={value(r)} clearable
-                      onChange={(v) => setDraft((d) => ({ ...d, [r.configKey]: v }))}
-                      placeholder="Not mapped" noOptionsText={r.targetKind === "group" ? "No group matches" : "No account matches"}
-                      options={r.targetKind === "group"
-                        ? groups.filter((g) => !r.accountCategory || g.category === r.accountCategory).map((g) => ({ value: g._id, label: g.name, depth: g.depth }))
-                        : accounts.filter((a) => !r.accountCategory || a.category === r.accountCategory).map((a) => ({ value: a._id, label: a.accountName, hint: a.accountCode, searchText: a.accountCode }))}
-                    />
-                    {!value(r) && <CircleAlert className="h-4 w-4 shrink-0 text-status-warning" aria-label="Not mapped" />}
+      {sections.map((s) => {
+        const left = s.rows.filter((r) => !value(r)).length;
+        return (
+          <Panel
+            key={s.id} title={s.title} description={s.description} bodyClassName="p-0"
+            actions={left ? <Pill tone="warning">{left} to map</Pill> : <Pill tone="success">All mapped</Pill>}
+          >
+            <div className="hidden border-b border-border bg-secondary/50 px-5 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid lg:grid-cols-[minmax(0,1fr)_26rem_7.5rem] lg:gap-x-6">
+              <span>Posting event</span><span>Posts to</span><span>Status</span>
+            </div>
+            <ul className="divide-y divide-border">
+              {s.rows.map((r) => (
+                <li key={r.configKey} title={r.configKey} className={`grid items-center gap-x-6 gap-y-2 px-5 py-3.5 lg:grid-cols-[minmax(0,1fr)_26rem_7.5rem] ${changed(r) ? "bg-accent/40" : ""}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{r.displayName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{HINTS[r.configKey] || CATEGORY_LABEL[r.accountCategory] || ""}</p>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      ))}
+                  <SearchSelect
+                    className="w-full" compact
+                    aria-label={`Account for ${r.displayName}`} value={value(r)}
+                    onChange={(v) => setDraft((d) => ({ ...d, [r.configKey]: v }))}
+                    placeholder={r.targetKind === "group" ? "Choose a group" : "Choose an account"}
+                    noOptionsText={r.targetKind === "group" ? "No group matches" : "No account matches"}
+                    options={r.targetKind === "group"
+                      ? groups.filter((g) => !r.accountCategory || g.category === r.accountCategory).map((g) => ({ value: g._id, label: g.name, depth: g.depth }))
+                      : accounts.filter((a) => !r.accountCategory || a.category === r.accountCategory).map((a) => ({ value: a._id, label: a.accountName, hint: a.accountCode, searchText: a.accountCode }))}
+                  />
+                  <div className="text-sm">
+                    {changed(r) ? <Pill tone="info">Unsaved</Pill>
+                      : value(r) ? <span className="inline-flex items-center gap-1.5 text-status-success"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Mapped</span>
+                      : <Pill tone="warning">Not mapped</Pill>}
+                  </div>
+                </li>
+              ))}
+              {s.id === "groups" && equityRow && (
+                <li className="grid items-center gap-x-6 gap-y-1 px-5 py-3.5 lg:grid-cols-[minmax(0,1fr)_26rem_7.5rem]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{equityRow.displayName}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{HINTS[equityRow.configKey]}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Every equity group is included automatically.</p>
+                  <span className="inline-flex items-center gap-1.5 text-sm text-status-success"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Automatic</span>
+                </li>
+              )}
+            </ul>
+          </Panel>
+        );
+      })}
 
       <ErrorNote error={error} />
-      <div className="sticky bottom-3 flex items-center justify-end gap-3 rounded-2xl border border-border bg-card/95 px-4 py-3 shadow-elevated">
+      <div className="sticky bottom-3 flex items-center justify-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-elevated">
         <span className="me-auto text-sm text-muted-foreground">{dirty.length ? `${dirty.length} unsaved change${dirty.length > 1 ? "s" : ""}` : "No unsaved changes"}</span>
         <Button variant="outline" onClick={() => setDraft({})} disabled={!dirty.length || busy}>Discard</Button>
         <Button onClick={save} disabled={!dirty.length || busy}>{busy ? "Saving…" : "Save mappings"}</Button>

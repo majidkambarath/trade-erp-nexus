@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { ArrowLeft, Download, Send, Loader2, Printer } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
-import { decimalRound, decimalSum, formatNumber, todayInput } from "../../../utils/format";
+import { decimalRound, decimalSum, formatNumber, todayInput, formatDate } from "../../../utils/format";
 
 const SaleInvoiceView = ({
   selectedSO,
   createdSO,
-  customers,
-  calculateTotals,
   setActiveView,
   setSelectedSO,
   setCreatedSO,
@@ -133,6 +131,7 @@ const SaleInvoiceView = ({
             clonedElement.style.visibility = "visible";
             const img = clonedElement.querySelector("img");
             if (img) {
+              // eslint-disable-next-line no-self-assign -- deliberate: re-assigning src makes the cloned image reload before html2canvas captures it
               img.src = img.src;
             }
           }
@@ -365,7 +364,7 @@ const SaleInvoiceView = ({
 
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}>
-                Date: {new Date(so.date || Date.now()).toLocaleDateString("en-GB")}
+                Date: {formatDate(so.date || Date.now())}
               </p>
               <p style={{ margin: "2px 0" }}>Invoice: {so.transactionNo || "N/A"}</p>
               <p style={{ margin: "2px 0" }}>SO: {so.transactionNo || "N/A"}</p>

@@ -34,10 +34,11 @@ import {
   Eye,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import { toInputDate } from "../../utils/format";
+import { toInputDate, formatDate, formatTime } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
+import { DateInput } from "../accounting/kit";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -83,7 +84,7 @@ const StaffManagement = () => {
   const [editStaffId, setEditStaffId] = useState(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterDesignation, setFilterDesignation] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   const [formData, setFormData] = useState({
@@ -484,7 +485,7 @@ const StaffManagement = () => {
 
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return formatTime(time);
   }, []);
 
   const staffStats = useMemo(() => {
@@ -579,7 +580,7 @@ const StaffManagement = () => {
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-black bg-clip-text">
               Staff Management
             </h1>
             <p className="text-gray-600 mt-1">
@@ -797,7 +798,7 @@ const StaffManagement = () => {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-gray-600">
-                        {new Date(member.joiningDate).toLocaleDateString()}
+                        {formatDate(member.joiningDate)}
                       </p>
                     </td>
                     <td className="px-6 py-4">
@@ -1047,16 +1048,12 @@ const StaffManagement = () => {
                     <Calendar size={16} className="inline mr-2" />
                     Joining Date *
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     name="joiningDate"
+                    aria-label="Joining date"
                     value={formData.joiningDate}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.joiningDate
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
+                    aria-invalid={Boolean(errors.joiningDate) || undefined}
                   />
                   {errors.joiningDate && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">

@@ -5,14 +5,11 @@ import axiosInstance from "../../../axios/axios";
 import {
   formatNumber,
   formatDateGB,
-  amountInWords as toAmountInWords,
 } from "../../../utils/format";
 import { documentTotals } from "../../../utils/documentTotals";
 
-const pad4 = (v = "") => {
-  const n = String(v || "").replace(/\D/g, "");
-  return n ? n.padStart(4, "0") : "".padStart(4, "0");
-};
+// a stable stand-in while the party is not found (a new {} each render would re-run the effect below)
+const NO_PARTY = {};
 
 const PurchaseInvoiceView = ({
   selectedPO,
@@ -80,36 +77,35 @@ const PurchaseInvoiceView = ({
     load();
   }, [adminId, token]);
 
+  // The hooks below run on every render; the "nothing selected" return comes after them.
   const po = createdPO || selectedPO;
-  if (!po) return null;
-
-  const vendor = vendors.find((v) => v._id === po.vendorId) || {};
-  const isApproved = po.status === "APPROVED";
+  const vendor = (po && vendors.find((v) => v._id === po.vendorId)) || NO_PARTY;
+  const isApproved = po?.status === "APPROVED";
 
   // invoice meta: not editable in UI (display-only)
   const [invoiceMeta, setInvoiceMeta] = useState({
     // Prefer explicit vendorReference, then refNo
-    reference: po.vendorReference ?? po.refNo ?? "",
-    poNo: isApproved ? (po.displayTransactionNo || po.transactionNo) : po.transactionNo,
+    reference: po?.vendorReference ?? po?.refNo ?? "",
+    poNo: isApproved ? (po?.displayTransactionNo || po?.transactionNo) : po?.transactionNo,
     paymentTerms: vendor.paymentTerms || "COD",
   });
 
   useEffect(() => {
+    if (!po) return;
     setInvoiceMeta((m) => ({
       ...m,
       reference: (po.vendorReference ?? po.refNo ?? m.reference ?? ""),
       poNo: isApproved ? (po.displayTransactionNo || po.transactionNo) : po.transactionNo,
       paymentTerms: vendor.paymentTerms || m.paymentTerms || "COD",
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [po, vendor, isApproved]);
 
   // totals
   // the server's own pricing (charges, header discount, round-off), not a re-sum of the lines
-  const totals = useMemo(() => documentTotals(po), [po]);
+  const totals = useMemo(() => (po ? documentTotals(po) : { gross: 0, vat: 0, grandTotal: 0 }), [po]);
   const { gross: grossAmount, vat: vatTotal, grandTotal } = totals;
-  // words: based on grandTotal (the amount actually payable), not grossAmount
-  const amountInWords = toAmountInWords(grandTotal);
+
+  if (!po) return null;
 
   // pdf generation
   const generatePDF = async (copyType) => {
@@ -151,7 +147,7 @@ const PurchaseInvoiceView = ({
               {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isGeneratingPDF ? "Generating…" : "Copy (Vendor Copy)"}
             </button>
-            <button onClick={() => { const w = window.open("", "_blank"); const invoiceEl = document.getElementById("invoice-content"); const now = new Date().toLocaleString("en-GB"); const printHTML = `<!doctype html><html><head><meta charset=\"utf-8\"><title>PO</title><style>@page{size:A4;margin:0}html,body{margin:0;padding:0}#invoice-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;background:#fff}table{border-collapse:collapse;width:100%}th,td{padding:6px 8px;border:0 solid #ccc}thead th{border-bottom:2px solid #000;padding:8px}tbody td{border-bottom:1px dotted #ccc}.right{text-align:right}.center{text-align:center}.small{font-size:10px}</style></head><body>${invoiceEl.outerHTML}<script>document.querySelector('.date-time').innerText='${now}';</script></body></html>`; w.document.write(printHTML); w.document.close(); setTimeout(()=>{w.focus(); w.print(); w.close();},300); }} className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"><Printer className="w-4 h-4" /> Print</button>
+            <button onClick={() => { const w = window.open("", "_blank"); const invoiceEl = document.getElementById("invoice-content"); const now = new Date().toLocaleString("en-GB"); const printHTML = `<!doctype html><html><head><meta charset="utf-8"><title>PO</title><style>@page{size:A4;margin:0}html,body{margin:0;padding:0}#invoice-content{width:210mm;height:297mm;padding:10mm;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;background:#fff}table{border-collapse:collapse;width:100%}th,td{padding:6px 8px;border:0 solid #ccc}thead th{border-bottom:2px solid #000;padding:8px}tbody td{border-bottom:1px dotted #ccc}.right{text-align:right}.center{text-align:center}.small{font-size:10px}</style></head><body>${invoiceEl.outerHTML}<script>document.querySelector('.date-time').innerText='${now}';</script></body></html>`; w.document.write(printHTML); w.document.close(); setTimeout(()=>{w.focus(); w.print(); w.close();},300); }} className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"><Printer className="w-4 h-4" /> Print</button>
             <button onClick={() => alert("Sent")} className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"><Send className="w-4 h-4" /> Send</button>
           </div>
         </div>

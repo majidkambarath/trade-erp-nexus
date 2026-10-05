@@ -12,12 +12,7 @@ import {
   Edit,
   Trash2,
   X,
-  User,
-  Mail,
-  Phone,
-  MapPin,
   CreditCard,
-  Building,
   Users,
   TrendingUp,
   Clock,
@@ -25,7 +20,6 @@ import {
   UserPlus,
   Loader2,
   RefreshCw,
-  Save,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -36,6 +30,8 @@ import DirhamIcon from "../../assets/dirham.svg";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
+import PartyModal from "../parties/PartyModal";
+import ExpiryPill from "../parties/ExpiryPill";
 // Utility to apply color filter based on class
 const getColorFilter = (colorClass) => {
   switch (colorClass) {
@@ -89,24 +85,8 @@ const SessionManager = {
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([]);
-  const [showModal, setShowModal] = useState(false);
+  const [partyModal, setPartyModal] = useState(null); // { customer } to edit one, {} for a new customer
   const [searchTerm, setSearchTerm] = useState("");
-  const [editCustomerId, setEditCustomerId] = useState(null);
-  const [formData, setFormData] = useState({
-    customerName: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    billingAddress: "",
-    shippingAddress: "",
-    creditLimit: "",
-    paymentTerms: "",
-    status: "Active",
-    trnNumber: "", // <- ADDED
-    salesPerson: "", // <- NEW
-  });
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState({
     visible: false,
@@ -123,15 +103,11 @@ const CustomerManagement = () => {
   });
 
   // New UX enhancement states
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
 
   // Refs for enhanced UX
-  const formRef = useRef(null);
-  const autoSaveInterval = useRef(null);
   const searchInputRef = useRef(null);
 
   // Updated formatCurrency function using DirhamIcon
@@ -159,15 +135,8 @@ const CustomerManagement = () => {
 
   // Load session data on component mount
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-    }
 
     if (savedFilters) {
       setFilterStatus(savedFilters.status || "");
@@ -178,24 +147,6 @@ const CustomerManagement = () => {
       setSearchTerm(savedSearchTerm);
     }
   }, []);
-
-  // Auto-save form data to session
-  useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
-      autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", formData);
-        SessionManager.set("lastSaveTime", new Date().toISOString());
-        setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
-      }, 2000);
-    }
-
-    return () => {
-      if (autoSaveInterval.current) {
-        clearTimeout(autoSaveInterval.current);
-      }
-    };
-  }, [formData, showModal]);
 
   // Save search and filter preferences
   useEffect(() => {
@@ -247,114 +198,19 @@ const CustomerManagement = () => {
     );
   }, []);
 
-  const handleChange = useCallback(
-    (e) => {
-      const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
-      if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-      setIsDraftSaved(false);
-    },
-    [errors]
-  );
-
-  const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.customerName.trim())
-      newErrors.customerName = "Customer name is required";
-    if (!formData.contactPerson.trim())
-      newErrors.contactPerson = "Contact person is required";
-    if (!formData.billingAddress.trim())
-      newErrors.billingAddress = "Billing address is required";
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Invalid email format";
-    if (
-      formData.creditLimit &&
-      (isNaN(formData.creditLimit) || formData.creditLimit < 0)
-    ) {
-      newErrors.creditLimit = "Credit limit must be a valid positive number";
-    }
-    return newErrors;
-  }, [formData]);
-
-  const handleSubmit = useCallback(async () => {
-    const newErrors = validateForm();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const normalizedTrn = formData.trnNumber
-  ? formData.trnNumber.toString().trim().replace(/\s+/g, "")
-  : null;
-      const payload = {
-        customerName: formData.customerName,
-        contactPerson: formData.contactPerson.trim(),
-        email: formData.email,
-        phone: formData.phone.trim(),
-        billingAddress: formData.billingAddress,
-        shippingAddress: formData.shippingAddress,
-        creditLimit: Number(formData.creditLimit) || 0,
-        paymentTerms: formData.paymentTerms,
-        status: formData.status,
-        trnNumber: normalizedTrn, // <- ADDED
-        salesPerson: formData.salesPerson ? formData.salesPerson.trim() : null, // <- NEW
-      };
-
-      if (editCustomerId) {
-        await axiosInstance.put(`/customers/${editCustomerId}`, payload);
-        showToastMessage("Customer updated successfully!", "success");
-      } else {
-        const response = await axiosInstance.post("/customers", payload);
-        fetchCustomers();
-        showToastMessage("Customer created successfully!", "success");
-      }
-
+  // The add / edit form is the shared party form (components/parties); the page only opens it and
+  // reloads the list when it saves.
+  const handleEdit = useCallback((customer) => setPartyModal({ customer }), []);
+  const openAddModal = useCallback(() => setPartyModal({}), []);
+  const closePartyModal = useCallback(() => setPartyModal(null), []);
+  const handlePartySaved = useCallback(
+    async (_saved, message) => {
+      setPartyModal(null);
       await fetchCustomers();
-      resetForm();
-
-      // Clear session data after successful submission
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
-    } catch (error) {
-      showToastMessage(
-        error.response?.data?.message || "Failed to save customer.",
-        "error"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    editCustomerId,
-    formData,
-    fetchCustomers,
-    validateForm,
-    showToastMessage,
-  ]);
-
-  const handleEdit = useCallback((customer) => {
-    setEditCustomerId(customer._id);
-    setFormData({
-      customerName: customer.customerName,
-      contactPerson: customer.contactPerson,
-      email: customer.email,
-      phone: customer.phone,
-      billingAddress: customer.billingAddress,
-      shippingAddress: customer.shippingAddress,
-      creditLimit: customer.creditLimit.toString(),
-      paymentTerms: customer.paymentTerms,
-      status: customer.status,
-      trnNumber: customer.trnNumber || "", // <- ADDED
-      salesPerson: customer.salesPerson || "", // <- NEW
-    });
-    setShowModal(true);
-    setIsDraftSaved(false);
-
-    // Clear any existing draft when editing
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
+      showToastMessage(message, "success");
+    },
+    [fetchCustomers, showToastMessage]
+  );
 
   const showDeleteConfirmation = useCallback((customer) => {
     setDeleteConfirmation({
@@ -401,50 +257,6 @@ const CustomerManagement = () => {
     hideDeleteConfirmation,
   ]);
 
-  const resetForm = useCallback(() => {
-    setEditCustomerId(null);
-    setFormData({
-      customerName: "",
-      contactPerson: "",
-      email: "",
-      phone: "",
-      billingAddress: "",
-      shippingAddress: "",
-      creditLimit: "",
-      paymentTerms: "",
-      status: "Active",
-      trnNumber: "", // <- ADDED
-      salesPerson: "", // <- NEW
-    });
-    setErrors({});
-    setShowModal(false);
-    setIsDraftSaved(false);
-    setLastSaveTime(null);
-
-    // Clear session draft
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
-
-  const openAddModal = useCallback(() => {
-    resetForm();
-    setShowModal(true);
-    setTimeout(() => {
-      const modal = document.querySelector(".modal-container");
-      if (modal) {
-        modal.classList.add("scale-100");
-      }
-
-      // Focus first input
-      if (formRef.current) {
-        const firstInput = formRef.current.querySelector(
-          'input[name="customerName"]'
-        );
-        if (firstInput) firstInput.focus();
-      }
-    }, 10);
-  }, [resetForm]);
-
   const handleRefresh = useCallback(() => {
     fetchCustomers(true);
   }, [fetchCustomers]);
@@ -477,18 +289,6 @@ const CustomerManagement = () => {
     return (
       icons[status] || <AlertCircle size={14} className="text-slate-600" />
     );
-  }, []);
-
-  const formatLastSaveTime = useCallback((timeString) => {
-    if (!timeString) return "";
-    const time = new Date(timeString);
-    const now = new Date();
-    const diffMs = now - time;
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
   }, []);
 
   // Enhanced statistics calculations
@@ -602,7 +402,7 @@ const CustomerManagement = () => {
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-black bg-clip-text">
               Customer Management
             </h1>
             <p className="text-gray-600 mt-1">
@@ -869,6 +669,7 @@ const CustomerManagement = () => {
                           <div className="font-medium">
                             {customer.customerName}
                           </div>
+                          <ExpiryPill documents={customer.documents} />
                         </div>
                       </div>
                     </td>
@@ -1000,321 +801,14 @@ const CustomerManagement = () => {
         </div>
       )}
 
-      {/* Enhanced Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 sticky top-0 z-10">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  {editCustomerId ? "Edit Customer" : "Add New Customer"}
-                </h3>
-                <div className="flex items-center mt-1 space-x-4">
-                  <p className="text-gray-600 text-sm">
-                    {editCustomerId
-                      ? "Update customer information"
-                      : "Create a new customer profile"}
-                  </p>
-                  {isDraftSaved && lastSaveTime && (
-                    <p className="text-sm text-green-600 flex items-center">
-                      <Save size={12} className="mr-1" />
-                      Draft saved {formatLastSaveTime(lastSaveTime)}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6" ref={formRef}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Building size={16} className="inline mr-2" /> Customer Name
-                    *
-                  </label>
-                  <input
-                    type="text"
-                    name="customerName"
-                    value={formData.customerName}
-                    onChange={handleChange}
-                    placeholder="Enter customer name"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.customerName
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.customerName && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.customerName}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <User size={16} className="inline mr-2" /> Contact Person *
-                  </label>
-                  <input
-                    type="text"
-                    name="contactPerson"
-                    value={formData.contactPerson}
-                    onChange={handleChange}
-                    placeholder="Enter contact person name"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.contactPerson
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.contactPerson && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.contactPerson}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Mail size={16} className="inline mr-2" /> Email Address
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="customer@example.com"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.email
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.email && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Phone size={16} className="inline mr-2" /> Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+1-555-0123"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-
-                   {/* TRN Number */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    <CreditCard size={16} className="inline mr-2" /> TRN Number
-  </label>
-  <input
-    type="text"
-    name="trnNumber"
-    value={formData.trnNumber}
-    onChange={handleChange}
-    placeholder="Enter TRN (optional)"
-    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-      errors.trnNumber ? "border-red-300 bg-red-50" : "border-gray-300"
-    }`}
-  />
-  {errors.trnNumber && (
-    <p className="mt-1 text-sm text-red-600 flex items-center">
-      <AlertCircle size={12} className="mr-1" />
-      {errors.trnNumber}
-    </p>
-  )}
-</div>            
-                {/* Sales Person */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-2">
-    <User size={16} className="inline mr-2" /> Sales Person
-  </label>
-  <input
-    type="text"
-    name="salesPerson"
-    value={formData.salesPerson}
-    onChange={handleChange}
-    placeholder="Enter salesperson (optional)"
-    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-  />
-</div>
-                                                   
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <CreditCard size={16} className="inline mr-2" /> Credit
-                    Limit
-                  </label>
-                  <input
-                    type="number"
-                    name="creditLimit"
-                    value={formData.creditLimit}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    min="0"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
-                      errors.creditLimit
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.creditLimit && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.creditLimit}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Terms
-                  </label>
-                  <select
-                    name="paymentTerms"
-                    value={formData.paymentTerms}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Select Payment Terms</option>
-                    <option value="Net 30">Net 30</option>
-                    <option value="Net 45">Net 45</option>
-                    <option value="Net 60">Net 60</option>
-                    <option value="Cash on Delivery">Cash on Delivery</option>
-                    <option value="Prepaid">Prepaid</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <MapPin size={16} className="inline mr-2" /> Billing Address
-                    *
-                  </label>
-                  <textarea
-                    name="billingAddress"
-                    value={formData.billingAddress}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Enter complete billing address"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none ${
-                      errors.billingAddress
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.billingAddress && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.billingAddress}
-                    </p>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <MapPin size={16} className="inline mr-2" /> Shipping
-                    Address
-                  </label>
-                  <textarea
-                    name="shippingAddress"
-                    value={formData.shippingAddress}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Enter shipping address (optional)"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.customerName ||
-                    formData.contactPerson ||
-                    formData.email ? (
-                    <span className="flex items-center text-status-warning">
-                      <Clock size={14} className="mr-1" />
-                      Unsaved changes
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    disabled={isSubmitting}
-                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : editCustomerId ? (
-                      <>
-                        <Save size={16} className="mr-2" />
-                        Update Customer
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={16} className="mr-2" />
-                        Add Customer
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Add / edit: the shared party form */}
+      {partyModal && (
+        <PartyModal
+          kind="customer"
+          record={partyModal.customer}
+          onClose={closePartyModal}
+          onSaved={handlePartySaved}
+        />
       )}
     </div>
   );

@@ -7,6 +7,18 @@
 @import "./styles/brands/_default.css";
 @import "./styles/brands/nhfoods-ae.css";
 
+/* Typography scale. The interface uses three weights: 400 for text, 500 for labels and controls,
+   600 for headings, figures and emphasis. Lighter-than-700 keeps screens calm and formal; the old
+   bold/extrabold utilities are kept so existing markup works, but they resolve to 600. */
+@theme {
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+  --tracking-tighter: -0.015em;
+  --tracking-tight: -0.011em;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -85,6 +97,15 @@ html,
 body,
 #root {
   min-height: 100%;
+}
+
+/* Native controls (dropdown lists, date pickers, scrollbars) follow the theme instead of
+   staying light inside a dark page. */
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
 }
 
 /* Depth utilities. Values live in semantic.css and differ per mode. Defined with
@@ -182,7 +203,8 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.01em;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0;
 }
 
 h1,
@@ -191,7 +213,8 @@ h3,
 h4,
 .font-display {
   font-family: var(--font-sans);
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  letter-spacing: -0.011em;
 }
 
 
@@ -471,7 +494,7 @@ h4,
   /* graphite primary: the gold brand accent is never a fill behind text */
   background: var(--primary);
   color: var(--primary-foreground);
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-sans);
   padding: 0.625rem 1.25rem;
   border: none;

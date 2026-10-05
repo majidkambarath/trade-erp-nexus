@@ -3,7 +3,7 @@ import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, toInputDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, errorMessage, useAsync } from "../kit";
+import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../kit";
 
 export default function FiscalYears({ notify }) {
   const years = useAsync(() => accounting.fiscalYears(), []);
@@ -122,8 +122,8 @@ function YearModal({ onClose, onSaved }) {
       <form id="fy-form" onSubmit={submit} noValidate className="grid gap-4">
         <ErrorNote error={error} />
         <Field label="Name" required hint="Shown in document numbers, e.g. SO-2026-0001."><TextInput value={form.code} onChange={set("code")} maxLength={20} data-autofocus /></Field>
-        <Field label="Starts" required><TextInput type="date" value={form.startDate} onChange={set("startDate")} /></Field>
-        <Field label="Ends" required><TextInput type="date" value={form.endDate} onChange={set("endDate")} min={toInputDate(form.startDate)} /></Field>
+        <Field label="Starts" required><DateInput value={form.startDate} onChange={set("startDate")} /></Field>
+        <Field label="Ends" required><DateInput value={form.endDate} onChange={set("endDate")} min={toInputDate(form.startDate)} /></Field>
       </form>
     </Modal>
   );

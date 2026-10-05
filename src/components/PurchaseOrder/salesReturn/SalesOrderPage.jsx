@@ -47,7 +47,7 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const SalesReturnOrderManagement = () => {
@@ -175,10 +175,6 @@ const SalesReturnOrderManagement = () => {
       console.log("Transactions Response:", response.data); // Debug
       setSalesReturnOrders(
         response.data?.data.map((transaction) => {
-          // Find the customer to get the customerName
-          const customer = customers.find(
-            (c) => c._id === (transaction.partyId._id || transaction.partyId)
-          );
           return {
             id: transaction._id,
             transactionNo: transaction.transactionNo,
@@ -316,14 +312,16 @@ const SalesReturnOrderManagement = () => {
             case "TODAY":
               matchesDate = soDate.toDateString() === today.toDateString();
               break;
-            case "WEEK":
+            case "WEEK": {
               const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = soDate >= weekAgo;
               break;
-            case "MONTH":
+            }
+            case "MONTH": {
               const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
               matchesDate = soDate >= monthAgo;
               break;
+            }
           }
         }
 
@@ -481,7 +479,7 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
-              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
+              <p className="text-2xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -506,7 +504,7 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Confirmed</p>
-              <p className="text-3xl font-bold text-blue-600">{statistics.confirmed}</p>
+              <p className="text-2xl font-bold text-blue-600">{statistics.confirmed}</p>
               <p className="text-sm text-slate-500 mt-2">Ready for processing</p>
             </div>
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-muted-foreground">
@@ -518,7 +516,7 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Refund Value</p>
-              <p className="text-3xl font-bold text-emerald-600">
+              <p className="text-2xl font-bold text-emerald-600">
                 AED {formatNumber(Math.abs(statistics.totalValue))}
               </p>
               <p className="text-sm text-slate-500 mt-2">
@@ -534,7 +532,7 @@ const SalesReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthSOs}</p>
+              <p className="text-2xl font-bold text-indigo-600">{statistics.thisMonthSOs}</p>
               <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
@@ -746,7 +744,6 @@ const SalesReturnOrderManagement = () => {
     let tax = 0;
 
     items.forEach((item) => {
-      const qty = parseFloat(item.qty) || 0;
       const rate = parseFloat(item.rate) || 0;
       const taxPercent = parseFloat(item.taxPercent) || 0;
 
@@ -824,7 +821,7 @@ const SalesReturnOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">
+                <h1 className="text-2xl font-bold text-slate-800">
                   Sales Return Order Management
                 </h1>
                 <p className="text-slate-600 mt-1">

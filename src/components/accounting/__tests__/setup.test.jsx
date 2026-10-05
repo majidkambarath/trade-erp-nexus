@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen, within, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const m = vi.hoisted(() => ({
   configuration: vi.fn(), chart: vi.fn(), saveMappings: vi.fn(), setPosting: vi.fn(),
@@ -153,39 +153,6 @@ describe("tax codes", () => {
   });
 });
 
-describe("rules", () => {
-  const SETTINGS = { creditControl: { mode: "off", overdueBlockDays: 0 }, returnWindowDays: 0, requireReturnLink: false, profile: { legalName: "NH Foods LLC", trn: "" } };
-  beforeEach(() => { m.settings.mockResolvedValue(SETTINGS); m.saveSettings.mockResolvedValue({}); });
-
-  it("saves credit control with the chosen mode and overdue limit", async () => {
-    at("/accounting-setup?tab=rules");
-    fireEvent.click(await screen.findByRole("radio", { name: /Warn/ }));
-    fireEvent.change(screen.getByLabelText(/overdue by more than/), { target: { value: "30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save credit control" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ creditControl: { mode: "warn", overdueBlockDays: 30 } }));
-  });
-
-  it("saves the return rules", async () => {
-    at("/accounting-setup?tab=rules");
-    fireEvent.click(await screen.findByLabelText(/Every return must name its original invoice/));
-    fireEvent.change(screen.getByLabelText(/Accept returns within/), { target: { value: "14" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save return rules" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ returnWindowDays: 14, requireReturnLink: true }));
-  });
-
-  it("rejects a TRN that is not 15 digits before calling the server", async () => {
-    at("/accounting-setup?tab=rules");
-    fireEvent.change(await screen.findByLabelText(/Tax registration number/), { target: { value: "12345" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save company profile" }));
-    expect(await screen.findByText("A UAE TRN is exactly 15 digits")).toBeInTheDocument();
-    expect(m.saveSettings).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText(/Tax registration number/), { target: { value: "100123456700003" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save company profile" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledTimes(1));
-    expect(m.saveSettings.mock.calls[0][0].profile).toMatchObject({ trn: "100123456700003", legalName: "NH Foods LLC" });
-  });
-});
-
 describe("audit log", () => {
   it("shows entries newest first, expands before/after, and filters", async () => {
     m.auditLog.mockResolvedValue({ page: 1, pages: 1, total: 1, rows: [{ _id: "l1", action: "PERIOD_CLOSED", entity: "FiscalYear", summary: "2026 closed", username: "admin@test.uae", at: "2026-10-04T10:00:00Z", before: { status: "open" }, after: { status: "closed" } }] });
@@ -202,6 +169,21 @@ describe("audit log", () => {
 });
 
 describe("the page", () => {
+  it("sends an old Rules link to its new home in Settings, and no longer lists the tab", async () => {
+    m.fiscalYears.mockResolvedValue([]); m.numberSeries.mockResolvedValue([]);
+    render(
+      <MemoryRouter initialEntries={["/accounting-setup?tab=rules"]}>
+        <Routes><Route path="/accounting-setup" element={<AccountingSetup />} /><Route path="/settings" element={<div>settings page</div>} /></Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByText("settings page")).toBeInTheDocument();
+    cleanup();
+    at("/accounting-setup?tab=years");
+    expect(await screen.findByRole("tab", { name: "Posting accounts" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Rules" })).toBeNull();
+  });
+
+
   it("keeps the selected tab in the URL", async () => {
     m.fiscalYears.mockResolvedValue([]); m.numberSeries.mockResolvedValue([]);
     at("/accounting-setup?tab=years");

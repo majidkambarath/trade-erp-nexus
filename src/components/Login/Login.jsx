@@ -176,7 +176,7 @@ export default function Login() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground/70">
             Trade ERP
           </p>
-          <h1 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight">
+          <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight">
             Run purchasing, sales and stock from one place.
           </h1>
           <ul className="mt-10 space-y-5">
@@ -215,7 +215,7 @@ export default function Login() {
             <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
           </div>
 
-          <h2 className="text-3xl font-extrabold tracking-tight">Sign in</h2>
+          <h2 className="text-2xl font-extrabold tracking-tight">Sign in</h2>
           <p className="mt-2 text-muted-foreground">Use your ERP account to continue.</p>
 
           {serverError && (

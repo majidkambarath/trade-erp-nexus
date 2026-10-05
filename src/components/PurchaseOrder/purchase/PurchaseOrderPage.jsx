@@ -375,13 +375,14 @@ const PurchaseOrderManagement = () => {
             case "TODAY":
               matchesDate = poDate.toDateString() === today.toDateString();
               break;
-            case "WEEK":
+            case "WEEK": {
               const weekAgo = new Date(
                 today.getTime() - 7 * 24 * 60 * 60 * 1000
               );
               matchesDate = poDate >= weekAgo;
               break;
-            case "MONTH":
+            }
+            case "MONTH": {
               const monthAgo = new Date(
                 today.getFullYear(),
                 today.getMonth() - 1,
@@ -389,6 +390,7 @@ const PurchaseOrderManagement = () => {
               );
               matchesDate = poDate >= monthAgo;
               break;
+            }
           }
         }
 
@@ -567,7 +569,7 @@ const PurchaseOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.total}
               </p>
               <div className="flex items-center mt-2">
@@ -592,7 +594,7 @@ const PurchaseOrderManagement = () => {
               <p className="text-sm font-medium text-muted-foreground">
                 Pending Approval
               </p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.pending}
               </p>
               <p className="text-sm text-muted-foreground mt-2">Requires attention</p>
@@ -606,7 +608,7 @@ const PurchaseOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 AED {formatNumber(statistics.totalValue)}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
@@ -622,7 +624,7 @@ const PurchaseOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.thisMonthPOs}
               </p>
               <p className="text-sm text-muted-foreground mt-2">New orders created</p>
@@ -924,7 +926,7 @@ const PurchaseOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-foreground" />
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
                   Purchase Order Management
                 </h1>
                 <p className="text-muted-foreground mt-1">

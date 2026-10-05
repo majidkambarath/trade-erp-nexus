@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
+import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../accounting/kit";
 import { accounting } from "../../lib/accountingApi";
 import { banking, vouchers } from "../../lib/bankingApi";
 import { accountOption, describePayment, money, toCents } from "../../lib/voucherForms";
+import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
 import { formatDateGB } from "../../utils/format";
 
 // Pieces every finance voucher screen shares: the list with search, dates and paging; the
 // read-only view; and the account / bank lists the entry forms pick from.
 
-export const todayInput = () => new Date().toISOString().slice(0, 10);
+// Today as a Dubai calendar day (a UTC read gave yesterday between 00:00 and 04:00, which would
+// also have picked yesterday's exchange rate for a foreign-currency voucher).
+export { todayInput } from "../../utils/format";
 
 const STATUS = {
   approved: ["success", "Posted"],
@@ -69,8 +72,8 @@ export function ListToolbar({ filters, set, statuses = true, children }) {
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <TextInput aria-label="Search vouchers" className="ps-9" placeholder="Search number, party or narration…" value={filters.search} onChange={(e) => set({ search: e.target.value })} />
       </div>
-      <Field label="From" className="w-40"><TextInput type="date" value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} /></Field>
-      <Field label="To" className="w-40"><TextInput type="date" value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} /></Field>
+      <Field label="From" className="w-40"><DateInput value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} /></Field>
+      <Field label="To" className="w-40"><DateInput value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} /></Field>
       {statuses && (
         <Field label="Status" className="w-36">
           <select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={filters.status} onChange={(e) => set({ status: e.target.value })}>
@@ -134,6 +137,7 @@ export function printVoucher(v, title, companyName = "") {
     <h1>${esc(companyName)}</h1><h2>${esc(title)}</h2>
     <table class="meta"><tr><td><b>Voucher</b></td><td>${esc(v.voucherNo)}</td><td><b>Date</b></td><td>${esc(formatDateGB(v.date))}</td></tr>
     ${v.partyName ? `<tr><td><b>Party</b></td><td colspan="3">${esc(v.partyName)}</td></tr>` : ""}
+    ${isForeign(v) ? `<tr><td><b>Foreign currency</b></td><td colspan="3">${esc(fxLine(v))}<br><small>${esc(fxProvenance(v))}</small></td></tr>` : ""}
     ${v.paymentMode ? `<tr><td><b>Paid by</b></td><td colspan="3">${esc(describePayment(v))}</td></tr>` : ""}
     ${v.narration ? `<tr><td><b>Narration</b></td><td colspan="3">${esc(v.narration)}</td></tr>` : ""}</table>
     <table><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${rows}</tbody>
@@ -187,6 +191,7 @@ export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, e
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <div><dt className="text-muted-foreground">Status</dt><dd><StatusPill status={v.status} /></dd></div>
               <div><dt className="text-muted-foreground">Amount</dt><dd className="font-semibold tabular-nums">{money(toCents(v.totalAmount))} AED</dd></div>
+              {isForeign(v) && <div className="sm:col-span-2"><dt className="text-muted-foreground">Foreign currency</dt><dd className="tabular-nums"><span className="font-medium">{fxLine(v)}</span><span className="block text-xs text-muted-foreground">{fxProvenance(v)}</span></dd></div>}
               {v.paymentMode && <div className="sm:col-span-2"><dt className="text-muted-foreground">Paid by</dt><dd>{describePayment(v)}</dd></div>}
               {v.referenceInvoiceNo && <div><dt className="text-muted-foreground">Against invoice</dt><dd className="font-mono text-xs">{v.referenceInvoiceNo}</dd></div>}
               {v.narration && <div className="sm:col-span-2"><dt className="text-muted-foreground">Narration</dt><dd>{v.narration}</dd></div>}

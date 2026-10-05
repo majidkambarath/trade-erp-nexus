@@ -11,7 +11,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { formatNumber } from "../../../utils/format";
+import { formatNumber, formatDate } from "../../../utils/format";
 
 const TableView = ({
   paginatedSOs,
@@ -173,11 +173,11 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div>
                     <p className="text-sm text-foreground">
-                      {new Date(so.date).toLocaleDateString("en-GB")}
+                      {formatDate(so.date)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Delivery:{" "}
-                      {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
+                      {formatDate(so.deliveryDate)}
                     </p>
                   </div>
                 </td>

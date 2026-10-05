@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ArrowRight, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts, DateInput } from "../accounting/kit";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
 import { money, toCents } from "../../lib/voucherForms";
@@ -116,7 +116,7 @@ export function ContraForm({ voucher, onClose, onSaved }) {
         <Field label="Amount (AED)" required error={errors.amount}>
           <TextInput inputMode="decimal" className="text-end tabular-nums" value={f.amount} onChange={(e) => /^\d*(\.\d{0,2})?$/.test(e.target.value.replace(/,/g, "")) && set({ amount: e.target.value.replace(/,/g, "") })} placeholder="0.00" />
         </Field>
-        <Field label="Date" required><TextInput type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
+        <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
         <Field label="Narration" className="sm:col-span-2"><TextInput value={f.narration} onChange={(e) => set({ narration: e.target.value })} maxLength={200} placeholder="e.g. Cash deposited at Emirates NBD" /></Field>
       </div>
     </Modal>

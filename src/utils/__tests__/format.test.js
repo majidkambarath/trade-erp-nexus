@@ -7,6 +7,13 @@ import {
   formatQty,
   formatPercent,
   formatDateGB,
+  formatDate,
+  formatTime,
+  formatDateTime,
+  parseDate,
+  setDateFormat,
+  setTimeFormat,
+  getDateFormat,
   toInputDate,
   todayInput,
   stampYMD,
@@ -114,6 +121,74 @@ describe("dates are Dubai-local, not UTC", () => {
 
   it("stamps document numbers as YYYYMMDD", () => {
     expect(stampYMD("2026-07-01T06:00:00Z")).toBe("20260701");
+  });
+});
+
+describe("dates and times follow the person's setting", () => {
+  const moment = "2026-10-04T10:05:09Z"; // 14:05:09 in Dubai
+  afterEach(() => { setDateFormat("DD/MM/YYYY"); setTimeFormat("24h"); });
+
+  it("reads DD/MM/YYYY until a person chooses otherwise, and formatDateGB is the same thing", () => {
+    expect(getDateFormat()).toBe("DD/MM/YYYY");
+    expect(formatDate(moment)).toBe("04/10/2026");
+    expect(formatDateGB(moment)).toBe("04/10/2026");
+  });
+
+  it("offers each format", () => {
+    expect(formatDate(moment, "MM/DD/YYYY")).toBe("10/04/2026");
+    expect(formatDate(moment, "YYYY-MM-DD")).toBe("2026-10-04");
+    expect(formatDate(moment, "DD-MM-YYYY")).toBe("04-10-2026");
+    expect(formatDate(moment, "DD MMM YYYY")).toBe("04 Oct 2026");
+  });
+
+  it("uses the chosen format everywhere once set, and ignores a value it does not know", () => {
+    setDateFormat("YYYY-MM-DD");
+    expect(formatDate(moment)).toBe("2026-10-04");
+    expect(formatDateGB(moment)).toBe("2026-10-04");
+    setDateFormat("not-a-format");
+    expect(getDateFormat()).toBe("YYYY-MM-DD");
+  });
+
+  it("shows the Dubai calendar day, not the UTC one", () => {
+    expect(formatDate("2026-03-08T21:30:00Z")).toBe("09/03/2026"); // already the 9th in Dubai
+  });
+
+  it("formats times in 24-hour or 12-hour form, in Dubai time", () => {
+    expect(formatTime(moment)).toBe("14:05:09");
+    setTimeFormat("12h");
+    expect(formatTime(moment)).toMatch(/^0?2:05:09 pm$/i);
+    expect(formatDateTime(moment)).toMatch(/^04\/10\/2026 0?2:05 pm$/i);
+    setTimeFormat("24h");
+    expect(formatDateTime(moment)).toBe("04/10/2026 14:05");
+  });
+
+  it("is empty, not 'Invalid Date', for a missing or unreadable date", () => {
+    expect(formatDate(null)).toBe("");
+    expect(formatDate("garbage")).toBe("");
+    expect(formatTime(undefined)).toBe("");
+    expect(formatDateTime("")).toBe("");
+  });
+});
+
+describe("reading a typed date", () => {
+  it("understands the chosen format, with any of / - . between the parts", () => {
+    expect(parseDate("04/10/2026", "DD/MM/YYYY")).toBe("2026-10-04");
+    expect(parseDate("4-10-2026", "DD-MM-YYYY")).toBe("2026-10-04");
+    expect(parseDate("04.10.2026", "DD/MM/YYYY")).toBe("2026-10-04");
+    expect(parseDate("10/04/2026", "MM/DD/YYYY")).toBe("2026-10-04");
+    expect(parseDate("04 Oct 2026", "DD MMM YYYY")).toBe("2026-10-04");
+    expect(parseDate("4 october 2026", "DD MMM YYYY")).toBe("2026-10-04");
+  });
+  it("always accepts an ISO date", () => {
+    expect(parseDate("2026-10-04", "DD/MM/YYYY")).toBe("2026-10-04");
+    expect(parseDate("2026-1-5", "MM/DD/YYYY")).toBe("2026-01-05");
+  });
+  it("refuses what is not a real date", () => {
+    for (const bad of ["", "31/02/2026", "32/01/2026", "00/10/2026", "04/13/2026", "04/10/26", "hello", "04/10", "2026-13-01"]) {
+      expect(parseDate(bad, "DD/MM/YYYY")).toBeNull();
+    }
+    expect(parseDate("29/02/2024", "DD/MM/YYYY")).toBe("2024-02-29"); // a leap year
+    expect(parseDate("29/02/2026", "DD/MM/YYYY")).toBeNull();
   });
 });
 

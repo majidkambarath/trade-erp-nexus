@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Banknote, Building2, CreditCard, FileText, Landmark } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { Field, SearchSelect, TextInput } from "../accounting/kit";
+import { Field, SearchSelect, TextInput, DateInput } from "../accounting/kit";
 import { PAYMENT_MODES } from "../../lib/voucherForms";
 import { formatNumber } from "../../utils/format";
 
@@ -93,7 +93,7 @@ export default function PaymentModeFields({ value, onChange, direction, options,
               <TextInput value={value.reference} onChange={(e) => set({ reference: e.target.value })} maxLength={60} placeholder="Bank's reference number" />
             </Field>
             <Field label="Transfer date">
-              <TextInput type="date" value={value.referenceDate || voucherDate || ""} onChange={(e) => set({ referenceDate: e.target.value })} />
+              <DateInput value={value.referenceDate || voucherDate || ""} onChange={(e) => set({ referenceDate: e.target.value })} />
             </Field>
           </>
         )}
@@ -104,7 +104,7 @@ export default function PaymentModeFields({ value, onChange, direction, options,
               <TextInput value={value.chequeNo} onChange={(e) => set({ chequeNo: e.target.value })} maxLength={20} inputMode="numeric" />
             </Field>
             <Field label="Cheque date" required error={errors.chequeDate} hint={isPDC ? "Post-dated: it waits in cheques in hand until it clears." : undefined}>
-              <TextInput type="date" value={value.chequeDate} onChange={(e) => set({ chequeDate: e.target.value })} />
+              <DateInput value={value.chequeDate} onChange={(e) => set({ chequeDate: e.target.value })} />
             </Field>
             {isReceipt && (
               <>

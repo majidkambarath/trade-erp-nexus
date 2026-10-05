@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+// eslint-disable-next-line no-unused-vars -- used as <motion.div> etc. in JSX, which core no-unused-vars cannot see
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Home, AlertCircle } from "lucide-react";

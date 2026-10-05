@@ -103,8 +103,11 @@ export const MODULES = [
     tabs: [
       { label: "Chart of accounts", to: "/chart-of-accounts", roles: ACCOUNTS, keywords: ["coa", "ledger accounts", "account groups", "assets", "liabilities", "equity", "income", "expenses", "opening balance", "documents", "create account"] },
       { label: "Banks", to: "/banks", roles: ACCOUNTS, keywords: ["bank master", "swift", "iban", "branches"] },
+      { label: "KYC documents", to: "/kyc-documents", roles: ACCOUNTS, keywords: ["document types", "trade licence", "emirates id", "expiry", "kyc", "expiring documents"] },
       { label: "Card types", to: "/card-types", roles: ACCOUNTS, keywords: ["visa", "mastercard", "card fee", "processing fee"] },
       { label: "Cards", to: "/cards", roles: ACCOUNTS, keywords: ["card master", "pos terminal", "credit card", "merchant", "debit card", "prepaid"] },
+      { label: "Opening balances", to: "/opening-balances", roles: ACCOUNTS, keywords: ["go live", "conversion", "opening stock", "opening invoices", "trial balance", "opening balance equity", "migrate", "old books"] },
+      { label: "Currencies", to: "/currencies", roles: ACCOUNTS, keywords: ["exchange rate", "fx", "foreign currency", "usd", "eur", "rates", "base currency", "aed"] },
       { label: "Setup", to: "/accounting-setup", roles: ACCOUNTS, keywords: ["posting accounts", "account configuration", "fiscal year", "period lock", "tax codes", "credit control", "audit log", "numbering"] },
     ],
   },
@@ -113,9 +116,14 @@ export const MODULES = [
     label: "Reports",
     icon: BarChart3,
     tabs: [
-      { label: "Statements", to: "/financial-statements", roles: ACCOUNTS, keywords: ["trial balance", "profit and loss", "p&l", "balance sheet", "financial statements"] },
+      { label: "Statements", to: "/financial-statements", roles: ACCOUNTS, keywords: ["trial balance", "profit and loss", "p&l", "gross profit", "cash flow", "balance sheet", "financial statements"] },
+      { label: "IFRS", to: "/ifrs-statements", roles: ACCOUNTS, keywords: ["ifrs statements", "statement of financial position", "profit or loss", "changes in equity", "cash flows", "notes", "comparative", "ias 1", "ias 7"] },
+      { label: "Ledger", to: "/ledger-reports", roles: ACCOUNTS, keywords: ["general ledger", "day book", "journals register", "cash book", "bank book", "gl"] },
+      { label: "Balances", to: "/party-balances", roles: ACCOUNTS, keywords: ["customer balances", "vendor balances", "receivables", "payables", "credit exposure", "credit limit", "outstanding"] },
       { label: "Ageing", to: "/ageing", roles: ACCOUNTS, keywords: ["aged receivables", "aged payables", "overdue", "outstanding"] },
       { label: "Account statement", to: "/statement", roles: ACCOUNTS, keywords: ["statement of account", "customer statement", "vendor statement"] },
+      { label: "Stock", to: "/stock-reports", roles: ACCOUNTS, keywords: ["stock valuation", "inventory valuation", "stock movement", "item ledger", "sales analysis", "gross margin", "expiry", "slow moving", "dead stock", "reorder", "low stock"] },
+      { label: "Currency", to: "/currency-register", roles: ACCOUNTS, keywords: ["currency register", "foreign receipts", "foreign payments", "fx register"] },
       { label: "VAT", to: "/vat-reports", roles: ACCOUNTS, keywords: ["vat report", "fta", "tax"] },
       // `soon`: the screens work against a built-in sandbox, but the connection to an accredited
       // service provider (live exchange with other businesses and the FTA) is not built yet.
@@ -133,7 +141,7 @@ export const MODULES = [
     label: "Settings",
     icon: Settings,
     placement: "footer",
-    tabs: [{ label: "Settings", to: "/settings", keywords: ["profile", "company"] }],
+    tabs: [{ label: "Settings", to: "/settings", keywords: ["profile", "company", "credit control", "returns", "trn", "tax registration", "password", "theme", "date format"] }],
   },
 ];
 

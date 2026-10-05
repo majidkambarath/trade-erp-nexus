@@ -5,7 +5,7 @@ import { accounting } from "../../lib/accountingApi";
 import { downloadCSV, formatDateGB, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, TextInput, useAsync, DateInput } from "../accounting/kit";
 import { cn } from "../../lib/utils";
 
 const money = (n) => (n ? formatNumber(n, 2) : "–");
@@ -42,7 +42,7 @@ export default function AgeingReport() {
               className={cn("rounded-full px-4 py-1.5 text-sm font-semibold transition-all", type === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{v.label}</button>
           ))}
         </div>
-        <Field label="As at"><TextInput type="date" value={asOf} max={todayInput()} onChange={(e) => e.target.value && setAsOf(e.target.value)} className="w-44" /></Field>
+        <Field label="As at"><DateInput value={asOf} max={todayInput()} onChange={(e) => e.target.value && setAsOf(e.target.value)} className="w-44" /></Field>
       </div>
 
       {data && (

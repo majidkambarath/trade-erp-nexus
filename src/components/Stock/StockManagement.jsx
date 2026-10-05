@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Package,
   Plus,
@@ -39,11 +39,11 @@ import {
 import axiosInstance from "../../axios/axios";
 import DirhamIcon from "../../assets/dirham.svg";
 import BarcodeGenerator from "react-barcode";
-import { saveAs } from "file-saver";
-import { toInputDate } from "../../utils/format";
+import { toInputDate, formatDate, formatTime } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
+import { DateInput } from "../accounting/kit";
 // SessionManager and getColorFilter remain unchanged
 const SessionManager = {
   storage: {},
@@ -77,22 +77,10 @@ const SessionManager = {
   },
 };
 
-const getColorFilter = (colorClass) => {
-  const colorMap = {
-    "text-gray-900": "none",
-    "text-red-600":
-      "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-    "text-status-warning":
-      "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
-    "text-green-600":
-      "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
-  };
-  return colorMap[colorClass] || "none";
-};
-
 // FormSelect Component (unchanged)
 const FormSelect = ({
   label,
+  // eslint-disable-next-line no-unused-vars -- used as a JSX element (<Icon />), which core no-unused-vars cannot see
   icon: Icon,
   error,
   options,
@@ -202,7 +190,7 @@ const StockManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [editItemId, setEditItemId] = useState(null);
@@ -305,7 +293,7 @@ const StockManagement = () => {
     try {
       const response = await axiosInstance.get("/uom/units");
       setUnits(Array.isArray(response.data.data) ? response.data.data : []);
-    } catch (error) {
+    } catch {
       showToastMessage("Failed to fetch units", "error");
       setUnits([]);
     }
@@ -771,7 +759,7 @@ const StockManagement = () => {
       URL.revokeObjectURL(url);
 
       showToastMessage("Stock data exported successfully!", "success");
-    } catch (error) {
+    } catch {
       showToastMessage("Failed to export stock data.", "error");
     }
   }, [sortedAndFilteredItems, showToastMessage]);
@@ -853,7 +841,7 @@ const StockManagement = () => {
 
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return formatTime(time);
   }, []);
 
   const stockStats = useMemo(() => {
@@ -995,7 +983,7 @@ const StockManagement = () => {
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-black bg-clip-text">
               Stock Management
             </h1>
             <p className="text-gray-600 mt-1">
@@ -1336,7 +1324,7 @@ const StockManagement = () => {
                             className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}
                           >
                             {item.expiryDate
-                              ? new Date(item.expiryDate).toLocaleDateString()
+                              ? formatDate(item.expiryDate)
                               : "N/A"}
                             {expiryStatus.label !== "N/A" &&
                               ` (${expiryStatus.label})`}
@@ -1736,12 +1724,11 @@ const StockManagement = () => {
                     <Calendar size={16} className="inline mr-2" />
                     Expiry Date
                   </label>
-                  <input
-                    type="date"
+                  <DateInput
                     name="expiryDate"
+                    aria-label="Expiry date"
                     value={formData.expiryDate}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
 

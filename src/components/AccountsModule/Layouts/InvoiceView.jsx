@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Send } from "lucide-react";
 import PaymentInvoiceView from "../../FinancialModules/Payment/PaymentInvoiceView";
 
@@ -28,7 +28,6 @@ const InvoiceView = ({
 
   const handleSendToParty = () => {
     const party = parties.find((p) => p._id === selectedInvoice.partyId);
-    const isSale = voucherType === "sale";
     alert(
       `${
         voucherType.charAt(0).toUpperCase() + voucherType.slice(1)
@@ -36,7 +35,7 @@ const InvoiceView = ({
     );
   };
 
-  const showToastMessage = (message, type) => {
+  const showToastMessage = (message) => {
     alert(message);
   };
 

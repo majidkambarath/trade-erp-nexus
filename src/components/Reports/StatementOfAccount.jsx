@@ -6,7 +6,7 @@ import { accounting } from "../../lib/accountingApi";
 import { downloadCSV, drCr, formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { Balance, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, SearchSelect, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { Balance, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, SearchSelect, Spinner, TextInput, useAsync, DateInput } from "../accounting/kit";
 
 const TYPES = { Customer: { path: "/customers/customers", name: "customerName", owes: "owes you" }, Vendor: { path: "/vendors/vendors", name: "vendorName", owes: "you owe" } };
 const LABEL = { sales_order: "Sales invoice", sales_return: "Sales return", purchase_order: "Purchase invoice", purchase_return: "Purchase return", receipt: "Receipt", payment: "Payment", journal: "Journal", contra: "Contra", expense: "Expense", opening: "Opening balance" };
@@ -69,8 +69,8 @@ export default function StatementOfAccount() {
             options={options.map((p) => ({ value: p._id, label: p[TYPES[partyType].name], hint: p[partyType === "Vendor" ? "vendorId" : "customerId"] }))}
           />
         </Field>
-        <Field label="From"><TextInput type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} /></Field>
-        <Field label="To"><TextInput type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} /></Field>
+        <Field label="From"><DateInput value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} /></Field>
+        <Field label="To"><DateInput value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} /></Field>
       </div>
       {parties.error && <ErrorNote error={parties.error} />}
 

@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { Ban, CheckCircle2, RotateCcw, Search } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts } from "../accounting/kit";
+import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts, DateInput } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
+import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
 import { formatDateGB, formatNumber } from "../../utils/format";
 
@@ -69,7 +70,7 @@ export default function ChequeRegister() {
                     <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(c.chequeDate)}{c.status === "pending" && !c.matured && <Pill tone="info" className="ms-2">Post-dated</Pill>}</td>
                     <td className="px-3 py-2.5 font-medium">{c.partyName}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{c.direction === "receipt" ? c.drawnOnBankName : c.bankAccountName}{c.direction === "receipt" && c.bankAccountName && <span className="block text-xs">into {c.bankAccountName}</span>}</td>
-                    <td className="px-3 py-2.5 text-end font-medium tabular-nums">{formatNumber(c.amount, 2)}</td>
+                    <td className="px-3 py-2.5 text-end font-medium tabular-nums">{formatNumber(c.amount, 2)}{c.foreignAmount > 0 && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(c.foreignAmount, c.currency)} @ {formatRate(c.exchangeRate)}</span>}</td>
                     <td className="px-3 py-2.5"><Pill tone={TONE[c.status]}>{c.status[0].toUpperCase() + c.status.slice(1)}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs text-muted-foreground" title={c.reason}>{c.reason}</span>}</td>
                     <td className="whitespace-nowrap px-5 py-2.5 text-end">
                       {c.status === "pending" && (
@@ -129,7 +130,7 @@ function ClearDialog({ cheque, onClose, onDone }) {
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Clearing…" : "Clear cheque"}</Button></>}
     >
       <ErrorNote error={problem} />
-      <Field label="Cleared on"><TextInput type="date" value={on} min={day(cheque.chequeDate)} onChange={(e) => setOn(e.target.value)} data-autofocus /></Field>
+      <Field label="Cleared on"><DateInput value={on} min={day(cheque.chequeDate)} onChange={(e) => setOn(e.target.value)} data-autofocus /></Field>
     </Modal>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { Button } from "../../ui/button";
-import { EmptyState, ErrorNote, Field, Panel, Spinner, TextInput, formatDateTime, useAsync } from "../kit";
+import { EmptyState, ErrorNote, Field, Panel, Spinner, TextInput, formatDateTime, useAsync, DateInput } from "../kit";
 
 // Who changed what. Configuration changes are recorded alongside documents, because those are what
 // an auditor asks about. The log is append-only: nothing here can be edited or deleted.
@@ -23,8 +23,8 @@ export default function AuditLog() {
       <form onSubmit={apply} className="flex flex-wrap items-end gap-3 border-b border-border px-5 py-4">
         <Field label="What"><TextInput value={filters.entity} onChange={set("entity")} placeholder="e.g. FiscalYear" className="w-44" /></Field>
         <Field label="Action"><TextInput value={filters.action} onChange={set("action")} placeholder="e.g. PERIOD_CLOSED" className="w-52" /></Field>
-        <Field label="From"><TextInput type="date" value={filters.from} onChange={set("from")} /></Field>
-        <Field label="To"><TextInput type="date" value={filters.to} onChange={set("to")} /></Field>
+        <Field label="From"><DateInput value={filters.from} onChange={set("from")} /></Field>
+        <Field label="To"><DateInput value={filters.to} onChange={set("to")} /></Field>
         <Button type="submit" size="sm">Filter</Button>
       </form>
       {loading && !data && <Spinner />}

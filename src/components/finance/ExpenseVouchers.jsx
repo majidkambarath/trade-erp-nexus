@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import axiosInstance from "../../axios/axios";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
 import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
@@ -131,7 +131,7 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
           <Field label="Tax code" hint={rate ? `${rate}% = ${money(vat)} AED, total ${money(total)} AED` : "Leave empty for no VAT."}>
             <SearchSelect value={f.taxCodeId} onChange={(v) => set({ taxCodeId: v })} options={taxOptions} clearable placeholder="No VAT" />
           </Field>
-          <Field label="Date" required><TextInput type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
+          <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
           <Field label="Paid to" hint="Optional: a vendor, for the record.">
             <SearchSelect value={f.vendorId} onChange={(v) => set({ vendorId: v })} options={vendorOptions} clearable placeholder="Search vendors…" loading={vendors.loading} />
           </Field>

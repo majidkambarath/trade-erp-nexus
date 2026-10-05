@@ -58,12 +58,121 @@ export const formatQty = (value, decimals = 2) => {
 export const formatPercent = (value, decimals = 2) =>
   `${formatNumber(value, decimals)}%`;
 
-// Simple date formatting to dd/mm/yyyy (GB)
-export const formatDateGB = (dateInput) => {
-  if (!dateInput) return '';
-  const d = new Date(dateInput);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-GB');
+// ---------------------------------------------------------------------------
+// Dates and times as the person chose to see them (Settings > Preferences)
+// ---------------------------------------------------------------------------
+
+// How a date reads. Stored per browser; the default is the UAE convention, DD/MM/YYYY.
+export const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'DD-MM-YYYY', 'DD MMM YYYY'];
+export const TIME_FORMATS = ['24h', '12h'];
+const DATE_KEY = 'erp-date-format';
+const TIME_KEY = 'erp-time-format';
+
+const readPref = (key, allowed, fallback) => {
+  try {
+    const v = localStorage.getItem(key);
+    return allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writePref = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode: the choice holds for this visit only */
+  }
+};
+let dateFormat = readPref(DATE_KEY, DATE_FORMATS, 'DD/MM/YYYY');
+let timeFormat = readPref(TIME_KEY, TIME_FORMATS, '24h');
+export const getDateFormat = () => dateFormat;
+export const getTimeFormat = () => timeFormat;
+export const setDateFormat = (id) => {
+  if (!DATE_FORMATS.includes(id)) return;
+  dateFormat = id;
+  writePref(DATE_KEY, id);
+};
+export const setTimeFormat = (id) => {
+  if (!TIME_FORMATS.includes(id)) return;
+  timeFormat = id;
+  writePref(TIME_KEY, id);
+};
+
+// Dubai-local calendar parts of a moment: every date the business sees is Dubai-local.
+const partsFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: brand.timezone,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const monthName = new Intl.DateTimeFormat('en-GB', { timeZone: brand.timezone, month: 'short' });
+const toDate = (input) => {
+  if (!input) return null;
+  const d = input instanceof Date ? input : new Date(input);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// "04/10/2026", "10/04/2026", "2026-10-04", "04-10-2026" or "04 Oct 2026", per the setting
+// (or the explicit `pattern`). Empty for a missing or unreadable date.
+export const formatDate = (input, pattern = dateFormat) => {
+  const d = toDate(input);
+  if (!d) return '';
+  const p = Object.fromEntries(partsFormatter.formatToParts(d).map((x) => [x.type, x.value]));
+  switch (pattern) {
+    case 'MM/DD/YYYY': return `${p.month}/${p.day}/${p.year}`;
+    case 'YYYY-MM-DD': return `${p.year}-${p.month}-${p.day}`;
+    case 'DD-MM-YYYY': return `${p.day}-${p.month}-${p.year}`;
+    case 'DD MMM YYYY': return `${p.day} ${monthName.format(d)} ${p.year}`;
+    default: return `${p.day}/${p.month}/${p.year}`;
+  }
+};
+
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const isoOf = (y, m, d) => {
+  const year = Number(y);
+  const month = Number(m);
+  const day = Number(d);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (year < 1900 || year > 2200 || probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+// What a person typed, read in their date format, as "YYYY-MM-DD"; null when it is not a real date.
+// An ISO date is always accepted, and so are "-", "." and "/" between the parts.
+export const parseDate = (text, pattern = dateFormat) => {
+  const t = String(text ?? '').trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+  if (m) return isoOf(m[1], m[2], m[3]);
+  m = /^(\d{1,2})[\s/.-]+([A-Za-z]{3,})\.?[\s/.-]+(\d{4})$/.exec(t);
+  if (m) {
+    const month = MONTH_NAMES.indexOf(m[2].slice(0, 3).toLowerCase()) + 1;
+    return month ? isoOf(m[3], month, m[1]) : null;
+  }
+  m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(t);
+  if (!m) return null;
+  return pattern === 'MM/DD/YYYY' ? isoOf(m[3], m[1], m[2]) : isoOf(m[3], m[2], m[1]);
+};
+
+// Kept for the many callers written before the setting existed; it now follows the setting.
+export const formatDateGB = formatDate;
+
+// "13:30:05" or "1:30:05 pm", per the setting, in Dubai time.
+export const formatTime = (input, pattern = timeFormat, seconds = true) => {
+  const d = toDate(input);
+  if (!d) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: brand.timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(seconds ? { second: '2-digit' } : {}),
+    hour12: pattern === '12h',
+  }).format(d);
+};
+
+// A moment as "04/10/2026 13:30" (no seconds), for audit trails and lists.
+export const formatDateTime = (input) => {
+  const d = toDate(input);
+  return d ? `${formatDate(d)} ${formatTime(d, timeFormat, false)}` : '';
 };
 
 // The business operates in the UAE; every date the user sees or picks is Dubai-local.
@@ -111,7 +220,7 @@ export const toCSV = (headers, rows) =>
 // The BOM makes Excel read the file as UTF-8 — without it, non-ASCII party names
 // (common here) are mangled on open.
 export const downloadCSV = (filename, headers, rows) => {
-  const blob = new Blob([`﻿${toCSV(headers, rows)}`], {
+  const blob = new Blob([`\uFEFF${toCSV(headers, rows)}`], {
     type: 'text/csv;charset=utf-8;',
   });
   const url = URL.createObjectURL(blob);

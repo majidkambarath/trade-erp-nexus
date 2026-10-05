@@ -12,16 +12,14 @@ import {
   Building2,
 } from "lucide-react";
 
+import { formatDate } from "../../../utils/format";
 const TableView = ({
   paginatedPOs,
   selectedPOs,
   setSelectedPOs,
-  getPriorityColor,
   getStatusColor,
   getStatusIcon,
   handleSort,
-  sortBy,
-  sortOrder,
   setSelectedPO,
   setActiveView,
   editPO,
@@ -138,7 +136,7 @@ const TableView = ({
                   </div>
                 </td>
                 <td className="px-4 py-4 text-sm text-muted-foreground">
-                  {new Date(po.date).toLocaleDateString()}
+                  {formatDate(po.date)}
                 </td>
                 <td className="px-4 py-4 font-semibold text-foreground">
                   AED {po.totalAmount}

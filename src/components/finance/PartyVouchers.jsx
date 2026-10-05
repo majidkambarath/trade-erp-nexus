@@ -1,13 +1,15 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axiosInstance from "../../axios/axios";
-import { Eye, Plus, Wand2 } from "lucide-react";
+import { AlertTriangle, Eye, Plus, Wand2 } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
 import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
+import { currencies } from "../../lib/currencyApi";
+import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
 import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, paymentPayload, toCents, validatePayment } from "../../lib/voucherForms";
-import { formatDateGB } from "../../utils/format";
+import { CURRENCY, formatDate, formatDateGB } from "../../utils/format";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
 // with the direction turned round.
@@ -54,12 +56,12 @@ function PartyVouchers({ direction }) {
             <tbody>
               {list.rows.map((v) => (
                 <tr key={v._id} className="border-t border-border hover:bg-accent/40">
-                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs font-semibold">{v.voucherNo}</td>
+                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs font-semibold">{v.voucherNo}{isForeign(v) && <span title="Foreign currency" className="ms-2 font-sans"><Pill tone="info">{v.currency}</Pill></span>}</td>
                   <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(v.date)}</td>
                   <td className="px-3 py-2.5 font-medium">{v.partyName}</td>
                   <td className="max-w-xs px-3 py-2.5"><span className="font-medium">{modeLabel(v.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground">{describePayment(v)}</span></td>
                   <td className="px-3 py-2.5 text-end tabular-nums">{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</td>
-                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">{money(toCents(v.totalAmount))}</td>
+                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</td>
                   <td className="px-3 py-2.5"><StatusPill status={v.status} /></td>
                   <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button></td>
                 </tr>
@@ -113,25 +115,56 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
   const party = (parties.data || []).find((p) => p._id === partyId);
   const open = invoices.data || [];
 
-  const total = toCents(amount);
+  // Foreign currency. The ledger, the invoices and the allocation below stay in AED: a foreign
+  // amount is converted once, at the exchange rate shown, and `total` is that AED value.
+  const currencyList = useAsync(() => currencies.list().catch(() => []), []);
+  const [currency, setCurrency] = useState(""); // "" = AED
+  const [rateTyped, setRateTyped] = useState(null); // null: not typed, follow the rate on file
+  const [reason, setReason] = useState("");
+  const currencyOpts = useMemo(() => currencyOptions(currencyList.data), [currencyList.data]);
+  const showCurrency = hasForeignOptions(currencyList.data); // nothing to choose until a foreign currency is on and has a rate
+  const baseCode = (currencyList.data || []).find((c) => c?.isBase)?.code || CURRENCY;
+  const decimals = (currencyList.data || []).find((c) => c?.code === currency)?.decimals ?? 2;
+  const masterQ = useAsync(() => (currency ? currencies.rate(currency, date) : Promise.resolve(null)), [currency, date]);
+  // ignore an answer that belongs to an earlier currency or date
+  const master = currency && masterQ.data && masterQ.data.code === currency && masterQ.data.date === date ? masterQ.data : null;
+  const masterError = currency && !masterQ.loading && !master ? masterQ.error?.message : "";
+  const rateText = rateTyped ?? (master ? String(master.rate) : "");
+  const check = rateCheck({ rate: rateText, masterRate: master?.rate, tolerancePercent: master?.tolerancePercent ?? 5, reason });
+  const fxForm = { currency, foreignAmount: amount, rate: rateText, reason };
+
+  const totalFor = (text, rate = rateText) => (currency ? convertToBaseCents(text, rate, decimals) : toCents(text));
+  const total = totalFor(amount);
   const allocated = Object.values(alloc).reduce((t, v) => t + toCents(v), 0);
   const onAccount = total - allocated;
 
+  // a new rate or day can leave the invoices allocated more than the amount now covers: refill them oldest first
+  useEffect(() => {
+    if (currency && allocated > total) setAlloc(allocateOldestFirst(open, total));
+  }, [currency, total]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const changeAmount = (raw) => {
-    const v = raw.replace(/,/g, "");
-    if (!/^\d*(\.\d{0,2})?$/.test(v)) return;
+    const v = typedAmount(raw, currency ? decimals : 2);
+    if (v === null) return;
     setAmount(v);
-    setAlloc(allocateOldestFirst(open, toCents(v))); // the oldest invoices are settled first
+    setAlloc(allocateOldestFirst(open, totalFor(v))); // the oldest invoices are settled first
   };
   const changeParty = (id) => { setPartyId(id); setAlloc({}); setAmount(""); };
+  const changeCurrency = (code) => {
+    // an amount means something different in another currency: start the amount over
+    setCurrency(code === baseCode ? "" : code);
+    setAmount(""); setAlloc({}); setRateTyped(null); setReason(""); setErrors({});
+  };
+  const changeDate = (iso) => { setDate(iso); setRateTyped(null); setReason(""); }; // the rate follows the day
   const setAllocation = (inv, raw) => {
-    const v = raw.replace(/,/g, "");
-    if (!/^\d*(\.\d{0,2})?$/.test(v)) return;
+    const v = typedAmount(raw, 2);
+    if (v === null) return;
     const next = { ...alloc, [inv._id]: v };
     if (!toCents(v)) delete next[inv._id];
     setAlloc(next);
     const sum = Object.values(next).reduce((t, x) => t + toCents(x), 0);
-    if (sum > total) setAmount(String(fromCents(sum))); // paying more on invoices raises the amount
+    // paying more on invoices raises the amount (in a foreign currency: to what covers it at this rate)
+    if (sum > total) setAmount(String(currency ? foreignForBase(sum, rateText, decimals) : fromCents(sum)));
   };
 
   async function save() {
@@ -140,6 +173,12 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
     if (!(total > 0)) e.amount = "Enter the amount";
     for (const inv of open) if (toCents(alloc[inv._id]) > toCents(inv.outstandingAmount)) e[inv._id] = `More than the ${money(toCents(inv.outstandingAmount))} open`;
     if (onAccount < 0) e.amount = "The invoices add up to more than the amount";
+    if (currency) {
+      const f = validateForeign({ fx: fxForm, master, masterError });
+      if (f.foreignAmount) e.amount = f.foreignAmount;
+      if (f.exchangeRate) e.exchangeRate = f.exchangeRate;
+      if (f.rateOverrideReason) e.rateOverrideReason = f.rateOverrideReason;
+    }
     Object.assign(e, validatePayment(payment, { direction, options: opts, voucherDate: date }));
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -152,6 +191,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
           invoiceId: i._id, amount: toCents(alloc[i._id]) / 100, balance: (toCents(i.outstandingAmount) - toCents(alloc[i._id])) / 100,
         })),
         ...paymentPayload(payment),
+        ...fxPayload(fxForm, master),
       });
       onSaved(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} ${saved.voucherNo} posted`);
     } catch (err) {
@@ -167,20 +207,58 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
     >
       <div onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } }} className="space-y-5">
         <ErrorNote error={optsError || parties.error || problem} />
-        <div className="grid gap-4 sm:grid-cols-[1fr_12rem_12rem]">
+        <div className={showCurrency ? "grid gap-4 sm:grid-cols-[1fr_12rem_12rem_12rem]" : "grid gap-4 sm:grid-cols-[1fr_12rem_12rem]"}>
           <Field label={cfg.noun} required error={errors.partyId}>
             <SearchSelect value={partyId} onChange={changeParty} options={partyOptions} loading={parties.loading} autoFocus placeholder={`Search ${cfg.noun.toLowerCase()}s…`} invalid={Boolean(errors.partyId)} noOptionsText={`No ${cfg.noun.toLowerCase()} matches`} />
           </Field>
-          <Field label={cfg.amountLabel} required error={errors.amount}>
-            <TextInput inputMode="decimal" className="text-end tabular-nums" value={amount} onChange={(e) => changeAmount(e.target.value)} placeholder="0.00" />
+          {showCurrency && (
+            <Field label="Currency">
+              <SearchSelect value={currency || baseCode} onChange={changeCurrency} options={currencyOpts} placeholder="Currency" noOptionsText="No currency matches" />
+            </Field>
+          )}
+          <Field label={currency ? cfg.amountLabel.replace("(AED)", `(${currency})`) : cfg.amountLabel} required error={errors.amount}>
+            <TextInput inputMode="decimal" className="text-end tabular-nums" value={amount} onChange={(e) => changeAmount(e.target.value)} placeholder={(0).toFixed(currency ? decimals : 2)} />
           </Field>
-          <Field label="Date" required><TextInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+          <Field label="Date" required><DateInput value={date} onChange={(e) => changeDate(e.target.value)} /></Field>
         </div>
+
+        {currency && (
+          <section aria-label="Foreign currency" className="space-y-3 rounded-xl border border-border bg-secondary/40 p-4">
+            {masterError && <ErrorNote error={{ message: masterError }} />}
+            <div className="grid gap-4 sm:grid-cols-[14rem_14rem_1fr]">
+              <Field
+                label={`Exchange rate (${baseCode} per 1 ${currency})`} required error={errors.exchangeRate}
+                hint={master ? `Rate on file for ${formatDate(date)}: ${formatRate(master.rate)}${master.rateDate ? `, from ${formatDate(master.rateDate)}` : ""}` : masterQ.loading ? "Looking up the rate…" : undefined}
+              >
+                <TextInput inputMode="decimal" className="text-end tabular-nums" value={rateText} onChange={(e) => { const v = typedRate(e.target.value); if (v !== null) setRateTyped(v); }} />
+              </Field>
+              <Field label={`Equivalent in ${baseCode}`} hint={`${formatForeign(amount || 0, currency)} at this rate`}>
+                <TextInput readOnly className="bg-secondary text-end font-medium tabular-nums" value={money(total)} />
+              </Field>
+            </div>
+            {check.outside ? (
+              <p role="alert" className="flex items-start gap-2 text-sm text-status-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                This rate is {check.deviation}% away from the rate on file ({formatRate(master.rate)}); up to {master.tolerancePercent}% is allowed without a reason.
+              </p>
+            ) : check.differs ? (
+              <p className="text-sm text-muted-foreground">{check.deviation}% away from the rate on file, which is within the allowed {master.tolerancePercent}%.</p>
+            ) : null}
+            {check.outside && (
+              <Field label="Reason for this rate" required error={errors.rateOverrideReason}>
+                <TextInput value={reason} maxLength={250} onChange={(e) => setReason(e.target.value)} placeholder="For example: rate agreed with the customer" />
+              </Field>
+            )}
+          </section>
+        )}
 
         {partyId && (
           <section aria-label="Open invoices">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-medium text-foreground">Open invoices of {party?.[cfg.nameKey]}</h3>
+              <div>
+                <h3 className="text-sm font-medium text-foreground">Open invoices of {party?.[cfg.nameKey]}</h3>
+                {currency && <p className="text-xs text-muted-foreground">Invoices are in {baseCode}. The {currency} amount is converted at the rate above.</p>}
+              </div>
               {open.length > 0 && total > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(open, total))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
             </div>
             {invoices.loading && <Spinner label="Loading invoices" />}

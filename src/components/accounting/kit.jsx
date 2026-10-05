@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Inbox, Loader2, X } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Inbox, Loader2, X } from "lucide-react";
 import ReactSelect from "react-select";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
-import { drCr } from "../../utils/format";
+import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
 
 // Small building blocks shared by the accounting, reporting, batch and e-invoicing screens.
 // Everything here reads the existing design tokens (bg-card, border-border, brand-soft, status
@@ -141,6 +141,73 @@ export const TextInput = React.forwardRef(function TextInput({ className, ...p }
   return <input ref={ref} className={cn(inputClass, className)} {...p} />;
 });
 
+// A date field that shows and accepts dates the way the person chose to read them (Settings >
+// Preferences: 04/10/2026, 2026-10-04, 04 Oct 2026...), instead of the browser's own regional
+// format. Type it, or open the calendar. `value` and the value in the change event are ISO
+// "YYYY-MM-DD", exactly like a native date input, so it is a drop-in for <input type="date">.
+export const DateInput = React.forwardRef(function DateInput(
+  { value = "", onChange, onBlur, min, max, className, inputClassName, disabled, required, id, name, placeholder, ...aria },
+  ref
+) {
+  const pattern = getDateFormat();
+  const show = (iso) => (iso ? formatDate(iso, pattern) : "");
+  const [text, setText] = useState(show(value));
+  const [bad, setBad] = useState(false);
+  const picker = useRef(null);
+  // The ISO date this field has just reported from the person's own typing. Its echo (the parent
+  // passing the same date back as `value`) must not rewrite the text being typed: in YYYY-MM-DD,
+  // "2026-03-1" already reads as the 1st, and showing "2026-03-01" at once would turn the next
+  // digit into "2026-03-017" - so the 10th to the 31st could not be typed. The text is tidied on leaving.
+  const echo = useRef(null);
+  // follow the value from outside (a quick range, a reset) and a changed format
+  useEffect(() => {
+    if (echo.current !== null && echo.current === value) { echo.current = null; setBad(false); return; }
+    echo.current = null;
+    setText(show(value));
+    setBad(false);
+  }, [value, pattern]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const emit = (iso) => onChange?.({ target: { id, name, type: "date", value: iso }, type: "change" });
+
+  function change(e) {
+    const typed = e.target.value;
+    setText(typed);
+    if (!typed.trim()) { setBad(false); if (value) { echo.current = ""; emit(""); } return; }
+    const iso = parseDate(typed, pattern);
+    // min / max guide the calendar only, as on a native date field: the form explains a date out of range
+    if (iso) { setBad(false); if (iso !== value) { echo.current = iso; emit(iso); } } else setBad(true);
+  }
+  function leave(e) {
+    echo.current = null;
+    setText(show(value)); // an unfinished or impossible date is not kept; a good one is shown the way the format writes it
+    setBad(false);
+    onBlur?.(e);
+  }
+
+  return (
+    <div className={cn("relative", className)}>
+      <input
+        ref={ref} id={id} name={name} type="text" inputMode="numeric" autoComplete="off" value={text} onChange={change} onBlur={leave}
+        placeholder={placeholder ?? pattern} disabled={disabled} required={required} maxLength={16}
+        {...aria} aria-invalid={bad || aria["aria-invalid"] || undefined}
+        className={cn(inputClassName || inputClass, "pe-10")}
+      />
+      <input
+        ref={picker} type="date" tabIndex={-1} aria-hidden="true" disabled={disabled} value={value || ""} min={min} max={max}
+        onChange={(e) => e.target.value && emit(e.target.value)}
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+      />
+      <button
+        type="button" tabIndex={-1} disabled={disabled} aria-label="Open calendar"
+        onClick={() => { try { picker.current?.showPicker?.(); } catch { /* not allowed here: type the date instead */ } }}
+        className="absolute end-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+      >
+        <Calendar className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+});
+
 export const Select = React.forwardRef(function Select({ className, children, ...p }, ref) {
   return (
     <select ref={ref} className={cn(inputClass, "pe-8", className)} {...p}>
@@ -154,10 +221,10 @@ export const Select = React.forwardRef(function Select({ className, children, ..
 // It is a drop-in for the native Select: `value` is the chosen option's value and `onChange`
 // receives that value as a string ("" when cleared).
 //   options: [{ value, label, searchText?, depth?, hint? }]   depth indents a child under its parent
-const searchStyles = (invalid) => ({
+const searchStyles = (invalid, compact) => ({
   control: (base, s) => ({
     ...base,
-    minHeight: 40,
+    minHeight: compact ? 36 : 40,
     borderRadius: 8,
     borderColor: invalid ? "var(--status-danger)" : s.isFocused ? "var(--ring)" : "var(--input)",
     boxShadow: s.isFocused ? "0 0 0 2px color-mix(in srgb, var(--ring) 40%, transparent)" : "none",
@@ -198,7 +265,7 @@ const matches = (option, input) => {
 
 export function SearchSelect({
   id, value, onChange, options, placeholder = "Choose…", clearable = false, disabled = false, loading = false,
-  invalid, autoFocus = false, noOptionsText = "Nothing matches", className, ...aria
+  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", className, ...aria
 }) {
   const selected = options.find((o) => String(o.value) === String(value ?? "")) || null;
   // Escape closes the list when it is open; only an Escape pressed with the list already closed
@@ -212,7 +279,7 @@ export function SearchSelect({
       inputId={id}
       className={className}
       classNamePrefix="search-select"
-      styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]))}
+      styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact)}
       options={options}
       value={selected}
       onChange={(opt) => onChange?.(opt ? String(opt.value) : "")}
@@ -369,5 +436,4 @@ export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = 
   );
 }
 
-const DATETIME = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Dubai" });
-export const formatDateTime = (d) => (d ? DATETIME.format(new Date(d)) : "");
+export { formatDateTime } from "../../utils/format";

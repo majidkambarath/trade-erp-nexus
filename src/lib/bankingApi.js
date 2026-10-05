@@ -38,7 +38,12 @@ export const vouchers = {
       .get("/vouchers/vouchers", { params })
       .then((r) => ({ rows: r.data?.data || [], pagination: r.data?.pagination || { current: 1, pages: 1, total: 0 } }))
       .catch(fail),
-  get: (id) => axiosInstance.get(`/vouchers/vouchers/${id}`).then((r) => r.data?.data).catch(fail),
+  // The server answers { voucher, ledgerEntries }; the screens read the voucher itself.
+  get: (id) =>
+    axiosInstance
+      .get(`/vouchers/vouchers/${id}`)
+      .then((r) => { const d = r.data?.data; return d?.voucher ? { ...d.voucher, ledgerEntries: d.ledgerEntries } : d; })
+      .catch(fail),
   create: (body) => axiosInstance.post("/vouchers/vouchers", body).then((r) => r.data?.data).catch(fail),
   update: (id, body) => axiosInstance.put(`/vouchers/vouchers/${id}`, { ...body, forceUpdate: true }).then((r) => r.data?.data).catch(fail),
   remove: (id) => axiosInstance.delete(`/vouchers/vouchers/${id}`).then((r) => r.data).catch(fail),

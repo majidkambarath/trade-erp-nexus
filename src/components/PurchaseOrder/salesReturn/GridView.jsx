@@ -6,7 +6,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
-import { formatNumber } from "../../../utils/format";
+import { formatNumber, formatDate } from "../../../utils/format";
 
 const GridView = ({
   paginatedSOs,
@@ -72,13 +72,13 @@ const GridView = ({
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Date</p>
                 <p className="text-sm font-medium text-slate-800">
-                  {new Date(so.date).toLocaleDateString("en-GB")}
+                  {formatDate(so.date)}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Dispatch</p>
                 <p className="text-sm font-medium text-slate-800">
-                  {new Date(so.deliveryDate).toLocaleDateString("en-GB")}
+                  {formatDate(so.deliveryDate)}
                 </p>
               </div>
               <div>

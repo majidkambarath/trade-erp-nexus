@@ -47,7 +47,7 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
 import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
@@ -69,7 +69,7 @@ const PurchaseReturnOrderManagement = () => {
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [formErrors, setFormErrors] = useState({});
+  const [, setFormErrors] = useState({});
   const [createdPO, setCreatedPO] = useState(null); // Track newly created PO
 
   // Form state for creating/editing PO
@@ -311,11 +311,12 @@ const PurchaseReturnOrderManagement = () => {
             case "TODAY":
               matchesDate = poDate.toDateString() === today.toDateString();
               break;
-            case "WEEK":
+            case "WEEK": {
               const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
               matchesDate = poDate >= weekAgo;
               break;
-            case "MONTH":
+            }
+            case "MONTH": {
               const monthAgo = new Date(
                 today.getFullYear(),
                 today.getMonth() - 1,
@@ -323,6 +324,7 @@ const PurchaseReturnOrderManagement = () => {
               );
               matchesDate = poDate >= monthAgo;
               break;
+            }
           }
         }
 
@@ -476,7 +478,7 @@ const PurchaseReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
-              <p className="text-3xl font-bold text-slate-900">{statistics.total}</p>
+              <p className="text-2xl font-bold text-slate-900">{statistics.total}</p>
               <div className="flex items-center mt-2">
                 {statistics.growthRate >= 0 ? (
                   <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
@@ -501,7 +503,7 @@ const PurchaseReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Pending Approval</p>
-              <p className="text-3xl font-bold text-status-warning">{statistics.pending}</p>
+              <p className="text-2xl font-bold text-status-warning">{statistics.pending}</p>
               <p className="text-sm text-slate-500 mt-2">Requires attention</p>
             </div>
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-status-warning-soft text-status-warning">
@@ -513,7 +515,7 @@ const PurchaseReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Total Value</p>
-              <p className="text-3xl font-bold text-emerald-600">
+              <p className="text-2xl font-bold text-emerald-600">
                 AED {formatNumber(statistics.totalValue)}
               </p>
               <p className="text-sm text-slate-500 mt-2">
@@ -529,7 +531,7 @@ const PurchaseReturnOrderManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-3xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
+              <p className="text-2xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
               <p className="text-sm text-slate-500 mt-2">New return orders created</p>
             </div>
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
@@ -834,7 +836,7 @@ const PurchaseReturnOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-3xl font-bold text-slate-800">
+                <h1 className="text-2xl font-bold text-slate-800">
                   Purchase Return Order Management
                 </h1>
                 <p className="text-slate-600 mt-1">

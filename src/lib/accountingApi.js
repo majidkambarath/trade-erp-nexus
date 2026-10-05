@@ -61,6 +61,14 @@ export const accounting = {
   saveSettings: (body) => api.put("/accounting/settings", body),
   ageing: (params) => api.get("/accounting/reports/ageing", params),
   statement: (params) => api.get("/accounting/reports/statement", params),
+  // Ledger reports: dates are YYYY-MM-DD (Dubai days).
+  generalLedger: (params) => api.get("/accounting/reports/general-ledger", params),
+  profitLossDetail: (params) => api.get("/accounting/reports/profit-loss", params),
+  dayBook: (params) => api.get("/accounting/reports/day-book", params),
+  voucherImpact: (id) => api.get(`/accounting/reports/voucher/${id}`),
+  cashBook: (params) => api.get("/accounting/reports/cash-book", params),
+  cashFlow: (params) => api.get("/accounting/reports/cash-flow", params),
+  partyBalances: (params) => api.get("/accounting/reports/party-balances", params),
   returnable: (id, params) => api.get(`/accounting/returnable/${id}`, params),
   auditLog: (params) => api.get("/accounting/audit-log", params),
   attachments: (ownerType, ownerId) => api.get("/accounting/attachments", { ownerType, ownerId }),
@@ -70,6 +78,18 @@ export const accounting = {
   trialBalance: (params) => accounting.report("trial_balance", params),
   profitLoss: (params) => accounting.report("profit_loss", params),
   balanceSheet: (params) => accounting.report("balance_sheet", params),
+};
+
+// The VAT return (FTA 201), worked out from the approved documents; saved returns are the record.
+export const vat = {
+  compute: (params) => api.get("/vat-return/return", params),
+  detail: (params) => api.get("/vat-return/detail", params),
+  returns: () => api.get("/vat-return/returns"),
+  getReturn: (id) => api.get(`/vat-return/returns/${id}`),
+  saveDraft: (body) => api.post("/vat-return/returns", body),
+  finalize: (id, body) => api.post(`/vat-return/returns/${id}/finalize`, body),
+  file: (id, body) => api.post(`/vat-return/returns/${id}/file`, body),
+  removeReturn: (id) => api.del(`/vat-return/returns/${id}`),
 };
 
 export const batches = {

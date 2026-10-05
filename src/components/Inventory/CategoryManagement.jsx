@@ -22,6 +22,7 @@ import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
+import { formatTime } from "../../utils/format";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -317,7 +318,7 @@ const CategoryManagement = () => {
 
     if (diffMins < 1) return "just now";
     if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
-    return time.toLocaleTimeString();
+    return formatTime(time);
   }, []);
 
   const handleExport = useCallback(async () => {
@@ -341,7 +342,7 @@ const CategoryManagement = () => {
       URL.revokeObjectURL(url);
 
       showToastMessage("Categories exported successfully!", "success");
-    } catch (error) {
+    } catch {
       showToastMessage("Failed to export data", "error");
     }
   }, [categories, showToastMessage]);
@@ -359,7 +360,7 @@ const CategoryManagement = () => {
             <ChevronLeft size={16} className="text-gray-600" />
           </button>
           <div>
-            <h1 className="text-3xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-black bg-clip-text">
               Category Management
             </h1>
             <p className="text-gray-600 mt-1">

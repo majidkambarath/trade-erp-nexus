@@ -9,7 +9,7 @@ import {
   Receipt,
   User,
 } from "lucide-react";
-import { formatNumber } from "../../../utils/format";
+import { formatNumber, formatDate } from "../../../utils/format";
 
 const GridView = ({
   paginatedPOs,
@@ -82,7 +82,7 @@ const GridView = ({
                   Date
                 </p>
                 <p className="text-sm font-medium text-foreground">
-                  {new Date(po.date).toLocaleDateString("en-GB")}
+                  {formatDate(po.date)}
                 </p>
               </div>
               <div>
@@ -90,7 +90,7 @@ const GridView = ({
                   Delivery
                 </p>
                 <p className="text-sm font-medium text-foreground">
-                  {new Date(po.deliveryDate).toLocaleDateString("en-GB")}
+                  {formatDate(po.deliveryDate)}
                 </p>
               </div>
               <div>

@@ -47,7 +47,7 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import SaleInvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 const SalesOrderManagement = () => {
@@ -202,7 +202,7 @@ const formatDisplayTransactionNo = (t) => {
       return digits.padStart(4, "0"); // 277 -> 0277
     }
     return t.transactionNo;
-  } catch (e) {
+  } catch {
     return t.transactionNo;
   }
 };
@@ -269,11 +269,6 @@ const formatDisplayTransactionNo = (t) => {
     );
     setTimeout(resetForm, 0);
   };
-
-  const getStockItemById = useCallback(
-    (itemId) => stockItems.find((s) => s._id === itemId),
-    [stockItems]
-  );
 
   // EDIT SO – FULLY WORKING
   const editSO = async (so) => {
@@ -405,13 +400,14 @@ const formatDisplayTransactionNo = (t) => {
             case "TODAY":
               matchesDate = soDate.toDateString() === today.toDateString();
               break;
-            case "WEEK":
+            case "WEEK": {
               const weekAgo = new Date(
                 today.getTime() - 7 * 24 * 60 * 60 * 1000
               );
               matchesDate = soDate >= weekAgo;
               break;
-            case "MONTH":
+            }
+            case "MONTH": {
               const monthAgo = new Date(
                 today.getFullYear(),
                 today.getMonth() - 1,
@@ -419,6 +415,7 @@ const formatDisplayTransactionNo = (t) => {
               );
               matchesDate = soDate >= monthAgo;
               break;
+            }
           }
         }
         return matchesSearch && matchesStatus && matchesCustomer && matchesDate;
@@ -690,7 +687,7 @@ const formatDisplayTransactionNo = (t) => {
       pdf.save(fname);
       if (copyLabel) copyLabel.innerText = 'Customer Copy';
       document.body.removeChild(container);
-    } catch (e) {
+    } catch {
       addNotification('Failed to generate PDF', 'error');
     }
   };
@@ -737,7 +734,7 @@ const formatDisplayTransactionNo = (t) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.total}
               </p>
               <div className="flex items-center mt-2">
@@ -760,7 +757,7 @@ const formatDisplayTransactionNo = (t) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Approved</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.confirmed}
               </p>
               <p className="text-sm text-muted-foreground mt-2">Ready for dispatch</p>
@@ -774,7 +771,7 @@ const formatDisplayTransactionNo = (t) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 AED {formatNumber(statistics.totalValue)}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
@@ -790,7 +787,7 @@ const formatDisplayTransactionNo = (t) => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="text-3xl font-extrabold tracking-tight text-foreground">
+              <p className="text-2xl font-extrabold tracking-tight text-foreground">
                 {statistics.thisMonthSOs}
               </p>
               <p className="text-sm text-muted-foreground mt-2">New orders created</p>
@@ -964,7 +961,7 @@ const formatDisplayTransactionNo = (t) => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-foreground" />
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
                   Sales Order Management
                 </h1>
                 <p className="text-muted-foreground mt-1">

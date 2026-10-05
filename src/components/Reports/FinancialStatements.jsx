@@ -6,51 +6,37 @@ import { downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
+import { DateRange, Frame, yearStart } from "./reportKit";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
-const monthStart = () => `${todayInput().slice(0, 7)}-01`;
+const TAB_IDS = ["trial", "pl", "cash", "bs"];
 
-// The three core statements, all read from the same ledger: they cannot disagree with each other.
+// The core statements, all read from the same ledger: they cannot disagree with each other.
 export default function FinancialStatements() {
   const [params, setParams] = useSearchParams();
-  const tab = ["trial", "pl", "bs"].includes(params.get("tab")) ? params.get("tab") : "trial";
-  const [range, setRange] = useState({ from: `${new Date().getFullYear()}-01-01`, to: todayInput() });
+  const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "trial";
+  const [range, setRange] = useState({ from: yearStart(), to: todayInput() });
   const [ledgerFor, setLedgerFor] = useState(null);
-  const set = (k) => (e) => e.target.value && setRange((r) => ({ ...r, [k]: e.target.value }));
 
   return (
     <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
-      <PageHeader title="Financial statements" description="Trial balance, profit and loss, and balance sheet, from the general ledger." />
-      <div className="mb-5 flex flex-wrap items-end gap-3">
-        {tab !== "bs" && <Field label="From"><TextInput type="date" value={range.from} max={range.to} onChange={set("from")} className="w-44" /></Field>}
-        <Field label={tab === "bs" ? "As at" : "To"}><TextInput type="date" value={range.to} min={tab === "bs" ? undefined : range.from} onChange={set("to")} className="w-44" /></Field>
-        {tab !== "bs" && (
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setRange({ from: monthStart(), to: todayInput() })}>This month</Button>
-            <Button variant="ghost" size="sm" onClick={() => setRange({ from: `${new Date().getFullYear()}-01-01`, to: todayInput() })}>This year</Button>
-          </>
-        )}
-      </div>
+      <PageHeader title="Financial statements" description="Trial balance, profit and loss, cash flow and balance sheet, from the general ledger." />
+      <DateRange value={range} onChange={setRange} asAt={tab === "bs"} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="overflow-x-auto"><TabsList>
-          <TabsTrigger value="trial">Trial balance</TabsTrigger><TabsTrigger value="pl">Profit and loss</TabsTrigger><TabsTrigger value="bs">Balance sheet</TabsTrigger>
+          <TabsTrigger value="trial">Trial balance</TabsTrigger><TabsTrigger value="pl">Profit and loss</TabsTrigger><TabsTrigger value="cash">Cash flow</TabsTrigger><TabsTrigger value="bs">Balance sheet</TabsTrigger>
         </TabsList></div>
         <TabsContent value="trial">{tab === "trial" && <TrialBalance range={range} onLedger={setLedgerFor} />}</TabsContent>
-        <TabsContent value="pl">{tab === "pl" && <ProfitLoss range={range} />}</TabsContent>
+        <TabsContent value="pl">{tab === "pl" && <ProfitLoss range={range} onLedger={setLedgerFor} />}</TabsContent>
+        <TabsContent value="cash">{tab === "cash" && <CashFlow range={range} />}</TabsContent>
         <TabsContent value="bs">{tab === "bs" && <BalanceSheet asOf={range.to} onLedger={setLedgerFor} />}</TabsContent>
       </Tabs>
       {ledgerFor && <LedgerModal account={{ _id: ledgerFor._id, accountCode: ledgerFor.accountCode, accountName: ledgerFor.accountName }} onClose={() => setLedgerFor(null)} />}
     </div>
   );
-}
-
-function Frame({ state, children }) {
-  if (state.loading && !state.data) return <Spinner label="Working out the figures" />;
-  if (state.error) return <ErrorNote error={state.error} onRetry={state.reload} />;
-  return state.data ? children(state.data) : null;
 }
 
 function TrialBalance({ range, onLedger }) {
@@ -121,23 +107,126 @@ function Section({ title, rows, total, onLedger }) {
   );
 }
 
-function ProfitLoss({ range }) {
-  const state = useAsync(() => accounting.profitLoss({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999` }), [range.from, range.to]);
+// ---------- profit and loss, as a statement: revenue - cost of sales = gross profit, ... = net profit ----------
+
+function StatementBlock({ title, section, onLedger }) {
+  const { groups, total } = section;
+  return (
+    <>
+      <tr className="bg-secondary/50"><th colSpan={2} scope="colgroup" className="px-5 py-2 text-start text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</th></tr>
+      {groups.length === 0 && <tr><td colSpan={2} className="px-5 py-2.5 text-sm text-muted-foreground">Nothing in this period.</td></tr>}
+      {groups.map((g) => (
+        <React.Fragment key={g.groupId || g.name}>
+          {groups.length > 1 && <tr><td colSpan={2} className="px-5 pt-2.5 text-xs font-medium text-muted-foreground">{g.name}</td></tr>}
+          {g.accounts.map((a) => (
+            <tr key={a.accountId} className="hover:bg-accent/40">
+              <td className="py-1.5 pe-3 ps-9 text-sm"><button type="button" onClick={() => onLedger?.({ _id: a.accountId, accountCode: a.accountCode, accountName: a.accountName })} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button></td>
+              <td className="px-5 py-1.5 text-end text-sm tabular-nums">{money(a.amount)}</td>
+            </tr>
+          ))}
+        </React.Fragment>
+      ))}
+      <tr className="border-t border-border"><td className="px-5 py-2 text-sm font-semibold">Total {title.toLowerCase()}</td><td className="px-5 py-2 text-end text-sm font-semibold tabular-nums">{money(total)}</td></tr>
+    </>
+  );
+}
+
+function ResultRow({ label, amount, note, tone }) {
+  return (
+    <tr className="border-y-2 border-border bg-secondary/70">
+      <td className="px-5 py-3 text-sm font-semibold">{label}{note && <span className="ms-3 text-xs font-normal text-muted-foreground">{note}</span>}</td>
+      <td className={`px-5 py-3 text-end text-sm font-semibold tabular-nums ${tone === "loss" ? "text-status-danger" : ""}`}>{money(amount)}</td>
+    </tr>
+  );
+}
+
+function ProfitLoss({ range, onLedger }) {
+  const state = useAsync(() => accounting.profitLossDetail({ from: range.from, to: range.to }), [range.from, range.to]);
   return (
     <Frame state={state}>
-      {(d) => (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatCard title="Income" count={money(d.totalIncome)} tone="olive" />
-            <StatCard title="Expenses" count={money(d.totalExpenses)} tone="rose" />
-            <StatCard title={d.netProfit >= 0 ? "Net profit" : "Net loss"} count={money(Math.abs(d.netProfit))} tone={d.netProfit >= 0 ? "teal" : "danger"} subText="AED" />
+      {(d) => {
+        const exportCsv = () => {
+          const lines = [];
+          const block = (title, s) => { lines.push([title, "", ""]); s.groups.forEach((g) => g.accounts.forEach((a) => lines.push([a.accountCode, a.accountName, a.amount]))); lines.push(["", `Total ${title.toLowerCase()}`, s.total]); };
+          block("Revenue", d.revenue); block("Cost of sales", d.directCosts); lines.push(["", "Gross profit", d.grossProfit]);
+          block("Other income", d.otherIncome); block("Operating expenses", d.operatingExpenses); lines.push(["", "Net profit", d.netProfit]);
+          downloadCSV(`profit-and-loss-${range.from}-${range.to}.csv`, ["Code", "Account", "Amount"], lines);
+        };
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard title="Revenue" count={money(d.revenue.total)} tone="olive" subText="AED" />
+              <StatCard title="Gross profit" count={money(d.grossProfit)} tone="teal" subText={d.grossMargin == null ? "No revenue yet" : `${formatNumber(d.grossMargin, 1)}% margin`} />
+              <StatCard title="Operating expenses" count={money(d.operatingExpenses.total)} tone="rose" subText="AED" />
+              <StatCard title={d.netProfit >= 0 ? "Net profit" : "Net loss"} count={money(Math.abs(d.netProfit))} tone={d.netProfit >= 0 ? "teal" : "danger"} subText="AED" />
+            </div>
+            <Panel bodyClassName="p-0" title="Profit and loss" description="Revenue less the direct cost of what was sold is the gross profit; other income and operating expenses take it to the net profit."
+              actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <tbody>
+                    <StatementBlock title="Revenue" section={d.revenue} onLedger={onLedger} />
+                    <StatementBlock title="Cost of sales" section={d.directCosts} onLedger={onLedger} />
+                    <ResultRow label="Gross profit" amount={d.grossProfit} note={d.grossMargin == null ? "" : `${formatNumber(d.grossMargin, 1)}% of revenue`} />
+                    <StatementBlock title="Other income" section={d.otherIncome} onLedger={onLedger} />
+                    <StatementBlock title="Operating expenses" section={d.operatingExpenses} onLedger={onLedger} />
+                    <ResultRow label={d.netProfit >= 0 ? "Net profit" : "Net loss"} amount={d.netProfit} tone={d.netProfit < 0 ? "loss" : undefined} />
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Section title="Income" rows={d.income} total={d.totalIncome} />
-            <Section title="Expenses" rows={d.expenses} total={d.totalExpenses} />
+        );
+      }}
+    </Frame>
+  );
+}
+
+// ---------- cash flow: where cash and bank money came from and went to ----------
+
+function CashFlow({ range }) {
+  const state = useAsync(() => accounting.cashFlow({ from: range.from, to: range.to }), [range.from, range.to]);
+  return (
+    <Frame state={state}>
+      {(d) => {
+        const exportCsv = () => downloadCSV(`cash-flow-${range.from}-${range.to}.csv`, ["Source", "Money in", "Money out", "Net", "Vouchers"],
+          [["Opening cash and bank", "", "", d.opening, ""], ...d.lines.map((l) => [l.label, l.inflow, l.outflow, l.net, l.count]), ["Closing cash and bank", d.totalIn, d.totalOut, d.closing, ""]]);
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard title="Opening cash and bank" count={money(d.opening)} tone="neutral" subText="AED" />
+              <StatCard title="Money in" count={money(d.totalIn)} tone="olive" subText="AED" />
+              <StatCard title="Money out" count={money(d.totalOut)} tone="rose" subText="AED" />
+              <StatCard title="Closing cash and bank" count={money(d.closing)} tone="teal" subText="AED" />
+            </div>
+            <Panel bodyClassName="p-0" title="Cash flow"
+              actions={<><Pill tone={d.reconciles ? "success" : "danger"}>{d.reconciles ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{d.reconciles ? "Agrees with the cash and bank ledgers" : `Differs from the ledgers by ${money(Math.abs(d.closing - d.closingPerLedger))}`}</Pill><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button></>}>
+              {d.lines.length === 0 ? <EmptyState title="No cash or bank movement" text="Nothing went in or out of the cash and bank accounts in this period." /> : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr><th className="px-5 py-2 text-start">Source</th><th className="px-3 py-2 text-end">Money in</th><th className="px-3 py-2 text-end">Money out</th><th className="px-3 py-2 text-end">Net</th><th className="px-5 py-2 text-end">Vouchers</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-border bg-secondary/30"><td className="px-5 py-2 font-medium" colSpan={3}>Opening cash and bank</td><td className="px-3 py-2 text-end font-medium tabular-nums">{money(d.opening)}</td><td /></tr>
+                      {d.lines.map((l) => (
+                        <tr key={l.voucherType} className="border-t border-border hover:bg-accent/40">
+                          <td className="px-5 py-2">{l.label}</td>
+                          <td className="px-3 py-2 text-end tabular-nums">{l.inflow ? money(l.inflow) : ""}</td>
+                          <td className="px-3 py-2 text-end tabular-nums">{l.outflow ? money(l.outflow) : ""}</td>
+                          <td className="px-3 py-2 text-end tabular-nums">{money(l.net)}</td>
+                          <td className="px-5 py-2 text-end tabular-nums text-muted-foreground">{l.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr className="border-t-2 border-border bg-secondary/60 font-semibold"><td className="px-5 py-2.5">Closing cash and bank</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.totalIn)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.totalOut)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.closing)}</td><td /></tr></tfoot>
+                  </table>
+                </div>
+              )}
+            </Panel>
           </div>
-        </div>
-      )}
+        );
+      }}
     </Frame>
   );
 }

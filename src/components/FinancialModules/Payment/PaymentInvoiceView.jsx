@@ -6,7 +6,7 @@ import {
   Loader2,
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
-import { todayInput } from "../../../utils/format";
+import { todayInput, formatDate } from "../../../utils/format";
 
 const PaymentInvoiceView = ({
   selectedPayment,
@@ -438,7 +438,7 @@ const PaymentInvoiceView = ({
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}>
                 Date:{" "}
-                {new Date(selectedPayment.date).toLocaleDateString("en-GB")}
+                {formatDate(selectedPayment.date)}
               </p>
               <p style={{ margin: "2px 0" }}>
                 Voucher No: {selectedPayment.voucherNo}

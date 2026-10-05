@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
+import { DateInput } from "../accounting/kit";
 // Line items as an ARIA grid (https://www.w3.org/WAI/ARIA/apg/patterns/grid/).
 //
 // Keyboard model:
@@ -253,12 +254,11 @@ export default function LineItemsGrid({
       }
       case "date":
         return (
-          <input
+          <DateInput
             {...common}
-            type="date"
             value={value ?? ""}
             onChange={(e) => onCellChange(r, col.key, e.target.value)}
-            className={fieldInput}
+            inputClassName={fieldInput}
           />
         );
       case "money":

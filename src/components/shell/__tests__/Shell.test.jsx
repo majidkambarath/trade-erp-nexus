@@ -77,7 +77,7 @@ describe("accounts section", () => {
     const current = within(rail()).getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page");
     expect(current.map((a) => a.textContent.trim())).toEqual(["Accounts"]);
     const tabs = screen.getByRole("navigation", { name: "Accounts" });
-    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Chart of accounts", "Banks", "Card types", "Cards", "Setup"]);
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Chart of accounts", "Banks", "KYC documents", "Card types", "Cards", "Opening balances", "Currencies", "Setup"]);
     expect(within(tabs).getByRole("link", { name: "Chart of accounts" })).toHaveAttribute("aria-current", "page");
   });
 
