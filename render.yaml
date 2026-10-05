@@ -1,0 +1,24 @@
+# Render Blueprint for the Trade ERP frontend (static site).
+#
+# The Vite app is at the repository root, so the build writes ./dist there and
+# rootDir stays empty. Keep staticPublishPath and rootDir consistent: Render
+# reported "Publish directory dist does not exist" when the build ran in one
+# directory and the publish step looked in another.
+#
+# Render does not read public/_redirects (that file is Netlify's); the SPA
+# fallback has to be the rewrite route below, or deep links such as
+# /dashboard 404 even though index.html is published.
+services:
+  - type: web
+    runtime: static
+    name: zarvia
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Baked into the bundle at build time by src/axios/axios.js.
+      - key: VITE_API_URL
+        value: https://trade-erp-nexus-nodejs.onrender.com/api/v1
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
