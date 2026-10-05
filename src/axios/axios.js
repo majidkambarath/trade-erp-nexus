@@ -1,8 +1,20 @@
 import axios from "axios";
 
-// One place for the API address. Set VITE_API_URL (e.g. in .env.local) to point the app at another
-// backend; with nothing set it is the local server, as before.
-export const API_BASE_URL = import.meta.env?.VITE_API_URL || "http://localhost:3000/api/v1";
+// One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
+// environment variable) to point the app at another backend; with nothing set it is the local
+// server, as before.
+const API_PATH = "/api/v1";
+
+// Every route is mounted under /api/v1, but a deployment dashboard invites you to paste the bare
+// host (https://trade-erp-nexus-nodejs.onrender.com), which would send each request to /login
+// instead of /api/v1/login and 404 the whole app. Both forms are accepted, trailing slash or not.
+export const resolveApiBaseUrl = (raw) => {
+  const value = String(raw ?? "").trim().replace(/[/]+$/, "");
+  if (!value) return `http://localhost:3000${API_PATH}`;
+  return value.includes(API_PATH) ? value : `${value}${API_PATH}`;
+};
+
+export const API_BASE_URL = resolveApiBaseUrl(import.meta.env?.VITE_API_URL);
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
