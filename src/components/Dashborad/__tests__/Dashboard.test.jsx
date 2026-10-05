@@ -263,7 +263,7 @@ describe("header and tabs", () => {
     show();
     await loaded();
     expect(screen.queryByText(/, UAE$/)).not.toBeInTheDocument();
-    expect(screen.getByText(/^NH Foods UAE · AED · /)).toBeInTheDocument();
+    expect(screen.getByText(/^Your company · AED · /)).toBeInTheDocument();
   });
 
   it("has the four tabs, and only the Dashboard tab is fetched until another is opened", async () => {

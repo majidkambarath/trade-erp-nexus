@@ -21,7 +21,7 @@ const doc = (over) => ({
   status: "NOT_SENT", partyReady: true, partyMissing: [], submissionId: null, lastError: null, overdue: false, ...over,
 });
 const PAYLOAD = {
-  sellerName: "NH Foods LLC", sellerVatTrn: "100123456700003", buyerName: "Al Noor", buyerVatTrn: "100999888700003", issueDate: "2026-10-01",
+  sellerName: "Harbour Trading LLC", sellerVatTrn: "100123456700003", buyerName: "Al Noor", buyerVatTrn: "100999888700003", issueDate: "2026-10-01",
   lines: [{ lineNumber: 1, itemName: "Rice", quantity: 10, lineNetAmount: 900, taxCategory: "S", taxRatePercent: 5, lineTaxAmount: 45 }],
   lineExtensionTotal: 900, taxAmount: 45, roundingAmount: 0, payableAmount: 945,
 };

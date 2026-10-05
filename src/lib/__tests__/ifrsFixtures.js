@@ -11,7 +11,7 @@ const section = (label, groups) => ({
 });
 const pair = (amount, comparative) => ({ amount, comparative });
 const line = (key, label, amount, comparative, extra = {}) => ({ key, label, amount, comparative, ...extra });
-const head = (statement, title) => ({ statement, title, entity: { name: "NH Foods Trading LLC", trn: "100123456789012", address: "", vatRegistered: true }, currency: "AED" });
+const head = (statement, title) => ({ statement, title, entity: { name: "Harbour Trading Co LLC", trn: "100123456789012", address: "", vatRegistered: true }, currency: "AED" });
 
 const fixedAssets = group("Fixed Assets", [acct("FA0001", "Furniture & Equipment", 1200, 0), acct("FA0002", "Accumulated Depreciation", -20, 0)]);
 const currentAssets = section("Current assets", [
@@ -158,7 +158,7 @@ export const NOTES = {
   asAt: "2025-06-30", from: "2025-06-01", compare: "prior-year", comparative: { asAt: "2024-06-30", from: "2024-06-01" },
   disclaimer: "Basic notes generated from the general ledger. They are not a complete set of IFRS disclosures and should be reviewed with your accountant.",
   policies: [
-    { key: "entity", title: "Reporting entity", text: "NH Foods Trading LLC (TRN 100123456789012) trades in food products in the United Arab Emirates." },
+    { key: "entity", title: "Reporting entity", text: "Harbour Trading Co LLC (TRN 100123456789012) trades in food products in the United Arab Emirates." },
     { key: "basis", title: "Basis of preparation", text: "The statements are prepared in accordance with IFRS. The functional and presentation currency is the UAE dirham (AED)." },
     { key: "inventory", title: "Inventories", text: "Inventories are stated at the lower of cost and net realisable value, using the weighted average cost." },
     { key: "revenue", title: "Revenue recognition", text: "Revenue is recognised when control passes to the customer (IFRS 15)." },

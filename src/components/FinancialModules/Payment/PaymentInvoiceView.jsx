@@ -302,7 +302,7 @@ const PaymentInvoiceView = ({
   const title = getTitle(voucherType);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="bg-background py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
           <button
@@ -377,7 +377,7 @@ const PaymentInvoiceView = ({
                 color: "#0f766e",
               }}
             >
-              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
+              {profileData.companyName || ""}
             </h2>
             <div
               style={{
@@ -427,7 +427,7 @@ const PaymentInvoiceView = ({
                   profileData.logo ||
                   "https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
                 }
-                alt="NH Foods Logo"
+                alt="Company logo"
                 style={{
                   width: "80px",
                   height: "80px",
@@ -1013,7 +1013,7 @@ const PaymentInvoiceView = ({
               </p>
               <p style={{ margin: "2px 0" }}>
                 <strong>ACCOUNT NAME:</strong>{" "}
-                {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
+                {profileData.accountName || ""}
               </p>
             </div>
             <div

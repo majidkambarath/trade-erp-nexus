@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Outlet, useLocation } from "react-router-dom";
 import { findActive, getVisibleModules, pageTitle } from "../config/navigation";
 import { getBrand } from "../config/brands";
+import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
 import TopBar from "./shell/TopBar";
 import ModuleTabs from "./shell/ModuleTabs";
@@ -16,7 +17,10 @@ const Layout = () => {
   const { profile, role, logout } = useSession();
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const appName = getBrand().shortName;
+  // The client's own name, empty on the shipped pack. The top bar shows it after the product
+  // name; the browser tab falls back to the product when there is none.
+  const clientName = getBrand().shortName;
+  const appName = clientName || PRODUCT_NAME;
 
   const modules = useMemo(() => getVisibleModules(role), [role]);
   const active = useMemo(() => findActive(pathname, modules), [pathname, modules]);
@@ -106,7 +110,7 @@ const Layout = () => {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
-          appName={appName}
+          appName={clientName}
           profile={profile}
           onLogout={logout}
           onOpenSearch={() => setSearchOpen(true)}
@@ -135,7 +139,7 @@ const Layout = () => {
         onOpenChange={setMobileOpen}
         modules={modules}
         active={active}
-        appName={appName}
+        appName={clientName}
       />
     </div>
   );

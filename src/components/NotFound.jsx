@@ -13,7 +13,7 @@ const NotFound = () => {
   }, [counter]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
+    <div className="bg-background flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
       {/* Enhanced Animated Background */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 opacity-15">

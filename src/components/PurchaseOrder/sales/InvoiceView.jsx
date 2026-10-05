@@ -26,19 +26,19 @@ const SaleInvoiceView = ({
 }) => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [profileData, setProfileData] = useState({
-    companyName: "NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.C.",
-    companyNameArabic: "نجم الهدى لتجارة المواد الغذائية ذ.م.م ش.ش.و",
-    addressLine1: "DIP 2, Dubai, U.A.E.",
-    addressLine2: "P.O. Box: 3352 - DUBAI - U.A.E.",
-    phoneNumber: "04 885 7575",
-    email: "corporate@elfab.ae",
-    website: "www.nhfoodsglobal.com",
-    vatNumber: "1000033168300003",
+    companyName: "",
+    companyNameArabic: "",
+    addressLine1: "",
+    addressLine2: "",
+    phoneNumber: "",
+    email: "",
+    website: "",
+    vatNumber: "",
     logo: null,
-    bankName: "NATIONAL BANK OF RAS AL KHAIMAH",
-    accountNumber: "0333547283001",
-    accountName: "NAJM ALHUDA FOODSTUFF TRADING LLC S.O.C.",
-    ibanNumber: "AE410400000333547283001",
+    bankName: "",
+    accountNumber: "",
+    accountName: "",
+    ibanNumber: "",
     swiftCode: "",
     branch: "",
   });
@@ -173,7 +173,7 @@ const SaleInvoiceView = ({
 
   // layout JSX
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="bg-background py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex justify-between mb-4">
           <button onClick={handleBack} className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700">
@@ -241,9 +241,9 @@ const SaleInvoiceView = ({
                   <span>Tel: {profileData.phoneNumber || "+971 50 836 2661"}</span>
                 </div>
                 <div>
-                  Email: {profileData.email || "finance@nhfoodsglobal.com"}
+                  Email: {profileData.email || ""}
                   <span style={{ display: "inline-block", margin: "0 8px" }}>|</span>
-                  Web: {profileData.website || "www.nhfoodsglobal.com"}
+                  Web: {profileData.website || ""}
                 </div>
               </div>
 

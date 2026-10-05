@@ -15,7 +15,7 @@ import {
   X,
   Barcode,
   Tag,
-  DollarSign,
+  Banknote,
   Calendar,
   AlertTriangle,
   TrendingUp,
@@ -37,14 +37,12 @@ import {
   Star, // Added for Brand
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import DirhamIcon from "../../assets/dirham.svg";
 import BarcodeGenerator from "react-barcode";
-import { toInputDate, formatDate, formatTime } from "../../utils/format";
+import { toInputDate, formatDate, formatTime, formatCurrencyAED} from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
-// SessionManager and getColorFilter remain unchanged
 const SessionManager = {
   storage: {},
   get: (key) => {
@@ -811,26 +809,15 @@ const StockManagement = () => {
     return { color: "text-green-600", label: "Valid" };
   }, []);
 
-  const formatCurrency = useCallback((amount, colorClass = "text-gray-900") => {
-    const numAmount = Number(amount) || 0;
-    const absAmount = Math.abs(numAmount).toFixed(2);
-    const isNegative = numAmount < 0;
-
-    return (
-      <span className={`inline-flex items-center ${colorClass}`}>
-        {isNegative && "-"}
-
-         <span className="mr-1">AED </span>
-        {/* <img
-          src={DirhamIcon}
-          alt="AED"
-          className="w-4.5 h-4.5 mr-1"
-          style={{ filter: getColorFilter(colorClass) }}
-        /> */}
-        {absAmount}
+  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  const formatCurrency = useCallback(
+    (amount, colorClass = "") => (
+      <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
+        {formatCurrencyAED(Number(amount) || 0)}
       </span>
-    );
-  }, []);
+    ),
+    []
+  );
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
@@ -1071,7 +1058,7 @@ const StockManagement = () => {
             {
               title: "Total Value",
               count: formatCurrency(stockStats.totalValue),
-              icon: <DollarSign size={24} />,
+              icon: <Banknote size={24} />,
             },
           ].map((card, index) => (
             <StatCard
@@ -1734,7 +1721,7 @@ const StockManagement = () => {
 
                 <div className="lg:col-span-3 mt-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <DollarSign size={20} className="mr-2 text-green-600" />
+                    <Banknote size={20} className="mr-2 text-green-600" />
                     Pricing Information
                   </h4>
                 </div>

@@ -557,7 +557,7 @@ const StaffManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
+      <div className="min-h-[60vh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -688,7 +688,7 @@ const StaffManagement = () => {
             </div>
 
             {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -716,7 +716,7 @@ const StaffManagement = () => {
                     setFilterDesignation("");
                     setSearchTerm("");
                   }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200"
                 >
                   Clear Filters
                 </button>
@@ -865,7 +865,7 @@ const StaffManagement = () => {
                 <button
                   onClick={hideDeleteConfirmation}
                   disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1092,7 +1092,7 @@ const StaffManagement = () => {
                   </label>
                   <div className="flex flex-col space-y-3">
                     {filePreviews.idProof ? (
-                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50">
+                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-background">
                         <div className="flex items-center space-x-3">
                           {filePreviews.idProof.type.startsWith("image/") ||
                           filePreviews.idProof.type === "existing" ? (
@@ -1142,7 +1142,7 @@ const StaffManagement = () => {
                     )}
                     <label
                       htmlFor="idProofUpload"
-                      className="px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
+                      className="px-4 py-3 border border-gray-300 rounded-xl bg-background hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
                     >
                       {filePreviews.idProof
                         ? "Replace ID Proof"
@@ -1158,7 +1158,7 @@ const StaffManagement = () => {
                   </label>
                   <div className="flex flex-col space-y-3">
                     {filePreviews.addressProof ? (
-                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50">
+                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-background">
                         <div className="flex items-center space-x-3">
                           {filePreviews.addressProof.type.startsWith(
                             "image/"
@@ -1209,7 +1209,7 @@ const StaffManagement = () => {
                     )}
                     <label
                       htmlFor="addressProofUpload"
-                      className="px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
+                      className="px-4 py-3 border border-gray-300 rounded-xl bg-background hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
                     >
                       {filePreviews.addressProof
                         ? "Replace Address Proof"

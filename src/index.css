@@ -5,7 +5,7 @@
 @import "./styles/tokens/primitives.css";
 @import "./styles/tokens/semantic.css";
 @import "./styles/brands/_default.css";
-@import "./styles/brands/nhfoods-ae.css";
+@import "./styles/brands/default.css";
 
 /* Typography scale. The interface uses three weights: 400 for text, 500 for labels and controls,
    600 for headings, figures and emphasis. Lighter-than-700 keeps screens calm and formal; the old
@@ -97,6 +97,15 @@ html,
 body,
 #root {
   min-height: 100%;
+}
+
+/* The shell is a fixed-height frame: the rail and header stay put and only the workspace
+   scrolls. A wide line-items table inside its own overflow-x box was still counted toward the
+   document's scroll area, so the whole page could slide sideways and carry the rail and header
+   off screen. The page itself never scrolls horizontally; wide content scrolls in its own box. */
+html,
+body {
+  overflow-x: hidden;
 }
 
 /* Native controls (dropdown lists, date pickers, scrollbars) follow the theme instead of

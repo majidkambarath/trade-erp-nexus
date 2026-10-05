@@ -280,9 +280,9 @@ describe("CSV and print", () => {
   });
 
   it("builds a printable page with the company, the statement, the period and AED", () => {
-    const html = documentHtml(profitDocument(PROFIT), { company: "NH Foods <Trading> LLC", trn: "100123456789012" });
+    const html = documentHtml(profitDocument(PROFIT), { company: "Harbour Trading <Trading> LLC", trn: "100123456789012" });
     expect(html).toContain("<title>Statement of profit or loss and other comprehensive income</title>");
-    expect(html).toContain("NH Foods &lt;Trading&gt; LLC");
+    expect(html).toContain("Harbour Trading &lt;Trading&gt; LLC");
     expect(html).toContain("TRN 100123456789012");
     expect(html).toContain("For the period 01/06/2025 – 30/06/2025");
     expect(html).toContain("Amounts in AED");
@@ -303,13 +303,13 @@ describe("CSV and print", () => {
     const write = vi.fn();
     const close = vi.fn();
     window.open.mockReturnValueOnce({ document: { write, close } });
-    expect(printDocument(cashDocument(CASH), { company: "NH Foods" })).toBe(true);
+    expect(printDocument(cashDocument(CASH), { company: "Harbour Trading" })).toBe(true);
     expect(write).toHaveBeenCalledOnce();
     expect(write.mock.calls[0][0]).toContain("Statement of cash flows");
     expect(close).toHaveBeenCalled();
 
     window.open.mockReturnValueOnce(null);
-    expect(printDocument(cashDocument(CASH), { company: "NH Foods" })).toBe(false);
+    expect(printDocument(cashDocument(CASH), { company: "Harbour Trading" })).toBe(false);
   });
 });
 

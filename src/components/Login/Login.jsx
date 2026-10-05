@@ -18,6 +18,7 @@ import {
 import axiosInstance from "../../axios/axios";
 import { cn } from "../../lib/utils";
 import { getBrand } from "../../config/brands";
+import { PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_VERSION } from "../../config/product";
 import BrandMark from "../shell/BrandMark";
 
 const REMEMBER_KEY = "erp-remember-email";
@@ -169,12 +170,18 @@ export default function Login() {
         />
         <div className="relative flex items-center gap-3">
           <BrandMark className="h-11 w-11" />
-          <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
+          <span className="text-lg font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+          {APP_NAME && (
+            <>
+              <span aria-hidden="true" className="h-4 w-px bg-foreground/20" />
+              <span className="text-sm text-foreground/60">{APP_NAME}</span>
+            </>
+          )}
         </div>
 
         <div className="relative max-w-lg">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground/70">
-            Trade ERP
+            {PRODUCT_TAGLINE}
           </p>
           <h1 className="mt-3 text-3xl font-extrabold leading-tight tracking-tight">
             Run purchasing, sales and stock from one place.
@@ -203,6 +210,9 @@ export default function Login() {
 
         <p className="relative text-sm text-foreground/70">
           Accounts are created by your administrator.
+          <span className="mt-1 block text-xs uppercase tracking-[0.18em] text-foreground/50">
+            {PRODUCT_NAME} v{PRODUCT_VERSION}
+          </span>
         </p>
       </aside>
 
@@ -212,7 +222,13 @@ export default function Login() {
           {/* Brand header: mobile only */}
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <BrandMark className="h-10 w-10" />
-            <span className="text-lg font-extrabold tracking-tight">{APP_NAME}</span>
+            <span className="text-lg font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+            {APP_NAME && (
+              <>
+                <span aria-hidden="true" className="h-4 w-px bg-foreground/20" />
+                <span className="text-sm text-muted-foreground">{APP_NAME}</span>
+              </>
+            )}
           </div>
 
           <h2 className="text-2xl font-extrabold tracking-tight">Sign in</h2>
@@ -295,6 +311,11 @@ export default function Login() {
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             Forgot your password? Ask your administrator to reset it.
+          </p>
+
+          {/* The product's own mark. The client's name is on the brand panel and in the top bar. */}
+          <p className="mt-10 text-center text-xs uppercase tracking-[0.22em] text-muted-foreground/70">
+            {PRODUCT_NAME}
           </p>
         </div>
       </main>

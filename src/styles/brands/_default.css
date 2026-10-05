@@ -1,13 +1,16 @@
-/* Product default theme: Aurify navy. Every client starts here until it has its own
-   brand pack (see nhfoods-ae.css). */
+/* The product's own theme: champagne gold on graphite.
+   Gold is an accent (logo, active rail, one chart series), never a status colour and
+   never a fill behind white text. Both modes must define the same tokens; the contrast
+   test enforces this. A client with its own colours is a new file here plus one
+   @import in index.css, selected by data-brand on <html>. */
 :root {
-  --brand: var(--navy-600);
-  --brand-soft: var(--navy-50);
-  --brand-on-soft: var(--navy-800);
+  --brand: var(--gold-600);
+  --brand-soft: var(--gold-50);
+  --brand-on-soft: var(--gold-800);
 }
 
 .dark {
-  --brand: var(--navy-300);
-  --brand-soft: var(--navy-950);
-  --brand-on-soft: var(--navy-200);
+  --brand: var(--gold-400);
+  --brand-soft: var(--gold-950);
+  --brand-on-soft: var(--gold-300);
 }

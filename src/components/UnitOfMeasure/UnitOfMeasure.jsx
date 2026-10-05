@@ -354,7 +354,7 @@ import { toastClasses } from "../../lib/status";
       }[type] || "bg-slate-100 text-slate-800 border border-slate-200");
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4 sm:p-6">
+      <div className="bg-background p-4 sm:p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
@@ -416,7 +416,7 @@ import { toastClasses } from "../../lib/status";
                   <button
                     onClick={hideDeleteConfirmation}
                     disabled={deleteConfirmation.isDeleting}
-                    className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                    className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -514,7 +514,7 @@ import { toastClasses } from "../../lib/status";
               className={`flex-1 px-6 py-4 text-sm font-medium transition-all duration-200 ${
                 activeTab === "units"
                   ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-background"
               }`}
             >
               <Ruler size={18} className="inline mr-2" />
@@ -525,7 +525,7 @@ import { toastClasses } from "../../lib/status";
               className={`flex-1 px-6 py-4 text-sm font-medium transition-all duration-200 ${
                 activeTab === "conversions"
                   ? "text-purple-600 border-b-2 border-purple-600 bg-purple-50"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-background"
               }`}
             >
               <ArrowUpDown size={18} className="inline mr-2" />
@@ -579,7 +579,7 @@ import { toastClasses } from "../../lib/status";
             {/* Content */}
             {activeTab === "units" ? (
               filteredUnits.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="text-center py-12 bg-background rounded-xl border border-gray-200">
                   <Ruler size={40} className="mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-600 text-lg font-medium">
                   No units added yet.
@@ -682,7 +682,7 @@ import { toastClasses } from "../../lib/status";
               </div>
             )
           ) : filteredConversions.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="text-center py-12 bg-background rounded-xl border border-gray-200">
               <ArrowUpDown size={40} className="mx-auto text-gray-400 mb-4" />
               <p className="text-gray-600 text-lg font-medium">
                 No conversions added yet.

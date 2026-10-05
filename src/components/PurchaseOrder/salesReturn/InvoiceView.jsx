@@ -78,7 +78,7 @@ const SaleInvoiceView = ({
   const so = createdSO || selectedSO;
   if (!so || !so.items || !Array.isArray(so.items)) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="min-h-[60vh] bg-background flex items-center justify-center p-4">
         <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
           <h2 className="text-xl font-bold text-red-600 mb-4">Error</h2>
           <p className="text-gray-600 mb-4">
@@ -231,7 +231,7 @@ const SaleInvoiceView = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="bg-background py-8">
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
           <button
@@ -314,7 +314,7 @@ const SaleInvoiceView = ({
                 color: "#0f766e",
               }}
             >
-              {profileData.companyName || "NH FOODSTUFF TRADING LLC S.O.C."}
+              {profileData.companyName || ""}
             </h2>
 
             <div
@@ -688,7 +688,7 @@ const SaleInvoiceView = ({
                 <strong>CURRENCY:</strong> {profileData.currency}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>ACCOUNT NAME:</strong> {profileData.accountName || "NH FOODSTUFF TRADING LLC S.O.C"}
+                <strong>ACCOUNT NAME:</strong> {profileData.accountName || ""}
               </p>
             </div>
 

@@ -114,7 +114,7 @@ describe("module tabs", () => {
 
   it("sets a readable document title", () => {
     renderAt("/payment-voucher");
-    expect(document.title).toBe("Payments · Finance · NH FOODS");
+    expect(document.title).toBe("Payments · Finance · Zarvia");
   });
 });
 

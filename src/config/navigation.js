@@ -175,7 +175,7 @@ export const findActive = (pathname, modules = MODULES) => {
 /** A module's landing page: its first visible tab. */
 export const moduleHref = (module) => module.tabs[0]?.to;
 
-/** "Payments · Finance · NH FOODS" — or "Finance · NH FOODS" for single-page modules. */
+/** "Payments · Finance · Zarvia" — or "Finance · Zarvia" for single-page modules. */
 export const pageTitle = (active, appName) => {
   if (!active) return appName;
   const { module, tab } = active;

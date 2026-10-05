@@ -294,7 +294,7 @@ const VendorManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-[60vh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -307,7 +307,7 @@ const VendorManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 md:p-8">
+    <div className="bg-background p-4 sm:p-6 md:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
         <div className="flex items-center space-x-4">
@@ -395,7 +395,7 @@ const VendorManagement = () => {
                 <button
                   onClick={hideDeleteConfirmation}
                   disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -463,7 +463,7 @@ const VendorManagement = () => {
             </div>
 
             {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -496,7 +496,7 @@ const VendorManagement = () => {
                     setFilterPaymentTerms("");
                     setSearchTerm("");
                   }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200 w-full sm:w-auto"
+                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200 w-full sm:w-auto"
                 >
                   Clear Filters
                 </button>
@@ -521,7 +521,7 @@ const VendorManagement = () => {
             </div>
           ) : (
             <table className="w-full min-w-[640px]">
-              <thead className="bg-gray-50">
+              <thead className="bg-background">
                 <tr>
                   {[
                     { key: "vendorId", label: "Vendor ID" },
@@ -557,7 +557,7 @@ const VendorManagement = () => {
                 {sortedAndFilteredVendors.map((vendor) => (
                   <tr
                     key={vendor._id}
-                    className="hover:bg-gray-50 transition-colors duration-150"
+                    className="hover:bg-background transition-colors duration-150"
                   >
                     <td className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-900">
                       {vendor.vendorId}

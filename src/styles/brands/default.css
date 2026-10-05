@@ -1,14 +1,15 @@
-/* NH Foods UAE brand pack: champagne gold accent.
+/* The shipped pack: champagne gold on graphite, the product's own look.
    Gold is an accent (logo, active rail, one chart series), never a status colour and
    never a fill behind white text. Both modes must define the same tokens; the contrast
-   test enforces this. A new client is a new file here plus one @import in index.css. */
-[data-brand="nhfoods-ae"] {
+   test enforces this. A client with its own colours is a new file beside this one plus
+   one @import in index.css, selected by data-brand on <html>. */
+[data-brand="default"] {
   --brand: var(--gold-600);
   --brand-soft: var(--gold-50);
   --brand-on-soft: var(--gold-800);
 }
 
-.dark[data-brand="nhfoods-ae"] {
+.dark[data-brand="default"] {
   --brand: var(--gold-400);
   --brand-soft: var(--gold-950);
   --brand-on-soft: var(--gold-300);

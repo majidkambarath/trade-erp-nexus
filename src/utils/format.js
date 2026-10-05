@@ -3,7 +3,7 @@
 import { getBrand } from '../config/brands';
 
 // Number grouping, currency and timezone come from the active brand pack
-// (src/config/brands.js), NEVER from the browser. nhfoods-ae uses en-GB, giving
+// (src/config/brands.js), NEVER from the browser. The default pack uses en-GB, giving
 // 1,234,567.50 in groups of three. A bare `value.toLocaleString()` with no locale
 // argument uses the browser's locale, so a user whose machine is set to en-IN would
 // see Indian lakh grouping (12,34,567.50) for the same invoice. Always format

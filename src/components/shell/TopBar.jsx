@@ -5,6 +5,7 @@ import { LogOut, Menu, Moon, Search, Settings } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { initials } from "./useSession";
 import BrandMark from "./BrandMark";
+import { PRODUCT_NAME } from "../../config/product";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -88,7 +89,14 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, onOpe
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
       <BrandMark className="h-8 w-8 sm:hidden" iconClassName="h-4 w-4" />
-      <span className="text-sm font-extrabold tracking-tight">{appName}</span>
+      {/* The product leads; the client whose data this is follows it, quieter. */}
+      <span className="text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+      {appName && (
+        <>
+          <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:block" />
+          <span className="hidden text-sm text-muted-foreground sm:block">{appName}</span>
+        </>
+      )}
 
       <button
         type="button"

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { passwordStrength, validateProfile } from "../settingsForm";
 
-const company = { companyName: "NH Foods", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates", postalCode: "", phoneNumber: "", emailAddress: "", website: "" };
+const company = { companyName: "Harbour Trading", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates", postalCode: "", phoneNumber: "", emailAddress: "", website: "" };
 const bank = { bankName: "", accountName: "", accountNumber: "", ibanNumber: "", swiftCode: "", currency: "AED" };
 
 describe("validateProfile", () => {
@@ -13,7 +13,7 @@ describe("validateProfile", () => {
     expect(Object.keys(e).sort()).toEqual(["addressLine1", "city", "companyName", "state"]);
   });
   it("accepts long top-level domains, which the old pattern refused", () => {
-    expect(validateProfile({ ...company, emailAddress: "accounts@nhfoods.company" }, bank)).toEqual({});
+    expect(validateProfile({ ...company, emailAddress: "accounts@harbourtrading.company" }, bank)).toEqual({});
     expect(validateProfile({ ...company, emailAddress: "not-an-email" }, bank).emailAddress).toBeTruthy();
   });
   it("checks the IBAN checksum and the SWIFT shape only when they are filled in", () => {

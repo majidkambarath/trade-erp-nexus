@@ -24,9 +24,8 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import DirhamIcon from "../../assets/dirham.svg";
 import axiosInstance from "../../axios/axios";
-import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime } from "../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED} from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
@@ -68,16 +67,6 @@ const SessionManager = {
   },
 };
 
-// Utility function to map text color classes to SVG filters
-const getColorFilter = (colorClass) => {
-  const colorMap = {
-    "text-gray-900": "none",
-    "text-red-600": "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-    "text-status-warning": "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
-    "text-green-600": "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
-  };
-  return colorMap[colorClass] || "none";
-};
 
 const InventoryManagement = () => {
   const [movements, setMovements] = useState([]);
@@ -338,24 +327,15 @@ const InventoryManagement = () => {
     SessionManager.remove("lastSaveTime");
   }, []);
 
-  const formatCurrency = useCallback((amount, colorClass = "text-gray-900") => {
-    const numAmount = Number(amount) || 0;
-    const absAmount = Math.abs(numAmount).toFixed(2);
-    const isNegative = numAmount < 0;
-
-    return (
-      <span className={`inline-flex items-center ${colorClass}`}>
-        {isNegative && "-"}
-        <img
-          src={DirhamIcon}
-          alt="AED"
-          className="w-4.5 h-4.5 mr-1"
-          style={{ filter: getColorFilter(colorClass) }}
-        />
-        {absAmount}
+  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  const formatCurrency = useCallback(
+    (amount, colorClass = "") => (
+      <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
+        {formatCurrencyAED(Number(amount) || 0)}
       </span>
-    );
-  }, []);
+    ),
+    []
+  );
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return "N/A";

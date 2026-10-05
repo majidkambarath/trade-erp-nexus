@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { processTransaction } from "../../../lib/processTransaction";
 import { VARIANTS } from "../../OrderEntry/variants";
+import { StatCard } from "../../ui/stat-card";
 import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
@@ -9,7 +10,7 @@ import {
   Calendar,
   Hash,
   Package,
-  DollarSign,
+  Banknote,
   Plus,
   Trash2,
   Eye,
@@ -473,190 +474,135 @@ const PurchaseReturnOrderManagement = () => {
   // Dashboard Component
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Total Return Orders</p>
-              <p className="text-2xl font-bold text-slate-900">{statistics.total}</p>
-              <div className="flex items-center mt-2">
-                {statistics.growthRate >= 0 ? (
-                  <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-rose-500 mr-1" />
-                )}
-                <span
-                  className={`text-sm font-medium ${
-                    statistics.growthRate >= 0 ? "text-emerald-600" : "text-rose-600"
-                  }`}
-                >
-                  {Math.abs(statistics.growthRate).toFixed(1)}% from last month
-                </span>
-              </div>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
-              <ShoppingCart className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Pending Approval</p>
-              <p className="text-2xl font-bold text-status-warning">{statistics.pending}</p>
-              <p className="text-sm text-slate-500 mt-2">Requires attention</p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-status-warning-soft text-status-warning">
-              <Clock className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">Total Value</p>
-              <p className="text-2xl font-bold text-emerald-600">
-                AED {formatNumber(statistics.totalValue)}
-              </p>
-              <p className="text-sm text-slate-500 mt-2">
-                Approved: AED {formatNumber(statistics.approvedValue)}
-              </p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-plum-soft text-accent-plum">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-600">This Month</p>
-              <p className="text-2xl font-bold text-indigo-600">{statistics.thisMonthPOs}</p>
-              <p className="text-sm text-slate-500 mt-2">New return orders created</p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Returns"
+          count={statistics.total}
+          tone="teal"
+          icon={<ShoppingCart />}
+          subText="Against last month"
+          trend={`${statistics.growthRate >= 0 ? "+" : "−"}${Math.abs(statistics.growthRate).toFixed(1)}%`}
+        />
+        <StatCard
+          title="Pending"
+          count={statistics.pending}
+          tone="plum"
+          icon={<Clock />}
+          subText="Waiting for approval"
+        />
+        <StatCard
+          title="Total Value"
+          count={`AED ${formatNumber(statistics.totalValue)}`}
+          tone="olive"
+          icon={<Banknote />}
+          subText={`Approved AED ${formatNumber(statistics.approvedValue)}`}
+        />
+        <StatCard
+          title="This Month"
+          count={statistics.thisMonthPOs}
+          tone="rose"
+          icon={<BarChart3 />}
+          subText="New purchase returns created"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border shadow-card">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">
-            Recent Purchase Return Orders
-          </h3>
-          <div className="space-y-3">
-            {purchaseOrders.slice(0, 5).map((po) => (
-              <div
-                key={po.id}
-                className="flex items-center justify-between py-3 px-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
+          <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+            <h3 className="text-sm font-semibold text-foreground">Recent purchase returns</h3>
+            <span className="text-xs text-muted-foreground">{purchaseOrders.length} in total</span>
+          </header>
+          <div className="px-5">
+            {purchaseOrders.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No purchase returns yet. Create one to see it here.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {purchaseOrders.slice(0, 5).map((row) => (
+                  <li key={row.id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPriorityColor(row.priority)}`}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {row.displayTransactionNo || row.transactionNo}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">{row.vendorName}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm font-semibold tabular-nums text-foreground">
+                        AED {formatNumber(row.totalAmount)}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
+                          row.status
+                        )}`}
+                      >
+                        {getStatusIcon(row.status)}
+                        <span className="ms-1">{row.status}</span>
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {purchaseOrders.length > 0 && (
+            <footer className="border-t border-border px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setActiveView("list")}
+                className="text-sm font-medium text-foreground hover:opacity-80"
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-2 h-2 rounded-full ${getPriorityColor(po.priority)}`}></div>
-                  <div>
-                    <p className="font-medium text-slate-900">{po.transactionNo}</p>
-                    <p className="text-sm text-slate-600">{po.vendorName}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      po.status
-                    )}`}
-                  >
-                    {getStatusIcon(po.status)}
-                    <span className="ml-1">{po.status.replace("_", " ")}</span>
-                  </div>
-                  <p className="text-sm text-slate-600 mt-1">
-                    AED {formatNumber(po.totalAmount)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => setActiveView("list")}
-            className="w-full mt-4 py-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
-          >
-            View All Orders →
-          </button>
-        </div>
+                View all purchase returns →
+              </button>
+            </footer>
+          )}
+        </section>
 
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Status Overview</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Approved</span>
-                <span className="text-xs font-medium text-emerald-600">
-                  {statistics.approved}
-                </span>
-              </div>
-              <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${(statistics.approved / statistics.total) * 100 || 0}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Pending</span>
-                <span className="text-xs font-medium text-status-warning">
-                  {statistics.pending}
-                </span>
-              </div>
-              <div className="h-2 bg-status-warning-soft rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-status-warning transition-all duration-500 ease-out"
-                  style={{
-                    width: `${(statistics.pending / statistics.total) * 100 || 0}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Draft</span>
-                <span className="text-xs font-medium text-slate-600">
-                  {statistics.draft}
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-slate-400 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${(statistics.draft / statistics.total) * 100 || 0}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-slate-700">Rejected</span>
-                <span className="text-xs font-medium text-rose-600">
-                  {statistics.rejected}
-                </span>
-              </div>
-              <div className="h-2 bg-rose-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-rose-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${(statistics.rejected / statistics.total) * 100 || 0}%`,
-                  }}
-                ></div>
-              </div>
-            </div>
+        <section className="rounded-xl border border-border bg-card shadow-card">
+          <header className="border-b border-border px-5 py-3.5">
+            <h3 className="text-sm font-semibold text-foreground">Status overview</h3>
+          </header>
+          <div className="space-y-4 px-5 py-4">
+            {[
+              { label: "Draft", value: statistics.draft },
+              { label: "Approved", value: statistics.approved },
+            ].map((row) => {
+              const value = Number(row.value) || 0;
+              const share = statistics.total ? (value / statistics.total) * 100 : 0;
+              return (
+                <div key={row.label}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <span className="text-sm text-foreground">{row.label}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {value} · {share.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                      style={{ width: `${share}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+            {statistics.total === 0 && (
+              <p className="pt-1 text-xs text-muted-foreground">
+                Nothing to show until the first purchase return is created.
+              </p>
+            )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 
-  // Pagination Component
   const Pagination = () => {
     const startItem = (currentPage - 1) * itemsPerPage + 1;
     const endItem = Math.min(currentPage * itemsPerPage, filteredPOs.length);
@@ -836,11 +782,11 @@ const PurchaseReturnOrderManagement = () => {
             <div className="flex items-center space-x-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">
-                  Purchase Return Order Management
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                  Purchase returns
                 </h1>
-                <p className="text-slate-600 mt-1">
-                  Manage your purchase return orders efficiently
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Goods sent back to your vendors, against an approved purchase.
                 </p>
               </div>
             </div>
@@ -855,7 +801,7 @@ const PurchaseReturnOrderManagement = () => {
                 className="erp-btn-primary"
               >
                 <Plus className="w-5 h-5" />
-                <span>Create New PR</span>
+                <span>New purchase return</span>
               </button>
               <button
                 onClick={() => {

@@ -7,7 +7,7 @@ vi.mock("../../../lib/accountingApi", () => ({ accounting: m }));
 
 import BusinessRules, { taxIdentityFrom } from "../BusinessRules";
 
-const SETTINGS = { creditControl: { mode: "off", overdueBlockDays: 0 }, returnWindowDays: 0, requireReturnLink: false, profile: { legalName: "NH Foods LLC", trn: "" } };
+const SETTINGS = { creditControl: { mode: "off", overdueBlockDays: 0 }, returnWindowDays: 0, requireReturnLink: false, profile: { legalName: "Harbour Trading LLC", trn: "" } };
 const notify = vi.fn();
 const show = (props = {}) => render(<BusinessRules notify={notify} {...props} />);
 beforeEach(() => {
@@ -43,20 +43,20 @@ describe("business rules", () => {
     fireEvent.change(screen.getByLabelText(/Tax registration number/), { target: { value: "100123456700003" } });
     fireEvent.click(screen.getByRole("button", { name: "Save tax identity" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledTimes(1));
-    expect(m.saveSettings.mock.calls[0][0].profile).toMatchObject({ trn: "100123456700003", legalName: "NH Foods LLC" });
+    expect(m.saveSettings.mock.calls[0][0].profile).toMatchObject({ trn: "100123456700003", legalName: "Harbour Trading LLC" });
   });
 
   it("fills the tax identity from the company profile so nothing is typed twice", async () => {
-    show({ companyDefaults: { companyName: "Other Name", addressLine1: "Warehouse 4, Al Qusais", city: "Dubai", state: "Dubai", emailAddress: "accounts@nhfoods.ae", phoneNumber: "+971 4 123 4567" } });
+    show({ companyDefaults: { companyName: "Other Name", addressLine1: "Warehouse 4, Al Qusais", city: "Dubai", state: "Dubai", emailAddress: "accounts@harbourtrading.ae", phoneNumber: "+971 4 123 4567" } });
     expect(await screen.findByLabelText(/Address/)).toHaveValue("Warehouse 4, Al Qusais");
-    expect(screen.getByLabelText("Email")).toHaveValue("accounts@nhfoods.ae");
-    expect(screen.getByLabelText("Registered name")).toHaveValue("NH Foods LLC"); // what was saved wins over the profile
+    expect(screen.getByLabelText("Email")).toHaveValue("accounts@harbourtrading.ae");
+    expect(screen.getByLabelText("Registered name")).toHaveValue("Harbour Trading LLC"); // what was saved wins over the profile
   });
 });
 
 describe("taxIdentityFrom", () => {
   it("takes only blank fields from the company profile, and only a real emirate", () => {
-    const company = { companyName: "NH Foods", addressLine1: "Deira", city: "Dubai", state: "Somewhere Else", emailAddress: "a@b.ae", phoneNumber: "1" };
+    const company = { companyName: "Harbour Trading", addressLine1: "Deira", city: "Dubai", state: "Somewhere Else", emailAddress: "a@b.ae", phoneNumber: "1" };
     const t = taxIdentityFrom({ legalName: "Saved LLC", city: "" }, company);
     expect(t).toMatchObject({ legalName: "Saved LLC", addressLine1: "Deira", city: "Dubai", email: "a@b.ae", phone: "1", emirate: "", vatRegistered: true, countryCode: "AE" });
     expect(taxIdentityFrom({}, { state: "Sharjah" }).emirate).toBe("Sharjah");

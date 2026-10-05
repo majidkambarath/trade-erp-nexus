@@ -26,25 +26,12 @@ import {
   Filter,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import DirhamIcon from "../../assets/dirham.svg";
+import { formatCurrencyAED } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
-// Utility to apply color filter based on class
-const getColorFilter = (colorClass) => {
-  switch (colorClass) {
-    case "text-emerald-700":
-      return "invert(34%) sepia(94%) saturate(1352%) hue-rotate(145deg) brightness(94%) contrast(101%)";
-    case "text-blue-700":
-      return "invert(35%) sepia(99%) saturate(1352%) hue-rotate(200deg) brightness(94%) contrast(101%)";
-    case "text-indigo-700":
-      return "invert(38%) sepia(99%) saturate(1352%) hue-rotate(230deg) brightness(94%) contrast(101%)";
-    default:
-      return "none";
-  }
-};
 
 // Session management utilities
 const SessionManager = {
@@ -110,43 +97,15 @@ const CustomerManagement = () => {
   // Refs for enhanced UX
   const searchInputRef = useRef(null);
 
-  // Updated formatCurrency function using DirhamIcon
+  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
   const formatCurrency = useCallback(
-    (amount, colorClass = "text-gray-900", text) => {
-      const numAmount = Number(amount) || 0;
-      const absAmount = Math.abs(numAmount).toFixed(2);
-      const isNegative = numAmount < 0;
-
-      return (
-        <span className={`inline-flex items-center ${colorClass} `}>
-          {isNegative && "-"}
-          <img
-            src={DirhamIcon}
-            alt="AED"
-            className={`${text ? "w-6.5 h-7.5" : "w-4.5 h-4.5"}  mr-1 `}
-            style={{ filter: getColorFilter(colorClass) }}
-          />
-          {absAmount}
-        </span>
-      );
-    },
+    (amount, colorClass = "") => (
+      <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
+        {formatCurrencyAED(Number(amount) || 0)}
+      </span>
+    ),
     []
   );
-
-  // Load session data on component mount
-  useEffect(() => {
-    const savedFilters = SessionManager.get("filters");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFilters) {
-      setFilterStatus(savedFilters.status || "");
-      setFilterPaymentTerms(savedFilters.paymentTerms || "");
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-  }, []);
 
   // Save search and filter preferences
   useEffect(() => {
@@ -381,7 +340,7 @@ const CustomerManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-[60vh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -394,7 +353,7 @@ const CustomerManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100 p-4 sm:p-6">
+    <div className="bg-background p-4 sm:p-6">
       {/* Enhanced Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
@@ -564,7 +523,7 @@ const CustomerManagement = () => {
             </div>
 
             {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
@@ -594,7 +553,7 @@ const CustomerManagement = () => {
                     setFilterPaymentTerms("");
                     setSearchTerm("");
                   }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200"
                 >
                   Clear Filters
                 </button>
@@ -774,7 +733,7 @@ const CustomerManagement = () => {
                 <button
                   onClick={hideDeleteConfirmation}
                   disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>

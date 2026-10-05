@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { processTransaction } from "../../../lib/processTransaction";
 import { VARIANTS } from "../../OrderEntry/variants";
+import { StatCard } from "../../ui/stat-card";
 import { loadFormForEdit } from "../../OrderEntry/editForm";
 import {
   ShoppingCart,
@@ -9,7 +10,7 @@ import {
   Calendar,
   Hash,
   Package,
-  DollarSign,
+  Banknote,
   Plus,
   Trash2,
   Eye,
@@ -729,156 +730,134 @@ const formatDisplayTransactionNo = (t) => {
 
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-              <p className="text-2xl font-extrabold tracking-tight text-foreground">
-                {statistics.total}
-              </p>
-              <div className="flex items-center mt-2">
-                {statistics.growthRate >= 0 ? (
-                  <TrendingUp className="w-4 h-4 text-foreground mr-1" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-muted-foreground mr-1" />
-                )}
-                <span className="text-sm font-medium text-muted-foreground">
-                  {Math.abs(statistics.growthRate).toFixed(1)}% from last month
-                </span>
-              </div>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
-              <ShoppingCart className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Approved</p>
-              <p className="text-2xl font-extrabold tracking-tight text-foreground">
-                {statistics.confirmed}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">Ready for dispatch</p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-plum-soft text-accent-plum">
-              <CheckSquare className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-extrabold tracking-tight text-foreground">
-                AED {formatNumber(statistics.totalValue)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Invoiced: AED {formatNumber(statistics.invoicedValue)}
-              </p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-olive-soft text-accent-olive">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border shadow-card hover:shadow-elevated transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="text-2xl font-extrabold tracking-tight text-foreground">
-                {statistics.thisMonthSOs}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">New orders created</p>
-            </div>
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent-rose-soft text-accent-rose">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Orders"
+          count={statistics.total}
+          tone="teal"
+          icon={<ShoppingCart />}
+          subText="Against last month"
+          trend={`${statistics.growthRate >= 0 ? "+" : "−"}${Math.abs(statistics.growthRate).toFixed(1)}%`}
+        />
+        <StatCard
+          title="Approved"
+          count={statistics.confirmed}
+          tone="plum"
+          icon={<CheckSquare />}
+          subText="Ready for dispatch"
+        />
+        <StatCard
+          title="Total Value"
+          count={`AED ${formatNumber(statistics.totalValue)}`}
+          tone="olive"
+          icon={<Banknote />}
+          subText={`Invoiced AED ${formatNumber(statistics.invoicedValue)}`}
+        />
+        <StatCard
+          title="This Month"
+          count={statistics.thisMonthSOs}
+          tone="rose"
+          icon={<BarChart3 />}
+          subText="New orders created"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border shadow-card">
-          <h3 className="text-lg font-extrabold text-foreground mb-4">
-            Recent Sales Orders
-          </h3>
-          <div className="space-y-3">
-            {salesOrders.slice(0, 5).map((so) => (
-              <div
-                key={so.id}
-                className="flex items-center justify-between py-3 px-4 bg-secondary rounded-full hover:bg-muted transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <div
-                    className={`w-2 h-2 rounded-full ${getPriorityColor(
-                      so.priority
-                    )}`}
-                  ></div>
-                  <div>
-                    <p className="font-semibold text-foreground">
-                     {so.displayTransactionNo || so.transactionNo}
-                    </p>
-
-                    <p className="text-sm text-muted-foreground">{so.customerName}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      so.status
-                    )}`}
-                  >
-                    {getStatusIcon(so.status)}
-                    <span className="ml-1">{so.status}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    AED {formatNumber(so.totalAmount)}
-                  </p>
-                </div>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
+          <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+            <h3 className="text-sm font-semibold text-foreground">Recent sales orders</h3>
+            <span className="text-xs text-muted-foreground">
+              {salesOrders.length} in total
+            </span>
+          </header>
+          <div className="px-5">
+            {salesOrders.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No sales orders yet. Create one to see it here.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {salesOrders.slice(0, 5).map((so) => (
+                  <li key={so.id} className="flex items-center justify-between gap-4 py-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPriorityColor(so.priority)}`}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {so.displayTransactionNo || so.transactionNo}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">{so.customerName}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm font-semibold tabular-nums text-foreground">
+                        AED {formatNumber(so.totalAmount)}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
+                          so.status
+                        )}`}
+                      >
+                        {getStatusIcon(so.status)}
+                        <span className="ms-1">{so.status}</span>
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <button
-            onClick={() => setActiveView("list")}
-            className="w-full mt-4 py-2 text-foreground hover:opacity-80 font-semibold text-sm"
-          >
-            View All Orders →
-          </button>
-        </div>
+          {salesOrders.length > 0 && (
+            <footer className="border-t border-border px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setActiveView("list")}
+                className="text-sm font-medium text-foreground hover:opacity-80"
+              >
+                View all orders →
+              </button>
+            </footer>
+          )}
+        </section>
 
-        <div className="bg-card rounded-xl p-6 border border-border shadow-card">
-          <h3 className="text-lg font-extrabold text-foreground mb-4">
-            Status Overview
-          </h3>
-          <div className="space-y-4">
+        <section className="rounded-xl border border-border bg-card shadow-card">
+          <header className="border-b border-border px-5 py-3.5">
+            <h3 className="text-sm font-semibold text-foreground">Status overview</h3>
+          </header>
+          <div className="space-y-4 px-5 py-4">
             {[
+              { label: "Draft", value: statistics.draft },
               { label: "Approved", value: statistics.confirmed },
               { label: "Invoiced", value: statistics.invoiced },
-              { label: "Draft", value: statistics.draft },
-            ].map((row) => (
-              <div key={row.label}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-muted-foreground">{row.label}</span>
-                  <span className="text-xs font-medium text-foreground">
-                    {row.value}
-                  </span>
+            ].map((row) => {
+              const value = Number(row.value) || 0;
+              const share = statistics.total ? (value / statistics.total) * 100 : 0;
+              return (
+                <div key={row.label}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <span className="text-sm text-foreground">{row.label}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {value} · {share.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
+                      style={{ width: `${share}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-foreground transition-all duration-500 ease-out"
-                    style={{
-                      width: `${
-                        (row.value / statistics.total) * 100 || 0
-                      }%`,
-                    }}
-                  ></div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
+            {statistics.total === 0 && (
+              <p className="pt-1 text-xs text-muted-foreground">
+                Nothing to show until the first order is created.
+              </p>
+            )}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
@@ -953,21 +932,18 @@ const formatDisplayTransactionNo = (t) => {
   };
 
   return (
-    <div className="min-h-screen bg-background font-sans">
+    <div className="bg-background font-sans">
       <NotificationList />
       <div className="relative bg-card border-b border-border">
         <div className="px-8 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <ShoppingCart className="w-8 h-8 text-foreground" />
-              <div>
-                <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
-                  Sales Order Management
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                  Manage your sales orders efficiently
-                </p>
-              </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                Sales orders
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Quotations and invoices to your customers, from draft to approved.
+              </p>
             </div>
             <div className="flex items-center space-x-3">
               <button
@@ -980,7 +956,7 @@ const formatDisplayTransactionNo = (t) => {
                 className="erp-btn-primary"
               >
                 <Plus className="w-5 h-5" />
-                <span>Create New SO</span>
+                <span>New sales order</span>
               </button>
               <button
                 onClick={() => {
@@ -988,11 +964,18 @@ const formatDisplayTransactionNo = (t) => {
                   fetchStockItems();
                   fetchTransactions();
                 }}
+                aria-label="Refresh"
+                title="Refresh"
                 className="grid h-10 w-10 place-items-center rounded-lg border border-input bg-card text-foreground transition-colors hover:bg-accent"
               >
                 <RefreshCw className="w-5 h-5 text-foreground" />
               </button>
-              <button className="grid h-10 w-10 place-items-center rounded-lg border border-input bg-card text-foreground transition-colors hover:bg-accent">
+              <button
+                type="button"
+                aria-label="Settings"
+                title="Settings"
+                className="grid h-10 w-10 place-items-center rounded-lg border border-input bg-card text-foreground transition-colors hover:bg-accent"
+              >
                 <Settings className="w-5 h-5 text-foreground" />
               </button>
             </div>
@@ -1061,6 +1044,8 @@ const formatDisplayTransactionNo = (t) => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={() => setActiveView("dashboard")}
+                  aria-label="Overview"
+                  title="Overview"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "dashboard"
                       ? "border-foreground bg-foreground text-background"
@@ -1074,6 +1059,8 @@ const formatDisplayTransactionNo = (t) => {
                     setViewMode("table");
                     setActiveView("list");
                   }}
+                  aria-label="Table view"
+                  title="Table view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "table" && activeView === "list"
                       ? "border-foreground bg-foreground text-background"
@@ -1087,6 +1074,8 @@ const formatDisplayTransactionNo = (t) => {
                     setViewMode("grid");
                     setActiveView("list");
                   }}
+                  aria-label="Card view"
+                  title="Card view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "grid" && activeView === "list"
                       ? "border-foreground bg-foreground text-background"

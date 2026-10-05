@@ -14,9 +14,9 @@ import { formatDate, getDateFormat, setDateFormat, setTimeFormat } from "../../.
 const PROFILE = {
   email: "admin@test.com",
   companyInfo: {
-    companyName: "NH Foods", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates",
-    postalCode: "", phoneNumber: "", emailAddress: "accounts@nhfoods.ae", website: "",
-    bankDetails: { bankName: "Emirates NBD", accountName: "NH Foods LLC", accountNumber: "0123456789", ibanNumber: "", currency: "AED" },
+    companyName: "Harbour Trading", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates",
+    postalCode: "", phoneNumber: "", emailAddress: "accounts@harbourtrading.ae", website: "",
+    bankDetails: { bankName: "Emirates NBD", accountName: "Harbour Trading LLC", accountNumber: "0123456789", ibanNumber: "", currency: "AED" },
   },
 };
 
@@ -50,20 +50,20 @@ describe("settings page", () => {
     at("rules");
     expect(await screen.findByText("Credit control")).toBeInTheDocument();
     expect(screen.getByText("Returns")).toBeInTheDocument();
-    expect(await screen.findByLabelText("Registered name")).toHaveValue("NH Foods");
+    expect(await screen.findByLabelText("Registered name")).toHaveValue("Harbour Trading");
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull(); // each rule panel saves itself
   });
 
   it("loads the profile, tracks unsaved changes, and discards them", async () => {
     at();
     const name = await screen.findByLabelText(/Company name/);
-    expect(name).toHaveValue("NH Foods");
+    expect(name).toHaveValue("Harbour Trading");
     expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
-    fireEvent.change(name, { target: { value: "NH Foods Trading" } });
+    fireEvent.change(name, { target: { value: "Harbour Trading Co" } });
     expect(screen.getByText("You have unsaved changes")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
-    expect(screen.getByLabelText(/Company name/)).toHaveValue("NH Foods");
+    expect(screen.getByLabelText(/Company name/)).toHaveValue("Harbour Trading");
     expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe("settings page", () => {
     await waitFor(() => expect(m.put).toHaveBeenCalledTimes(1));
     expect(m.put.mock.calls[0][0]).toBe("/profile/me");
     const info = sent();
-    expect(info.companyName).toBe("NH Foods");
+    expect(info.companyName).toBe("Harbour Trading");
     expect(info.bankDetails).toMatchObject({ bankName: "Emirates NBD", ibanNumber: "AE070331234567890123456", swiftCode: "EBILAEAD", currency: "AED" });
     expect(await screen.findByText("Settings saved")).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("settings page", () => {
   it("shows the server's message when saving fails", async () => {
     m.put.mockRejectedValue({ response: { data: { message: "Website must be a valid URL" } } });
     at();
-    fireEvent.change(await screen.findByLabelText(/Company name/), { target: { value: "NH Foods Trading" } });
+    fireEvent.change(await screen.findByLabelText(/Company name/), { target: { value: "Harbour Trading Co" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Website must be a valid URL")).toBeInTheDocument();
   });

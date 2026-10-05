@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   Barcode,
   Tag,
-  DollarSign,
+  Banknote,
   Calendar,
   AlertTriangle,
   TrendingUp,
@@ -21,10 +21,9 @@ import {
   FileText,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import DirhamIcon from "../../assets/dirham.svg";
 import BarcodeGenerator from "react-barcode";
 
-import { formatDate } from "../../utils/format";
+import { formatDate, formatCurrencyAED} from "../../utils/format";
 const StockDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -73,35 +72,15 @@ const StockDetail = () => {
     fetchPurchaseLogs();
   }, [fetchStockItem, fetchPurchaseLogs]);
 
-  // Currency formatting
-  const formatCurrency = useCallback((amount, colorClass = "text-gray-800") => {
-    const numAmount = Number(amount) || 0;
-    const absAmount = Math.abs(numAmount).toFixed(2);
-    const isNegative = numAmount < 0;
-    const colorMap = {
-      "text-gray-800": "none",
-      "text-red-500":
-        "invert(36%) sepia(95%) saturate(1492%) hue-rotate(332deg) brightness(95%) contrast(91%)",
-      "text-status-warning":
-        "invert(66%) sepia(99%) saturate(1468%) hue-rotate(4deg) brightness(103%) contrast(88%)",
-      "text-green-500":
-        "invert(35%) sepia(74%) saturate(1056%) hue-rotate(123deg) brightness(94%) contrast(87%)",
-    };
-    const filter = colorMap[colorClass] || "none";
-
-    return (
-      <span className={`inline-flex items-center ${colorClass} font-medium`}>
-        {isNegative && "-"}
-        <img
-          src={DirhamIcon}
-          alt="AED"
-          className="w-4 h-4 mr-1.5"
-          style={{ filter }}
-        />
-        {absAmount}
+  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  const formatCurrency = useCallback(
+    (amount, colorClass = "") => (
+      <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
+        {formatCurrencyAED(Number(amount) || 0)}
       </span>
-    );
-  }, []);
+    ),
+    []
+  );
 
   // Stock status
   const getStockStatus = useCallback((currentStock, reorderLevel) => {
@@ -152,7 +131,7 @@ const StockDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-[60vh] bg-background">
         <div className="flex items-center space-x-3 text-gray-600">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-lg font-medium">Loading...</span>
@@ -163,7 +142,7 @@ const StockDetail = () => {
 
   if (error || !stockItem) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-[60vh] bg-background">
         <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border border-gray-100">
           <div className="flex justify-center mb-4">
             <AlertCircle size={40} className="text-red-500" />
@@ -193,14 +172,14 @@ const StockDetail = () => {
   const expiryStatus = getExpiryStatus(stockItem.expiryDate);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="bg-background py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate(-1)}
-              className="p-2.5 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:bg-gray-50"
+              className="p-2.5 bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:bg-background"
               aria-label="Go back"
             >
               <ArrowLeft size={16} className="text-gray-600" />
@@ -279,7 +258,7 @@ const StockDetail = () => {
                   <Barcode size={16} className="mr-2 text-gray-500" />
                   Barcode/QR Code
                 </p>
-                <div className="mt-2 bg-gray-50 p-3 rounded-lg">
+                <div className="mt-2 bg-background p-3 rounded-lg">
                   <BarcodeGenerator
                     value={stockItem.barcodeQrCode || stockItem.sku}
                     format="CODE128"
@@ -346,13 +325,13 @@ const StockDetail = () => {
             {/* Pricing Information */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-5 flex items-center">
-                {/* <DollarSign size={20} className="mr-2 text-green-500" /> */}
+                {/* <Banknote size={20} className="mr-2 text-green-500" /> */}
                 Pricing Information
               </h3>
               <div className="space-y-5">
                 <div>
                   <p className="text-sm font-medium text-gray-600 flex items-center">
-                    {/* <DollarSign size={16} className="mr-2 text-gray-500" /> */}
+                    {/* <Banknote size={16} className="mr-2 text-gray-500" /> */}
                     Purchase Price
                   </p>
                   <p className="text-gray-800 mt-1">
@@ -361,7 +340,7 @@ const StockDetail = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600 flex items-center">
-                    {/* <DollarSign size={16} className="mr-2 text-gray-500" /> */}
+                    {/* <Banknote size={16} className="mr-2 text-gray-500" /> */}
                     Sales Price
                   </p>
                   <p className="text-gray-800 mt-1">
@@ -415,7 +394,7 @@ const StockDetail = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-background">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Transaction No

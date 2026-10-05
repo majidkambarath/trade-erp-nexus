@@ -91,24 +91,24 @@ describe("role filtering", () => {
 
 describe("pageTitle", () => {
   it("includes the tab for multi-tab modules", () => {
-    expect(pageTitle(findActive("/payment-voucher"), "NH FOODS")).toBe(
-      "Payments · Finance · NH FOODS"
+    expect(pageTitle(findActive("/payment-voucher"), "Harbour Trading")).toBe(
+      "Payments · Finance · Harbour Trading"
     );
   });
 
   it("omits the redundant tab for single-page modules", () => {
     // Staff is the single-page module here. Reports used to be one, until e-Invoicing
     // was added alongside VAT.
-    expect(pageTitle(findActive("/staff-records"), "NH FOODS")).toBe("People · NH FOODS");
+    expect(pageTitle(findActive("/staff-records"), "Harbour Trading")).toBe("People · Harbour Trading");
   });
 
   it("includes the tab now that Reports has more than one page", () => {
-    expect(pageTitle(findActive("/vat-reports"), "NH FOODS")).toBe(
-      "VAT · Reports · NH FOODS"
+    expect(pageTitle(findActive("/vat-reports"), "Harbour Trading")).toBe(
+      "VAT · Reports · Harbour Trading"
     );
   });
 
   it("falls back to the app name for unmapped pages", () => {
-    expect(pageTitle(null, "NH FOODS")).toBe("NH FOODS");
+    expect(pageTitle(null, "Harbour Trading")).toBe("Harbour Trading");
   });
 });

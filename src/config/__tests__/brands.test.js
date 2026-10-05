@@ -20,8 +20,8 @@ describe("brand packs", () => {
   });
 
   it("reads the brand from <html data-brand>", () => {
-    document.documentElement.dataset.brand = "nhfoods-ae";
-    expect(getBrandId()).toBe("nhfoods-ae");
+    document.documentElement.dataset.brand = "default";
+    expect(getBrandId()).toBe("default");
   });
 
   // A typo in index.html should degrade to the shipped client, not a blank page.

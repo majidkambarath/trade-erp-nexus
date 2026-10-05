@@ -264,7 +264,7 @@ describe("export and print", () => {
     fireEvent.click(screen.getByRole("button", { name: /Print/ }));
     expect(window.open).toHaveBeenCalled();
     const html = write.mock.calls[0][0];
-    expect(html).toContain("NH Foods Trading LLC");
+    expect(html).toContain("Harbour Trading Co LLC");
     expect(html).toContain("Statement of profit or loss and other comprehensive income");
     expect(html).toContain("For the period 01/06/2025 – 30/06/2025");
     expect(html).toContain("Amounts in AED");
