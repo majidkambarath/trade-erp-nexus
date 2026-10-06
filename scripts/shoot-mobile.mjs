@@ -233,6 +233,25 @@ function stubFor(pathname) {
     };
   }
 
+  // A customer's deals (the Documents tab): one of each shape that reads differently - an offer out, an
+  // invoiced order only part delivered, goods first with the 14-day clock running, and a finished deal.
+  if (p.includes("/document-flow/")) {
+    const quote = (over) => ({ _id: "q1", quotationNo: "QT-2026-0007", status: "SENT", expired: false, daysLeft: 12, validUntil: "2026-11-05T00:00:00.000Z", totalAmount: 10584, ...over });
+    const order = (over) => ({ _id: "o1", transactionNo: "SO-2026-0042", status: "APPROVED", totalAmount: 13230, outstandingAmount: 13230, ...over });
+    const note = (over) => ({ _id: "n1", deliveryNoteNo: "DLN-2026-0012", status: "DELIVERED", deliveredAt: "2026-10-04T08:00:00.000Z", totalAmount: 6615, ...over });
+    return {
+      customer: { _id: "p1", customerId: "C001", customerName: "Al Noor Trading 1" },
+      truncated: false,
+      summary: { outWithCustomer: { count: 1, value: 10584 }, acceptedNotOrdered: { count: 0, value: 0 }, ordersToApprove: { count: 1, value: 6615 }, deliveredNotInvoiced: { count: 1, value: 6615 }, pastInvoiceWindow: 0 },
+      chains: [
+        { key: "a", stage: "delivering", mode: "order_first", quotation: quote({ _id: "q2", quotationNo: "QT-2026-0003", status: "CONVERTED" }), order: order(), notes: [note({ _id: "n2", deliveryNoteNo: "DLN-2026-0009", invoiceStatus: "INVOICED" })], delivery: { started: true, complete: false, remaining: [{ description: "Basmati Rice 5kg", qty: 5 }, { description: "Sunflower Oil 1.8L", qty: 12 }, { description: "Sugar 2kg", qty: 3 }] }, amount: 13230, date: "2026-10-01T00:00:00.000Z", invoiceClock: null, expiresInDays: null },
+        { key: "b", stage: "quoted", mode: null, quotation: quote(), order: null, notes: [], delivery: null, amount: 10584, date: "2026-10-06T00:00:00.000Z", invoiceClock: null, expiresInDays: 12 },
+        { key: "c", stage: "delivered", mode: "delivery_first", quotation: null, order: order({ _id: "o3", transactionNo: "SO-2026-0043", status: "DRAFT", totalAmount: 6615 }), notes: [note()], delivery: null, amount: 6615, date: "2026-10-04T00:00:00.000Z", invoiceClock: { clock: "dueSoon", daysToStandard: 2, standardDue: "2026-10-18", summaryDue: "2026-11-14" }, expiresInDays: null },
+        { key: "d", stage: "invoiced", mode: "order_first", quotation: quote({ _id: "q4", quotationNo: "QT-2026-0001", status: "CONVERTED" }), order: order({ _id: "o4", transactionNo: "SO-2026-0009", outstandingAmount: 0 }), notes: [note({ _id: "n4", deliveryNoteNo: "DLN-2026-0003", invoiceStatus: "INVOICED" })], delivery: { started: true, complete: true, remaining: [] }, amount: 13230, date: "2026-09-20T00:00:00.000Z", invoiceClock: null, expiresInDays: null },
+      ],
+    };
+  }
+
   if (p.includes("/admin") || p.includes("profile") || p.includes("/me")) {
     return { name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [] };
   }

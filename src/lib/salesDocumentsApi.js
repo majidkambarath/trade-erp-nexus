@@ -58,3 +58,8 @@ export const deliveryNotes = {
   // -> { salesOrder, deliveryNotes }: one draft invoice for one or several delivered notes of a customer
   invoice: (body) => api.post("/delivery-notes/invoice", body),
 };
+
+// A customer's quotations, orders and delivery notes joined into deals (the customer profile's Documents tab).
+export const documentFlow = {
+  customer: (customerId) => api.get(`/document-flow/customer/${customerId}`),
+};

@@ -12,12 +12,15 @@ import { KINDS, creditPosition, netOf, overdueAmount, overdueInvoiceCount, party
 import StatementTab from "./StatementTab";
 import OpenInvoicesTab from "./OpenInvoicesTab";
 import PartyDetailsTab from "./PartyDetailsTab";
+import CustomerDocumentsTab from "../../salesDocs/CustomerDocumentsTab";
 
 const TABS = [
   { id: "statement", label: "Statement" },
   { id: "open", label: "Open invoices" },
   { id: "details", label: "Details" },
 ];
+// A customer also has the story of its deals: quotation, order, delivery, invoice. Vendors do not.
+const CUSTOMER_TABS = [TABS[0], TABS[1], { id: "documents", label: "Documents" }, TABS[2]];
 
 function balanceNote(k, balance) {
   const n = Number(balance) || 0;
@@ -44,7 +47,8 @@ function Fact({ icon, label, children }) {
 export default function PartyAccountPage({ kind, partyId }) {
   const k = KINDS[kind];
   const [params, setParams] = useSearchParams();
-  const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "statement";
+  const tabs = kind === "customer" ? CUSTOMER_TABS : TABS;
+  const tab = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "statement";
   const setTab = (id) =>
     setParams((p) => { const next = new URLSearchParams(p); next.set("tab", id); return next; }, { replace: true });
 
@@ -191,7 +195,7 @@ export default function PartyAccountPage({ kind, partyId }) {
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto print:hidden">
           <TabsList aria-label="Account sections">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <TabsTrigger key={t.id} value={t.id}>
                 {t.label}
                 {t.id === "open" && ageing.data && (
@@ -207,6 +211,11 @@ export default function PartyAccountPage({ kind, partyId }) {
         <TabsContent value="open">
           <OpenInvoicesTab k={k} ageing={ageing} row={ageingRow} />
         </TabsContent>
+        {kind === "customer" && (
+          <TabsContent value="documents">
+            <CustomerDocumentsTab customerId={partyId} />
+          </TabsContent>
+        )}
         <TabsContent value="details">
           <PartyDetailsTab k={k} party={party} />
         </TabsContent>

@@ -309,6 +309,15 @@ Neither is a Transaction and neither posts anything. A quotation is an offer; a 
 - **Linking in:** the sales order list opens narrowed with `/sales-order?search=<number>`; its row menu has *Delivery note* (`/delivery-notes?order=<id>`).
 - Tests: `lib/__tests__/salesDocuments.test.js`, `salesDocs/__tests__/documents.test.js`, and the variant payloads in `OrderEntry/__tests__/variants.test.js`. `check:mobile` opens a document from each list and the convert, new and deliver dialogs.
 
+### 7b. The customer's Documents tab (`components/salesDocs/CustomerDocumentsTab.jsx`)
+The profile of a customer (`/credit-accounts/customer/:id?tab=documents`, through `PartyAccountPage`; vendors do not have it) shows each **deal** - an offer, the order it became, the deliveries against it and the invoice - as one card with a stepper, instead of four lists the reader has to join. The server does the joining (`GET /document-flow/customer/:id`; `utils/documentFlow.js` on the backend; read only; newest 300 of each kind, and `truncated` says when more exist). `lib/documentFlow.js` decides how a deal reads and what to do next, with no React, so the rules are tested without rendering.
+
+- **Two shapes of deal.** *Order first*: Quotation -> Sales order -> Delivery -> Invoice. *Goods first* (a note raised from an offer, or on its own, then a draft invoice made from it): Quotation -> Delivery -> Invoice, with no separate order step. Every step says where it stands in a word as well as a colour (Done / In hand / Stopped / To do) and links to its document.
+- **Next step.** Each deal has one button: Finish and send, Convert to a sales order, Approve the order, Dispatch or Confirm the delivery, **Deliver the rest**, Approve the invoice, Create the invoice. A sent offer waiting on the customer is *In progress*, not *Needs action*. The tab opens on *Needs action* when there is anything, otherwise on *All*.
+- **A signed-for note is not a finished delivery.** The server compares the order's lines with what the notes carried (`fulfilment()`), so a part delivery, or a short line, keeps the Delivery step *In hand* with "Still to deliver: 5 x Rice" and offers **Deliver the rest** (`/delivery-notes?order=<id>`, which starts from what is left) - even on an order that has already been invoiced. There is no "close short" action yet, so such a deal stays under *Needs action* until the rest is delivered.
+- **Above the list:** out with the customer, accepted and not ordered, draft invoices to approve, and delivered and not invoiced (with how many are past the 14-day window).
+- Tests: `lib/__tests__/documentFlow.test.js` (stepper, next step, groups, part deliveries) and `salesDocs/__tests__/CustomerDocumentsTab.test.jsx`. `check:mobile` opens the tab on a phone.
+
 ## 8. Inventory & Stock
 - InventoryManagement: `src/components/Inventory/InventoryManagement.jsx`
 - CategoryManagement: `src/components/Inventory/CategoryManagement.jsx`
