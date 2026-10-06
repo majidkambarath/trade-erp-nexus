@@ -39,6 +39,7 @@ const CardTypeMaster = lazy(() => import("../components/banking/CardTypeMaster.j
 const CardMaster = lazy(() => import("../components/banking/CardMaster.jsx"));
 const ChequeRegister = lazy(() => import("../components/banking/ChequeRegister.jsx"));
 const CashAndBank = lazy(() => import("../components/banking/CashAndBank.jsx"));
+const BankReconciliation = lazy(() => import("../components/banking/BankReconciliation.jsx"));
 const AccountingSetup = lazy(() => import("../components/accounting/AccountingSetup.jsx"));
 const LedgerReports = lazy(() => import("../components/Reports/LedgerReports.jsx"));
 const PartyBalances = lazy(() => import("../components/Reports/PartyBalances.jsx"));
@@ -89,6 +90,7 @@ export default function AdminRouter() {
         <Route path="/debit-credit-notes" element={<DebitCreditNotes />} />
         <Route path="/cheques" element={<ChequeRegister />} />
         <Route path="/cash-and-bank" element={<CashAndBank />} />
+        <Route path="/bank-reconciliation" element={<BankReconciliation />} />
         <Route path="/ledger" element={<LedgerBook />} />
         <Route path="/banks" element={<BankMaster />} />
         <Route path="/card-types" element={<CardTypeMaster />} />

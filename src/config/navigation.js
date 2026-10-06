@@ -103,6 +103,7 @@ export const MODULES = [
       { label: "Notes", to: "/debit-credit-notes", roles: ACCOUNTS, keywords: ["debit note", "credit note", "price adjustment", "dn", "cn"] },
       { label: "Cheques", to: "/cheques", roles: ACCOUNTS, keywords: ["cheque register", "pdc", "post-dated", "bounced", "clearing"] },
       { label: "Cash & bank", to: "/cash-and-bank", match: ["/cash-and-bank", "/transactors"], roles: ACCOUNTS, keywords: ["cash", "bank", "balances", "accounts", "transfer"] },
+      { label: "Reconcile", to: "/bank-reconciliation", roles: ACCOUNTS, keywords: ["bank reconciliation", "reconcile", "statement", "import statement", "card settlement", "brs", "mt940"] },
       { label: "Ledger", to: "/ledger", match: ["/ledger", "/transactions"], roles: ACCOUNTS, keywords: ["account ledger", "running balance", "transactions", "day book"] },
     ],
   },

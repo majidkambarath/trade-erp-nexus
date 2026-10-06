@@ -27,6 +27,8 @@ const HINTS = {
   "pdc-receipt": "Holds a received cheque until the bank clears it.",
   "pdc-issue": "Holds an issued cheque until it clears.",
   "card-charges": "The fee a card processor keeps from each card sale.",
+  "bank-charges": "Fees the bank takes. Posted from a bank statement line, with the VAT on them.",
+  "bank-interest": "Credit interest the bank pays. Posted from a bank statement line, with no VAT.",
   "stock-adjustment": "Gains and losses found when stock is counted.",
   "inventory-asset": "Debited when stock arrives and credited when it is sold.",
   "opening-balance-equity": "Offsets the opening balances you enter on accounts.",

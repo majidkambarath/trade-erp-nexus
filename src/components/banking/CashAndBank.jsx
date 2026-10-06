@@ -34,7 +34,7 @@ export default function CashAndBank() {
             kind === "bank" && { key: "bank", header: "Bank", card: "title", cell: (a) => a.bank?.bankName || <span className="text-muted-foreground">Not set</span> },
             kind === "bank" && { key: "number", header: "Number", card: "meta", className: "text-muted-foreground", cell: (a) => <>{a.bank?.accountNumberMasked}{a.bank?.iban && <span className="ms-1 font-mono text-xs">{a.bank.iban}</span>}</> },
             { key: "balance", header: "Balance", align: "end", card: "amount", className: "font-medium", cell: (a) => <Balance net={a.balance} /> },
-            { key: "ledger", header: <span className="sr-only">Ledger</span>, align: "end", card: "actions", cell: (a) => <button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button> },
+            { key: "ledger", header: <span className="sr-only">Ledger</span>, align: "end", card: "actions", cell: (a) => <>{kind === "bank" && <Link to={`/bank-reconciliation?account=${a._id}`} aria-label={`Reconcile ${a.accountName}`} className="me-2 text-sm text-primary underline-offset-2 hover:underline">Reconcile</Link>}<button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></> },
           ]}
         />
       )}

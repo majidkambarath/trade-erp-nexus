@@ -233,6 +233,33 @@ function stubFor(pathname) {
     };
   }
 
+  // Bank reconciliation: one account that is set up, a worklist with a strong suggestion, a line with
+  // nothing to suggest, a matched line and an ignored one, and a proof that cannot be finished yet.
+  if (p.includes("/banking/reconciliation/")) {
+    const entry = { id: "e1", type: "ledger", ledgerEntryId: "le1", chequeId: null, voucherId: "v1", voucherNo: "RV-2026-0014", voucherType: "receipt", day: "2026-10-02", amount: 1050, narration: "", party: "Al Noor Grocery", reference: "TRF-9001", chequeNo: "", card: null, pending: false };
+    const line = (over) => ({ _id: "l1", importId: "i1", lineNo: 3, day: "2026-10-02", valueDay: null, description: "TRANSFER FROM AL NOOR GROCERY TRF-9001", reference: "", chequeNo: "", amount: 1050, balance: 11050, state: "open", matchId: null, reconciliationId: null, ignoredReason: "", suggestion: null, match: null, ...over });
+    const lines = [
+      line({ suggestion: { confidence: "high", score: 100, reasons: ["same amount", "same day", "reference TRF-9001 is in the text"], kind: "one", entries: [entry] } }),
+      line({ _id: "l2", description: "BANK CHARGES INCL VAT", amount: -21, balance: 11029 }),
+      line({ _id: "l3", state: "matched", description: "IPP PAY-1 GULF SUPPLY", amount: -300, matchId: "m1", match: { _id: "m1", kind: "match", method: "auto", reconciliationId: null, lineCount: 1, entries: [{ ...entry, voucherNo: "PV-2026-0003", voucherType: "payment", amount: -300 }], createdVouchers: [] } }),
+      line({ _id: "l4", state: "ignored", description: "DUPLICATE FEE", amount: -15, ignoredReason: "Duplicate in the bank's own file" }),
+    ];
+    const proof = { asOf: "2026-10-06", statementBalance: 1341.9, bookBalance: 1433.9, depositsInTransit: { total: 77, items: [{ id: "e9", day: "2026-10-05", voucherNo: "RV-2026-0020", party: "Al Noor Grocery", amount: 77 }] }, outstandingPayments: { total: 0, items: [] }, bankItemsNotInBooks: { total: 0, items: [] }, ignored: { total: -15, items: [] }, adjustedBank: 1418.9, adjustedBook: 1418.9, difference: 0, openLines: 2, openingDifference: 0, blockers: [{ code: "OPEN_LINES", message: "2 statement lines are not matched or ignored yet" }], canFinish: false, unclearedCheques: { items: [], count: 0, total: 0 } };
+    if (p.endsWith("/accounts")) return [{ _id: "b1", accountName: "Emirates NBD Current", accountCode: "BANK0001", bank: { bankName: "Emirates NBD", accountNumberMasked: "•••• 4567" }, bookBalance: 1433.9, setUp: true, counts: { open: 2, matched: 1, reconciled: 0, ignored: 1 }, lastLineDay: "2026-10-06", lastReconciled: { number: "BRC-2026-0001", asOf: "2026-09-30", statementBalance: 1000 } }];
+    if (p.endsWith("/lines")) return { account: { _id: "b1", accountName: "Emirates NBD Current" }, needsSetup: false, rows: lines, total: lines.length, page: 1, pages: 1, counts: { todo: 1, suggested: 1, matched: 1, reconciled: 0, ignored: 1, all: 4 } };
+    if (p.endsWith("/setup/status")) return { startDay: "2026-09-01", statementOpening: 1000, outstandingCount: 0, outstandingTotal: 0, bookBalanceBefore: 1000, difference: 0 };
+    if (p.endsWith("/imports")) return [{ _id: "i1", status: "active", periodFrom: "2026-10-01", periodTo: "2026-10-06", closingBalance: 1341.9, lineCount: 4, workedOn: 2 }];
+    if (p.endsWith("/proof")) return proof;
+    if (p.endsWith("/reconciliations")) return [{ _id: "r1", number: "BRC-2026-0001", asOf: "2026-09-30", statementBalance: 1000, lineCount: 9, status: "completed" }];
+    if (p.includes("/reconciliations/")) return { _id: "r1", number: "BRC-2026-0001", status: "completed", account: { accountName: "Emirates NBD Current" }, proof, createdAt: "2026-10-01T08:00:00.000Z" };
+    if (p.endsWith("/card/ageing")) return { asOf: "2026-10-06", buckets: [{ label: "0-3 days", from: 0, to: 3, count: 1, total: 98 }, { label: "4-7 days", from: 4, to: 7, count: 1, total: 196 }, { label: "8-14 days", from: 8, to: 14, count: 0, total: 0 }, { label: "15+ days", from: 15, to: null, count: 0, total: 0 }], total: 294, count: 2, items: [{ entryId: "e1", voucherNo: "RV-2026-0004", day: "2026-10-03", cardLabel: "POS 1", gross: 100, feeBooked: 2, net: 98, workingDays: 2 }] };
+    if (p.endsWith("/card/variance")) return { summary: { settlements: 1, gross: 300, feeBooked: 6, extraCommission: 0.4, vat: 0.3, received: 293.3, bookedRate: 2, effectiveRate: 2.133 }, months: [], cards: [{ cardId: "k1", cardLabel: "POS 1", sales: 2, gross: 300, feeBooked: 6, bookedRate: 2 }], settlements: [{ _id: "s1", settlementDate: "2026-10-03", settlementRef: "NI-0099", gross: 300, feeBooked: 6, extraCommission: 0.4, vat: 0.3, received: 293.3, receiptCount: 2, effectiveRate: 2.133 }] };
+    if (p.endsWith("/card/settlements")) return [];
+    if (p.endsWith("/entries")) return { rows: [entry], total: 1 };
+    if (p.endsWith("/profile")) return null;
+    return {};
+  }
+
   // A customer's deals (the Documents tab): one of each shape that reads differently - an offer out, an
   // invoiced order only part delivered, goods first with the 14-day clock running, and a finished deal.
   if (p.includes("/document-flow/")) {
