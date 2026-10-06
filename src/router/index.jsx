@@ -8,6 +8,7 @@ import { Route, Routes, Navigate } from "react-router-dom";
 // around the Outlet, so navigating swaps the content and never the chrome.
 
 import Layout from "../components/Layout.jsx";
+import RequireSession from "../components/shell/RequireSession.jsx";
 import NotFound from "../components/NotFound.jsx";
 import ERPLogin from "../components/Login/Login.jsx";
 const Dashboard = lazy(() => import("../pages/dashboardPage.jsx"));
@@ -60,6 +61,7 @@ export default function AdminRouter() {
   return (
     <Routes>
       <Route path="/" element={<ERPLogin />} />
+      <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/vendor-creation" element={<VendorCreation />} />
@@ -116,6 +118,7 @@ export default function AdminRouter() {
         <Route path="/ageing" element={<AgeingReport />} />
         <Route path="/statement" element={<StatementOfAccount />} />
         <Route path="/batches" element={<BatchManagement />} />
+      </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -4,13 +4,16 @@ import { render, screen, within, fireEvent, waitFor, act } from "@testing-librar
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "../../theme-provider";
 import Layout from "../../Layout";
+import { getAccessToken, setSession } from "../../../axios/session";
 
 vi.mock("../../../axios/axios", () => ({
   default: {
     get: vi.fn().mockResolvedValue({
       data: { success: true, data: { name: "Super Admin", email: "admin@test.uae" } },
     }),
+    post: vi.fn().mockResolvedValue({ data: { success: true } }),
   },
+  signOutLocally: async () => (await import("../../../axios/session")).clearSession(),
 }));
 
 beforeAll(() => {
@@ -167,7 +170,7 @@ describe("command palette", () => {
 
 describe("account menu", () => {
   it("shows the signed-in user and logs out", async () => {
-    sessionStorage.setItem("accessToken", "token");
+    setSession({ accessToken: "token", admin: { id: "1" } });
     renderAt("/dashboard");
     const trigger = await screen.findByRole("button", { name: "Account menu for Super Admin" });
     fireEvent.keyDown(trigger, { key: "Enter" });
@@ -175,7 +178,7 @@ describe("account menu", () => {
     expect(screen.getByText("admin@test.uae")).toBeInTheDocument();
     fireEvent.click(logout);
     await waitFor(() => expect(screen.getByText("login page")).toBeInTheDocument());
-    expect(sessionStorage.getItem("accessToken")).toBeNull();
+    expect(getAccessToken()).toBeNull();
   });
 });
 

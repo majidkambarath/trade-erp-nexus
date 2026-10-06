@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axiosInstance from "../../axios/axios";
+import axiosInstance, { signOutLocally } from "../../axios/axios";
+import { clearLegacySessionStorage } from "../../axios/session";
 
 // The navigation's role names (Admin / Accountant / Purchase Officer / ...) do not match
 // the backend's admin.type enum (super_admin / admin / manager / operator / viewer).
@@ -9,15 +10,6 @@ import axiosInstance from "../../axios/axios";
 // hide every module, because no role list in src/config/navigation.js contains
 // "super_admin".
 export const CURRENT_ROLE = "Admin";
-
-const SESSION_KEYS = [
-  "accessToken",
-  "refreshToken",
-  "adminId",
-  "loginTime",
-  "tokenExpiry",
-  "rememberMe",
-];
 
 export function useSession() {
   const navigate = useNavigate();
@@ -41,12 +33,14 @@ export function useSession() {
 
   // Clears the session only. The remembered login email (erp-remember-email) is kept
   // on purpose: the user opted into it on the sign-in page.
+  // The server ends this browser's session and clears the cookie. If the server cannot be reached,
+  // this tab still signs out, and the other tabs with it.
   const logout = useCallback(() => {
+    // Not awaited: the tab leaves at once. If the server cannot be reached, the cookie simply expires.
+    axiosInstance.post("/logout").catch(() => {});
+    signOutLocally();
+    clearLegacySessionStorage();
     try {
-      for (const key of SESSION_KEYS) {
-        sessionStorage.removeItem(key);
-        localStorage.removeItem(key);
-      }
       localStorage.removeItem("userPreferences");
     } catch {
       // storage unavailable - nothing to clear

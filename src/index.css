@@ -274,10 +274,75 @@ body {
   }
 
   /* A w-full table does not scroll, it squeezes: eight columns across 390px gives each
-     one about 45px, and every figure wraps to three lines. Giving the table a floor makes
-     it scroll under the pinned label instead, which is the readable trade. */
+     one about 45px, and every figure wraps to three lines. A floor makes it scroll under
+     the pinned label instead, which is the readable trade.
+     min() is what keeps that from punishing narrow tables: a three-column Account / Debit /
+     Credit needs nowhere near 36rem, and forcing it to scroll hid the figures it exists to
+     show. The floor now applies only up to the table's own natural width. */
   .table-pin-first > table {
-    min-width: 36rem;
+    min-width: min(36rem, max-content);
+  }
+}
+
+/* A table of four or five columns inside a dialog has nowhere to scroll to on a phone: the
+   figures slide out of the only window they have. Below md each row becomes its own block and
+   every cell prints the heading it belongs to, taken from `data-label` (set by the audit
+   trail's Table helper). The markup stays a table, so it is still a table to a screen reader
+   and still a table from md up. */
+@media (max-width: 767px) {
+  .table-stack > table,
+  .table-stack tbody,
+  .table-stack tfoot,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: auto;
+  }
+
+  /* the headings now live on each cell */
+  .table-stack thead {
+    display: none;
+  }
+
+  .table-stack tr {
+    padding: 0.625rem 0.875rem;
+  }
+
+  .table-stack tbody tr + tr,
+  .table-stack tfoot tr {
+    border-top: 1px solid var(--border);
+  }
+
+  .table-stack tfoot tr {
+    background-color: var(--secondary);
+  }
+
+  /* The label floats, so everything the cell holds - a code and a name, an arrow between two
+     balances - flows after it as one piece and wraps under it when long. A flex row would
+     instead space each of those apart. */
+  .table-stack td {
+    display: block;
+    padding: 0.125rem 0;
+    text-align: end;
+  }
+
+  .table-stack td::before {
+    content: attr(data-label);
+    float: inline-start;
+    margin-inline-end: 1rem;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 400;
+    text-align: start;
+  }
+
+  /* A cell with a label but no value is noise; one with neither is the row's own heading. */
+  .table-stack td:empty {
+    display: none;
+  }
+
+  .table-stack td[data-label=""] {
+    text-align: start;
   }
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axiosInstance from "../../../axios/axios";
+import { getAccessToken } from "../../../axios/session";
 
 const EMPTY = {
   companyName: "",
@@ -25,7 +26,7 @@ export const useCompanyProfile = () => {
   const [profile, setProfile] = useState(EMPTY);
 
   useEffect(() => {
-    if (!sessionStorage.getItem("accessToken")) return undefined;
+    if (!getAccessToken()) return undefined;
     let active = true;
     axiosInstance
       .get("/profile/me")

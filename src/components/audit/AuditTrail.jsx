@@ -70,14 +70,52 @@ function Section({ title, note, right, children }) {
   );
 }
 
+/** The text of a header cell, however it is nested. */
+const headingText = (node) => {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(headingText).join("");
+  if (React.isValidElement(node)) return headingText(node.props.children);
+  return "";
+};
+
+/**
+ * Copies each column's heading onto its cells as `data-label`, so the stacked layout below md
+ * can print "Credit 62.50" instead of a bare figure. Doing it here rather than by hand keeps
+ * the heading and the label from drifting apart, and leaves the six call sites as they were.
+ */
+const labelCells = (section, labels) =>
+  React.Children.map(section, (group) => {
+    if (!React.isValidElement(group)) return group; // tbody / tfoot
+    const rows = React.Children.map(group.props.children, (row) => {
+      if (!React.isValidElement(row)) return row; // tr
+      let column = 0;
+      const cells = React.Children.map(row.props.children, (cell) => {
+        if (!React.isValidElement(cell)) return cell;
+        const label = labels[column] ?? "";
+        column += cell.props.colSpan || 1;
+        return React.cloneElement(cell, { "data-label": label });
+      });
+      return React.cloneElement(row, undefined, cells);
+    });
+    return React.cloneElement(group, undefined, rows);
+  });
+
+// Four or five columns of figures do not fit a phone, and a dialog cannot scroll sideways
+// without hiding the very numbers it is there to show. Below md each row becomes a labelled
+// block (see .table-stack in index.css); from md up it is the table it has always been.
 function Table({ head, children }) {
+  const labels = React.Children.toArray(
+    React.isValidElement(head) && head.type === React.Fragment ? head.props.children : head
+  ).map(headingText);
+
   return (
-    <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
+    <div className="erp-scroll table-stack overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm">
         <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>{head}</tr>
         </thead>
-        {children}
+        {labelCells(children, labels)}
       </table>
     </div>
   );

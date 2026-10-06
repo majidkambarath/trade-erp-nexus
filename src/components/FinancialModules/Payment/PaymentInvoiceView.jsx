@@ -6,6 +6,7 @@ import {
   Loader2,
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
+import { getAccessToken, getAdmin } from "../../../axios/session";
 import { todayInput, formatDate } from "../../../utils/format";
 
 const PaymentInvoiceView = ({
@@ -38,8 +39,8 @@ const PaymentInvoiceView = ({
     vatNumber: "",
   });
 
-  const adminId = sessionStorage.getItem("adminId");
-  const token = sessionStorage.getItem("accessToken");
+  const adminId = getAdmin()?._id || getAdmin()?.id || null;
+  const token = getAccessToken();
 
   useEffect(() => {
     const loadProfileData = async () => {

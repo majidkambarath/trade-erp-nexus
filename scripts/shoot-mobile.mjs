@@ -27,6 +27,60 @@ const VIEWPORTS = [
 // Every page the app navigates to, read from the one place that lists them, so a screen
 // added to the product is checked here without anyone remembering to add it.
 const { MODULES } = await import("../src/config/navigation.js");
+// Screens worth opening past their first screen, and how to get there. The labels are what a
+// person would tap, matched on visible text, so these survive markup changes.
+const DEEP = {
+  // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
+  // app is one tap away - the posting table inside it is what this check exists for.
+  "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
+};
+
+/** The first visible, enabled control whose text or label matches. */
+async function findByText(page, label) {
+  const handles = await page.$$("button, a[href], [role='button']");
+  for (const h of handles) {
+    const ok = await page.evaluate(
+      (el, want) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return false;
+        if (el.disabled) return false;
+        const text = `${el.getAttribute("aria-label") || ""} ${el.textContent || ""}`.trim();
+        return new RegExp(want, "i").test(text);
+      },
+      h,
+      label
+    );
+    if (ok) return h;
+  }
+  return null;
+}
+
+/** Measure the topmost dialog the way a pane is measured. */
+async function measureDialog(page) {
+  return page.evaluate(() => {
+    const dlg = [...document.querySelectorAll('[role="dialog"]')].pop();
+    const box = dlg || document.querySelector("main") || document.documentElement;
+    const opened = Boolean(dlg);
+    const text = (box.innerText || "").trim().length;
+    // the dialog's own scrolling body is what overflows, not the dialog element
+    const panes = [box, ...box.querySelectorAll("*")].filter((el) => {
+      const st = getComputedStyle(el);
+      return st.overflowX === "auto" || st.overflowX === "scroll";
+    });
+    let worst = { sw: 0, w: 1, what: "dialog" };
+    for (const el of [box, ...panes]) {
+      if (el.scrollWidth - el.clientWidth > worst.sw - worst.w) {
+        worst = { sw: el.scrollWidth, w: el.clientWidth, what: el === box ? "dialog" : "pane" };
+      }
+    }
+    const wide = [...box.querySelectorAll("table")]
+      .filter((t) => t.getBoundingClientRect().width > box.clientWidth + 4)
+      .slice(0, 3)
+      .map((t) => `table ${Math.round(t.getBoundingClientRect().width)}px in ${box.clientWidth}px`);
+    return { opened, text, bleeds: worst.sw > worst.w + 4, sw: worst.sw, w: worst.w, what: worst.what, wide };
+  });
+}
+
 const PAGES = [
   ["login", "/"],
   ...MODULES.flatMap((m) =>
@@ -95,6 +149,16 @@ const n = (f, count = 6) => Array.from({ length: count }, (_, i) => f(i + 1));
 function stubFor(pathname) {
   const p = pathname;
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
+
+  // The session is restored from a cookie, not from storage: src/axios/axios.js asks for a
+  // token on every page load and sends the tab to sign-in when it does not get one. Without
+  // this the harness measures the sign-in page on every route and calls it fine.
+  if (p.includes("/refresh-token") || p.includes("/login")) {
+    return {
+      accessToken: "stub-access-token",
+      admin: { _id: "a1", name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [], isActive: true, status: "active" },
+    };
+  }
 
   if (p.includes("/admin") || p.includes("profile") || p.includes("/me")) {
     return { name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [] };
@@ -230,7 +294,55 @@ function stubFor(pathname) {
   if (p.includes("fiscal-year")) return [{ _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" }];
   if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
   if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }];
-  if (p.includes("audit")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
+  if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
+
+  // The audit trail: the whole posting picture behind one document or voucher. Its shape is
+  // pinned by src/components/audit/__tests__/AuditTrail.test.jsx.
+  if (p.endsWith("/audit")) {
+    const entry = (id, code, name, dr, cr) => ({ _id: id, accountCode: code, accountName: name, debit: dr, credit: cr, narration: "" });
+    return {
+      document: {
+        _id: "t1", transactionNo: "SO-2026-0001", type: "sales_order", typeLabel: "Sales order",
+        status: "APPROVED", date: "2026-10-04T00:00:00.000Z", totalAmount: 1312.5,
+        paidAmount: 312.5, outstandingAmount: 1000, items: 1, isOpening: false,
+      },
+      voucher: {
+        _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", typeLabel: "Receipt",
+        date: "2026-10-05T00:00:00.000Z", totalAmount: 312.5, status: "approved",
+        paymentMode: "bank", ledgerBased: true, onAccountAmount: 0,
+      },
+      party: { _id: "c1", type: "Customer", name: "Al Noor Trading" },
+      ledger: {
+        postingEnabled: true, posted: true, isReversed: false, reversedAt: null, note: null,
+        entries: [
+          entry("l1", "ARA0001", "Customer - Al Noor Trading", 1312.5, 0),
+          entry("l2", "INC0001", "Sales Revenue", 0, 1250),
+          entry("l3", "TAXL0001", "Output VAT", 0, 62.5),
+        ],
+        reversals: [],
+        totals: { debit: 1312.5, credit: 1312.5 },
+        balanced: true,
+      },
+      stock: {
+        movements: [{
+          _id: "m1", itemId: "RICE5", itemName: "Rice 5kg", eventType: "SALES_DISPATCH", quantity: -5,
+          previousStock: 100, newStock: 95, unitCost: 9.2, totalValue: 46, cogsAmount: 46,
+          costBasis: "sale", batchNumber: "LOT-1", date: "2026-10-04T00:00:00.000Z", isReversed: false,
+        }],
+      },
+      partyBalance: {
+        rows: [{ _id: "p1", type: "sales_order", date: "2026-10-04T00:00:00.000Z", invNo: "SO-2026-0001", amount: -1312.5, paid: 0, balance: -1312.5, status: "UNPAID", isReversal: false }],
+      },
+      settlements: [{ _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", date: "2026-10-05T00:00:00.000Z", paymentMode: "bank", status: "approved", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
+      allocations: [{ _id: "i1", invoiceId: "i1", typeLabel: "Sales order", outstandingNow: 1000, transactionNo: "SO-2026-0001", date: "2026-10-04T00:00:00.000Z", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
+      einvoice: null,
+      cheque: null,
+      activity: [
+        { _id: "a1", at: "2026-10-04T06:00:00.000Z", action: "TRANSACTION_CREATED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 saved as DRAFT", before: null, after: { status: "DRAFT" } },
+        { _id: "a2", at: "2026-10-04T06:05:00.000Z", action: "TRANSACTION_APPROVED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 approved - 3 ledger entries, 1 stock movements, 1 party balance rows", before: null, after: { effects: { ledgerEntries: 3 } } },
+      ],
+    };
+  }
 
   // ---- reports: each returns its own summary object, so each gets its own shape ----
 
@@ -414,7 +526,8 @@ for (const vp of VIEWPORTS) {
   const page = await browser.newPage();
   await page.setViewport(vp);
 
-  // signed in, so the shell renders instead of the login page
+  // The token itself lives in memory and comes from /refresh-token (stubbed above); these
+  // keys are the previous scheme and are harmless, kept only for anything still reading them.
   await page.evaluateOnNewDocument(() => {
     sessionStorage.setItem("accessToken", "stub");
     sessionStorage.setItem("refreshToken", "stub");
@@ -428,6 +541,14 @@ for (const vp of VIEWPORTS) {
   page.on("pageerror", (err) => problems.push(`pageerror: ${firstLine(err.message)}`));
   page.on("console", (msg) => {
     if (msg.type() === "error") problems.push(`console: ${firstLine(msg.text())}`);
+  });
+  page.on("response", (res) => {
+    if (res.url().includes("/api/") && res.status() >= 400) {
+      problems.push(`api ${res.status()} ${new URL(res.url()).pathname}`);
+    }
+  });
+  page.on("requestfailed", (req) => {
+    if (req.url().includes("/api/")) problems.push(`api failed ${new URL(req.url()).pathname}: ${req.failure()?.errorText}`);
   });
 
   for (const [name, path] of pages) {
@@ -514,6 +635,14 @@ for (const vp of VIEWPORTS) {
         const main = document.querySelector("main") || document.getElementById("root");
         return (main?.innerText || "").trim().length < 10;
       });
+      // The sign-in page fits a phone perfectly, so a session that drops lands every route on
+      // it and the whole run reads "ok" while measuring nothing. Treat that as a failure.
+      const landed = await page.evaluate(() => window.location.pathname);
+      if (path !== "/" && landed === "/") {
+        results.push({ page: name, vp: vp.name, redirected: true });
+        console.log(`LOGIN  ${vp.name.padEnd(8)} ${name.padEnd(18)} asked for ${path}, got the sign-in page`);
+        continue;
+      }
       const errs = [...new Set(problems)];
       results.push({
         page: name, vp: vp.name, bleeds, blank, widest: overflow.wide,
@@ -525,6 +654,48 @@ for (const vp of VIEWPORTS) {
       // touch targets only matter where there is a thumb
       if (vp.isMobile && overflow.tiny.length) console.log(`         small taps: ${overflow.tiny.join(" | ")}`);
       for (const e of errs.slice(0, 3)) console.log(`         ${e}`);
+
+      // Some of the densest screens are behind a tap: a record opens a dialog, and that dialog
+      // opens another. A page list alone never reaches them, so the drill-downs are spelled
+      // out - the audit trail's posting table was unreadable on a phone for exactly that long.
+      for (const step of DEEP[name] || []) {
+        try {
+          problems.length = 0;
+          for (const label of step.clicks) {
+            const hit = await findByText(page, label);
+            if (!hit) {
+              const seen = await page.evaluate(() => {
+                const dlg = [...document.querySelectorAll('[role="dialog"]')].pop();
+                const scope = dlg || document;
+                return {
+                  dialogs: document.querySelectorAll('[role="dialog"]').length,
+                  inScope: [...scope.querySelectorAll("button, a[href], [role='button']")]
+                    .slice(0, 12)
+                    .map((el) => (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 20)),
+                };
+              });
+              throw new Error(`nothing matching ${label}; dialogs=${seen.dialogs}; in scope: ${seen.inScope.join(" / ")}`);
+            }
+            await hit.click();
+            await wait(step.settle ?? 1000);
+          }
+          const o = await measureDialog(page);
+          await page.screenshot({ path: join(OUT, `${name}-${step.name}-${vp.name}.png`) });
+          const deepErrs = [...new Set(problems)];
+          // "No dialog" and "an empty one" both have to fail loudly: a blank screenshot that
+          // reports ok is worse than no check at all.
+          const broke = !o.opened || o.text < 40;
+          results.push({ page: `${name}>${step.name}`, vp: vp.name, bleeds: o.bleeds, blank: broke, widest: o.wide, errors: deepErrs });
+          const flag = broke ? "BLANK " : o.bleeds ? "BLEEDS" : "ok    ";
+          console.log(`${flag} ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${broke ? `dialog=${o.opened} text=${o.text}` : o.bleeds ? `${o.what} ${o.sw} > ${o.w}  ${o.wide.join(" | ")}` : ""}`);
+          for (const e of deepErrs.slice(0, 2)) console.log(`         ${e}`);
+        } catch (err) {
+          console.log(`SKIP   ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${err.message}`);
+        }
+        // back to a clean page for the next step
+        await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: 30000 });
+        await wait(700);
+      }
 
       // A tabbed screen hides most of itself behind its tabs, and the panel that is not open
       // is the one nobody looks at. Click each one and measure it the same way - this is how

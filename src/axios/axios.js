@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearSession, announceSignOut, getAccessToken, setSession } from "./session";
 
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
 // environment variable) to point the app at another backend; with nothing set it is the local
@@ -24,10 +25,52 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor to add Bearer token from sessionStorage
+// The auth calls never trigger a refresh of their own: a refresh that fails must not loop.
+const AUTH_PATH = /\/(login|refresh-token|logout)$/;
+
+// One refresh at a time. Requests that fail together wait for the same refresh instead of each
+// starting one, so a page does not sign itself out part way through.
+let refreshing = null;
+
+// Renews the access token from the session cookie. The browser sends the cookie; no token is
+// passed in script. Resolves with the new session, or rejects when the session has ended.
+export const refreshSession = () => {
+  if (!refreshing) {
+    refreshing = axios
+      .post(`${API_BASE_URL}/refresh-token`, {}, { withCredentials: true })
+      .then(({ data }) => {
+        if (!data?.success || !data.data?.accessToken) throw new Error("Invalid refresh response");
+        setSession({ accessToken: data.data.accessToken, admin: data.data.admin });
+        return data.data;
+      })
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+};
+
+// True when the session was restored from the cookie, false when the browser has no session left.
+export const restoreSession = () => refreshSession().then(() => true, () => false);
+
+// Ends the session in this tab and tells the others. The server call is the caller's job
+// (useSession.logout): only the caller knows whether the server answered.
+export const signOutLocally = () => {
+  clearSession();
+  announceSignOut();
+};
+
+// Sends the user to the sign-in page, remembering where they were so sign-in brings them back.
+const sendToSignIn = () => {
+  if (window.location.pathname === "/") return;
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(`/?next=${encodeURIComponent(here)}`);
+};
+
+// Request interceptor: the access token, when this tab has one.
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = sessionStorage.getItem("accessToken");
+    const token = getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -36,36 +79,26 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle token refresh and errors
+// Response interceptor: a 401 renews the session once and retries the request. If the session has
+// ended, the tab signs out and goes to sign-in.
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const { data } = await axios.post(
-          `${API_BASE_URL}/refresh-token`,
-          {},
-          { withCredentials: true }
-        );
-        if (data.success && data.data?.accessToken) {
-          const newAccessToken = data.data.accessToken;
-          sessionStorage.setItem("accessToken", newAccessToken); // Store in sessionStorage
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return axiosInstance(originalRequest);
-        } else {
-          throw new Error("Invalid refresh token response");
-        }
-      } catch (refreshError) {
-        console.error("Token refresh failed:", refreshError);
-        sessionStorage.removeItem("accessToken"); // Clear from sessionStorage
-        // Redirect to login on refresh failure
-        window.location.href = "/";
-        return Promise.reject(refreshError);
-      }
+    const original = error.config;
+    const unauthorized = error.response?.status === 401;
+    if (!unauthorized || !original || original._retry || AUTH_PATH.test(original.url || "")) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+    original._retry = true;
+    try {
+      await refreshSession();
+      original.headers.Authorization = `Bearer ${getAccessToken()}`;
+      return axiosInstance(original);
+    } catch (refreshError) {
+      clearSession();
+      sendToSignIn();
+      return Promise.reject(refreshError);
+    }
   }
 );
 

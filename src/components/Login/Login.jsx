@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,7 +15,8 @@ import {
   Receipt,
   FileCode2,
 } from "lucide-react";
-import axiosInstance from "../../axios/axios";
+import axiosInstance, { restoreSession } from "../../axios/axios";
+import { safeNext, setSession } from "../../axios/session";
 import { cn } from "../../lib/utils";
 import { getBrand } from "../../config/brands";
 import { PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_VERSION } from "../../config/product";
@@ -34,13 +35,9 @@ const schema = z.object({
   rememberMe: z.boolean(),
 });
 
-// Session tokens always live in sessionStorage: the shared axios client and the invoice
-// pages read from there. "Remember me" only keeps the email address.
-const storeSession = (tokens, adminId) => {
-  sessionStorage.setItem("accessToken", tokens.accessToken);
-  sessionStorage.setItem("refreshToken", tokens.refreshToken);
-  if (adminId) sessionStorage.setItem("adminId", adminId);
-};
+// The access token is kept in memory. The session cookie the server set at sign-in is what lets a
+// new tab or a later visit continue without signing in again. "Remember me" only keeps the email.
+const storeSession = (tokens, admin) => setSession({ accessToken: tokens.accessToken, admin });
 
 const readRememberedEmail = () => {
   try {
@@ -103,6 +100,9 @@ const inputClass = (invalid) =>
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Where the user was headed before the sign-in page sent them here (a link, or a page that expired).
+  const next = safeNext(new URLSearchParams(location.search).get("next"));
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const rememberedEmail = readRememberedEmail();
@@ -120,6 +120,19 @@ export default function Login() {
       rememberMe: Boolean(rememberedEmail),
     },
   });
+
+  // A session that is still open (its cookie is valid) goes straight to the page that was asked for.
+  useEffect(() => {
+    let active = true;
+    restoreSession().then((ok) => {
+      if (active && ok) navigate(next, { replace: true });
+    });
+    return () => {
+      active = false;
+    };
+    // Checked once on mount; the destination comes from the link that opened the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setFocus(rememberedEmail ? "password" : "email");
@@ -141,9 +154,9 @@ export default function Login() {
       }
 
       const { admin, tokens } = data.data;
-      storeSession(tokens, admin?._id);
+      storeSession(tokens, admin);
       writeRememberedEmail(values.email, values.rememberMe);
-      navigate("/dashboard", { replace: true });
+      navigate(next, { replace: true });
     } catch (error) {
       if (error.response) {
         setServerError(
