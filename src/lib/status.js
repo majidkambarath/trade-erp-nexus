@@ -29,6 +29,15 @@ const STATUS_TONES = {
   COMPLETED: "success",
   REJECTED: "danger",
   OVERDUE: "danger",
+  // Quotations: out with the customer (sent), won (accepted), lapsed (expired), handed on (converted).
+  SENT: "info",
+  ACCEPTED: "success",
+  EXPIRED: "warning",
+  CONVERTED: "info",
+  SUPERSEDED: "neutral",
+  // Delivery notes: on the road, signed for.
+  DISPATCHED: "info",
+  DELIVERED: "success",
 };
 
 // "Partially Paid", "partial-paid", "PARTIAL" all normalise the same way.

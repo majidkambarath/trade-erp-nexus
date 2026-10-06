@@ -83,7 +83,9 @@ describe("role filtering", () => {
 
   it("drops individual tabs the role cannot open, keeping the module", () => {
     const sales = getVisibleModules("Sales Executive").find((m) => m.id === "sales");
-    expect(sales.tabs.map((t) => t.label)).toEqual(["Orders", "Returns", "Customers"]);
+    // Quotations and delivery notes are order paperwork, so they follow the order roles; the
+    // receivables tab is for accountants only and stays hidden from a sales executive.
+    expect(sales.tabs.map((t) => t.label)).toEqual(["Quotations", "Orders", "Delivery notes", "Returns", "Customers"]);
   });
 
   it("a role with no access at all still keeps unrestricted pages", () => {

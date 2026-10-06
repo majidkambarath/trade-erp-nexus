@@ -57,6 +57,8 @@ const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purcha
 const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
 const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
+const QuotationsPage = lazy(() => import("../components/salesDocs/QuotationsPage.jsx"));
+const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNotesPage.jsx"));
 export default function AdminRouter() {
   return (
     <Routes>
@@ -73,6 +75,8 @@ export default function AdminRouter() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />
         <Route path="/sales-order" element={<SalesOrderPage />} />
+        <Route path="/quotations" element={<QuotationsPage />} />
+        <Route path="/delivery-notes" element={<DeliveryNotesPage />} />
         <Route path="/inventory" element={<InventoryManagement />} />
         <Route path="/purchase-return" element={<PurchaseReturnPage />} />
         <Route path="/sales-return" element={<SalesReturnPage />} />

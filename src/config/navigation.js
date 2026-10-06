@@ -35,7 +35,14 @@ export const MODULES = [
     label: "Sales",
     icon: ShoppingBag,
     tabs: [
+      { label: "Quotations", to: "/quotations", roles: ORDERS, keywords: ["quote", "offer", "proposal", "estimate", "rfq", "validity"] },
       { label: "Orders", to: "/sales-order", roles: ORDERS, keywords: ["sales order", "invoice"] },
+      {
+        label: "Delivery notes",
+        to: "/delivery-notes",
+        roles: ORDERS,
+        keywords: ["delivery order", "dispatch", "proof of delivery", "pod", "pick list", "not invoiced", "14 days", "driver"],
+      },
       { label: "Returns", to: "/sales-return", roles: ORDERS, keywords: ["sales return"] },
       { label: "Customers", to: "/customer-creation", roles: ["Admin", "Sales Executive"], keywords: ["clients", "parties"] },
       {

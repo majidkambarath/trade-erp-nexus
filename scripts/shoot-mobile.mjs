@@ -10,7 +10,7 @@ import { createServer } from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import puppeteer from "puppeteer";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,6 +33,22 @@ const DEEP = {
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
+  // A quotation and a delivery note are each a printed document with a row of actions above it, and
+  // dialogs behind those. `page: true` means the step lands on a page, not a dialog.
+  "sales-quotations": [
+    { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    { name: "convert", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
+    // the shared order form, configured as a quotation (valid until, terms, reference)
+    { name: "form", page: true, clicks: ["^New quotation"], settle: 1500 },
+  ],
+  "sales-delivery-notes": [
+    { name: "new", clicks: ["New delivery note"], settle: 900 },
+    // both ways to make one: against a sales order (its own form), and on its own (the shared order form)
+    { name: "from-order", page: true, clicks: ["New delivery note", "against a sales order"], settle: 1500 },
+    { name: "own-form", page: true, clicks: ["New delivery note", "on its own"], settle: 1500 },
+    { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    { name: "deliver", clicks: ["^View$", "Mark delivered"], settle: 1300 },
+  ],
 };
 
 /** The first visible, enabled control whose text or label matches. */
@@ -64,6 +80,9 @@ async function measureDialog(page) {
     const text = (box.innerText || "").trim().length;
     // the dialog's own scrolling body is what overflows, not the dialog element
     const panes = [box, ...box.querySelectorAll("*")].filter((el) => {
+      // an A4 preview is a fixed 210mm sheet in a pane that scrolls on purpose; it is the page
+      // around it that has to fit
+      if (el.closest("[data-print-preview]")) return false;
       const st = getComputedStyle(el);
       return st.overflowX === "auto" || st.overflowX === "scroll";
     });
@@ -134,6 +153,60 @@ const bank = (i) => ({
   city: "Dubai", country: "UAE", branches: [{}, {}], isActive: true,
 });
 
+// ---- quotations and delivery notes: the shape the server's present() gives each, including `actions`
+// (the server decides who may do what) and the joined stock details a printed copy reads.
+const QSTATES = ["DRAFT", "SENT", "ACCEPTED", "SENT", "CONVERTED", "REJECTED"];
+const quotationActions = (s, expired) => ({
+  edit: s === "DRAFT", delete: s === "DRAFT", send: s === "DRAFT", accept: s === "SENT" && !expired,
+  reject: ["SENT", "ACCEPTED"].includes(s), convert: ["SENT", "ACCEPTED"].includes(s) && !expired, revise: ["SENT", "ACCEPTED", "REJECTED"].includes(s),
+});
+const quotation = (i) => {
+  const status = QSTATES[i - 1];
+  const expired = i === 4; // a sent offer past its date
+  return {
+    _id: `q${i}`, quotationNo: `QT-2026-000${i}`, reference: i % 2 ? `RFQ-${40 + i}` : "", partyId: `p${i}`,
+    party: { customerName: `Al Noor Trading ${i}`, customerId: `C00${i}` }, date: "2026-10-0" + i, validUntil: expired ? "2026-10-01" : "2026-11-0" + i,
+    totalAmount: 2646 * i, status, displayStatus: expired ? "EXPIRED" : status, expired, daysLeft: expired ? -5 : 20 - i,
+    actions: quotationActions(status, expired), items: [{}, {}, {}],
+  };
+};
+const stockDetails = { itemId: "ITM001", itemName: "Basmati Rice 5kg", barcode: "", brand: "", origin: "", currentStock: 240, unit: "BAG" };
+const docLine = (i) => ({
+  _id: `l${i}`, itemId: `s${i}`, itemCode: `ITM00${i}`, description: `Basmati Rice ${i * 5}kg`, qty: 10 * i, price: 42, discountPercent: 0, discountAmount: 0,
+  grossAmount: 420 * i, taxableAmount: 420 * i, vatPercent: 5, vatAmount: 21 * i, lineTotal: 441 * i, stockDetails,
+});
+const docPricing = { gross: 2520, lineDiscount: 0, net: 2520, lineVat: 126, chargesNet: 0, chargesVat: 0, headerDiscount: 0, roundOff: 0, grandTotal: 2646 };
+const quotationDoc = () => ({
+  ...quotation(3), terms: "Payment within 30 days of delivery.\nPrices are for the quantities shown.", notes: "", charges: [], discount: 0,
+  items: n(docLine, 3), pricing: docPricing, totalAmount: 2646, convertedTo: undefined,
+  party: { customerName: "Al Noor Trading 3", customerId: "C003", billingAddress: "Deira, Dubai", phone: "04 123 4567", paymentTerms: "Net 30", trnNumber: "100123456700003" },
+});
+
+const DSTATES = ["DRAFT", "DISPATCHED", "DELIVERED", "DELIVERED", "DELIVERED", "CANCELLED"];
+const deliveryNote = (i) => {
+  const status = DSTATES[i - 1];
+  const delivered = status === "DELIVERED";
+  const invoiceStatus = i === 5 ? "INVOICED" : delivered ? "NONE" : "NONE";
+  return {
+    _id: `dn${i}`, deliveryNoteNo: `DLN-2026-000${i}`, partyId: `p${i}`, party: { customerName: `Al Noor Trading ${i}`, customerId: `C00${i}` },
+    date: "2026-10-0" + i, deliveredAt: delivered ? "2026-09-2" + i : null, status, invoiceStatus, totalAmount: 2646 * i,
+    source: i % 2 ? { kind: "sales_order", no: `SO-2026-004${i}` } : { kind: "manual" }, reference: "", items: [{}, {}],
+    invoice: i === 5 ? { kind: "sales_order", no: "SO-2026-0049" } : undefined,
+    clock: delivered && invoiceStatus !== "INVOICED" ? { clock: i === 3 ? "overdue" : "dueSoon", daysToStandard: i === 3 ? -9 : 2, standardDue: "2026-10-12", summaryDue: "2026-10-14", deliveredDay: "2026-09-28", daysSince: 8 } : null,
+    actions: { edit: status === "DRAFT", delete: status === "DRAFT", dispatch: status === "DRAFT", deliver: ["DRAFT", "DISPATCHED"].includes(status), cancel: ["DRAFT", "DISPATCHED"].includes(status), invoice: delivered && invoiceStatus === "NONE" && !(i % 2) },
+  };
+};
+const deliveryNoteDoc = () => ({
+  ...deliveryNote(2), deliveryAddress: "Warehouse 4, Al Quoz Industrial Area 3, Dubai", contactPerson: "Ali Hassan", contactPhone: "050 111 2222",
+  vehicleNo: "DXB A 12345", driverName: "Raju", driverPhone: "055 000 1111", notes: "Call the store keeper before arriving.",
+  items: n(docLine, 3).map((l) => ({ ...l, sourceLineId: l._id })), pricing: docPricing, totalAmount: 2646, charges: [],
+  source: { kind: "sales_order", id: "o1", no: "SO-2026-0042" }, invoice: { kind: "sales_order", id: "o1", no: "SO-2026-0042" }, invoiceStatus: "DRAFT",
+  party: { customerName: "Al Noor Trading 2", customerId: "C002", billingAddress: "Deira, Dubai", shippingAddress: "Warehouse 4, Al Quoz", phone: "050 111 2222" },
+  sourceOrder: { id: "o1", no: "SO-2026-0042", status: "DRAFT", lines: n(docLine, 3).map((l) => ({ lineId: l._id, description: l.description, itemCode: l.itemCode })) },
+  fulfilment: Object.fromEntries(n(docLine, 3).map((l) => [l._id, { ordered: l.qty * 2, pending: l.qty, delivered: 0, remaining: l.qty, over: false }])),
+});
+const activityRows = () => n((i) => ({ _id: `act${i}`, at: `2026-10-0${i}T09:3${i}:00.000Z`, action: ["QUOTATION_CREATED", "QUOTATION_SENT", "QUOTATION_ACCEPTED"][i - 1], summary: "Quotation QT-2026-0003 - 2646.00 saved", username: "admin@test.uae" }), 3);
+
 const batch = (i) => ({
   _id: `bt${i}`, batchNumber: `B-20260${i}`, itemName: `Basmati Rice ${i}`, sku: `SKU-00${i}`,
   itemCode: `IT00${i}`, receivedAt: "2026-09-1" + ((i % 9) + 1), expiryDate: "2027-03-1" + ((i % 9) + 1),
@@ -173,6 +246,35 @@ function stubFor(pathname) {
         payable: { amount: 11200, count: 2 },
       },
     };
+  }
+
+  // Quotations: a list (rows, with pagination beside), a summary object, one document, its activity
+  if (p.includes("/quotations")) {
+    if (p.endsWith("/summary")) {
+      return {
+        byStatus: { DRAFT: { count: 1, value: 2646 }, SENT: { count: 1, value: 10584 }, ACCEPTED: { count: 1, value: 7938 }, EXPIRED: { count: 1, value: 10584 }, CONVERTED: { count: 1, value: 13230 }, REJECTED: { count: 1, value: 15876 } },
+        total: 6, winRate: 33.3, expiringSoon: { count: 1, value: 10584 },
+      };
+    }
+    if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
+    if (/\/quotations\/[^/]+$/.test(p)) return quotationDoc();
+    return n(quotation);
+  }
+
+  // Delivery notes: the same, plus the report of what is delivered and not invoiced, and stock availability
+  if (p.includes("/delivery-notes")) {
+    if (p.endsWith("/summary")) {
+      return { byStatus: { DRAFT: 1, DISPATCHED: 1, DELIVERED: 3, CANCELLED: 1 }, uninvoiced: { count: 2, value: 18522 }, clock: { count: 2, within: 0, dueSoon: 1, pastStandard: 0, overdue: 1 } };
+    }
+    if (p.endsWith("/uninvoiced")) return { rows: [], summary: { count: 0, value: 0, within: 0, dueSoon: 0, pastStandard: 0, overdue: 0 } };
+    if (p.endsWith("/availability")) return [];
+    if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
+    if (p.includes("/from-order/")) {
+      return { order: { id: "o1", no: "SO-2026-0042", status: "DRAFT", date: "2026-10-02", reference: "LPO-1" }, party: { customerName: "Al Noor Trading", customerId: "C001" }, deliveryAddress: "Al Quoz", lines: n(docLine, 3).map((l) => ({ sourceLineId: l._id, itemId: l.itemId, itemCode: l.itemCode, description: l.description, stockDetails, price: 42, ordered: l.qty * 2, delivered: l.qty / 2, pending: 0, remaining: l.qty * 1.5, over: false })) };
+    }
+    if (p.endsWith("/pick-list")) return { deliveryNoteNo: "DLN-2026-0002", customer: "Al Noor Trading 2", date: "2026-10-02", minShelfLifeDays: 30, lines: [{ lineId: "l1", itemCode: "ITM001", description: "Basmati Rice 5kg", unit: "BAG", qty: 10, basis: "suggested", unallocated: 0, batches: [{ batchNumber: "B-2026-1", expiryDate: "2027-03-01", qty: 10 }] }] };
+    if (/\/delivery-notes\/[^/]+$/.test(p)) return deliveryNoteDoc();
+    return n(deliveryNote);
   }
 
   // { cashAccounts, bankAccounts, cards } - the payment options CashAndBank is built from
@@ -508,7 +610,13 @@ const vite = spawn(
 );
 
 const stop = async (code) => {
-  try { vite.kill(); } catch { /* already gone */ }
+  // On Windows Vite is started through npx and cmd, and killing the first of them leaves the server
+  // itself running (port 5177 stayed taken after every run), so the whole tree goes. It is waited for:
+  // this process exits straight afterwards, and a kill that has not run yet is a kill that never runs.
+  try {
+    if (process.platform === "win32" && vite.pid) spawnSync("taskkill", ["/pid", String(vite.pid), "/T", "/F"], { stdio: "ignore" });
+    else vite.kill();
+  } catch { /* already gone */ }
   api.close();
   process.exit(code);
 };
@@ -684,7 +792,7 @@ for (const vp of VIEWPORTS) {
           const deepErrs = [...new Set(problems)];
           // "No dialog" and "an empty one" both have to fail loudly: a blank screenshot that
           // reports ok is worse than no check at all.
-          const broke = !o.opened || o.text < 40;
+          const broke = (!step.page && !o.opened) || o.text < 40;
           results.push({ page: `${name}>${step.name}`, vp: vp.name, bleeds: o.bleeds, blank: broke, widest: o.wide, errors: deepErrs });
           const flag = broke ? "BLANK " : o.bleeds ? "BLEEDS" : "ok    ";
           console.log(`${flag} ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${broke ? `dialog=${o.opened} text=${o.text}` : o.bleeds ? `${o.what} ${o.sw} > ${o.w}  ${o.wide.join(" | ")}` : ""}`);

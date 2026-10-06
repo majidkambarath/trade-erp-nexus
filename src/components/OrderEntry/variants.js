@@ -419,6 +419,8 @@ export const chargesPayload = (charges = []) =>
 
 // Per-document payload: the one place a saved record's top-level shape is decided.
 export const buildPayload = (V, f, rows, stockById, { linkedRef, charges } = {}) => {
+  // A document that is not a Transaction (a quotation, a delivery note) shapes its own payload.
+  if (V.buildPayload) return V.buildPayload(V, f, rows, stockById, { linkedRef, charges });
   const items = rows
     .filter((r) => r.itemId && num(r.qty) > 0)
     .map((r) => V.itemPayload(r, stockById.get(String(r.itemId))));
@@ -447,4 +449,106 @@ export const buildPayload = (V, f, rows, stockById, { linkedRef, charges } = {})
   return payload;
 };
 
-export { salesReturnItem, itemPayload };
+// ---- quotation and delivery note -------------------------------------------------------
+// Neither is a Transaction: each has its own endpoint, and the SERVER prices it (the same code that
+// prices the invoice it can become), so the payload carries inputs only - no totals, no status, no type.
+// They reuse the sales order's grid and maths, and they are added here, after the helpers they use.
+
+// A line as an input: what was asked for, never what the form worked out. `price` is the unit price.
+const pricedLineInput = (row) => {
+  const out = {
+    itemId: row.itemId,
+    itemCode: row.itemCode || "",
+    description: row.description || "",
+    qty: num(row.qty),
+    price: num(row.rate),
+    vatPercent: num(row.vatPercent),
+  };
+  const discount = num(row.discountPercent);
+  if (discount > 0) out.discountPercent = Math.min(100, discount);
+  if (row.taxCodeId) out.taxCodeId = row.taxCodeId;
+  return out;
+};
+
+// `charges` is always sent, even empty, so removing the last charge on an edit actually removes it.
+const pricedPayload = (header) => (V, f, rows, _stock, { charges } = {}) => ({
+  partyId: f.partyId,
+  date: f.date,
+  items: rows.filter((r) => r.itemId && num(r.qty) > 0).map(pricedLineInput),
+  charges: chargesPayload(charges ?? f.charges),
+  discount: num(f.discount),
+  notes: f.notes || "",
+  ...header(f),
+});
+
+// A saved line carries its stock details alongside it (the server joins them), and that is where "in stock" is.
+const withStock = (i) => ({ ...salesRowFromSaved(i), currentStock: i.stockDetails?.currentStock ?? i.currentStock ?? 0 });
+
+const customerSide = {
+  partyType: "Customer",
+  party: { idKey: "customerId", nameKey: "customerName", idInDoc: "customerId", nameInDoc: "customerName" },
+  preview: customerPreview,
+  fields: { unitPrice: "rate", lineValue: "subtotal", vat: "vatAmount", gross: "lineTotal", vatPercent: "vatPercent" },
+  columns: SALES_COLUMNS,
+  rowTemplate: () => VARIANTS.sales.rowTemplate(),
+  hydrate: hydrateSales,
+  totals: (rows) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent)),
+  rowFromSaved: withStock,
+  totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
+  discount: true,
+  numberMode: false,
+  referenceRequired: false,
+  priority: false,
+  sourceDocument: null,
+  attachments: false,
+  statusOptions: null,
+};
+
+// An offer. Valid until a date, with terms that print on it; the number is assigned on save.
+VARIANTS.quotation = {
+  ...customerSide,
+  key: "quotation",
+  noun: "Quotation",
+  endpoint: "/quotations",
+  numberField: "quotationNo",
+  labels: { doc: "Quotation no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Valid until", reference: "Customer reference" },
+  title: { create: "Create quotation", edit: "Edit quotation", save: "Save quotation", saveEdit: "Update quotation", items: "Quoted items" },
+  referenceKey: "reference",
+  hasSecondDate: true,
+  secondDateKey: "validUntil",
+  secondDateRequired: true,
+  terms: true,
+  buildPayload: pricedPayload((f) => ({ validUntil: f.validUntil, reference: f.reference || "", terms: f.terms || "" })),
+};
+
+// The goods go first and are invoiced after. Who carries them and where to is on the note.
+const DELIVERY_FIELDS = [
+  { key: "deliveryAddress", label: "Delivery address", type: "textarea", span: 2 },
+  { key: "contactPerson", label: "Contact person" },
+  { key: "contactPhone", label: "Contact phone" },
+  { key: "vehicleNo", label: "Vehicle" },
+  { key: "driverName", label: "Driver" },
+  { key: "driverPhone", label: "Driver phone" },
+];
+
+VARIANTS.deliveryNote = {
+  ...customerSide,
+  key: "deliveryNote",
+  noun: "Delivery note",
+  endpoint: "/delivery-notes",
+  numberField: "deliveryNoteNo",
+  labels: { doc: "Delivery note no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: null, reference: "Customer LPO" },
+  title: { create: "Create delivery note", edit: "Edit delivery note", save: "Save delivery note", saveEdit: "Update delivery note", items: "Items to deliver" },
+  referenceKey: "reference",
+  hasSecondDate: false,
+  terms: false,
+  extraFields: DELIVERY_FIELDS,
+  // The note moves no stock, so ask the server what is really free before promising it.
+  checkAvailability: true,
+  buildPayload: pricedPayload((f) => ({
+    reference: f.reference || "",
+    ...Object.fromEntries(DELIVERY_FIELDS.map((d) => [d.key, f[d.key] || ""])),
+  })),
+};
+
+export { salesReturnItem, itemPayload, DELIVERY_FIELDS };

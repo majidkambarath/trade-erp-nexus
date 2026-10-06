@@ -164,3 +164,83 @@ describe("quick-create payloads", () => {
     expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "Y", address: "Z" })).toBeNull();
   });
 });
+
+describe("quotation payload (the server prices it, so it carries inputs only)", () => {
+  const V = VARIANTS.quotation;
+  const row = { ...V.rowTemplate(), itemId: "s1", itemCode: "ITM1", description: "Basmati 5kg", qty: "10", rate: "20", vatPercent: "5", discountPercent: "10", taxCodeId: "tc1" };
+  const form = { partyId: "c1", date: "2026-10-06", validUntil: "2026-11-05", reference: "RFQ-7", terms: "30 days", notes: "n", discount: "5", charges: [] };
+
+  it("sends the unit price and the line's discount, tax code and VAT, and no totals", () => {
+    const p = buildPayload(V, form, [row], byId(stock()));
+    expect(p.items).toEqual([
+      { itemId: "s1", itemCode: "ITM1", description: "Basmati 5kg", qty: 10, price: 20, vatPercent: 5, discountPercent: 10, taxCodeId: "tc1" },
+    ]);
+    for (const k of ["totalAmount", "status", "type", "transactionNo", "createdBy"]) expect(p).not.toHaveProperty(k);
+    expect(p).toMatchObject({ partyId: "c1", date: "2026-10-06", validUntil: "2026-11-05", reference: "RFQ-7", terms: "30 days", discount: 5 });
+  });
+
+  it("leaves out blank lines and zero quantities", () => {
+    const p = buildPayload(V, form, [row, V.rowTemplate(), { ...row, qty: "0" }], byId(stock()));
+    expect(p.items).toHaveLength(1);
+  });
+
+  it("always sends the charges, even none, so removing the last one on an edit takes effect", () => {
+    expect(buildPayload(V, form, [row], byId(stock())).charges).toEqual([]);
+    const withCharge = buildPayload(V, { ...form, charges: [{ description: "Freight", amount: "25", vatPercent: "5" }, { description: "", amount: "" }] }, [row], byId(stock()));
+    expect(withCharge.charges).toEqual([{ code: undefined, description: "Freight", amount: 25, vatPercent: 5 }]);
+  });
+
+  it("is its own document: its own endpoint, no status picker, valid until is required", () => {
+    expect(V.endpoint).toBe("/quotations");
+    expect(V.statusOptions).toBeNull();
+    expect(V.secondDateKey).toBe("validUntil");
+    expect(V.secondDateRequired).toBe(true);
+    expect(V.attachments).toBe(false);
+    expect(V.docType).toBeUndefined();
+  });
+
+  it("uses the sales order's grid and maths, so the figures match the invoice", () => {
+    expect(V.columns).toBe(VARIANTS.sales.columns);
+    const t = V.totals([{ ...row }]);
+    expect(t.total).toBe("189.00"); // 10 x 20 = 200, 10% off = 180, + 5% VAT
+    expect(V.totalAmount(t, { discount: "5" })).toBe(184);
+  });
+
+  it("opens a saved line with the stock that came with it", () => {
+    const r = V.rowFromSaved({ itemId: "s1", description: "Rice", qty: 3, price: 20, vatPercent: 5, stockDetails: { currentStock: 42 } });
+    expect(r.rate).toBe("20");
+    expect(r.currentStock).toBe(42);
+  });
+});
+
+describe("delivery note payload", () => {
+  const V = VARIANTS.deliveryNote;
+  const row = { ...V.rowTemplate(), itemId: "s1", description: "Rice", qty: "4", rate: "20", vatPercent: "5" };
+  const form = { partyId: "c1", date: "2026-10-06", reference: "LPO-1", deliveryAddress: "Al Quoz", vehicleNo: "DXB 1", driverName: "Raju", charges: [], discount: "" };
+
+  it("carries who is driving and where to, and a blank is sent as empty rather than dropped", () => {
+    const p = buildPayload(V, form, [row], byId(stock()));
+    expect(p).toMatchObject({ reference: "LPO-1", deliveryAddress: "Al Quoz", vehicleNo: "DXB 1", driverName: "Raju", contactPerson: "", contactPhone: "", driverPhone: "" });
+    expect(p.items[0]).toMatchObject({ itemId: "s1", qty: 4, price: 20, vatPercent: 5 });
+    expect(p).not.toHaveProperty("totalAmount");
+  });
+
+  it("has no second date, no terms, and asks the server what is free", () => {
+    expect(V.hasSecondDate).toBe(false);
+    expect(V.terms).toBe(false);
+    expect(V.checkAvailability).toBe(true);
+    expect(V.extraFields.map((f) => f.key)).toEqual(["deliveryAddress", "contactPerson", "contactPhone", "vehicleNo", "driverName", "driverPhone"]);
+  });
+});
+
+describe("the four order documents are unchanged by the new ones", () => {
+  it("still build a Transaction payload with a type, a status and a total", () => {
+    const row = { ...VARIANTS.sales.rowTemplate(), itemId: "s1", qty: "4", rate: "55", vatPercent: "5" };
+    const p = buildPayload(VARIANTS.sales, { partyId: "c1", status: "DRAFT" }, [row], byId(stock()));
+    expect(p.type).toBe("sales_order");
+    expect(p.status).toBe("DRAFT");
+    expect(p.totalAmount).toBe(231);
+    expect(VARIANTS.sales.endpoint).toBeUndefined();
+    expect(VARIANTS.purchase.endpoint).toBeUndefined();
+  });
+});

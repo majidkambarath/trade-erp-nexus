@@ -15,11 +15,11 @@ import {
 // Approved orders are the tax invoices; a draft or pending order is only an order.
 const INVOICED = ["APPROVED", "INVOICED"];
 
-const contactLines = (p) =>
+export const contactLines = (p) =>
   [p.phone && `Tel: ${p.phone}`, p.email && `Email: ${p.email}`].filter(Boolean);
 
 // The sheet fields every document shares: what is printed, from which saved document.
-const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt }) => {
+export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt }) => {
   const lines = invoiceLines(doc.items);
   const totals = documentTotals(doc);
   return {
@@ -38,7 +38,7 @@ const sheetFor = (doc, { title, numberLabel, number, party, meta, company, curre
   };
 };
 
-const dateOf = (value) => (value ? formatDateGB(value) : "");
+export const dateOf = (value) => (value ? formatDateGB(value) : "");
 
 export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);

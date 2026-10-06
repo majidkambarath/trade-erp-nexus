@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Download, History, Loader2, Printer, Send } from "lucide-react";
-import InvoiceSheet from "./InvoiceSheet";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { readAccent } from "./invoiceModel";
-import { downloadSheetsPdf, printMarkup, sheetMarkup } from "./documentPdf";
+import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup } from "./documentPdf";
 import { cn } from "../../../lib/utils";
 import { statusClasses } from "../../../lib/status";
 
@@ -14,12 +13,17 @@ const COPIES = ["Customer copy", "Internal copy"];
 // Everything the document needs comes in as `sheet`; this component only handles the session.
 // Print, the PDF and the list's downloads all render the same markup (documentPdf.js), so the
 // preview, the print and the file cannot disagree.
-export default function InvoiceScreen({ sheet, fileName, status, onBack, missingTrn, auditId }) {
-  const [copy, setCopy] = useState(COPIES[0]);
+//
+// A document that is not an invoice can hand the screen more, all optional: `copies` (the names of the
+// copies it prints), `actions` (its own buttons, ahead of the print ones), `banner` (what to know before
+// reading it) and `footer` (what happened to it). `status` may be any label.
+export default function InvoiceScreen({ sheet, fileName, status, statusLabel, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer }) {
+  const [copy, setCopy] = useState(copies[0]);
   const [auditOpen, setAuditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const accent = readAccent();
+  const Sheet = sheetComponent(sheet);
 
   const handlePrint = () => printMarkup(sheetMarkup(sheet, { copy, accent }));
 
@@ -27,7 +31,7 @@ export default function InvoiceScreen({ sheet, fileName, status, onBack, missing
     setBusy(true);
     setError("");
     try {
-      const markups = COPIES.map((c) => sheetMarkup(sheet, { copy: c, accent }));
+      const markups = copies.map((c) => sheetMarkup(sheet, { copy: c, accent }));
       await downloadSheetsPdf(markups, fileName);
     } catch (e) {
       console.error(e);
@@ -62,14 +66,15 @@ export default function InvoiceScreen({ sheet, fileName, status, onBack, missing
           </button>
           {status && (
             <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", statusClasses(status))}>
-              {status}
+              {statusLabel ?? status}
             </span>
           )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {actions}
           <div className="inline-flex rounded-lg border border-input p-0.5 text-xs font-semibold" role="group" aria-label="Copy">
-            {COPIES.map((c) => (
+            {copies.map((c) => (
               <button
                 key={c}
                 type="button"
@@ -91,7 +96,9 @@ export default function InvoiceScreen({ sheet, fileName, status, onBack, missing
             {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
             {busy ? "Creating PDF…" : "Download PDF"}
           </button>
-          <button type="button" onClick={handlePrint} className="erp-btn-primary">
+          {/* one strong button per screen: when the document brings its own actions (send, accept, deliver),
+              they are the next step and Print steps back */}
+          <button type="button" onClick={handlePrint} className={actions ? button : "erp-btn-primary"}>
             <Printer className="h-4 w-4" aria-hidden="true" />
             Print
             <kbd className="ms-1 rounded border border-white/30 px-1 text-[11px] font-semibold opacity-80">Ctrl P</kbd>
@@ -123,12 +130,16 @@ export default function InvoiceScreen({ sheet, fileName, status, onBack, missing
         </p>
       )}
 
+      {banner}
+
       {/* the sheet is always white paper: it is what gets printed and filed, whatever the theme */}
-      <div className="overflow-x-auto rounded-xl border border-border bg-secondary p-4 sm:p-8">
+      <div data-print-preview="" className="overflow-x-auto rounded-xl border border-border bg-secondary p-4 sm:p-8">
         <div className="mx-auto w-fit shadow-card">
-          <InvoiceSheet {...sheet} copy={copy} accent={accent} />
+          <Sheet {...sheet} copy={copy} accent={accent} />
         </div>
       </div>
+
+      {footer}
 
       {auditOpen && <DocumentAuditTrail id={auditId} onClose={() => setAuditOpen(false)} />}
     </div>

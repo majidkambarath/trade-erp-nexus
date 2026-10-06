@@ -11,6 +11,7 @@ import { buildPayload, recalcRow, rowFromReturnLine } from "./variants";
 import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
 import { formatNumber } from "../../utils/format";
+import { availabilityWarning } from "../../lib/salesDocuments";
 import { cn } from "../../lib/utils";
 
 import { DateInput } from "../accounting/kit";
@@ -124,8 +125,15 @@ export default function OrderForm({
   const partyKind = V.partyType === "Vendor" ? "vendor" : "customer";
   const partySpec = QUICK_CREATE[partyKind];
   const formId = `order-${V.key}`;
+  // The four order documents are Transactions. A quotation and a delivery note are not: each names its
+  // own endpoint, second date ("valid until"), reference field and extra header fields on its variant.
+  const endpoint = V.endpoint || "/transactions/transactions";
+  const secondKey = V.secondDateKey || "deliveryDate";
+  const refKey = V.referenceKey || "vendorReference";
+  const isTransaction = !V.endpoint;
 
   const [errors, setErrors] = useState({});
+  const [availability, setAvailability] = useState({}); // itemId -> { onHand, committed, available }
   const [extraParties, setExtraParties] = useState([]);
   const [extraStock, setExtraStock] = useState([]);
   const [quick, setQuick] = useState(null); // the open quick-create: { kind, rowIndex?, initial }
@@ -202,6 +210,28 @@ export default function OrderForm({
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearErrors([name]);
   };
+
+  // A delivery note moves no stock, so what is free is what is on hand less what other notes that are
+  // not invoiced yet have already promised. Asked of the server when the set of items changes, not on
+  // every keystroke, and only a warning: a note can still be made for goods that are on their way.
+  const itemKey = useMemo(() => [...new Set(rows.map((r) => r.itemId).filter(Boolean))].sort().join(","), [rows]);
+  useEffect(() => {
+    if (!V.checkAvailability || !itemKey) return undefined;
+    let live = true;
+    axiosInstance
+      .get("/delivery-notes/availability", { params: { itemIds: itemKey, excludeId: selected?.id } })
+      .then((r) => live && setAvailability(Object.fromEntries((r.data?.data || []).map((a) => [a.itemId, a]))))
+      .catch(() => {});
+    return () => { live = false; };
+  }, [V.checkAvailability, itemKey, selected?.id]);
+  const stockWarnings = useMemo(() => {
+    if (!V.checkAvailability) return [];
+    const wanted = new Map(); // two lines for one item draw on the same stock
+    for (const r of rows) if (r.itemId) wanted.set(String(r.itemId), (wanted.get(String(r.itemId)) || 0) + num(r.qty));
+    return [...wanted]
+      .map(([id, qty]) => availabilityWarning(rows.find((r) => String(r.itemId) === id)?.description, qty, availability[id]))
+      .filter(Boolean);
+  }, [V.checkAvailability, rows, availability]);
 
   // ---- lines -------------------------------------------------------------------------
   const changeItem = useCallback(
@@ -280,6 +310,11 @@ export default function OrderForm({
     const priceEditable = V.columns.some((c) => c.key === F.unitPrice && c.kind === "number");
     if (!formData.partyId) e.partyId = `${V.labels.partyNoun} is required`;
     if (!formData.date) e.date = "Date is required";
+    // a quotation is valid until a day, which cannot come before the quotation itself
+    if (V.secondDateRequired) {
+      if (!formData[secondKey]) e[secondKey] = `${V.labels.secondDate} is required`;
+      else if (formData.date && formData[secondKey] < formData.date) e[secondKey] = `${V.labels.secondDate} cannot be before the date`;
+    }
     if (V.referenceRequired && !formData.vendorReference) e.vendorReference = "Vendor reference is required";
     if (!rows.some((r) => r.itemId && num(r.qty) > 0)) e.items = "Add at least one item with a quantity above 0";
     rows.forEach((r, i) => {
@@ -344,15 +379,15 @@ export default function OrderForm({
     if (afterSave) payload.status = "DRAFT";
     try {
       const res = selected
-        ? await axiosInstance.put(`/transactions/transactions/${selected.id}`, payload)
-        : await axiosInstance.post("/transactions/transactions", payload);
+        ? await axiosInstance.put(`${endpoint}/${selected.id}`, payload)
+        : await axiosInstance.post(endpoint, payload);
       const doc = hydrateSaved(res.data.data, payload);
       if (afterSave) {
         const r = await applyAfterSave(res.data.data._id, afterSave);
         if (r.done) doc.status = r.status;
         else notify?.(`${V.noun} saved, but not ${afterSave === "approve" ? "approved" : "rejected"} - it was left as a draft${r.message ? `: ${r.message}` : ""}`, r.cancelled ? "info" : "error");
       }
-      if (!selected && files.length) {
+      if (!selected && files.length && V.attachments !== false) {
         const failed = await linkPending(files, "transaction", res.data.data._id);
         if (failed.length) notify?.(`${failed.length} attachment(s) could not be attached; open the document to add them again`, "error");
       }
@@ -593,13 +628,13 @@ export default function OrderForm({
               )}
 
               {V.hasSecondDate && (
-                <Field id={fid("deliveryDate")} label={V.labels.secondDate} error={errors.deliveryDate}>
+                <Field id={fid(secondKey)} label={V.labels.secondDate} error={errors[secondKey]}>
                   <DateInput
-                    id={fid("deliveryDate")}
-                    name="deliveryDate"
-                    value={formData.deliveryDate || ""}
-                    onChange={(e) => setHeader("deliveryDate", e.target.value)}
-                    aria-invalid={Boolean(errors.deliveryDate) || undefined}
+                    id={fid(secondKey)}
+                    name={secondKey}
+                    value={formData[secondKey] || ""}
+                    onChange={(e) => setHeader(secondKey, e.target.value)}
+                    aria-invalid={Boolean(errors[secondKey]) || undefined}
                   />
                 </Field>
               )}
@@ -618,18 +653,21 @@ export default function OrderForm({
                   </Field>
                 </>
               ) : V.labels.reference ? (
-                <Field id={fid("vendorReference")} label={V.labels.reference}>
-                  <input id={fid("vendorReference")} name="vendorReference" type="text" value={formData.vendorReference || ""} onChange={(e) => setHeader("vendorReference", e.target.value)} placeholder="Enter reference" className={fieldCls(false)} />
+                <Field id={fid(refKey)} label={V.labels.reference}>
+                  <input id={fid(refKey)} name={refKey} type="text" value={formData[refKey] || ""} onChange={(e) => setHeader(refKey, e.target.value)} placeholder="Enter reference" className={fieldCls(false)} />
                 </Field>
               ) : null}
 
-              <Field id={fid("status")} label="Status">
-                <select id={fid("status")} name="status" value={formData.status || "DRAFT"} onChange={(e) => setHeader("status", e.target.value)} className={fieldCls(false)}>
-                  {V.statusOptions(editing).map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </Field>
+              {/* a quotation or delivery note has no status to pick: it moves through its own actions */}
+              {V.statusOptions && (
+                <Field id={fid("status")} label="Status">
+                  <select id={fid("status")} name="status" value={formData.status || "DRAFT"} onChange={(e) => setHeader("status", e.target.value)} className={fieldCls(false)}>
+                    {V.statusOptions(editing).map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
 
               {V.discount && (
                 <Field id={fid("discount")} label="Discount (AED)">
@@ -647,11 +685,22 @@ export default function OrderForm({
                 </Field>
               )}
 
-              {V.priority && (
+              {(V.priority || V.terms) && (
                 <Field id={fid("terms")} label="Terms" className="sm:col-span-2">
                   <textarea id={fid("terms")} name="terms" rows={2} value={formData.terms || ""} onChange={(e) => setHeader("terms", e.target.value)} className={cn(fieldCls(false), "h-auto py-2")} />
                 </Field>
               )}
+
+              {/* header fields only some documents have (a delivery note's vehicle, driver and address) */}
+              {(V.extraFields || []).map((f) => (
+                <Field key={f.key} id={fid(f.key)} label={f.label} className={f.span === 2 ? "sm:col-span-2" : undefined}>
+                  {f.type === "textarea" ? (
+                    <textarea id={fid(f.key)} name={f.key} rows={2} value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} className={cn(fieldCls(false), "h-auto py-2")} />
+                  ) : (
+                    <input id={fid(f.key)} name={f.key} type="text" value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} className={fieldCls(false)} />
+                  )}
+                </Field>
+              ))}
 
               <Field id={fid("notes")} label="Notes" className="sm:col-span-2">
                 <textarea id={fid("notes")} name="notes" rows={2} value={formData.notes || ""} onChange={(e) => setHeader("notes", e.target.value)} placeholder="Additional notes or special instructions" className={cn(fieldCls(false), "h-auto py-2")} />
@@ -676,7 +725,7 @@ export default function OrderForm({
                       </div>
                     ))}
                   </dl>
-                  {formData.vendorReference && <p className="pt-1 text-muted-foreground">Reference: {formData.vendorReference}</p>}
+                  {formData[refKey] && <p className="pt-1 text-muted-foreground">Reference: {formData[refKey]}</p>}
                 </div>
               ) : (
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -736,6 +785,15 @@ export default function OrderForm({
             focusRequest={focusRequest}
             selectOptions={selectOptions}
           />
+          {stockWarnings.length > 0 && (
+            <div role="status" className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-foreground">
+              <p className="font-semibold">Not enough free stock for this delivery note</p>
+              <ul className="mt-1 list-disc ps-5">
+                {stockWarnings.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+              <p className="mt-1 text-xs text-muted-foreground">A delivery note moves no stock, so goods promised on other notes that are not invoiced yet are counted as taken. You can still save it.</p>
+            </div>
+          )}
         </section>
 
         <section aria-labelledby={fid("charges")} className="rounded-xl border border-border bg-card p-6 shadow-card">
@@ -767,11 +825,14 @@ export default function OrderForm({
           ))}
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-6 shadow-card">
-          {selected?.id
-            ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />
-            : <AttachmentPanel value={files} onChange={setFiles} label={attachmentsLabel} />}
-        </section>
+        {/* attachments belong to transactions; a quotation or delivery note has none of its own yet */}
+        {isTransaction && (
+          <section className="rounded-xl border border-border bg-card p-6 shadow-card">
+            {selected?.id
+              ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />
+              : <AttachmentPanel value={files} onChange={setFiles} label={attachmentsLabel} />}
+          </section>
+        )}
       </form>
 
       <QuickCreateDialog

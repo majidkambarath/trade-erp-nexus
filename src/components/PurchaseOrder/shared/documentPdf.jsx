@@ -6,14 +6,21 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import InvoiceSheet from "./InvoiceSheet";
+import DeliverySheet from "./DeliverySheet";
 
 const A4_MM = { w: 210, h: 297 };
 // 210mm at 96dpi: the width the sheet is laid out at.
 const SHEET_PX = 794;
 
+// Which page a document is drawn on. Invoices, orders, returns and quotations share the priced sheet;
+// a delivery note and a pick list have their own (quantities, signatures), named by `layout`.
+export const sheetComponent = (sheet) => (sheet?.layout === "delivery" ? DeliverySheet : InvoiceSheet);
+
 // The page markup for one copy of a document.
-export const sheetMarkup = (sheet, { copy, accent }) =>
-  renderToStaticMarkup(<InvoiceSheet {...sheet} copy={copy} accent={accent} />);
+export const sheetMarkup = (sheet, { copy, accent }) => {
+  const Sheet = sheetComponent(sheet);
+  return renderToStaticMarkup(<Sheet {...sheet} copy={copy} accent={accent} />);
+};
 
 // A frame holding one copy, loaded and ready to be captured or printed. It sits off screen, so
 // the user never sees it, but it has full layout size, which is what both the PDF and print need.

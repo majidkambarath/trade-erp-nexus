@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { processTransaction } from "../../../lib/processTransaction";
 import { VARIANTS } from "../../OrderEntry/variants";
 import { StatCard } from "../../ui/stat-card";
@@ -59,8 +60,13 @@ import { getBrand } from "../../../config/brands";
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
+// Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
+// that is on it): the list opens already narrowed to that document.
+const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
+
 const SalesOrderManagement = () => {
-  const [activeView, setActiveView] = useState("dashboard");
+  const navigate = useNavigate();
+  const [activeView, setActiveView] = useState(() => (linkedSearch() ? "list" : "dashboard"));
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
   const wide = useMediaQuery(WIDE);
@@ -68,7 +74,7 @@ const SalesOrderManagement = () => {
   const [selectedSO, setSelectedSO] = useState(null);
   // The document whose audit trail is open, or null.
   const [auditSO, setAuditSO] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
@@ -906,7 +912,7 @@ const formatDisplayTransactionNo = (t) => {
                 Sales orders
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Quotations and invoices to your customers, from draft to approved.
+                Orders and tax invoices to your customers, from draft to approved.
               </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
@@ -1110,6 +1116,7 @@ const formatDisplayTransactionNo = (t) => {
                     onDownloadInternal={(so) => downloadInvoiceCopy(so, 'Internal Copy')}
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
                     onShowAudit={setAuditSO}
+                    onDeliveryNote={(so) => navigate(`/delivery-notes?order=${so.id}`)}
                   />
                 ) : (
                   <GridView

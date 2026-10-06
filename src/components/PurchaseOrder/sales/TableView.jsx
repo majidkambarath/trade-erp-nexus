@@ -31,6 +31,7 @@ const TableView = ({
   onDownloadInternal,
   onDownloadCustomer,
   onShowAudit,
+  onDeliveryNote,
 }) => {
   return (
     <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
@@ -251,6 +252,11 @@ const TableView = ({
                         <button onClick={() => onShowAudit && onShowAudit(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                           Audit trail
                         </button>
+                        {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && (
+                          <button onClick={() => onDeliveryNote(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
+                            Delivery note
+                          </button>
+                        )}
                         <button onClick={() => onDownloadInternal && onDownloadInternal(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                           Download
                         </button>

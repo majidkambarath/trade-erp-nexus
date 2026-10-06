@@ -49,6 +49,8 @@ export default function InvoiceSheet({
   accent,
   notice,
   receipt,
+  terms,
+  acceptance,
 }) {
   const soft = tint(accent, 0.1);
 
@@ -241,8 +243,25 @@ export default function InvoiceSheet({
         </div>
       </div>
 
+      {/* what the offer is subject to (a quotation) */}
+      {terms && (
+        <div style={{ marginTop: 16 }}>
+          <div style={label}>Terms</div>
+          <div style={{ marginTop: 3, whiteSpace: "pre-line", fontSize: 10.5 }}>{terms}</div>
+        </div>
+      )}
+
       {/* footer */}
       <div style={{ marginTop: "auto", paddingTop: 28 }}>
+        {acceptance && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+            <div style={{ width: "46%", textAlign: "center", fontSize: 10.5 }}>
+              <div>Accepted on the terms above</div>
+              <div style={{ border: `1px solid ${INK}`, height: 64, marginTop: 8 }} />
+              <div style={{ ...label, marginTop: 4 }}>Name, signature, stamp and date</div>
+            </div>
+          </div>
+        )}
         {receipt && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
             <div style={{ width: "40%", textAlign: "center", fontSize: 10.5 }}>

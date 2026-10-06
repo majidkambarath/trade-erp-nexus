@@ -11,6 +11,7 @@ import {
   Trash2,
   User,
   History,
+  Truck,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
 
@@ -29,6 +30,7 @@ const GridView = ({
   onDownloadInternal,
   onDownloadCustomer,
   onShowAudit,
+  onDeliveryNote,
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -144,6 +146,15 @@ const GridView = ({
                   <History className="w-4 h-4" />
                   <span className="text-sm">Audit trail</span>
                 </button>
+                {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && (
+                  <button
+                    onClick={() => onDeliveryNote(so)}
+                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  >
+                    <Truck className="w-4 h-4" />
+                    <span className="text-sm">Delivery note</span>
+                  </button>
+                )}
                 {so.status === "DRAFT" && (
                   <button
                     onClick={() => editSO(so)}

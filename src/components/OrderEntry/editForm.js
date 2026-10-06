@@ -8,11 +8,16 @@ import { recalcRow } from "./variants";
 
 export function formFromSaved(V, raw) {
   return {
-    transactionNo: raw.transactionNo,
+    // a document that is not a Transaction names its number and its second date (a quotation's
+    // "valid until") and its reference its own way, and may carry header fields of its own
+    transactionNo: raw[V.numberField || "transactionNo"],
     partyId: raw.partyId?._id || raw.partyId,
     partyType: V.partyType,
     date: raw.date ? toInputDate(raw.date) : "",
     deliveryDate: raw.deliveryDate ? toInputDate(raw.deliveryDate) : "",
+    ...(V.secondDateKey ? { [V.secondDateKey]: raw[V.secondDateKey] ? toInputDate(raw[V.secondDateKey]) : "" } : {}),
+    ...(V.referenceKey ? { [V.referenceKey]: raw[V.referenceKey] || "" } : {}),
+    ...Object.fromEntries((V.extraFields || []).map((f) => [f.key, raw[f.key] || ""])),
     status: raw.status,
     priority: raw.priority || "Medium",
     terms: raw.terms || "",
@@ -34,6 +39,7 @@ export function formFromSaved(V, raw) {
 }
 
 export async function loadFormForEdit(V, id) {
+  if (V.endpoint) return formFromSaved(V, (await axiosInstance.get(`${V.endpoint}/${id}`)).data.data);
   const res = await axiosInstance.get(`/transactions/transactions/${id}`);
   return formFromSaved(V, res.data.data.transaction);
 }
