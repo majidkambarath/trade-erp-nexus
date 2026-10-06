@@ -39,7 +39,7 @@ export default function AuditLog() {
               <li key={r._id} className="px-5 py-3 text-sm">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   {has ? (
-                    <button type="button" onClick={() => setOpen((o) => ({ ...o, [r._id]: !o[r._id] }))} aria-expanded={!!expanded} aria-label={`${expanded ? "Hide" : "Show"} details of ${r.action}`} className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-accent">
+                    <button type="button" onClick={() => setOpen((o) => ({ ...o, [r._id]: !o[r._id] }))} aria-expanded={!!expanded} aria-label={`${expanded ? "Hide" : "Show"} details of ${r.action}`} className="grid h-9 w-9 place-items-center rounded text-muted-foreground hover:bg-accent lg:h-6 lg:w-6">
                       {expanded ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
                     </button>
                   ) : <span className="w-6" />}

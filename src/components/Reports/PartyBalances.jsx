@@ -70,7 +70,7 @@ function Parties({ type, asOn }) {
             <option value="overdue">With overdue invoices</option>
           </Select>
         </Field>
-        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} className="h-4 w-4 accent-[var(--color-primary)]" />Include zero balances</label>
+        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
       </div>
       <Frame state={state}>
         {(d) => {

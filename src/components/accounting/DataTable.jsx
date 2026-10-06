@@ -18,6 +18,9 @@ import { cn } from "../../lib/utils";
 //   actions   a row of controls at the foot of the card, outside the tap target
 //   hidden    on the card only: shown in the table, dropped from the card
 //
+// `header` is what the table's column heading shows and may be a control; `label`, when given,
+// is the plain text a card uses for that field instead.
+//
 // A column with no `card` hint becomes a label/value line in the card body, so wrapping an
 // existing table shows everything from the start; promoting two or three fields is then a
 // matter of tagging them. `cell(row, index)` renders both shapes, so there is one
@@ -228,7 +231,10 @@ function DataCard({ row, index, columns, href, onClick }) {
               if (value === null || value === undefined || value === "" || value === false) return null;
               return (
                 <div key={c.key} className="flex min-w-0 items-baseline justify-between gap-3">
-                  <dt className="shrink-0 text-xs text-muted-foreground">{c.header}</dt>
+                  {/* `header` may be a control - a sort button, say - which is right at the top
+                      of a column and wrong as a field's label on a card. A column that has one
+                      carries plain text in `label` for exactly this. */}
+                  <dt className="shrink-0 text-xs text-muted-foreground">{c.label ?? c.header}</dt>
                   <dd className="min-w-0 text-end">{value}</dd>
                 </div>
               );

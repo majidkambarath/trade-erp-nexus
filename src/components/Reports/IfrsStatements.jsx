@@ -53,7 +53,7 @@ export default function IfrsStatements() {
         )}
         {hasDetail && (
           <label className="inline-flex h-10 items-center gap-2 text-sm font-medium text-foreground">
-            <input type="checkbox" checked={detail} onChange={(e) => setDetail(e.target.checked)} className="h-4 w-4 rounded border-input accent-[var(--primary)]" />
+            <input type="checkbox" checked={detail} onChange={(e) => setDetail(e.target.checked)} className="h-5 w-5 rounded lg:h-4 lg:w-4 border-input accent-[var(--primary)]" />
             Show account detail
           </label>
         )}

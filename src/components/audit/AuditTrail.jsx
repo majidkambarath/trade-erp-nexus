@@ -305,7 +305,7 @@ function ActivitySection({ activity }) {
                       onClick={() => setOpen((o) => ({ ...o, [a._id]: !o[a._id] }))}
                       aria-expanded={!!expanded}
                       aria-label={`${expanded ? "Hide" : "Show"} details of ${a.action}`}
-                      className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-accent"
+                      className="grid h-9 w-9 place-items-center rounded text-muted-foreground hover:bg-accent lg:h-6 lg:w-6"
                     >
                       {expanded ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
                     </button>

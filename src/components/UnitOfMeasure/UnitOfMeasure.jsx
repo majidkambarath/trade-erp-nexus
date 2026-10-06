@@ -359,7 +359,7 @@ import { DataTable } from "../accounting/DataTable";
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
-            <button className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
+            <button className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
               <ArrowLeft size={16} className="text-gray-600" />
             </button>
             <div>

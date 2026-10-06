@@ -120,7 +120,7 @@ function Segmented({ label, value, options, onChange }) {
           <button
             key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}
             className={cn(
-              "rounded-full px-4 py-1.5 text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring",
               value === o.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             )}
           >

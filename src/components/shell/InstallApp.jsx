@@ -35,20 +35,20 @@ export function IosInstallSheet({ onClose }) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+            className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-full text-muted-foreground hover:bg-accent"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <ol className="mt-4 space-y-3 text-sm text-foreground">
           <li className="flex items-center gap-3">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary">
+            <span className="grid h-10 w-10 shrink-0 place-items-center lg:h-8 lg:w-8 rounded-lg bg-secondary">
               <Share className="h-4 w-4" aria-hidden="true" />
             </span>
             Tap Share at the bottom of Safari
           </li>
           <li className="flex items-center gap-3">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-secondary">
+            <span className="grid h-10 w-10 shrink-0 place-items-center lg:h-8 lg:w-8 rounded-lg bg-secondary">
               <Plus className="h-4 w-4" aria-hidden="true" />
             </span>
             Choose <strong className="font-semibold">Add to Home Screen</strong>
@@ -93,7 +93,7 @@ export function InsecureInstallSheet({ onClose }) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+            className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-full text-muted-foreground hover:bg-accent"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -167,7 +167,7 @@ export function UpdateNotice({ onApply, onDismiss }) {
         type="button"
         onClick={onDismiss}
         aria-label="Not now"
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent"
+        className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-full text-muted-foreground hover:bg-accent"
       >
         <X className="h-4 w-4" aria-hidden="true" />
       </button>

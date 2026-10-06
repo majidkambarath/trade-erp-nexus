@@ -9,7 +9,9 @@
  * makes a cache-first rule safe, and a build-time precache manifest would buy little for the
  * cost of another toolchain.
  */
-const VERSION = "v1";
+// Bump with the release (src/config/product.js). Every cache name carries it, so activating a
+// new worker drops the previous release's shell instead of serving it alongside.
+const VERSION = "v1.0.0.1";
 const SHELL = `zarvia-shell-${VERSION}`;
 const ASSETS = `zarvia-assets-${VERSION}`;
 const FONTS = `zarvia-fonts-${VERSION}`;

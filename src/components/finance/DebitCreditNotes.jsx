@@ -46,7 +46,7 @@ export default function DebitCreditNotes() {
         {Object.entries(TYPES).map(([key, t]) => (
           <button
             key={key} role="tab" type="button" aria-selected={type === key} onClick={() => setParams({ type: key }, { replace: true })}
-            className={cn("rounded-full px-4 py-1.5 text-sm font-medium", type === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+            className={cn("min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0", type === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
           >
             {t.label}
           </button>
@@ -83,7 +83,7 @@ export default function DebitCreditNotes() {
 const Segmented = ({ label, value, onChange, options }) => (
   <div role="radiogroup" aria-label={label} className="inline-flex rounded-full border border-input bg-card p-0.5">
     {options.map(([v, text]) => (
-      <label key={v} className={cn("cursor-pointer rounded-full px-4 py-1.5 text-sm font-medium focus-within:ring-2 focus-within:ring-ring", value === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+      <label key={v} className={cn("cursor-pointer min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0 focus-within:ring-2 focus-within:ring-ring", value === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
         <input type="radio" name={label} value={v} checked={value === v} onChange={() => onChange(v)} className="sr-only" />
         {text}
       </label>

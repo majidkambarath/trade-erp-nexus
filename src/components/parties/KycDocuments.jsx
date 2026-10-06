@@ -200,7 +200,7 @@ export function DocumentTypeForm({ type, onClose, onSaved }) {
           </Field>
           <div className="flex items-end pb-2">
             <label className="flex items-center gap-2 text-sm text-foreground">
-              <input type="checkbox" checked={f.requiresExpiry} onChange={(e) => set({ requiresExpiry: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+              <input type="checkbox" checked={f.requiresExpiry} onChange={(e) => set({ requiresExpiry: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
               Documents of this type expire
             </label>
           </div>
@@ -209,7 +209,7 @@ export function DocumentTypeForm({ type, onClose, onSaved }) {
         </div>
         {editing && (
           <label className="flex items-center gap-2 text-sm text-foreground">
-            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
             Offered on the forms <span className="text-muted-foreground">(documents already saved keep this type)</span>
           </label>
         )}

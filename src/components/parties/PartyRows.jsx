@@ -12,7 +12,7 @@ import {
 // The three "rows" sections of the party form: contacts, bank accounts and KYC documents. Each takes
 // the party form's context (see PartyForm) and edits its own list through `set`.
 
-const iconButton = "grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const iconButton = "grid h-10 w-10 shrink-0 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 function RowFrame({ title, onRemove, removeLabel, children }) {
   return (
@@ -29,7 +29,7 @@ function RowFrame({ title, onRemove, removeLabel, children }) {
 function PrimaryRadio({ group, checked, onChange, label }) {
   return (
     <label className="flex items-center gap-2 self-end pb-2 text-sm text-foreground">
-      <input type="radio" name={group} checked={checked} onChange={onChange} className="h-4 w-4 accent-[var(--color-primary)]" />
+      <input type="radio" name={group} checked={checked} onChange={onChange} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
       {label}
     </label>
   );
@@ -230,7 +230,7 @@ export function DocumentsSection({ value, set, errors, documentTypes, typesLoadi
             <DocumentFile row={d} index={i} onChange={(patch) => edit(i, patch)} />
             <div className="flex flex-wrap items-end gap-3 pb-2 sm:col-span-2">
               <label className="flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" checked={d.isVerified} onChange={(e) => edit(i, { isVerified: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+                <input type="checkbox" checked={d.isVerified} onChange={(e) => edit(i, { isVerified: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
                 Verified
               </label>
               <DocumentStatusPill expiryDate={d.expiryDate} />

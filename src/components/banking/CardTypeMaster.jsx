@@ -81,7 +81,7 @@ export function CardTypeForm({ type, onClose, onSaved }) {
         <Field label="Processing fee (%)" required error={errors.feePercent} hint="What the processor keeps from each card sale."><TextInput inputMode="decimal" className="text-end tabular-nums" value={f.feePercent} onChange={(e) => set({ feePercent: e.target.value })} /></Field>
         {editing && (
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
             Active
           </label>
         )}

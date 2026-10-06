@@ -156,7 +156,7 @@ export function CardForm({ card, onClose, onSaved }) {
         <p className="flex items-start gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-xs text-muted-foreground"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />The full card number and the security code are never stored. Only the last four digits are kept, to tell cards apart.{!editing && f.kind === "credit" && " A ledger account for this card is created for you."}{!editing && f.kind === "prepaid" && " A ledger account for this card is created for you."}</p>
         {editing && (
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
             Active
           </label>
         )}

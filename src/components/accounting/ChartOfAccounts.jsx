@@ -117,7 +117,7 @@ export default function ChartOfAccounts() {
               />
             </div>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="h-4 w-4 accent-[var(--color-primary)]" />
+              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
               Show inactive
             </label>
           </>
@@ -184,14 +184,14 @@ function GroupRows({ group, depth, collapsed, toggle, forceOpen, onAddAccount, o
         className="group flex items-center gap-2 border-t border-border/70 pe-3 py-2 sm:pe-5"
         style={{ paddingInlineStart: `calc(var(--tree-pad) + ${depth} * var(--tree-step))` }}
       >
-        <button type="button" onClick={() => toggle(group._id)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${group.name}`} className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-accent">
+        <button type="button" onClick={() => toggle(group._id)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${group.name}`} className="grid h-10 w-10 place-items-center rounded text-muted-foreground hover:bg-accent lg:h-6 lg:w-6">
           {open ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
         </button>
         <span className="min-w-0 truncate text-sm font-semibold text-foreground">{group.name}</span>
         <span className="hidden shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground sm:inline">{group.prefix}</span>
         <span className="ms-auto flex shrink-0 items-center gap-1">
-          <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
-          <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
           <Balance net={group.net} className="shrink-0 text-end text-sm font-semibold text-foreground sm:w-36" />
         </span>
       </div>
@@ -232,8 +232,8 @@ function AccountRow({ account, depth, onEdit, onLedger }) {
       </span>
       <Balance net={account.net} className="shrink-0 text-end text-foreground sm:w-36" />
       <span className="flex shrink-0 items-center gap-1">
-        <button type="button" onClick={onLedger} aria-label={`Ledger of ${account.accountName}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-3.5 w-3.5" aria-hidden="true" /></button>
-        <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        <button type="button" onClick={onLedger} aria-label={`Ledger of ${account.accountName}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
       </span>
     </div>
   );
@@ -437,12 +437,12 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
         )}
 
         <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-2">
-          <input type="checkbox" checked={form.allowDirectPosting} onChange={set("allowDirectPosting")} className="h-4 w-4 accent-[var(--color-primary)]" />
+          <input type="checkbox" checked={form.allowDirectPosting} onChange={set("allowDirectPosting")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
           Allow vouchers to post to this account directly
         </label>
         {editing && (
           <label className="flex items-center gap-2 text-sm text-foreground sm:col-span-2">
-            <input type="checkbox" checked={form.isActive} onChange={set("isActive")} className="h-4 w-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={form.isActive} onChange={set("isActive")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
             Active <span className="text-muted-foreground">(an account with a balance, or used by the posting configuration, cannot be deactivated)</span>
           </label>
         )}

@@ -108,7 +108,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             <CardContent className="space-y-3">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9" />)}
               {c && opsRows(c.ops).map((row) => (
-                <Link key={row.key} to={row.to} className="flex items-center justify-between gap-2 rounded-lg hover:bg-secondary/60">
+                <Link key={row.key} to={row.to} className="flex min-h-11 items-center justify-between gap-2 rounded-lg hover:bg-secondary/60 lg:min-h-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className={cn("h-2 w-2 rounded-full", toneDot[row.tone])} />
                     <div className="min-w-0">
@@ -239,7 +239,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             <Card data-anim="bento" className={cardClass}>
               <CardContent className="p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <Link to="/vat-reports" className="text-sm font-bold hover:underline">VAT this quarter</Link>
+                  <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">VAT this quarter</Link>
                   {c?.vat?.hasActivity && c.vat.position !== "nil" && (
                     <Badge variant="secondary" className="rounded-full">{c.vat.position === "payable" ? "Payable" : "Refundable"}</Badge>
                   )}
@@ -305,7 +305,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold">Recent activity</CardTitle>
-                <Link to="/ledger-reports?tab=daybook" className="text-xs font-semibold text-muted-foreground hover:text-foreground">View all</Link>
+                <Link to="/ledger-reports?tab=daybook" className="-my-2 inline-flex min-h-10 items-center py-2 text-xs font-semibold text-muted-foreground hover:text-foreground lg:my-0 lg:min-h-0 lg:py-0">View all</Link>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

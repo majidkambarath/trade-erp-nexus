@@ -39,7 +39,7 @@ export default function AgeingReport() {
         <div role="tablist" aria-label="Ageing type" className="inline-flex rounded-full bg-secondary/80 p-1">
           {Object.entries(TYPES).map(([k, v]) => (
             <button key={k} role="tab" type="button" aria-selected={type === k} onClick={() => setType(k)}
-              className={cn("rounded-full px-4 py-1.5 text-sm font-semibold transition-all", type === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{v.label}</button>
+              className={cn("min-h-10 rounded-full px-4 py-1.5 text-sm font-semibold transition-all lg:min-h-0", type === k ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{v.label}</button>
           ))}
         </div>
         <Field label="As at"><DateInput value={asOf} max={todayInput()} onChange={(e) => e.target.value && setAsOf(e.target.value)} className="w-44" /></Field>

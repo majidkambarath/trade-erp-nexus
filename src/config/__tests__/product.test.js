@@ -8,7 +8,8 @@ describe("product identity", () => {
   it("has a name, a tagline and a version", () => {
     expect(PRODUCT_NAME).toBe("Zarvia");
     expect(PRODUCT_TAGLINE).toBeTruthy();
-    expect(PRODUCT_VERSION).toMatch(/^\d+\.\d+$/);
+    // major.minor, with an optional patch and build: 1.0, 1.0.0, 1.0.0.1
+    expect(PRODUCT_VERSION).toMatch(/^\d+\.\d+(\.\d+){0,2}$/);
   });
 
   it("ships one neutral brand pack carrying no customer's name", () => {

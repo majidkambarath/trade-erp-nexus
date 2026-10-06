@@ -49,7 +49,7 @@ export function StatCard({ title, count, icon, subText, trend, tone, textColor, 
         {icon && (
           <span
             aria-hidden="true"
-            className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-4 [&>svg]:w-4 sm:h-9 sm:w-9 sm:[&>svg]:h-[18px] sm:[&>svg]:w-[18px]", t.tile)}
+            className={cn("grid h-10 w-10 shrink-0 place-items-center lg:h-8 lg:w-8 rounded-lg [&>svg]:h-4 [&>svg]:w-4 sm:h-9 sm:w-9 sm:[&>svg]:h-[18px] sm:[&>svg]:w-[18px]", t.tile)}
           >
             {icon}
           </span>

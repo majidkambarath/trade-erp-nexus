@@ -966,7 +966,7 @@ const StockManagement = () => {
         <div className="flex items-center space-x-4">
           <button
             onClick={() => navigate(-1)}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
           >
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
@@ -1011,7 +1011,7 @@ const StockManagement = () => {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
               showFilters
                 ? "bg-indigo-100 text-indigo-600"
                 : "bg-white text-gray-600"

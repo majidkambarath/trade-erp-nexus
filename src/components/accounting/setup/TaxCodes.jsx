@@ -119,8 +119,8 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
           <Button type="button" variant="outline" size="sm" onClick={() => setForm((f) => ({ ...f, history: [...f.history, { date: "", ratePercent: f.ratePercent }] }))}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Add a rate change</Button>
         </fieldset>
 
-        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={form.isDefault} onChange={set("isDefault")} className="h-4 w-4 accent-[var(--color-primary)]" />Use as the default for new lines</label>
-        {editing && <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={form.isActive} onChange={set("isActive")} className="h-4 w-4 accent-[var(--color-primary)]" />Active</label>}
+        <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={form.isDefault} onChange={set("isDefault")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Use as the default for new lines</label>
+        {editing && <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={form.isActive} onChange={set("isActive")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Active</label>}
       </form>
     </Modal>
   );

@@ -46,7 +46,7 @@ export default function ChequeRegister() {
         <div className="scrollbar-none -mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
           <div role="tablist" aria-label="Cheque status" className="inline-flex rounded-full border border-border bg-card p-1">
             {TABS.map(([v, label]) => (
-              <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); setPage(1); }} className={cn("shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+              <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); setPage(1); }} className={cn("shrink-0 whitespace-nowrap min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
             ))}
           </div>
         </div>

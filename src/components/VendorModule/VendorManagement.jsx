@@ -341,7 +341,7 @@ const VendorManagement = () => {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 ${
+            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
               showFilters
                 ? "bg-blue-100 text-blue-600"
                 : "bg-white text-gray-600"

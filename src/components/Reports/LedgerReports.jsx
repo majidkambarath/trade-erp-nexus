@@ -56,7 +56,7 @@ function GeneralLedger({ range, onLedger }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Category"><Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-52">{CATEGORIES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => setGroupsOnly(e.target.checked)} className="h-4 w-4 accent-[var(--color-primary)]" />Groups only</label>
+        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => setGroupsOnly(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
       </div>
       <Frame state={state}>
         {(d) => {

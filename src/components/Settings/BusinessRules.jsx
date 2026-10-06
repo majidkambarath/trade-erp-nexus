@@ -122,7 +122,7 @@ function TaxIdentity({ settings, defaults, notify, onSaved }) {
       <form onSubmit={s.submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Registered name" className="sm:col-span-2"><TextInput value={p.legalName || ""} onChange={set("legalName")} maxLength={150} /></Field>
         <Field label="Tax registration number (TRN)" error={fieldError} hint="15 digits."><TextInput inputMode="numeric" value={p.trn || ""} onChange={set("trn")} maxLength={15} /></Field>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-4 w-4 accent-[var(--color-primary)]" />Registered for VAT</label>
+        <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Registered for VAT</label>
         <Field label="Address" className="sm:col-span-2"><TextInput value={p.addressLine1 || ""} onChange={set("addressLine1")} /></Field>
         <Field label="City"><TextInput value={p.city || ""} onChange={set("city")} /></Field>
         <Field label="Emirate">

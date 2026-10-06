@@ -111,7 +111,7 @@ export function BankForm({ bank, onClose, onSaved }) {
         </div>
         {editing && (
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-4 w-4 accent-[var(--color-primary)]" />
+            <input type="checkbox" checked={f.isActive} onChange={(e) => set({ isActive: e.target.checked })} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
             Active <span className="text-muted-foreground">(a bank with active accounts or cards cannot be switched off)</span>
           </label>
         )}

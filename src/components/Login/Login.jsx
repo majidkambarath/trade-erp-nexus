@@ -274,7 +274,7 @@ export default function Login() {
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 aria-pressed={showPassword}
-                className="absolute end-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 absolute end-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {showPassword ? (
                   <EyeOff className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -287,7 +287,7 @@ export default function Login() {
             <label className="flex cursor-pointer items-center gap-2.5 text-sm text-foreground">
               <input
                 type="checkbox"
-                className="h-4 w-4 rounded border-input accent-foreground"
+                className="h-5 w-5 rounded lg:h-4 lg:w-4 border-input accent-foreground"
                 {...register("rememberMe")}
               />
               Remember my email on this device

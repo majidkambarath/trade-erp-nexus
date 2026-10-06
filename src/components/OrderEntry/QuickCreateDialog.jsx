@@ -80,7 +80,7 @@ export default function QuickCreateDialog({
             <Dialog.Title className="text-lg font-bold tracking-tight">{spec.title}</Dialog.Title>
             <Dialog.Close
               aria-label="Close"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </Dialog.Close>

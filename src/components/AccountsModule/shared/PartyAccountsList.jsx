@@ -219,8 +219,8 @@ export default function PartyAccountsList({ kind }) {
               </div>
               <div className="flex items-center gap-2">
                 <span aria-live="polite">{first}-{first + slice.length - 1} of {visible.length}</span>
-                <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Previous page" disabled={current <= 1} onClick={() => setPage(current - 1)}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
-                <Button type="button" variant="outline" size="icon" className="h-9 w-9" aria-label="Next page" disabled={current >= pages} onClick={() => setPage(current + 1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button type="button" variant="outline" size="icon" className="h-10 w-10 lg:h-9 lg:w-9" aria-label="Previous page" disabled={current <= 1} onClick={() => setPage(current - 1)}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button type="button" variant="outline" size="icon" className="h-10 w-10 lg:h-9 lg:w-9" aria-label="Next page" disabled={current >= pages} onClick={() => setPage(current + 1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
             </div>
           </>
