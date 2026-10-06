@@ -52,10 +52,18 @@ import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } fro
 import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
+import { useDeleteConfirm } from "../shared/useDeleteConfirm";
+import DocumentAuditTrail from "../../audit/AuditTrail";
+import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 const PurchaseReturnOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
-  const [viewMode, setViewMode] = useState("table"); // table, grid
+  // The table is the right list for a pointer and the cards for a thumb, so the default
+  // follows the screen. Choosing a view by hand still wins, and holds until a reload.
+  const wide = useMediaQuery(WIDE);
+  const [viewMode, setViewMode] = useState(() => (wide ? "table" : "grid"));
   const [selectedPO, setSelectedPO] = useState(null);
+  // The document whose audit trail is open, or null.
+  const [auditPO, setAuditPO] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
@@ -417,13 +425,21 @@ const PurchaseReturnOrderManagement = () => {
         addNotification(`${selectedPOs.length} orders approved successfully`, "success");
         fetchTransactions();
       } else if (action === "delete") {
-        if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
-          for (const poId of selectedPOs) {
-              await processTransaction(poId, "reject");
-          }
-          addNotification(`${selectedPOs.length} orders deleted`, "success");
-          fetchTransactions();
-        }
+        askDelete({
+          title: `Delete ${selectedPOs.length} purchase returns?`,
+          text: "Each return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          onConfirm: async () => {
+            try {
+              for (const poId of selectedPOs) {
+                await axiosInstance.delete(`/transactions/transactions/${poId}`);
+              }
+              addNotification(`${selectedPOs.length} orders deleted`, "success");
+            } catch (error) {
+              addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
+            }
+            fetchTransactions();
+          },
+        });
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
         const csvHeaders = ["TransactionNo", "Vendor", "Date", "DeliveryDate", "Status", "TotalAmount", "Priority"];
@@ -460,7 +476,7 @@ const PurchaseReturnOrderManagement = () => {
           key={notification.id}
           className={`max-w-sm ${toastClasses(notification.type)}`}
         >
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             {notification.type === "success" && <CheckCircle className="w-4 h-4" />}
             {notification.type === "warning" && <AlertCircle className="w-4 h-4" />}
             {notification.type === "error" && <AlertCircle className="w-4 h-4" />}
@@ -474,7 +490,7 @@ const PurchaseReturnOrderManagement = () => {
   // Dashboard Component
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <StatCard
           title="Total Returns"
           count={statistics.total}
@@ -506,7 +522,7 @@ const PurchaseReturnOrderManagement = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-sm font-semibold text-foreground">Recent purchase returns</h3>
@@ -609,7 +625,7 @@ const PurchaseReturnOrderManagement = () => {
 
     return (
       <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
-        <div className="flex items-center space-x-4">
+        <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
           <span className="text-sm text-slate-600">
             Showing {startItem} to {endItem} of {filteredPOs.length} orders
           </span>
@@ -628,7 +644,7 @@ const PurchaseReturnOrderManagement = () => {
           </select>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
@@ -755,31 +771,34 @@ const PurchaseReturnOrderManagement = () => {
     }
   };
 
+  const [askDelete, deleteDialog] = useDeleteConfirm();
+
   // Delete PO
-  const deletePO = async (id) => {
-    if (window.confirm("Are you sure you want to delete this purchase return order?")) {
-      try {
-        await axiosInstance.delete(`/transactions/transactions/${id}`);
-        addNotification("Purchase Return Order deleted successfully", "success");
-        fetchTransactions();
-      } catch (error) {
-        console.error("Delete PO Error:", error);
-        addNotification(
-          "Failed to delete purchase return order: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      }
-    }
+  const deletePO = (id) => {
+    askDelete({
+      title: "Delete this purchase return?",
+      text: "The return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      onConfirm: async () => {
+        try {
+          await axiosInstance.delete(`/transactions/transactions/${id}`);
+          addNotification("Purchase Return Order deleted successfully", "success");
+          fetchTransactions();
+        } catch (error) {
+          console.error("Delete PO Error:", error);
+          addNotification("Failed to delete purchase return order: " + (error.response?.data?.message || error.message), "error");
+        }
+      },
+    });
   };
 
   return (
     <div className="">
+      {deleteDialog}
       <NotificationList />
       <div className="relative bg-card border-b border-border">
-        <div className="px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -790,7 +809,7 @@ const PurchaseReturnOrderManagement = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <button
                 onClick={() => {
                   resetForm();
@@ -821,10 +840,10 @@ const PurchaseReturnOrderManagement = () => {
         </div>
 
         {(activeView === "dashboard" || activeView === "list") && (
-          <div className="px-8 py-4 bg-secondary/60 border-t border-border">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 bg-secondary/60 border-t border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
+              <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
+                <div className="relative col-span-2 sm:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
@@ -884,9 +903,11 @@ const PurchaseReturnOrderManagement = () => {
                 </select>
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
                 <button
                   onClick={() => setActiveView("dashboard")}
+                  aria-label="Overview"
+                  title="Overview"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "dashboard"
                       ? "border-foreground bg-foreground text-background"
@@ -900,6 +921,10 @@ const PurchaseReturnOrderManagement = () => {
                     setViewMode("table");
                     setActiveView("list");
                   }}
+                  // hidden with the table itself: a dense row of eight columns is not a phone view
+                  hidden={!wide}
+                  aria-label="Table view"
+                  title="Table view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "list" && viewMode === "table"
                       ? "border-foreground bg-foreground text-background"
@@ -913,6 +938,8 @@ const PurchaseReturnOrderManagement = () => {
                     setViewMode("grid");
                     setActiveView("list");
                   }}
+                  aria-label="Card view"
+                  title="Card view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "list" && viewMode === "grid"
                       ? "border-foreground bg-foreground text-background"
@@ -922,7 +949,7 @@ const PurchaseReturnOrderManagement = () => {
                   <Grid className="w-5 h-5" />
                 </button>
                 {selectedPOs.length > 0 && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleBulkAction("approve")}
                       className="flex items-center space-x-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
@@ -952,7 +979,7 @@ const PurchaseReturnOrderManagement = () => {
         )}
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -962,7 +989,7 @@ const PurchaseReturnOrderManagement = () => {
             {activeView === "dashboard" && <Dashboard />}
             {activeView === "list" && (
               <>
-                {viewMode === "table" ? (
+                {wide && viewMode === "table" ? (
                   <TableView
                     paginatedPOs={paginatedPOs}
                     selectedPOs={selectedPOs}
@@ -978,6 +1005,7 @@ const PurchaseReturnOrderManagement = () => {
                     editPO={editPO}
                     approvePO={approvePO}
                     deletePO={deletePO}
+                    onShowAudit={setAuditPO}
                   />
                 ) : (
                   <GridView
@@ -993,6 +1021,7 @@ const PurchaseReturnOrderManagement = () => {
                     approvePO={approvePO}
                     rejectPO={rejectPO}
                     deletePO={deletePO}
+                    onShowAudit={setAuditPO}
                   />
                 )}
                 {filteredPOs.length > 0 && <Pagination />}
@@ -1029,6 +1058,13 @@ const PurchaseReturnOrderManagement = () => {
           </>
         )}
       </div>
+      {auditPO && (
+        <DocumentAuditTrail
+          id={auditPO.id}
+          documentNo={auditPO.transactionNo}
+          onClose={() => setAuditPO(null)}
+        />
+      )}
     </div>
   );
 };

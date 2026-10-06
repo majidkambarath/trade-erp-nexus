@@ -7,6 +7,9 @@ import BrandMark from "./BrandMark";
 // Primary navigation: a narrow rail where every module shows an icon AND a label.
 // Icon-only rails were rejected in the ERP redesign research for poor discoverability,
 // and a wide sidebar for costing workspace. Sub-pages live in ModuleTabs, not here.
+//
+// Pointer-only: below lg (1024px) the rail plus a dense table left too little width, so
+// BottomNav and MoreSheet carry the same information architecture on touch instead.
 function RailItem({ module, isActive }) {
   return (
     <li>
@@ -53,7 +56,7 @@ export default function AppRail({ modules, activeModuleId }) {
   return (
     <nav
       aria-label="Main"
-      className="hidden w-[5.5rem] shrink-0 flex-col border-e border-sidebar-border bg-sidebar sm:flex"
+      className="hidden w-[5.5rem] shrink-0 flex-col border-e border-sidebar-border bg-sidebar lg:flex"
     >
       <Link
         to="/dashboard"

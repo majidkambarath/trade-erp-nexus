@@ -32,8 +32,8 @@ export default function Inbound({ notify }) {
     >
       {list.loading && !list.data && <Spinner />}
       {list.error && <div className="p-5"><ErrorNote error={list.error} onRetry={list.reload} /></div>}
-      {list.data?.rows.length === 0 && <EmptyState title="Nothing received" text="Supplier invoices delivered to you appear here. You can also add one by hand." />}
-      {list.data?.rows.length > 0 && (
+      {list.data?.rows?.length === 0 && <EmptyState title="Nothing received" text="Supplier invoices delivered to you appear here. You can also add one by hand." />}
+      {list.data?.rows?.length > 0 && (
         <ul className="divide-y divide-border">
           {list.data.rows.map((i) => (
             <li key={i._id} className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto]">

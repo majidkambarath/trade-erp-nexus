@@ -24,7 +24,7 @@ export default function AccountingSetup() {
   const active = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "posting";
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Accounting setup" description="Decide which accounts each transaction posts to, which periods are open and how tax codes apply, and review every change." />
       <Tabs value={active} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="overflow-x-auto"><TabsList>{TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList></div>

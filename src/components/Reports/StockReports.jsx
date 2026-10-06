@@ -62,7 +62,7 @@ export default function StockReports() {
   const shared = (id) => ({ f: filters[id], set: setFor(id), lookups });
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Stock reports"
         description="What is in stock and what it is worth, how it moved, what sold at what margin, and what needs attention. Valuation and movement are checked against the Inventory account of the ledger."
@@ -71,7 +71,7 @@ export default function StockReports() {
         <div className="mb-4"><ErrorNote error={new Error("The item and category lists could not be loaded.")} onRetry={lookups.reload} /></div>
       )}
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto">
+        <div className="erp-scroll table-pin-first overflow-x-auto">
           <TabsList aria-label="Stock reports">
             {TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}
           </TabsList>
@@ -150,7 +150,7 @@ function DaysField({ label, value, onChange, choices, valid, invalidText }) {
 function ReportTable({ caption, columns, rows, rowKey, head, foot, hasTotal = true }) {
   const pad = (i) => (i === 0 ? "ps-5 pe-3" : i === columns.length - 1 ? "ps-3 pe-5" : "px-3");
   return (
-    <div className="overflow-x-auto">
+    <div className="erp-scroll table-pin-first overflow-x-auto">
       <table className="w-full text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -240,7 +240,7 @@ function Reconciliation({ rec, label }) {
       <details open={!ok} className="px-4 py-3 text-sm">
         <summary className="cursor-pointer font-medium text-foreground">{ok ? "How this was checked" : "Where the difference comes from"}</summary>
         {rec.filtered && <p className="mt-2 text-xs text-muted-foreground">The comparison always covers every item, not only the ones filtered below.</p>}
-        <div className="mt-2 overflow-x-auto">
+        <div className="erp-scroll table-pin-first mt-2 overflow-x-auto">
           <table className="w-full text-sm">
             <caption className="sr-only">Stock value and ledger balance by source</caption>
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">

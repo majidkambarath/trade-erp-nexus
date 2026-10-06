@@ -3,7 +3,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
+import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { partyMaster } from "../../lib/partyMasterApi";
 import { DOC_STATUS, daysLeftText } from "../../lib/partyForms";
 import { formatDate } from "../../utils/format";
@@ -15,7 +15,7 @@ const WINDOWS = [7, 30, 60, 90];
 
 export default function KycDocuments() {
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="KYC documents" description="Documents held for customers and vendors: what has expired or is about to, and the document types the forms offer." />
       <Tabs defaultValue="expiry">
         <TabsList aria-label="KYC documents">
@@ -64,26 +64,19 @@ function ExpiringDocuments() {
         {data && data.rows.length === 0 && <EmptyState title="Nothing has expired or is about to" text={`Every document with an expiry date is good for more than ${data.withinDays} days.`} />}
         {data && data.rows.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-2 text-start">Party</th><th className="px-3 py-2 text-start">Kind</th><th className="px-3 py-2 text-start">Document</th>
-                  <th className="px-3 py-2 text-start">Number</th><th className="px-3 py-2 text-start">Expiry date</th><th className="px-3 py-2 text-start">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.rows.map((r) => (
-                  <tr key={`${r.partyId}-${r.documentId}`} className="border-t border-border hover:bg-accent/40">
-                    <td className="px-5 py-2.5"><span className="font-medium">{r.partyName}</span> <span className="font-mono text-xs text-muted-foreground">{r.partyCode}</span></td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{r.partyType}</td>
-                    <td className="px-3 py-2.5">{r.documentType || "Document"}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs">{r.number || "-"}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{formatDate(r.expiryDate)}</td>
-                    <td className="px-3 py-2.5"><Pill tone={r.status === DOC_STATUS.EXPIRED ? "danger" : "warning"}>{daysLeftText(r.daysLeft)}</Pill></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              caption="Documents expiring"
+              rows={data.rows}
+              rowKey={(r) => `${r.partyId}-${r.documentId}`}
+              columns={[
+                { key: "document", header: "Document", card: "primary", cell: (r) => r.documentType || "Document" },
+                { key: "party", header: "Party", card: "title", cell: (r) => <><span className="font-medium">{r.partyName}</span> <span className="font-mono text-xs text-muted-foreground">{r.partyCode}</span></> },
+                { key: "kind", header: "Kind", card: "meta", className: "text-muted-foreground", cell: (r) => r.partyType },
+                { key: "number", header: "Number", card: "meta", className: "font-mono text-xs", cell: (r) => r.number || "-" },
+                { key: "expiry", header: "Expiry date", card: "amount", className: "tabular-nums", cell: (r) => formatDate(r.expiryDate) },
+                { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={r.status === DOC_STATUS.EXPIRED ? "danger" : "warning"}>{daysLeftText(r.daysLeft)}</Pill> },
+              ]}
+            />
           </div>
         )}
       </Panel>
@@ -128,29 +121,20 @@ function DocumentTypes() {
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
         {data && (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-5 py-2 text-start">Document type</th><th className="px-3 py-2 text-start">Code</th><th className="px-3 py-2 text-start">Expires</th>
-                  <th className="px-3 py-2 text-start">Number length</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((t) => (
-                  <tr key={t._id} className="border-t border-border hover:bg-accent/40">
-                    <td className="px-5 py-2.5 font-medium">{t.name}{t.isSystem && <span className="ms-2 text-xs font-normal text-muted-foreground">Default</span>}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs">{t.code}</td>
-                    <td className="px-3 py-2.5">{t.requiresExpiry ? "Yes, needs an expiry date" : "No"}</td>
-                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">{lengthText(t)}</td>
-                    <td className="px-3 py-2.5">{t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Switched off</Pill>}</td>
-                    <td className="px-5 py-2.5 text-end">
-                      <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...blankType(), ...t, minLength: t.minLength ?? "", maxLength: t.maxLength ?? "" })} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>
-                      {!t.isSystem && <button type="button" aria-label={`Delete ${t.name}`} onClick={() => setRemoving(t)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              caption="Document types"
+              rows={data}
+              rowKey={(t) => t._id}
+              columns={[
+                { key: "name", header: "Document type", card: "primary", className: "font-medium", cell: (t) => <>{t.name}{t.isSystem && <span className="ms-2 text-xs font-normal text-muted-foreground">Default</span>}</> },
+                { key: "code", header: "Code", card: "meta", className: "font-mono text-xs", cell: (t) => t.code },
+                // untagged, so the card shows it as "Expires: ..." - the wording is the screen's own
+              { key: "expires", header: "Expires", cell: (t) => t.requiresExpiry ? "Yes, needs an expiry date" : "No" },
+                { key: "length", header: "Number length", card: "meta", className: "tabular-nums text-muted-foreground", cell: (t) => lengthText(t) },
+                { key: "status", header: "Status", card: "badge", cell: (t) => t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Switched off</Pill> },
+                { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => (<><button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...blankType(), ...t, minLength: t.minLength ?? "", maxLength: t.maxLength ?? "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>{!t.isSystem && <button type="button" aria-label={`Delete ${t.name}`} onClick={() => setRemoving(t)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}</>) },
+              ]}
+            />
           </div>
         )}
       </Panel>

@@ -15,7 +15,7 @@ const WORD = { week: "week", month: "month", quarter: "quarter", custom: "period
 // Sales tab: orders, average order, best sellers and the sales / purchase trend, all of the period chosen above.
 export default function SalesTab({ state, period }) {
   const d = state.data;
-  const word = WORD[d?.period.id || period] || "period";
+  const word = WORD[d?.period?.id || period] || "period";
   const monthly = (d?.monthly || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const daily = (d?.daily || []).map((x) => ({ ...x, day: weekdayLabel(x.date) }));
   const customers = (d?.topCustomers || []).map((c) => ({ name: c.name, aed: c.netRevenue }));
@@ -30,13 +30,16 @@ export default function SalesTab({ state, period }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* min-w-0 on the cards: a grid track is min-content-wide by default, so "AED 1,250.00"
+          at 30px refused to shrink and pushed the row past the screen. The figure also steps
+          down a size or two on a phone, where a tile is about 140px of usable width. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
         {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-28 rounded-[1.75rem]" />)}
         {tiles?.map((m, i) => (
-          <Card key={m.label} data-anim="bento" className={cn(cardClass, i === 0 && "bg-brand-soft")}>
-            <CardContent className="p-5">
+          <Card key={m.label} data-anim="bento" className={cn(cardClass, "min-w-0", i === 0 && "bg-brand-soft")}>
+            <CardContent className="p-4 sm:p-5">
               <p className="text-sm font-medium text-foreground/70">{m.label}</p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight">{m.value}</p>
+              <p className="mt-1 truncate text-xl font-extrabold tracking-tight sm:text-2xl lg:text-3xl" title={m.value}>{m.value}</p>
               <p className="mt-1 inline-flex items-center text-xs font-bold">
                 {m.change !== null ? (
                   <>
@@ -82,7 +85,7 @@ export default function SalesTab({ state, period }) {
           <CardContent className="space-y-3">
             {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}
             {d && d.bestSellers.length === 0 && <Empty height={200}>No item sales this {word}</Empty>}
-            {d?.bestSellers.map((p, i) => (
+            {d?.bestSellers?.map((p, i) => (
               <div key={p.itemId} className="rounded-2xl bg-secondary/70 px-3 py-3">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <p className="min-w-0 truncate text-sm font-bold">{i + 1}. {p.name}</p>

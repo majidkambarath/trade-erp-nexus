@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { Ban, CheckCircle2, RotateCcw, Search } from "lucide-react";
+import { Ban, CheckCircle2, History, RotateCcw, Search } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts, DateInput } from "../accounting/kit";
+import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
 import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
 import { formatDateGB, formatNumber } from "../../utils/format";
+import { VoucherAuditTrail } from "../audit/AuditTrail";
 
 // Every cheque received from a customer or issued to a vendor. A cheque waits here until it
 // clears; a bounced one reverses the receipt or payment it was taken for.
@@ -18,6 +19,8 @@ const todayInput = () => day(new Date());
 
 export default function ChequeRegister() {
   const [status, setStatus] = useState("pending");
+  // the cheque whose voucher's audit trail is open, or null
+  const [audit, setAudit] = useState(null);
   const [direction, setDirection] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -29,7 +32,7 @@ export default function ChequeRegister() {
   const done = (msg) => { setAction(null); notify(msg); reload(); };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Cheques" description="Cheques you have received and issued. They move to the bank account when they clear." />
       {data && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -37,14 +40,18 @@ export default function ChequeRegister() {
           <StatCard title="To be paid" count={formatNumber(data.summary.payable.amount, 2)} subText={`${data.summary.payable.count} cheque${data.summary.payable.count === 1 ? "" : "s"} issued, not cleared`} tone="plum" />
         </div>
       )}
-      <div className="mb-4 flex flex-wrap items-end gap-3 print:hidden">
-        <div role="tablist" aria-label="Cheque status" className="inline-flex rounded-full border border-border bg-card p-1">
-          {TABS.map(([v, label]) => (
-            <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); setPage(1); }} className={cn("rounded-full px-4 py-1.5 text-sm font-medium", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
-          ))}
+      <div className="mb-4 flex flex-col gap-3 print:hidden sm:flex-row sm:flex-wrap sm:items-end">
+        {/* Four pills are 420px side by side, which is wider than a phone. The row scrolls
+            rather than wrapping, so the control keeps its one-line segmented shape. */}
+        <div className="scrollbar-none -mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+          <div role="tablist" aria-label="Cheque status" className="inline-flex rounded-full border border-border bg-card p-1">
+            {TABS.map(([v, label]) => (
+              <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); setPage(1); }} className={cn("shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+            ))}
+          </div>
         </div>
-        <Field label="Direction" className="w-40">
-          <select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1); }}>
+        <Field label="Direction" className="w-full sm:w-40">
+          <select className={inputClass} value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1); }}>
             <option value="">Both</option><option value="receipt">Received</option><option value="payment">Issued</option>
           </select>
         </Field>
@@ -58,35 +65,35 @@ export default function ChequeRegister() {
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
         {data && rows.length === 0 && <EmptyState title="No cheques here" text="Cheques appear when a receipt or payment is taken by cheque." />}
         {rows.length > 0 && (
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-2 text-start">Cheque</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Party</th><th className="px-3 py-2 text-start">Bank</th><th className="px-3 py-2 text-end">Amount</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2 text-end">Actions</th></tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c._id} className="border-t border-border hover:bg-accent/40">
-                    <td className="px-5 py-2.5"><span className="font-mono text-xs font-semibold">{c.chequeNo}</span><span className="block text-xs text-muted-foreground">{c.direction === "receipt" ? "Received" : "Issued"} · {c.voucherNo}</span></td>
-                    <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(c.chequeDate)}{c.status === "pending" && !c.matured && <Pill tone="info" className="ms-2">Post-dated</Pill>}</td>
-                    <td className="px-3 py-2.5 font-medium">{c.partyName}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{c.direction === "receipt" ? c.drawnOnBankName : c.bankAccountName}{c.direction === "receipt" && c.bankAccountName && <span className="block text-xs">into {c.bankAccountName}</span>}</td>
-                    <td className="px-3 py-2.5 text-end font-medium tabular-nums">{formatNumber(c.amount, 2)}{c.foreignAmount > 0 && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(c.foreignAmount, c.currency)} @ {formatRate(c.exchangeRate)}</span>}</td>
-                    <td className="px-3 py-2.5"><Pill tone={TONE[c.status]}>{c.status[0].toUpperCase() + c.status.slice(1)}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs text-muted-foreground" title={c.reason}>{c.reason}</span>}</td>
-                    <td className="whitespace-nowrap px-5 py-2.5 text-end">
-                      {c.status === "pending" && (
-                        <span className="inline-flex gap-1.5">
-                          <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>
-                          <Button size="sm" variant="outline" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Bounced</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>
-                        </span>
-                      )}
-                      {c.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Returned</Button>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            caption="Cheques"
+            rows={rows}
+            rowKey={(c) => c._id}
+            columns={[
+              { key: "cheque", header: "Cheque", card: "primary", cell: (c) => <><span className="font-mono text-xs font-semibold">{c.chequeNo}</span><span className="block text-xs font-normal text-muted-foreground">{c.direction === "receipt" ? "Received" : "Issued"} · {c.voucherNo}</span></> },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (c) => <>{formatDateGB(c.chequeDate)}{c.status === "pending" && !c.matured && <Pill tone="info" className="ms-2">Post-dated</Pill>}</> },
+              { key: "party", header: "Party", card: "title", className: "font-medium", cell: (c) => c.partyName },
+              { key: "bank", header: "Bank", card: "meta", className: "text-muted-foreground", cell: (c) => <>{c.direction === "receipt" ? c.drawnOnBankName : c.bankAccountName}{c.direction === "receipt" && c.bankAccountName && <span className="block text-xs md:inline md:ms-1">into {c.bankAccountName}</span>}</> },
+              { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (c) => <>{formatNumber(c.amount, 2)}{c.foreignAmount > 0 && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(c.foreignAmount, c.currency)} @ {formatRate(c.exchangeRate)}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (c) => <><Pill tone={TONE[c.status]}>{c.status[0].toUpperCase() + c.status.slice(1)}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.reason}>{c.reason}</span>}</> },
+              {
+                key: "actions", header: "Actions", align: "end", card: "actions", className: "whitespace-nowrap",
+                cell: (c) => (
+                  <>
+                    {c.status === "pending" && (
+                      <>
+                        <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>
+                        <Button size="sm" variant="outline" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Bounced</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>
+                      </>
+                    )}
+                    {c.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Returned</Button>}
+                    <Button size="sm" variant="ghost" onClick={() => setAudit(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Audit trail</Button>
+                  </>
+                ),
+              },
+            ]}
+          />
         )}
         {pages > 1 && (
           <nav aria-label="Pages" className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
@@ -98,6 +105,7 @@ export default function ChequeRegister() {
       {action?.kind === "clear" && <ClearDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "bounce" && <BounceDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "cancel" && <CancelDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
+      {audit && <VoucherAuditTrail id={audit.voucherId} voucherNo={audit.voucherNo} onClose={() => setAudit(null)} />}
       {toastNode}
     </div>
   );

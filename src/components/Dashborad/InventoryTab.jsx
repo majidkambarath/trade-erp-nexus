@@ -16,19 +16,19 @@ const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 export default function InventoryTab({ state, theme }) {
   const d = state.data;
   const colours = slices(theme, "inventory");
-  const trend = (d?.stockValueTrend.months || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
+  const trend = (d?.stockValueTrend?.months || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const alerts = d ? d.lowStock.length + d.batches.length : 0;
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {!d && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-[1.75rem]" />)}
         {d && d.categories.length === 0 && (
           <Card data-anim="bento" className={cn(cardClass, "sm:col-span-2 xl:col-span-4")}>
             <CardContent className="p-5"><Empty height={64}>No stock on hand yet</Empty></CardContent>
           </Card>
         )}
-        {d?.categories.map((w, i) => (
+        {d?.categories?.map((w, i) => (
           <Card key={w.key} data-anim="bento" className={cn(cardClass, i === 0 && "bg-brand-soft")}>
             <CardContent className="space-y-3 p-5">
               <div className="flex items-center gap-2 font-bold">
@@ -55,13 +55,13 @@ export default function InventoryTab({ state, theme }) {
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={d?.mix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                    {d?.mix.map((e, i) => <Cell key={e.key} fill={colours[i]} />)}
+                    {d?.mix?.map((e, i) => <Cell key={e.key} fill={colours[i]} />)}
                   </Pie>
                   <Tooltip contentStyle={tip} formatter={(v, n) => [formatCurrencyAED(v), n]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-2 space-y-2">
-                {d?.mix.map((item, i) => (
+                {d?.mix?.map((item, i) => (
                   <div key={item.key} className="flex items-center justify-between text-sm">
                     <span className="inline-flex items-center gap-2 font-medium">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ background: colours[i] }} />
@@ -83,7 +83,7 @@ export default function InventoryTab({ state, theme }) {
           <CardContent className="space-y-3">
             {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-14" />)}
             {d && alerts === 0 && <Empty height={200}>No stock alerts</Empty>}
-            {d?.lowStock.map((a) => (
+            {d?.lowStock?.map((a) => (
               <Link key={a.stockId} to={`/stock-detail/${a.stockId}`} className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/70 px-4 py-3 hover:bg-secondary">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="rounded-full bg-foreground p-2 text-background"><AlertTriangle className="h-3.5 w-3.5" /></span>
@@ -95,7 +95,7 @@ export default function InventoryTab({ state, theme }) {
                 <p className="shrink-0 text-sm font-bold">{formatQty(a.qty)} {a.unit}</p>
               </Link>
             ))}
-            {d?.batches.map((b) => (
+            {d?.batches?.map((b) => (
               <Link key={b.batchId} to="/batches" className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/70 px-4 py-3 hover:bg-secondary">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="rounded-full bg-foreground p-2 text-background"><AlertTriangle className="h-3.5 w-3.5" /></span>

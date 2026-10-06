@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { WIDE, useMediaQuery } from "../accounting/DataTable";
 
 // An editable table for entering lines (journal rows, note lines) from the keyboard.
 //
@@ -17,6 +18,7 @@ const EntryGrid = forwardRef(function EntryGrid(
   { columns, rows, renderCell, onAdd, onRemove, minRows = 2, addLabel = "Add row", rowErrors = {}, ariaLabel, footer },
   ref
 ) {
+  const wide = useMediaQuery(WIDE);
   const root = useRef(null);
   const keys = columns.map((c) => c.key);
 
@@ -76,10 +78,82 @@ const EntryGrid = forwardRef(function EntryGrid(
     }
   };
 
+  // A journal row is an account and two amounts, which is 640px of table. On a phone each row
+  // becomes a card with labelled fields; the keyboard model above is for a keyboard, and the
+  // Alt+N hint below is hidden where there is no Alt key.
+  if (!wide) {
+    return (
+      <div ref={root} onKeyDown={onKeyDown}>
+        <div className="flex flex-col gap-3" role="group" aria-label={ariaLabel}>
+          {rows.map((row, i) => (
+            <div
+              key={i}
+              className={cn(
+                "rounded-xl border border-border bg-card p-3",
+                rowErrors[i] && "border-status-danger/40 bg-status-danger-soft/40"
+              )}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Row {i + 1}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => rows.length > minRows && onRemove(i)}
+                  disabled={rows.length <= minRows}
+                  aria-label={`Remove row ${i + 1}`}
+                  className="grid h-10 w-10 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-status-danger disabled:opacity-30"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {columns.map((c) => (
+                  <label
+                    key={c.key}
+                    data-cell={`${i}:${c.key}`}
+                    // an account picker or a narration needs the row to itself; the debit and
+                    // credit amounts sit side by side, which is how they are read
+                    className={cn("flex min-w-0 flex-col gap-1", c.align !== "end" && "col-span-2")}
+                  >
+                    <span className="text-xs font-medium text-muted-foreground">{c.label}</span>
+                    {renderCell(row, i, c)}
+                  </label>
+                ))}
+              </div>
+
+              {rowErrors[i] && (
+                <p className="mt-2 text-xs font-medium text-status-danger" role="alert">
+                  {rowErrors[i]}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {footer && (
+          <table className="mt-3 w-full text-sm">
+            <tfoot className="border-t-2 border-border bg-secondary/40 font-semibold">{footer}</tfoot>
+          </table>
+        )}
+
+        <button
+          type="button"
+          onClick={() => { onAdd(); later(() => focusCell(rows.length, keys[0])); }}
+          className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {addLabel}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div ref={root} onKeyDown={onKeyDown}>
-      <div className="relative overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[40rem] text-sm" aria-label={ariaLabel}>
+      <div className="erp-scroll relative overflow-x-auto rounded-xl border border-border">
+        <table className="w-full md:min-w-[40rem] text-sm" aria-label={ariaLabel}>
           <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th scope="col" className="w-10 px-3 py-2 text-start">Sl</th>
@@ -103,7 +177,7 @@ const EntryGrid = forwardRef(function EntryGrid(
                     <button
                       type="button" tabIndex={-1} onClick={() => rows.length > minRows && onRemove(i)} disabled={rows.length <= minRows}
                       aria-label={`Remove row ${i + 1}`}
-                      className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-status-danger disabled:opacity-30"
+                      className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-full text-muted-foreground hover:bg-accent hover:text-status-danger disabled:opacity-30"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>

@@ -43,6 +43,7 @@ import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
+import { DataTable } from "../accounting/DataTable";
 const SessionManager = {
   storage: {},
   get: (key) => {
@@ -983,14 +984,14 @@ const StockManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={() => handleNavigateToCategory()}
-            className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600"
+            className="grid min-h-10 min-w-10 place-items-center p-2 rounded-lg lg:min-h-0 lg:min-w-0 bg-white shadow-sm hover:shadow-md transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600"
             title="Manage Categories"
           >
             <Tag size={16} className="text-gray-600 hover:text-indigo-600" />
           </button>
           <button
             onClick={handleExport}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -999,7 +1000,7 @@ const StockManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -1038,7 +1039,7 @@ const StockManagement = () => {
       )}
 
       <div className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
           {[
             {
               title: "Total Items",
@@ -1188,174 +1189,118 @@ const StockManagement = () => {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  {[
-                    { key: "itemName", label: "Item Info" },
-                    { key: "category", label: "Category" },
-                    { key: "vendor", label: "Vendor" },
-                    { key: "currentStock", label: "Stock Level" },
-                    { key: "purchasePrice", label: "Pricing" },
-                    { key: "expiryDate", label: "Expiry Date" },
-                    { key: "status", label: "Status" },
-                    { key: null, label: "Actions" },
-                  ].map((column) => (
-                    <th
-                      key={column.key || "actions"}
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={
-                        column.key ? () => handleSort(column.key) : undefined
-                      }
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{column.label}</span>
-                        {column.key && sortConfig.key === column.key && (
-                          <span className="text-indigo-600">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
+            <DataTable
+              caption="Stock items"
+              rows={sortedAndFilteredItems}
+              rowKey={(item) => item._id}
+              onRowClick={(item) => handleNavigateToDetail(item._id)}
+              // a low or expiring item is flagged on its own cells; the row tint the table
+              // used does not survive as a card, so the stock and expiry cells carry it
+              columns={[
+                ...[
+                  {
+                    key: "itemName", label: "Item Info", card: "primary",
+                    cell: (item) => (
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-indigo-100 rounded-lg">
+                          <Package size={20} className="text-indigo-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{item.itemName.toUpperCase()}</p>
+                          <p className="text-xs font-normal text-gray-500">SKU: {item.sku}</p>
+                          <p className="text-xs font-normal text-gray-500">ID: {item.itemId || item._id}</p>
+                        </div>
                       </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredItems.map((item) => {
-                  const stockStatus = getStockStatus(
-                    item.currentStock,
-                    item.reorderLevel
-                  );
-                  const expiryStatus = getExpiryStatus(item.expiryDate);
-                  const StockIcon = stockStatus.icon;
-                  const rowClass =
-                    item.currentStock <= item.reorderLevel
-                      ? "bg-red-50 border-l-4 border-red-500"
-                      : expiryStatus.label === "Expired" ||
-                        expiryStatus.label === "Expiring Soon"
-                      ? "bg-status-warning-soft border-l-4 border-status-warning"
-                      : "";
-
-                  return (
-                    <tr
-                      key={item._id}
-                      className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 ${rowClass} cursor-pointer`}
-                      onClick={() => handleNavigateToDetail(item._id)}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-indigo-100 rounded-lg">
-                            <Package size={20} className="text-indigo-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">
-                              {item.itemName.toUpperCase()}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              SKU: {item.sku}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ID: {item.itemId || item._id}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <p
-                            className="text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNavigateToCategory(item.category?._id);
-                            }}
-                          >
-                            {item.category?.name.toUpperCase() || "N/A"}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {item.unitOfMeasure}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-medium text-gray-900">
-                          {item.vendorId?.vendorName || "N/A"}
+                    ),
+                  },
+                  {
+                    key: "category", label: "Category", card: "title",
+                    cell: (item) => (
+                      <div>
+                        <p
+                          className="text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+                          onClick={(e) => { e.stopPropagation(); handleNavigateToCategory(item.category?._id); }}
+                        >
+                          {item.category?.name?.toUpperCase() || "N/A"}
                         </p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
+                        <p className="text-xs text-gray-500">{item.unitOfMeasure}</p>
+                      </div>
+                    ),
+                  },
+                  { key: "vendor", label: "Vendor", card: "meta", cell: (item) => item.vendorId?.vendorName || "N/A" },
+                  {
+                    key: "currentStock", label: "Stock Level", card: "amount",
+                    cell: (item) => {
+                      const stockStatus = getStockStatus(item.currentStock, item.reorderLevel);
+                      const StockIcon = stockStatus.icon;
+                      return (
+                        <div className="flex items-center justify-end space-x-2">
                           <StockIcon size={16} className={stockStatus.color} />
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">
-                              {item.currentStock}
-                            </p>
-                            <p className={`text-xs ${stockStatus.color}`}>
-                              Reorder: {item.reorderLevel}
-                            </p>
+                          <div className="text-end">
+                            <p className="text-sm font-bold text-gray-900">{item.currentStock}</p>
+                            <p className={`text-xs font-normal ${stockStatus.color}`}>Reorder: {item.reorderLevel}</p>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Sale: {formatCurrency(item.salesPrice)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Cost: {formatCurrency(item.purchasePrice)}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
+                      );
+                    },
+                  },
+                  {
+                    key: "purchasePrice", label: "Pricing", card: "meta",
+                    cell: (item) => (
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Sale: {formatCurrency(item.salesPrice)}</p>
+                        <p className="text-xs text-gray-500">Cost: {formatCurrency(item.purchasePrice)}</p>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "expiryDate", label: "Expiry Date", card: "meta",
+                    cell: (item) => {
+                      const expiryStatus = getExpiryStatus(item.expiryDate);
+                      return (
+                        <span className="flex items-center space-x-2">
                           <Calendar size={16} className={expiryStatus.color} />
-                          <span
-                            className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}
-                          >
-                            {item.expiryDate
-                              ? formatDate(item.expiryDate)
-                              : "N/A"}
-                            {expiryStatus.label !== "N/A" &&
-                              ` (${expiryStatus.label})`}
+                          <span className={`text-sm ${expiryStatus.color} px-2 py-1 rounded`}>
+                            {item.expiryDate ? formatDate(item.expiryDate) : "N/A"}
+                            {expiryStatus.label !== "N/A" && ` (${expiryStatus.label})`}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(item.status)}
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                              item.status
-                            )}`}
-                          >
-                            {item.status}
-                          </span>
-                        </div>
-                      </td>
-                      <td
-                        className="px-6 py-4"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <button
-                            onClick={() => handleEdit(item)}
-                            className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-                            title="Edit item"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => showDeleteConfirmation(item)}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                            title="Delete item"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </span>
+                      );
+                    },
+                  },
+                ].map((c) => ({
+                  ...c,
+                  header: (
+                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                      <span>{c.label}</span>
+                      {sortConfig.key === c.key && <span className="text-indigo-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+                    </button>
+                  ),
+                })),
+                {
+                  key: "status", header: "Status", card: "badge",
+                  cell: (item) => (
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(item.status)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(item.status)}`}>{item.status}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", card: "actions",
+                  cell: (item) => (
+                    <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit item">
+                        <Edit size={16} />
+                      </button>
+                      <button onClick={() => showDeleteConfirmation(item)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete item">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -1418,7 +1363,7 @@ const StockManagement = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
@@ -1447,7 +1392,7 @@ const StockManagement = () => {
             </div>
 
             <div className="p-6" ref={formRef}>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
                 <div className="lg:col-span-3">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <Package size={20} className="mr-2 text-indigo-600" />

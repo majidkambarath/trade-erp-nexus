@@ -23,6 +23,7 @@ import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { formatTime } from "../../utils/format";
+import { DataTable } from "../accounting/DataTable";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -371,7 +372,7 @@ const CategoryManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleExport}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -379,7 +380,7 @@ const CategoryManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isLoading}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -416,7 +417,7 @@ const CategoryManagement = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 mb-8">
         {[
           {
             title: "Total Categories",
@@ -518,77 +519,42 @@ const CategoryManagement = () => {
 
         {!isLoading && (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Category Name
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {categories.map((category) => (
-                  <tr
-                    key={category._id}
-                    className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                          <Tag size={16} className="text-indigo-600" />
-                        </div>
-                        <p className="font-semibold text-gray-900">
-                          {category.name}
-                        </p>
+            <DataTable
+              caption="Categories"
+              rows={categories}
+              rowKey={(category) => category._id}
+              columns={[
+                {
+                  key: "name", header: "Category Name", card: "primary",
+                  cell: (category) => (
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Tag size={16} className="text-indigo-600" />
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-600">
-                        {category.description || "No description"}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${
-                          category.status === "Active"
-                            ? "bg-green-100 text-green-800 border-green-200"
-                            : "bg-red-100 text-red-800 border-red-200"
-                        }`}
-                      >
-                        {category.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex justify-center space-x-2">
-                        <button
-                          onClick={() => handleEdit(category)}
-                          className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200"
-                          title="Edit Category"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => showDeleteConfirmation(category._id, category.name)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200"
-                          title="Delete Category"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <p className="font-semibold text-gray-900">{category.name}</p>
+                    </div>
+                  ),
+                },
+                { key: "description", header: "Description", card: "title", cell: (category) => <p className="text-sm text-gray-600">{category.description || "No description"}</p> },
+                {
+                  key: "status", header: "Status", card: "badge",
+                  cell: (category) => (
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${category.status === "Active" ? "bg-green-100 text-green-800 border-green-200" : "bg-red-100 text-red-800 border-red-200"}`}>
+                      {category.status}
+                    </span>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", align: "center", card: "actions",
+                  cell: (category) => (
+                    <div className="flex justify-center space-x-2">
+                      <button onClick={() => handleEdit(category)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="Edit Category"><Edit3 size={16} /></button>
+                      <button onClick={() => showDeleteConfirmation(category._id, category.name)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200" title="Delete Category"><Trash2 size={16} /></button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
 
             {categories.length === 0 && (
               <div className="text-center py-12">
@@ -656,7 +622,7 @@ const CategoryManagement = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">

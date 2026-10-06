@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Pencil, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
 import { cn } from "../../lib/utils";
 import { formatNumber } from "../../utils/format";
@@ -31,35 +31,27 @@ export default function CardMaster() {
   const [editing, setEditing] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Cards" description="Merchant terminals that take customer cards, and the company's own credit, debit and prepaid cards." actions={<Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card</Button>} />
       <Panel bodyClassName="p-0">
         {cards.loading && !cards.data && <Spinner label="Loading cards" />}
         {cards.error && <div className="p-5"><ErrorNote error={cards.error} onRetry={cards.reload} /></div>}
         {cards.data?.length === 0 && <EmptyState title="No cards yet" text="Add a merchant terminal to take card payments, or your company card to pay with." />}
         {cards.data?.length > 0 && (
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-2 text-start">Card</th><th className="px-3 py-2 text-start">Kind</th><th className="px-3 py-2 text-start">Type</th><th className="px-3 py-2 text-start">Account</th><th className="px-3 py-2 text-end">Limit / fee</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
-              </thead>
-              <tbody>
-                {cards.data.map((c) => (
-                  <tr key={c._id} className="border-t border-border hover:bg-accent/40">
-                    <td className="px-5 py-2.5"><span className="font-medium">{c.label}</span><span className="block text-xs text-muted-foreground">{[c.last4 && `•••• ${c.last4}`, c.holderName, c.terminalId && `terminal ${c.terminalId}`].filter(Boolean).join(" · ")}</span></td>
-                    <td className="px-3 py-2.5"><Pill tone={c.kind === "terminal" ? "info" : "neutral"}>{KIND_LABEL[c.kind]}</Pill></td>
-                    <td className="px-3 py-2.5">{c.cardTypeName}{c.bankName && <span className="block text-xs text-muted-foreground">{c.bankName}</span>}</td>
-                    <td className="px-3 py-2.5"><span>{c.accountName}</span><span className="block font-mono text-xs text-muted-foreground">{c.accountCode}</span></td>
-                    <td className="px-3 py-2.5 text-end tabular-nums">
-                      {c.kind === "credit" ? <>{formatNumber(c.owed || 0, 2)} <span className="text-muted-foreground">of {formatNumber(c.creditLimit, 2)}</span></> : c.kind === "terminal" ? `${c.effectiveFeePercent}% fee` : ""}
-                    </td>
-                    <td className="px-3 py-2.5">{c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill>}</td>
-                    <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`Edit ${c.label}`} onClick={() => setEditing({ ...blank(), ...c, creditLimit: c.creditLimit ? String(c.creditLimit) : "", feePercent: c.feePercent ?? "", expiryMonth: c.expiryMonth ?? "", expiryYear: c.expiryYear ?? "", bankId: c.bankId || "" })} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            caption="Cards"
+            rows={cards.data}
+            rowKey={(c) => c._id}
+            columns={[
+              { key: "card", header: "Card", card: "primary", cell: (c) => <><span className="font-medium">{c.label}</span><span className="block text-xs font-normal text-muted-foreground">{[c.last4 && `•••• ${c.last4}`, c.holderName, c.terminalId && `terminal ${c.terminalId}`].filter(Boolean).join(" · ")}</span></> },
+              { key: "kind", header: "Kind", card: "badge", cell: (c) => <Pill tone={c.kind === "terminal" ? "info" : "neutral"}>{KIND_LABEL[c.kind]}</Pill> },
+              { key: "type", header: "Type", card: "title", cell: (c) => <>{c.cardTypeName}{c.bankName && <span className="ms-1 text-xs text-muted-foreground">{c.bankName}</span>}</> },
+              { key: "account", header: "Account", card: "meta", cell: (c) => <><span>{c.accountName}</span><span className="ms-1 font-mono text-xs text-muted-foreground">{c.accountCode}</span></> },
+              { key: "limit", header: "Limit / fee", align: "end", card: "amount", className: "tabular-nums", cell: (c) => c.kind === "credit" ? <>{formatNumber(c.owed || 0, 2)} <span className="font-normal text-muted-foreground">of {formatNumber(c.creditLimit, 2)}</span></> : c.kind === "terminal" ? `${c.effectiveFeePercent}% fee` : "" },
+              { key: "status", header: "Status", card: "meta", cell: (c) => c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (c) => <button type="button" aria-label={`Edit ${c.label}`} onClick={() => setEditing({ ...blank(), ...c, creditLimit: c.creditLimit ? String(c.creditLimit) : "", feePercent: c.feePercent ?? "", expiryMonth: c.expiryMonth ?? "", expiryYear: c.expiryYear ?? "", bankId: c.bankId || "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+            ]}
+          />
         )}
       </Panel>
       {editing && <CardForm card={editing} onClose={() => setEditing(null)} onSaved={(msg) => { setEditing(null); notify(msg); cards.reload(); }} />}

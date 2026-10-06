@@ -11,6 +11,10 @@ import PartyForm from "../parties/PartyForm";
 import { partyMaster } from "../../lib/partyMasterApi";
 import { emptyParty, fieldForServerError, firstSectionWithErrors, formToPayload, partyToForm, validateParty } from "../../lib/partyForms";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts, DateInput } from "./kit";
+import { useMediaQuery } from "./DataTable";
+import DocumentAuditTrail, { VoucherAuditTrail } from "../audit/AuditTrail";
+
+const SM = "(min-width: 640px)";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
 const CATEGORY_TONE = { ASSET: "teal", LIABILITY: "plum", EQUITY: "neutral", INCOME: "olive", EXPENSE: "rose" };
@@ -28,7 +32,7 @@ export function flattenGroups(chart) {
       out.push({ _id: g._id, name: g.name, prefix: g.prefix, category, depth, role: g.role || "other" });
       walk(g.children, depth + 1, category);
     });
-  chart?.categories.forEach((c) => walk(c.groups, 0, c.category));
+  chart?.categories?.forEach((c) => walk(c.groups, 0, c.category));
   return out;
 }
 
@@ -78,7 +82,7 @@ export default function ChartOfAccounts() {
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Chart of accounts"
         description="Every ledger account, grouped by what it is. Balances come from the same ledger as the Trial Balance. Account codes are assigned automatically from the group."
@@ -125,7 +129,7 @@ export default function ChartOfAccounts() {
           <EmptyState title="No accounts yet" text="Start from the default chart (assets, liabilities, equity, income and expenses), or create your own first group." action={<div className="flex gap-2"><Button onClick={restoreDefaults} disabled={restoring}>Create the default chart</Button><Button variant="outline" onClick={() => setGroupModal({})}>Create a group</Button></div>} />
         )}
 
-        {chart?.categories.map((cat) => {
+        {chart?.categories?.map((cat) => {
           const filtered = cat.groups.map((g) => filterGroup(g, q, showInactive)).filter(Boolean);
           const loose = cat.ungrouped.filter((a) => (showInactive || a.isActive) && matches(a, q));
           if (!filtered.length && !loose.length) return null;
@@ -176,16 +180,19 @@ function GroupRows({ group, depth, collapsed, toggle, forceOpen, onAddAccount, o
   const open = forceOpen || !collapsed[group._id];
   return (
     <div>
-      <div className="group flex items-center gap-2 border-t border-border/70 px-5 py-2" style={{ paddingInlineStart: `${1.25 + depth * 1.25}rem` }}>
+      <div
+        className="group flex items-center gap-2 border-t border-border/70 pe-3 py-2 sm:pe-5"
+        style={{ paddingInlineStart: `calc(var(--tree-pad) + ${depth} * var(--tree-step))` }}
+      >
         <button type="button" onClick={() => toggle(group._id)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${group.name}`} className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-accent">
           {open ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
         </button>
-        <span className="text-sm font-semibold text-foreground">{group.name}</span>
-        <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">{group.prefix}</span>
-        <span className="ms-auto flex items-center gap-1">
-          <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
-          <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
-          <Balance net={group.net} className="w-36 text-end text-sm font-semibold text-foreground" />
+        <span className="min-w-0 truncate text-sm font-semibold text-foreground">{group.name}</span>
+        <span className="hidden shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground sm:inline">{group.prefix}</span>
+        <span className="ms-auto flex shrink-0 items-center gap-1">
+          <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <Balance net={group.net} className="shrink-0 text-end text-sm font-semibold text-foreground sm:w-36" />
         </span>
       </div>
       {open && (
@@ -202,20 +209,31 @@ function GroupRows({ group, depth, collapsed, toggle, forceOpen, onAddAccount, o
 }
 
 function AccountRow({ account, depth, onEdit, onLedger }) {
+  // SM is 640px: the width at which the code earns a column of its own.
+  const wide = useMediaQuery(SM);
   return (
-    <div className="flex items-center gap-3 border-t border-border/50 py-1.5 pe-5 text-sm hover:bg-accent/50" style={{ paddingInlineStart: `${1.25 + depth * 1.25 + 1.75}rem` }}>
-      <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">{account.accountCode}</span>
-      <span className={account.isActive ? "min-w-0 flex-1 truncate text-foreground" : "min-w-0 flex-1 truncate text-muted-foreground line-through"}>{account.accountName}</span>
+    <div
+      className="flex items-center gap-2 border-t border-border/50 py-1.5 pe-3 text-sm hover:bg-accent/50 sm:gap-3 sm:pe-5"
+      style={{ paddingInlineStart: `calc(var(--tree-pad) + ${depth} * var(--tree-step) + var(--tree-leaf))` }}
+    >
+      {/* On a phone the code sits under the name rather than claiming a column of its own.
+          One or the other is rendered, never both: two copies of the code in the DOM is two
+          things for a screen reader to read and two matches for anything looking it up. */}
+      {wide && <span className="w-24 shrink-0 font-mono text-xs text-muted-foreground">{account.accountCode}</span>}
+      <span className="min-w-0 flex-1">
+        <span className={account.isActive ? "block truncate text-foreground" : "block truncate text-muted-foreground line-through"}>{account.accountName}</span>
+        {!wide && <span className="block font-mono text-[11px] text-muted-foreground">{account.accountCode}</span>}
+      </span>
       <span className="hidden items-center gap-1.5 sm:flex">
         {account.isMapped && <Pill tone="info"><Link2 className="h-3 w-3" aria-hidden="true" />Posting</Pill>}
         {account.isSystemAccount && <Pill><Lock className="h-3 w-3" aria-hidden="true" />Default</Pill>}
         {!account.isActive && <Pill tone="warning">Inactive</Pill>}
         {account.documents > 0 && <Pill>{account.documents} file{account.documents > 1 ? "s" : ""}</Pill>}
       </span>
-      <Balance net={account.net} className="w-36 shrink-0 text-end text-foreground" />
+      <Balance net={account.net} className="shrink-0 text-end text-foreground sm:w-36" />
       <span className="flex shrink-0 items-center gap-1">
-        <button type="button" onClick={onLedger} aria-label={`Ledger of ${account.accountName}`} className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-3.5 w-3.5" aria-hidden="true" /></button>
-        <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        <button type="button" onClick={onLedger} aria-label={`Ledger of ${account.accountName}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-9 w-9 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
       </span>
     </div>
   );
@@ -511,6 +529,8 @@ export function GroupModal({ group, groups, onClose, onSaved }) {
 // closing balance. Used in the chart's pop-up and on the Ledger page.
 export function LedgerBody({ account }) {
   const [range, setRange] = useState({ from: "", to: "" });
+  // the posting whose source document's audit trail is open, or null
+  const [audit, setAudit] = useState(null);
   const { data, loading, error, reload } = useAsync(
     () => accounting.accountLedger(account._id, { from: range.from || undefined, to: range.to || undefined }),
     [account._id, range.from, range.to]
@@ -525,7 +545,7 @@ export function LedgerBody({ account }) {
       {loading && !data && <Spinner label="Loading the ledger" />}
       <ErrorNote error={error} onRetry={reload} />
       {data && (
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
             <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
               <tr><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Narration</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">Balance</th></tr>
@@ -536,7 +556,13 @@ export function LedgerBody({ account }) {
               {data.rows.map((r) => (
                 <tr key={r._id} className="border-t border-border">
                   <td className="whitespace-nowrap px-3 py-2">{formatDateGB(r.date)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{r.voucherNo}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                    {r.voucherId ? (
+                      <button type="button" onClick={() => setAudit(r)} title={`Audit trail of ${r.voucherNo}`} className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {r.voucherNo}
+                      </button>
+                    ) : r.voucherNo}
+                  </td>
                   <td className="px-3 py-2 text-muted-foreground">{r.narration}</td>
                   <td className="px-3 py-2 text-end tabular-nums">{r.debit ? money(r.debit) : ""}</td>
                   <td className="px-3 py-2 text-end tabular-nums">{r.credit ? money(r.credit) : ""}</td>
@@ -553,8 +579,18 @@ export function LedgerBody({ account }) {
           </table>
         </div>
       )}
+      {audit && <SourceAuditTrail row={audit} onClose={() => setAudit(null)} />}
     </>
   );
+}
+
+// A posting's source is either a trade document (the four order types post under their own type)
+// or a finance voucher; each has its own audit trail.
+const DOCUMENT_TYPES = ["purchase_order", "sales_order", "purchase_return", "sales_return"];
+function SourceAuditTrail({ row, onClose }) {
+  return DOCUMENT_TYPES.includes(row.voucherType)
+    ? <DocumentAuditTrail id={row.voucherId} documentNo={row.voucherNo} onClose={onClose} />
+    : <VoucherAuditTrail id={row.voucherId} voucherNo={row.voucherNo} onClose={onClose} />;
 }
 
 export function LedgerModal({ account, onClose }) {

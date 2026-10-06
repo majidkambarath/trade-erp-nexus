@@ -22,11 +22,11 @@ export default function FinancialStatements() {
   const [ledgerFor, setLedgerFor] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Financial statements" description="Trial balance, profit and loss, cash flow and balance sheet, from the general ledger." />
       <DateRange value={range} onChange={setRange} asAt={tab === "bs"} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto"><TabsList>
+        <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList>
           <TabsTrigger value="trial">Trial balance</TabsTrigger><TabsTrigger value="pl">Profit and loss</TabsTrigger><TabsTrigger value="cash">Cash flow</TabsTrigger><TabsTrigger value="bs">Balance sheet</TabsTrigger>
         </TabsList></div>
         <TabsContent value="trial">{tab === "trial" && <TrialBalance range={range} onLedger={setLedgerFor} />}</TabsContent>
@@ -60,7 +60,7 @@ function TrialBalance({ range, onLedger }) {
               actions={<><Pill tone={d.summary.isBalanced ? "success" : "danger"}>{d.summary.isBalanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{d.summary.isBalanced ? "Debits equal credits" : `Difference ${money(Math.abs(d.summary.closingDebit - d.summary.closingCredit))}`}</Pill><Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.trialBalance.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button></>}>
               {d.trialBalance.length === 0 && <EmptyState title="No postings" text="Nothing has been posted to the ledger up to this date." />}
               {d.trialBalance.length > 0 && (
-                <div className="overflow-x-auto">
+                <div className="erp-scroll table-pin-first overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-start">Category</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">Closing Dr</th><th className="px-5 py-2 text-end">Closing Cr</th></tr>
@@ -162,7 +162,7 @@ function ProfitLoss({ range, onLedger }) {
             </div>
             <Panel bodyClassName="p-0" title="Profit and loss" description="Revenue less the direct cost of what was sold is the gross profit; other income and operating expenses take it to the net profit."
               actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
-              <div className="overflow-x-auto">
+              <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full">
                   <tbody>
                     <StatementBlock title="Revenue" section={d.revenue} onLedger={onLedger} />
@@ -202,7 +202,7 @@ function CashFlow({ range }) {
             <Panel bodyClassName="p-0" title="Cash flow"
               actions={<><Pill tone={d.reconciles ? "success" : "danger"}>{d.reconciles ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{d.reconciles ? "Agrees with the cash and bank ledgers" : `Differs from the ledgers by ${money(Math.abs(d.closing - d.closingPerLedger))}`}</Pill><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button></>}>
               {d.lines.length === 0 ? <EmptyState title="No cash or bank movement" text="Nothing went in or out of the cash and bank accounts in this period." /> : (
-                <div className="overflow-x-auto">
+                <div className="erp-scroll table-pin-first overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr><th className="px-5 py-2 text-start">Source</th><th className="px-3 py-2 text-end">Money in</th><th className="px-3 py-2 text-end">Money out</th><th className="px-3 py-2 text-end">Net</th><th className="px-5 py-2 text-end">Vouchers</th></tr>

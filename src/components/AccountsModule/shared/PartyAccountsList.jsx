@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { AlertTriangle, ChevronLeft, ChevronRight, Download, Gauge, Scale, Search, Users, Wallet } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { CURRENCY, downloadCSV, formatNumber } from "../../../utils/format";
 import { partyAccountApi } from "../../../lib/partyAccountApi";
 import { Button } from "../../ui/button";
 import StatCard from "../../ui/stat-card";
-import { Balance, EmptyState, ErrorNote, Panel, Pill, Select, TextInput, useAsync } from "../../accounting/kit";
+import { Balance, DataTable, EmptyState, ErrorNote, Panel, Pill, Select, TextInput, useAsync } from "../../accounting/kit";
 import { PageTitle, Skeleton, UsedBar } from "./partyAccountParts";
 import { CREDIT_STATUS, KINDS, netOf, sideText } from "./partyAccountUtils";
 
@@ -40,7 +40,6 @@ const matchesFilter = (id, r) => {
  */
 export default function PartyAccountsList({ kind }) {
   const k = KINDS[kind];
-  const navigate = useNavigate();
   const accounts = useAsync(() => partyAccountApi.accounts(kind), [kind]);
   const balances = useAsync(() => partyAccountApi.balances(kind), [kind]);
 
@@ -104,14 +103,14 @@ export default function PartyAccountsList({ kind }) {
   const clear = () => { setSearch(""); setFilter("all"); setPage(1); };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageTitle
         title={k.title}
         description={customer ? "What each customer owes you, how much of their credit limit is used and what is overdue. Open a customer for the full statement." : "What you owe each vendor and what is overdue. Open a vendor for the full statement."}
         actions={<Button type="button" variant="outline" onClick={exportCsv} disabled={!visible.length}><Download className="h-4 w-4" aria-hidden="true" />Export CSV</Button>}
       />
 
-      <section aria-label="Totals" className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Totals" className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard title={customer ? "Customers" : "Vendors"} icon={<Users />} tone="teal" count={accounts.data ? String(accounts.data.length) : dash} subText="On the books" />
         <StatCard
           title={customer ? "Total receivable" : "Total payable"}
@@ -179,51 +178,37 @@ export default function PartyAccountsList({ kind }) {
         {slice.length > 0 && (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <caption className="sr-only">{customer ? "Customer" : "Vendor"} balances</caption>
-                <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th scope="col" className="px-5 py-2 text-start font-medium">{customer ? "Customer" : "Vendor"}</th>
-                    <th scope="col" className="px-3 py-2 text-end font-medium">Documents</th>
-                    <th scope="col" className="px-3 py-2 text-end font-medium">{k.balanceTitle}</th>
-                    {customer ? <th scope="col" className="px-3 py-2 text-start font-medium">Credit used</th> : <th scope="col" className="px-3 py-2 text-start font-medium">Payment terms</th>}
-                    <th scope="col" className="px-3 py-2 text-end font-medium">Overdue</th>
-                    <th scope="col" className="w-10 px-3 py-2"><span className="sr-only">Open</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {slice.map((r) => {
-                    const s = CREDIT_STATUS[r.status];
-                    return (
-                      <tr key={r.id} onClick={() => navigate(k.detailPath(r.id))} className="cursor-pointer border-t border-border hover:bg-accent/40">
-                        <td className="px-5 py-2.5">
-                          <Link to={k.detailPath(r.id)} onClick={(e) => e.stopPropagation()} className="rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{r.name}</Link>
-                          <div className="font-mono text-xs text-muted-foreground">{r.code}</div>
-                        </td>
-                        <td className="px-3 py-2.5 text-end tabular-nums">{r.documents}</td>
-                        <td className="px-3 py-2.5 text-end font-medium">{r.balance === null ? dash : <Balance net={netOf(kind, r.balance)} />}</td>
-                        {customer ? (
-                          <td className="px-3 py-2.5">
-                            {s && r.creditLimit > 0 ? (
-                              <div className="flex min-w-[10rem] items-center gap-2">
-                                <UsedBar className="w-20" utilisation={r.utilisation} status={r.status} label={`Credit used by ${r.name}`} />
-                                <span className="tabular-nums">{formatNumber(r.utilisation, 0)}%</span>
-                                {r.status !== "ok" && <Pill tone={s.tone}>{s.label}</Pill>}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">{r.status === "no-limit" ? "No limit" : dash}</span>
-                            )}
-                          </td>
-                        ) : (
-                          <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">{r.terms || dash}</td>
-                        )}
-                        <td className={cn("px-3 py-2.5 text-end tabular-nums", r.overdue > 0 && "font-medium text-status-warning")}>{r.overdue === null ? dash : r.overdue > 0 ? formatNumber(r.overdue, 2) : dash}</td>
-                        <td className="px-3 py-2.5 text-end text-muted-foreground"><ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" /></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <DataTable
+                caption={`${customer ? "Customer" : "Vendor"} balances`}
+                rows={slice}
+                rowKey={(r) => r.id}
+                rowHref={(r) => k.detailPath(r.id)}
+                columns={[
+                  { key: "party", header: customer ? "Customer" : "Vendor", card: "primary", cell: (r) => (<><Link to={k.detailPath(r.id)} onClick={(e) => e.stopPropagation()} className="rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{r.name}</Link><div className="font-mono text-xs font-normal text-muted-foreground">{r.code}</div></>) },
+                  { key: "documents", header: "Documents", align: "end", card: "meta", className: "tabular-nums", cell: (r) => `${r.documents} documents` },
+                  { key: "balance", header: k.balanceTitle, align: "end", card: "amount", className: "font-medium", cell: (r) => r.balance === null ? dash : <Balance net={netOf(kind, r.balance)} /> },
+                  {
+      key: "credit",
+      header: customer ? "Credit used" : "Payment terms",
+      card: customer ? "title" : "meta",
+      className: customer ? undefined : "whitespace-nowrap text-muted-foreground",
+      cell: (r) => {
+        if (!customer) return r.terms || dash;
+        const s = CREDIT_STATUS[r.status];
+        return s && r.creditLimit > 0 ? (
+          <div className="flex items-center gap-2 md:min-w-[10rem]">
+            <UsedBar className="w-20" utilisation={r.utilisation} status={r.status} label={`Credit used by ${r.name}`} />
+            <span className="tabular-nums">{formatNumber(r.utilisation, 0)}%</span>
+            {r.status !== "ok" && <Pill tone={s.tone}>{s.label}</Pill>}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">{r.status === "no-limit" ? "No limit" : dash}</span>
+        );
+      },
+    },
+                  { key: "overdue", header: "Overdue", align: "end", card: "meta", cell: (r) => r.overdue === null ? dash : r.overdue > 0 ? <span className="font-medium tabular-nums text-status-warning">{formatNumber(r.overdue, 2)} overdue</span> : dash },
+                ]}
+              />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-sm text-muted-foreground print:hidden">
               <div className="flex items-center gap-2">

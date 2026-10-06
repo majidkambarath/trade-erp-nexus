@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, errorMessage, useToasts, DateInput } from "../accounting/kit";
+import { DataTable, DateInput, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
@@ -21,7 +21,7 @@ export default function JournalVouchers() {
   const [viewing, setViewing] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Journal vouchers"
         description="Move amounts between any accounts of the chart. Add as many rows as you need; the voucher posts when debits equal credits."
@@ -30,29 +30,21 @@ export default function JournalVouchers() {
       <ListToolbar filters={list.filters} set={list.set} />
       <Panel bodyClassName="p-0">
         <ListBody list={list} emptyTitle="No journal vouchers" emptyText="Record the first one with New journal.">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Narration</th><th className="px-3 py-2 text-end">Rows</th><th className="px-3 py-2 text-end">Amount</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
-            </thead>
-            <tbody>
-              {list.rows.map((v) => (
-                <tr key={v._id} className="border-t border-border hover:bg-accent/40">
-                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs font-semibold">{v.voucherNo}{!v.ledgerBased && <Pill className="ms-2">Older format</Pill>}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(v.date)}</td>
-                  <td className="max-w-md truncate px-3 py-2.5 text-muted-foreground">{v.narration}</td>
-                  <td className="px-3 py-2.5 text-end tabular-nums">{v.entries?.length || 0}</td>
-                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">{money(toCents(v.totalAmount))}</td>
-                  <td className="px-3 py-2.5"><StatusPill status={v.status} /></td>
-                  <td className="whitespace-nowrap px-5 py-2.5 text-end">
-                    <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>
-                    {v.ledgerBased && v.status === "approved" && (
-                      <button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption="Journal vouchers"
+            rows={list.rows}
+            rowKey={(v) => v._id}
+            onRowClick={(v) => setViewing(v._id)}
+            columns={[
+              { key: "no", header: "Voucher", card: "primary", className: "whitespace-nowrap font-mono text-xs font-semibold", cell: (v) => <>{v.voucherNo}{!v.ledgerBased && <Pill className="ms-2">Older format</Pill>}</> },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
+              { key: "narration", header: "Narration", card: "title", className: "max-w-md truncate text-muted-foreground", cell: (v) => v.narration },
+              { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
+              { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && (<button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>)}</>) },
+            ]}
+          />
         </ListBody>
       </Panel>
 

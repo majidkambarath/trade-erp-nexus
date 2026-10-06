@@ -32,6 +32,7 @@ import StatCard from "../ui/stat-card";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
+import { DataTable } from "../accounting/DataTable";
 
 // Session management utilities
 const SessionManager = {
@@ -340,7 +341,7 @@ const CustomerManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-[60vh] bg-background flex items-center justify-center">
+      <div className="min-h-[60dvh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -375,7 +376,7 @@ const CustomerManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -386,7 +387,7 @@ const CustomerManagement = () => {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
+            className={`grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border transition-colors ${
               showFilters
                 ? "border-brand bg-brand-soft text-brand-on-soft"
                 : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -416,7 +417,7 @@ const CustomerManagement = () => {
 
       {/* Enhanced Statistics Cards */}
       <div className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
           {[
             {
               title: "Active Customers",
@@ -567,138 +568,69 @@ const CustomerManagement = () => {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  {[
-                    { key: "customerId", label: "Customer ID" },
-                    { key: "trnNumber", label: "TRN" }, // <- ADDED
-                    { key: "customerName", label: "Customer Name" },
-                    { key: "contactPerson", label: "Contact Person" },
-                    { key: "salesPerson", label: "Sales Person" }, // <- ADDED
-                    { key: "email", label: "Email" },
-                    { key: "phone", label: "Phone" },
-                    { key: "creditLimit", label: "Credit Limit" },
-                    { key: "paymentTerms", label: "Payment Terms" },
-                    { key: "status", label: "Status" },
-                    { key: null, label: "Actions" },
-                  ].map((column) => (
-                    <th
-                      key={column.key || "actions"}
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={
-                        column.key ? () => handleSort(column.key) : undefined
-                      }
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{column.label}</span>
-                        {column.key && sortConfig.key === column.key && (
-                          <span className="text-purple-600">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredCustomers.map((customer) => (
-                  <tr
-                    key={customer._id}
-                    className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {customer.customerId}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-  {customer.trnNumber ? (
-    <span className="font-medium text-gray-900">{customer.trnNumber}</span>
-  ) : (
-    <span className="text-sm text-gray-400">—</span> // placeholder for missing TRN
-  )}
-</td>
-
-                    <td className="px-6 py-4 text-sm text-gray-900">
+            <DataTable
+              caption="Customers"
+              rows={sortedAndFilteredCustomers}
+              rowKey={(customer) => customer._id}
+              columns={[
+                // The sort control belongs to the header, which only the table shape renders;
+                // on a card the order is whatever the page's sort already set.
+                ...[
+                  { key: "customerId", label: "Customer ID", card: "meta", cell: (c) => <span className="font-medium text-gray-900">{c.customerId}</span> },
+                  { key: "trnNumber", label: "TRN", card: "hidden", cell: (c) => (c.trnNumber ? <span className="font-medium text-gray-900">{c.trnNumber}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
+                  {
+                    key: "customerName", label: "Customer Name", card: "primary",
+                    cell: (c) => (
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
                           <Users size={16} className="text-purple-600" />
                         </div>
-                        <div>
-                          <div className="font-medium">
-                            {customer.customerName}
-                          </div>
-                          <ExpiryPill documents={customer.documents} />
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{c.customerName}</div>
+                          <ExpiryPill documents={c.documents} />
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {customer.contactPerson}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-  {customer.salesPerson ? (
-    <span className="font-medium text-gray-900">{customer.salesPerson}</span>
-  ) : (
-    <span className="text-sm text-gray-400">—</span>
-  )}
-</td>
-
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <a
-                        href={`mailto:${customer.email}`}
-                        className="text-purple-600 hover:text-purple-800 transition-colors"
-                      >
-                        {customer.email}
-                      </a>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <a
-                        href={`tel:${customer.phone}`}
-                        className="text-purple-600 hover:text-purple-800 transition-colors"
-                      >
-                        {customer.phone}
-                      </a>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 font-medium">
-                      {formatCurrency(customer.creditLimit)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {customer.paymentTerms}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(customer.status)}
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                            customer.status
-                          )}`}
-                        >
-                          {customer.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => handleEdit(customer)}
-                          className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                          title="Edit customer"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => showDeleteConfirmation(customer)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Delete customer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ),
+                  },
+                  { key: "contactPerson", label: "Contact Person", card: "title", cell: (c) => c.contactPerson },
+                  { key: "salesPerson", label: "Sales Person", card: "hidden", cell: (c) => (c.salesPerson ? <span className="font-medium text-gray-900">{c.salesPerson}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
+                  { key: "email", label: "Email", cell: (c) => <a href={`mailto:${c.email}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.email}</a> },
+                  { key: "phone", label: "Phone", cell: (c) => <a href={`tel:${c.phone}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.phone}</a> },
+                  { key: "creditLimit", label: "Credit Limit", card: "amount", cell: (c) => <span className="font-medium text-gray-900">{formatCurrency(c.creditLimit)}</span> },
+                  { key: "paymentTerms", label: "Payment Terms", card: "meta", cell: (c) => c.paymentTerms },
+                ].map((c) => ({
+                  ...c,
+                  header: (
+                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                      <span>{c.label}</span>
+                      {sortConfig.key === c.key && <span className="text-purple-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+                    </button>
+                  ),
+                })),
+                {
+                  key: "status", header: "Status", card: "badge",
+                  cell: (c) => (
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(c.status)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(c.status)}`}>{c.status}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", card: "actions",
+                  cell: (c) => (
+                    <div className="flex items-center space-x-3">
+                      <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
+                        <Edit size={16} />
+                      </button>
+                      <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
         )}
       </div>

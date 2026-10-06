@@ -178,3 +178,77 @@ describe("account menu", () => {
     expect(sessionStorage.getItem("accessToken")).toBeNull();
   });
 });
+
+// The touch shell. jsdom has no viewport, so these assert the structure and behaviour that
+// the lg:hidden / lg:flex classes then reveal at the right width - not the widths themselves.
+describe("bottom bar", () => {
+  const bar = () => screen.getByRole("navigation", { name: "Modules" });
+
+  it("pins four modules plus More within thumb reach", () => {
+    renderAt("/dashboard");
+    const labels = within(bar()).getAllByRole("link").map((a) => a.textContent.trim());
+    expect(labels).toEqual(["Home", "Sales", "Purchase", "Finance"]);
+    expect(within(bar()).getByRole("button", { name: /More/ })).toBeTruthy();
+  });
+
+  it("marks the module the current page belongs to", () => {
+    renderAt("/receipt-voucher");
+    const current = within(bar()).getByRole("link", { current: "page" });
+    expect(current.textContent.trim()).toBe("Finance");
+  });
+
+  it("is hidden from the desktop breakpoint up, where the rail takes over", () => {
+    renderAt("/dashboard");
+    expect(bar().className).toContain("lg:hidden");
+    expect(rail().className).toContain("lg:flex");
+  });
+
+  it("opens the sheet with everything that did not fit, one level deep", async () => {
+    renderAt("/dashboard");
+    fireEvent.click(within(bar()).getByRole("button", { name: /More/ }));
+    const sheet = await screen.findByRole("dialog");
+    const pages = within(sheet).getAllByRole("link").map((a) => a.textContent.trim());
+    // a page from a module that is not on the bar, and the footer module
+    expect(pages).toEqual(expect.arrayContaining(["Stock Items", "Chart of accounts", "Settings"]));
+    // nothing from a pinned module is repeated in the sheet
+    expect(pages).not.toContain("Receipts");
+  });
+
+  it("keeps the More button marked while a sheet page is the current one", () => {
+    renderAt("/chart-of-accounts");
+    expect(within(bar()).getByRole("button", { name: /More/ }).className).toContain("text-brand");
+  });
+
+  it("dismisses the sheet once a page is chosen", async () => {
+    renderAt("/dashboard");
+    fireEvent.click(within(bar()).getByRole("button", { name: /More/ }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByRole("link", { name: "Stock Items" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByTestId("where").textContent).toBe("/stock-item-creation");
+  });
+
+  it("closes the sheet if the window grows to desktop width, so its focus trap cannot outlive it", async () => {
+    renderAt("/dashboard");
+    fireEvent.click(within(bar()).getByRole("button", { name: /More/ }));
+    await screen.findByRole("dialog");
+    act(() => {
+      window.innerWidth = 1280;
+      window.dispatchEvent(new Event("resize"));
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("touch chrome", () => {
+  it("has no hamburger: navigation is the bar, not a drawer behind a menu", () => {
+    renderAt("/dashboard");
+    expect(screen.queryByRole("button", { name: /open navigation/i })).toBeNull();
+  });
+
+  it("keeps the header and the tab strip clear of the notch and lets the strip scroll", () => {
+    renderAt("/receipt-voucher");
+    expect(document.querySelector("header").className).toContain("pt-safe");
+    expect(screen.getByRole("navigation", { name: "Finance" }).className).toContain("overflow-x-auto");
+  });
+});

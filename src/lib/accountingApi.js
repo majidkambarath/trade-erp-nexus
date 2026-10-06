@@ -80,6 +80,14 @@ export const accounting = {
   balanceSheet: (params) => accounting.report("balance_sheet", params),
 };
 
+// Trade documents (purchase / sales orders and their returns). The router re-declares its own
+// prefix inside the mount, which is why the path doubles.
+export const documents = {
+  // Everything one document did: ledger entries, stock movements, party balance, settlements,
+  // e-invoice and the activity log behind it.
+  audit: (id) => api.get(`/transactions/transactions/${id}/audit`),
+};
+
 // The VAT return (FTA 201), worked out from the approved documents; saved returns are the record.
 export const vat = {
   compute: (params) => api.get("/vat-return/return", params),

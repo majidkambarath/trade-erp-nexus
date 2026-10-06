@@ -40,11 +40,11 @@ export default function VatReturn() {
   const go = (next, extra = {}) => { if (extra.kind !== undefined) setKindFocus(extra.kind); setParams({ tab: next }, { replace: true }); };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="VAT return" description="The FTA VAT return worked out from your approved invoices, returns, notes and expenses, by tax treatment." />
       <DateRange value={range} onChange={setRange} presets={QUARTERS} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto"><TabsList><TabsTrigger value="return">Return</TabsTrigger><TabsTrigger value="documents">Documents</TabsTrigger><TabsTrigger value="saved">Saved returns</TabsTrigger></TabsList></div>
+        <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList><TabsTrigger value="return">Return</TabsTrigger><TabsTrigger value="documents">Documents</TabsTrigger><TabsTrigger value="saved">Saved returns</TabsTrigger></TabsList></div>
         <TabsContent value="return">{tab === "return" && <ReturnTab range={range} notify={notify} onShowUnclassified={() => go("documents", { kind: "unclassified" })} onSaved={() => go("saved")} />}</TabsContent>
         <TabsContent value="documents">{tab === "documents" && <Documents range={range} initialKind={kindFocus} />}</TabsContent>
         <TabsContent value="saved">{tab === "saved" && <Saved notify={notify} />}</TabsContent>
@@ -101,7 +101,7 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
 
             <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`Amounts in AED. Supplies are reported under ${d.emirate} until customers carry their own emirate.`}
               actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></>}>
-              <div className="overflow-x-auto">
+              <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr><th className="w-16 px-5 py-2 text-start">Box</th><th className="px-3 py-2 text-start">Description</th><th className="px-3 py-2 text-end">Amount</th><th className="px-5 py-2 text-end">VAT</th></tr>
@@ -181,7 +181,7 @@ function Documents({ range, initialKind }) {
             <Panel bodyClassName="p-0" title="Documents in the return" description={`${d.total} document${d.total === 1 ? "" : "s"} · taxable ${money(d.totals.taxable)} · VAT ${money(d.totals.vat)} AED`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
               {d.rows.length === 0 ? <EmptyState title="No documents" text="No approved document matches this selection." /> : (
-                <div className="overflow-x-auto">
+                <div className="erp-scroll table-pin-first overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr><th className="px-5 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Document</th><th className="px-3 py-2 text-start">Party</th><th className="px-3 py-2 text-start">TRN</th><th className="px-3 py-2 text-start">Treatment</th><th className="px-3 py-2 text-end">Taxable</th><th className="px-5 py-2 text-end">VAT</th></tr>
@@ -249,7 +249,7 @@ function Saved({ notify }) {
         <>
           <Panel bodyClassName="p-0" title="Saved returns" description="A return keeps the figures it had when it was prepared, so a later change to a document does not restate it.">
             {rows.length === 0 ? <EmptyState title="No saved returns" text="Open the Return tab, check the figures and choose Save as draft." /> : (
-              <div className="overflow-x-auto">
+              <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr><th className="px-5 py-2 text-start">Period</th><th className="px-3 py-2 text-start">Status</th><th className="px-3 py-2 text-end">VAT due</th><th className="px-3 py-2 text-end">Recoverable</th><th className="px-3 py-2 text-end">Net</th><th className="px-3 py-2 text-start">Filing</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
@@ -281,7 +281,7 @@ function Saved({ notify }) {
 
           {view && (
             <Modal size="lg" onClose={() => setView(null)} title={`VAT return ${formatDate(view.periodFrom)} to ${formatDate(view.periodTo)}`} description={`${view.status === "FILED" ? `Filed · reference ${view.filingReference}` : view.status === "FINALIZED" ? "Finalised" : "Draft"} · AED`}>
-              <div className="overflow-x-auto rounded-xl border border-border">
+              <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="w-14 px-4 py-2 text-start">Box</th><th className="px-3 py-2 text-start">Description</th><th className="px-3 py-2 text-end">Amount</th><th className="px-4 py-2 text-end">VAT</th></tr></thead>
                   <tbody>

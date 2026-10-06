@@ -43,12 +43,16 @@ export const PRESETS = [
 export function DateRange({ value, onChange, asAt = false, presets = PRESETS }) {
   const set = (key) => (e) => e.target.value && onChange({ ...value, [key]: e.target.value });
   return (
-    <div className="mb-5 flex flex-wrap items-end gap-3">
-      {!asAt && <Field label="From"><DateInput value={value.from} max={value.to} onChange={set("from")} className="w-44" /></Field>}
-      <Field label={asAt ? "As at" : "To"}><DateInput value={value.to} min={asAt ? undefined : value.from} onChange={set("to")} className="w-44" /></Field>
+    // The dates share one row on a phone and the presets scroll under them, rather than
+    // each 176px field claiming its own line.
+    <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="flex gap-3">
+        {!asAt && <Field label="From" className="min-w-0 flex-1 sm:flex-none"><DateInput value={value.from} max={value.to} onChange={set("from")} className="sm:w-44" /></Field>}
+        <Field label={asAt ? "As at" : "To"} className="min-w-0 flex-1 sm:flex-none"><DateInput value={value.to} min={asAt ? undefined : value.from} onChange={set("to")} className="sm:w-44" /></Field>
+      </div>
       {!asAt && (
-        <div className="flex flex-wrap gap-2 pb-1" role="group" aria-label="Quick ranges">
-          {presets.map((p) => <Button key={p.id} type="button" variant="outline" size="sm" onClick={() => onChange(p.range(todayInput()))}>{p.label}</Button>)}
+        <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Quick ranges">
+          {presets.map((p) => <Button key={p.id} type="button" variant="outline" size="sm" className="shrink-0" onClick={() => onChange(p.range(todayInput()))}>{p.label}</Button>)}
         </div>
       )}
     </div>

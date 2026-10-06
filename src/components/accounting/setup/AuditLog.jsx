@@ -29,8 +29,8 @@ export default function AuditLog() {
       </form>
       {loading && !data && <Spinner />}
       {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-      {data?.rows.length === 0 && <EmptyState title="Nothing logged" text="Changes to accounts, tax codes, fiscal years, mappings and e-invoice settings appear here." />}
-      {data?.rows.length > 0 && (
+      {data?.rows?.length === 0 && <EmptyState title="Nothing logged" text="Changes to accounts, tax codes, fiscal years, mappings and e-invoice settings appear here." />}
+      {data?.rows?.length > 0 && (
         <ul className="divide-y divide-border">
           {data.rows.map((r) => {
             const has = r.before || r.after;

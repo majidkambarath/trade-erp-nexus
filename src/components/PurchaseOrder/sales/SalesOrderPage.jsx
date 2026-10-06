@@ -50,11 +50,24 @@ import GridView from "./GridView";
 import SaleInvoiceView from "./InvoiceView";
 import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
+import { useCompanyProfile } from "../shared/useCompanyProfile";
+import { buildSalesDocument } from "../shared/invoiceDocuments";
+import { downloadSheetsPdf, sheetMarkup } from "../shared/documentPdf";
+import { readAccent } from "../shared/invoiceModel";
+import { getBrand } from "../../../config/brands";
 
+import { useDeleteConfirm } from "../shared/useDeleteConfirm";
+import DocumentAuditTrail from "../../audit/AuditTrail";
+import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 const SalesOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard");
-  const [viewMode, setViewMode] = useState("table");
+  // The table is the right list for a pointer and the cards for a thumb, so the default
+  // follows the screen. Choosing a view by hand still wins, and holds until a reload.
+  const wide = useMediaQuery(WIDE);
+  const [viewMode, setViewMode] = useState(() => (wide ? "table" : "grid"));
   const [selectedSO, setSelectedSO] = useState(null);
+  // The document whose audit trail is open, or null.
+  const [auditSO, setAuditSO] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
@@ -521,12 +534,21 @@ const formatDisplayTransactionNo = (t) => {
           "success"
         );
       } else if (action === "delete") {
-        if (window.confirm(`Delete ${selectedSOs.length} selected orders?`)) {
-          for (const soId of selectedSOs) {
-            await processTransaction(soId, "reject");
-          }
-          addNotification(`${selectedSOs.length} orders deleted`, "success");
-        }
+        askDelete({
+          title: `Delete ${selectedSOs.length} sales orders?`,
+          text: "Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          onConfirm: async () => {
+            try {
+              for (const soId of selectedSOs) {
+                await axiosInstance.delete(`/transactions/transactions/${soId}`);
+              }
+              addNotification(`${selectedSOs.length} orders deleted`, "success");
+            } catch (error) {
+              addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
+            }
+            fetchTransactions();
+          },
+        });
       } else if (action === "export") {
         downloadCSV(
           "selected_sales_orders.csv",
@@ -619,94 +641,35 @@ const formatDisplayTransactionNo = (t) => {
     }
   };
 
-  // Generate invoice PDF for a given SO and copy type from the list views
+  // The list's Download actions print the same document as the invoice screen.
+  const companyProfile = useCompanyProfile();
   const downloadInvoiceCopy = async (so, copyType) => {
     try {
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.width = '210mm';
-      container.style.height = '297mm';
-      container.id = 'print-root';
-      document.body.appendChild(container);
-
-      const root = document.createElement('div');
-      root.id = 'invoice-content';
-      container.appendChild(root);
-
-      // Render minimal invoice HTML using current InvoiceView approach is heavy; instead snapshot current page content area
-      // We mimic InvoiceView by navigating data into a temporary node
-      const el = document.createElement('div');
-      el.innerHTML = document.querySelector('#invoice-content')?.outerHTML || '';
-
-      // Fallback: if no invoice-content in DOM, inform user
-      if (!el.innerHTML) {
-        // Dynamically import html2canvas/jsPDF and build from a lightweight template using SO data
-        const html2canvas = (await import('html2canvas')).default;
-        const { jsPDF } = await import('jspdf');
-
-        const temp = document.createElement('div');
-        temp.style.width = '210mm';
-        temp.style.padding = '10mm';
-        temp.style.background = '#fff';
-        temp.style.fontFamily = 'Arial,Helvetica,sans-serif';
-        temp.id = 'invoice-content';
-        temp.innerHTML = `<div id="copy-label" style="text-align:right;font-weight:bold;margin-bottom:9px">${copyType}</div>
-          <div style="text-align:center;font-weight:800;margin-bottom:8px">${so.displayTransactionNo || so.transactionNo}</div>`;
-        container.innerHTML = '';
-        container.appendChild(temp);
-
-        const canvas = await html2canvas(temp, { scale: 3, useCORS: true, backgroundColor: '#fff' });
-        const img = canvas.toDataURL('image/png');
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfW = 210, pdfH = 297;
-        const ratio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-        const w = canvas.width * ratio, h = canvas.height * ratio;
-        pdf.addImage(img, 'PNG', (pdfW - w) / 2, (pdfH - h) / 2, w, h);
-        const fname = `${so.status === 'APPROVED' ? 'INV' : 'SO'}_${(so.displayTransactionNo || so.transactionNo)}_${copyType.replace(/\s+/g, '_')}.pdf`;
-        pdf.save(fname);
-        document.body.removeChild(container);
-        return;
-      }
-
-      // If an invoice-content exists in DOM, use it directly
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-      const copyLabel = document.getElementById('copy-label');
-      if (copyLabel) copyLabel.innerText = copyType;
-      await new Promise(r => setTimeout(r, 80));
-      const node = document.getElementById('invoice-content');
-      const canvas = await html2canvas(node, { scale: 3, useCORS: true, backgroundColor: '#fff' });
-      const img = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfW = 210, pdfH = 297;
-      const ratio = Math.min(pdfW / canvas.width, pdfH / canvas.height);
-      const w = canvas.width * ratio, h = canvas.height * ratio;
-      pdf.addImage(img, 'PNG', (pdfW - w) / 2, (pdfH - h) / 2, w, h);
-      const fname = `${so.status === 'APPROVED' ? 'INV' : 'SO'}_${(so.displayTransactionNo || so.transactionNo)}_${copyType.replace(/\s+/g, '_')}.pdf`;
-      pdf.save(fname);
-      if (copyLabel) copyLabel.innerText = 'Customer Copy';
-      document.body.removeChild(container);
-    } catch {
-      addNotification('Failed to generate PDF', 'error');
+      const customer = customers.find((c) => c._id === so.customerId) || {};
+      const doc = buildSalesDocument(so, customer, companyProfile, getBrand().currency);
+      await downloadSheetsPdf([sheetMarkup(doc.sheet, { copy: copyType, accent: readAccent() })], doc.fileName);
+    } catch (error) {
+      console.error(error);
+      addNotification(`Failed to generate PDF: ${error.message || "unknown error"}`, 'error');
     }
   };
 
-  const deleteSO = async (id) => {
-    if (window.confirm("Delete this sales order?")) {
-      try {
-        await processTransaction(id, "reject");
-        addNotification("Sales Order deleted", "success");
-        fetchTransactions();
-      } catch (error) {
-        addNotification(
-          "Failed to delete: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      }
-    }
+  const [askDelete, deleteDialog] = useDeleteConfirm();
+
+  const deleteSO = (id) => {
+    askDelete({
+      title: "Delete this sales order?",
+      text: "The order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      onConfirm: async () => {
+        try {
+          await axiosInstance.delete(`/transactions/transactions/${id}`);
+          addNotification("Sales Order deleted", "success");
+          fetchTransactions();
+        } catch (error) {
+          addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
+        }
+      },
+    });
   };
 
   // COMPONENTS
@@ -717,7 +680,7 @@ const formatDisplayTransactionNo = (t) => {
           key={n.id}
           className={`max-w-sm ${toastClasses(n.type)}`}
         >
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             {n.type === "success" && <CheckCircle className="w-4 h-4" />}
             {n.type === "warning" && <AlertCircle className="w-4 h-4" />}
             {n.type === "error" && <AlertCircle className="w-4 h-4" />}
@@ -730,7 +693,7 @@ const formatDisplayTransactionNo = (t) => {
 
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <StatCard
           title="Total Orders"
           count={statistics.total}
@@ -762,7 +725,7 @@ const formatDisplayTransactionNo = (t) => {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-sm font-semibold text-foreground">Recent sales orders</h3>
@@ -868,7 +831,7 @@ const formatDisplayTransactionNo = (t) => {
 
     return (
       <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
-        <div className="flex items-center space-x-4">
+        <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
           <span className="text-sm text-muted-foreground">
             Showing {startItem} to {endItem} of {filteredSOs.length} orders
           </span>
@@ -886,7 +849,7 @@ const formatDisplayTransactionNo = (t) => {
             <option value={100}>100 per page</option>
           </select>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
             disabled={currentPage === 1}
@@ -933,10 +896,11 @@ const formatDisplayTransactionNo = (t) => {
 
   return (
     <div className="bg-background font-sans">
+      {deleteDialog}
       <NotificationList />
       <div className="relative bg-card border-b border-border">
-        <div className="px-8 py-6">
-          <div className="flex items-center justify-between">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                 Sales orders
@@ -945,7 +909,7 @@ const formatDisplayTransactionNo = (t) => {
                 Quotations and invoices to your customers, from draft to approved.
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <button
                 onClick={() => {
                   resetForm();
@@ -983,10 +947,10 @@ const formatDisplayTransactionNo = (t) => {
         </div>
 
         {(activeView === "dashboard" || activeView === "list") && (
-          <div className="px-8 py-4 bg-secondary/60 border-t border-border">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 bg-secondary/60 border-t border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
+              <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
+                <div className="relative col-span-2 sm:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
@@ -996,7 +960,7 @@ const formatDisplayTransactionNo = (t) => {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-80 pl-10 pr-4 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    className="w-full sm:w-80 pl-10 pr-4 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   />
                 </div>
                 <select
@@ -1041,7 +1005,7 @@ const formatDisplayTransactionNo = (t) => {
                   <option value="MONTH">This Month</option>
                 </select>
               </div>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
                 <button
                   onClick={() => setActiveView("dashboard")}
                   aria-label="Overview"
@@ -1059,6 +1023,8 @@ const formatDisplayTransactionNo = (t) => {
                     setViewMode("table");
                     setActiveView("list");
                   }}
+                  // hidden with the table itself: a dense row of eight columns is not a phone view
+                  hidden={!wide}
                   aria-label="Table view"
                   title="Table view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
@@ -1085,7 +1051,7 @@ const formatDisplayTransactionNo = (t) => {
                   <Grid className="w-5 h-5" />
                 </button>
                 {selectedSOs.length > 0 && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleBulkAction("confirm")}
                       className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
@@ -1115,7 +1081,7 @@ const formatDisplayTransactionNo = (t) => {
         )}
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
@@ -1125,7 +1091,7 @@ const formatDisplayTransactionNo = (t) => {
             {activeView === "dashboard" && <Dashboard />}
             {activeView === "list" && (
               <>
-                {viewMode === "table" ? (
+                {wide && viewMode === "table" ? (
                   <TableView
                     paginatedSOs={paginatedSOs}
                     selectedSOs={selectedSOs}
@@ -1143,6 +1109,7 @@ const formatDisplayTransactionNo = (t) => {
                     deleteSO={deleteSO}
                     onDownloadInternal={(so) => downloadInvoiceCopy(so, 'Internal Copy')}
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
+                    onShowAudit={setAuditSO}
                   />
                 ) : (
                   <GridView
@@ -1159,6 +1126,7 @@ const formatDisplayTransactionNo = (t) => {
                     deleteSO={deleteSO}
                     onDownloadInternal={(so) => downloadInvoiceCopy(so, 'Internal Copy')}
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
+                    onShowAudit={setAuditSO}
                   />
                 )}
                 {filteredSOs.length > 0 && <Pagination />}
@@ -1197,6 +1165,13 @@ const formatDisplayTransactionNo = (t) => {
           </>
         )}
       </div>
+      {auditSO && (
+        <DocumentAuditTrail
+          id={auditSO.id}
+          documentNo={auditSO.displayTransactionNo || auditSO.transactionNo}
+          onClose={() => setAuditSO(null)}
+        />
+      )}
     </div>
   );
 };

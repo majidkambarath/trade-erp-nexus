@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Printer, Search, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../accounting/kit";
+import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, errorMessage, inputClass, useAsync, DateInput } from "../accounting/kit";
 import { accounting } from "../../lib/accountingApi";
 import { banking, vouchers } from "../../lib/bankingApi";
 import { accountOption, describePayment, money, toCents } from "../../lib/voucherForms";
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
+import { VoucherAuditTrail } from "../audit/AuditTrail";
 import { formatDateGB } from "../../utils/format";
 
 // Pieces every finance voucher screen shares: the list with search, dates and paging; the
@@ -66,17 +67,21 @@ export function useVoucherList(voucherType, { limit = 15 } = {}) {
 }
 
 export function ListToolbar({ filters, set, statuses = true, children }) {
+  // On a phone: search across the full width, then the two dates side by side, then status.
+  // Fixed widths (w-40, w-36) only apply once there is room for them to sit in one row.
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-3 print:hidden">
-      <div className="relative min-w-56 flex-1 sm:max-w-sm">
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end print:hidden">
+      <div className="relative w-full sm:min-w-56 sm:max-w-sm sm:flex-1">
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         <TextInput aria-label="Search vouchers" className="ps-9" placeholder="Search number, party or narration…" value={filters.search} onChange={(e) => set({ search: e.target.value })} />
       </div>
-      <Field label="From" className="w-40"><DateInput value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} /></Field>
-      <Field label="To" className="w-40"><DateInput value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} /></Field>
+      <div className="flex gap-3">
+        <Field label="From" className="min-w-0 flex-1 sm:w-40 sm:flex-none"><DateInput value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} /></Field>
+        <Field label="To" className="min-w-0 flex-1 sm:w-40 sm:flex-none"><DateInput value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} /></Field>
+      </div>
       {statuses && (
-        <Field label="Status" className="w-36">
-          <select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={filters.status} onChange={(e) => set({ status: e.target.value })}>
+        <Field label="Status" className="w-full sm:w-36">
+          <select className={inputClass} value={filters.status} onChange={(e) => set({ status: e.target.value })}>
             <option value="">All</option>
             <option value="approved">Posted</option>
             <option value="cancelled">Cancelled</option>
@@ -92,9 +97,11 @@ export function ListToolbar({ filters, set, statuses = true, children }) {
 export function Pager({ pagination, onPage }) {
   if (!pagination || pagination.pages <= 1) return null;
   return (
-    <nav aria-label="Pages" className="flex items-center justify-between gap-3 border-t border-border px-5 py-3 text-sm print:hidden">
+    <nav aria-label="Pages" className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 print:hidden">
       <span className="text-muted-foreground">{pagination.total} vouchers · page {pagination.current} of {pagination.pages}</span>
-      <span className="flex gap-2">
+      {/* Page steps are the one control on a long list people hit repeatedly, so on touch
+          they take the full width and a 44px height instead of a 28px corner button. */}
+      <span className="flex gap-2 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
         <Button variant="outline" size="sm" disabled={pagination.current <= 1} onClick={() => onPage(pagination.current - 1)}><ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />Previous</Button>
         <Button variant="outline" size="sm" disabled={pagination.current >= pagination.pages} onClick={() => onPage(pagination.current + 1)}>Next<ChevronRight className="h-3.5 w-3.5" aria-hidden="true" /></Button>
       </span>
@@ -109,7 +116,7 @@ export function ListBody({ list, emptyTitle, emptyText, children }) {
   if (!list.rows.length) return <EmptyState title={emptyTitle} text={emptyText} />;
   return (
     <>
-      <div className="relative overflow-x-auto">{children}</div>
+      <div className="erp-scroll table-pin-first relative overflow-x-auto">{children}</div>
       <Pager pagination={list.pagination} onPage={list.setPage} />
     </>
   );
@@ -152,6 +159,7 @@ export function printVoucher(v, title, companyName = "") {
 // can be done to it.
 export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, extra }) {
   const { data: v, loading, error } = useAsync(() => vouchers.get(id), [id]);
+  const [audit, setAudit] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -178,6 +186,7 @@ export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, e
         description={v ? `${formatDateGB(v.date)}${v.partyName ? ` · ${v.partyName}` : ""}` : undefined}
         footer={v && (
           <>
+            <Button variant="outline" onClick={() => setAudit(true)}><History className="h-4 w-4" aria-hidden="true" />Audit trail</Button>
             <Button variant="outline" onClick={() => printVoucher(v, title)}><Printer className="h-4 w-4" aria-hidden="true" />Print</Button>
             {canDelete && v.status === "approved" && <Button variant="outline" onClick={() => setConfirm(true)}><Trash2 className="h-4 w-4" aria-hidden="true" />Delete (reverse)</Button>}
             <Button onClick={onClose} data-autofocus>Close</Button>
@@ -197,7 +206,7 @@ export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, e
               {v.narration && <div className="sm:col-span-2"><dt className="text-muted-foreground">Narration</dt><dd>{v.narration}</dd></div>}
             </dl>
             {extra}
-            <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr><th className="px-4 py-2 text-start">Account</th><th className="px-3 py-2 text-end">Debit</th><th className="px-4 py-2 text-end">Credit</th></tr>
@@ -224,10 +233,11 @@ export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, e
           </div>
         )}
       </Modal>
+      {audit && <VoucherAuditTrail id={id} voucherNo={v?.voucherNo} onClose={() => setAudit(false)} />}
       {confirm && (
         <ConfirmDialog
-          title={`Delete ${v.voucherNo}?`} danger busy={busy} confirmLabel="Delete and reverse"
-          text="Its ledger entries are reversed, any invoices it settled are reopened, and the voucher is marked cancelled. This cannot be undone."
+          title={`Delete ${v.voucherNo}?`} danger busy={busy} confirmLabel="Delete and reverse" typeToConfirm="delete"
+          text="Its ledger entries are reversed, any invoices it settled are reopened, and the voucher is marked cancelled. The deletion is written to the activity log. This cannot be undone."
           onConfirm={remove} onClose={() => setConfirm(false)}
         />
       )}

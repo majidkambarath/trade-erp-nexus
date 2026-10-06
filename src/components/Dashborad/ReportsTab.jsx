@@ -43,7 +43,7 @@ export default function ReportsTab({ state }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
         {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-[1.75rem]" />)}
         {tiles?.map((m, i) => {
           const Icon = m.icon;
@@ -99,7 +99,7 @@ export default function ReportsTab({ state }) {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {!d && VOUCHERS.map((v) => <Skeleton key={v.type} className="h-16 rounded-[1.5rem]" />)}
-        {d?.vouchers.map((v) => {
+        {d?.vouchers?.map((v) => {
           const meta = VOUCHERS.find((x) => x.type === v.voucherType);
           return (
             <Link key={v.voucherType} to={meta.to} className="block">

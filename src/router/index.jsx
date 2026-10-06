@@ -1,54 +1,61 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Route, Routes, Navigate } from "react-router-dom";
 
-import Dashboard from "../pages/dashboardPage.jsx";
+// Pages load on demand. The whole app used to arrive as one 2.6 MB script before anything
+// could be drawn, which on a phone is seconds of nothing; now a page's code is fetched when
+// it is first opened and cached by the service worker from then on. Layout and the sign-in
+// page stay eager - they are the first paint - and the shell keeps its Suspense boundary
+// around the Outlet, so navigating swaps the content and never the chrome.
+
 import Layout from "../components/Layout.jsx";
-import VendorCreation from "../components/VendorModule/VendorManagement.jsx";
-import CustomerCreation from "../components/Customer/CustomerManagement.jsx";
-import StockCreation from "../components/Stock/StockManagement.jsx";
-import UnitOfMeasure from "../components/UnitOfMeasure/UnitOfMeasure.jsx";
-import Staff from "../components/Staff/staff.jsx";
-import Settings from "../components/Settings/Settings.jsx";
 import NotFound from "../components/NotFound.jsx";
 import ERPLogin from "../components/Login/Login.jsx";
-import PurchaseOrderPage from "../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx";
-import SalesOrderPage from "../components/PurchaseOrder/sales/SalesOrderPage.jsx";
-import InventoryManagement from "../components/Inventory/InventoryManagement.jsx";
-import PurchaseReturnPage from "../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx";
-import SalesReturnPage from "../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx";
-import CategoryManagement from "../components/Inventory/CategoryManagement.jsx";
-import PurchaseAccounts from "../components/AccountsModule/Purchase/PurchaseAccount.jsx";
-import SaleAccountsManagement from "../components/AccountsModule//Sales/SaleAccountsManagement.jsx";
-import StockDetail from "../components/Stock/StockDetail.jsx";
-import EInvoicing from "../components/EInvoicing/EInvoicing.jsx";
-import ChartOfAccounts from "../components/accounting/ChartOfAccounts.jsx";
-import LedgerBook from "../components/accounting/LedgerBook.jsx";
-import { ReceiptVouchers, PaymentVouchers } from "../components/finance/PartyVouchers.jsx";
-import JournalVouchers from "../components/finance/JournalVouchers.jsx";
-import ContraVouchers from "../components/finance/ContraVouchers.jsx";
-import ExpenseVouchers from "../components/finance/ExpenseVouchers.jsx";
-import DebitCreditNotes from "../components/finance/DebitCreditNotes.jsx";
-import BankMaster from "../components/banking/BankMaster.jsx";
-import CardTypeMaster from "../components/banking/CardTypeMaster.jsx";
-import CardMaster from "../components/banking/CardMaster.jsx";
-import ChequeRegister from "../components/banking/ChequeRegister.jsx";
-import CashAndBank from "../components/banking/CashAndBank.jsx";
-import AccountingSetup from "../components/accounting/AccountingSetup.jsx";
-import LedgerReports from "../components/Reports/LedgerReports.jsx";
-import PartyBalances from "../components/Reports/PartyBalances.jsx";
-import VatReturn from "../components/Reports/VatReturn.jsx";
-import StockReports from "../components/Reports/StockReports.jsx";
-import IfrsStatements from "../components/Reports/IfrsStatements.jsx";
-import OpeningBalances from "../components/accounting/OpeningBalances.jsx";
-import KycDocuments from "../components/parties/KycDocuments.jsx";
-import Currencies from "../components/accounting/Currencies.jsx";
-import CurrencyRegister from "../components/accounting/CurrencyRegister.jsx";
-import FinancialStatements from "../components/Reports/FinancialStatements.jsx";
-import AgeingReport from "../components/Reports/AgeingReport.jsx";
-import StatementOfAccount from "../components/Reports/StatementOfAccount.jsx";
-import BatchManagement from "../components/Inventory/BatchManagement.jsx";
-import VendorDetailsPage from "../components/AccountsModule/Purchase/VendorDetailsPage.jsx";
-import CustomerDetailsPage from "../components/AccountsModule/Sales/CustomerDetailsPage.jsx";
+const Dashboard = lazy(() => import("../pages/dashboardPage.jsx"));
+const VendorCreation = lazy(() => import("../components/VendorModule/VendorManagement.jsx"));
+const CustomerCreation = lazy(() => import("../components/Customer/CustomerManagement.jsx"));
+const StockCreation = lazy(() => import("../components/Stock/StockManagement.jsx"));
+const UnitOfMeasure = lazy(() => import("../components/UnitOfMeasure/UnitOfMeasure.jsx"));
+const Staff = lazy(() => import("../components/Staff/staff.jsx"));
+const Settings = lazy(() => import("../components/Settings/Settings.jsx"));
+const PurchaseOrderPage = lazy(() => import("../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx"));
+const SalesOrderPage = lazy(() => import("../components/PurchaseOrder/sales/SalesOrderPage.jsx"));
+const InventoryManagement = lazy(() => import("../components/Inventory/InventoryManagement.jsx"));
+const PurchaseReturnPage = lazy(() => import("../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx"));
+const SalesReturnPage = lazy(() => import("../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx"));
+const CategoryManagement = lazy(() => import("../components/Inventory/CategoryManagement.jsx"));
+const PurchaseAccounts = lazy(() => import("../components/AccountsModule/Purchase/PurchaseAccount.jsx"));
+const SaleAccountsManagement = lazy(() => import("../components/AccountsModule//Sales/SaleAccountsManagement.jsx"));
+const StockDetail = lazy(() => import("../components/Stock/StockDetail.jsx"));
+const EInvoicing = lazy(() => import("../components/EInvoicing/EInvoicing.jsx"));
+const ChartOfAccounts = lazy(() => import("../components/accounting/ChartOfAccounts.jsx"));
+const LedgerBook = lazy(() => import("../components/accounting/LedgerBook.jsx"));
+const JournalVouchers = lazy(() => import("../components/finance/JournalVouchers.jsx"));
+const ContraVouchers = lazy(() => import("../components/finance/ContraVouchers.jsx"));
+const ExpenseVouchers = lazy(() => import("../components/finance/ExpenseVouchers.jsx"));
+const DebitCreditNotes = lazy(() => import("../components/finance/DebitCreditNotes.jsx"));
+const BankMaster = lazy(() => import("../components/banking/BankMaster.jsx"));
+const CardTypeMaster = lazy(() => import("../components/banking/CardTypeMaster.jsx"));
+const CardMaster = lazy(() => import("../components/banking/CardMaster.jsx"));
+const ChequeRegister = lazy(() => import("../components/banking/ChequeRegister.jsx"));
+const CashAndBank = lazy(() => import("../components/banking/CashAndBank.jsx"));
+const AccountingSetup = lazy(() => import("../components/accounting/AccountingSetup.jsx"));
+const LedgerReports = lazy(() => import("../components/Reports/LedgerReports.jsx"));
+const PartyBalances = lazy(() => import("../components/Reports/PartyBalances.jsx"));
+const VatReturn = lazy(() => import("../components/Reports/VatReturn.jsx"));
+const StockReports = lazy(() => import("../components/Reports/StockReports.jsx"));
+const IfrsStatements = lazy(() => import("../components/Reports/IfrsStatements.jsx"));
+const OpeningBalances = lazy(() => import("../components/accounting/OpeningBalances.jsx"));
+const KycDocuments = lazy(() => import("../components/parties/KycDocuments.jsx"));
+const Currencies = lazy(() => import("../components/accounting/Currencies.jsx"));
+const CurrencyRegister = lazy(() => import("../components/accounting/CurrencyRegister.jsx"));
+const FinancialStatements = lazy(() => import("../components/Reports/FinancialStatements.jsx"));
+const AgeingReport = lazy(() => import("../components/Reports/AgeingReport.jsx"));
+const StatementOfAccount = lazy(() => import("../components/Reports/StatementOfAccount.jsx"));
+const BatchManagement = lazy(() => import("../components/Inventory/BatchManagement.jsx"));
+const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
+const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
+const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
+const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
 export default function AdminRouter() {
   return (
     <Routes>

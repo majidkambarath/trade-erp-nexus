@@ -3,7 +3,7 @@ import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, toInputDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
-import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../kit";
+import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../kit";
 
 export default function FiscalYears({ notify }) {
   const years = useAsync(() => accounting.fiscalYears(), []);
@@ -65,19 +65,17 @@ export default function FiscalYears({ notify }) {
       <Panel title="Document numbering" description="One counter per series and year. Numbers are never reused: a gap means a number was issued and its document did not complete." bodyClassName="p-0">
         {series.data?.length === 0 && <EmptyState title="No numbers issued yet" text="A series appears here the first time a document of that kind is created." />}
         {series.data?.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Series</th><th className="px-3 py-2 text-start">Year</th><th className="px-3 py-2 text-start">Prefix</th><th className="px-5 py-2 text-end">Last number issued</th></tr>
-            </thead>
-            <tbody>
-              {series.data.map((s) => (
-                <tr key={s._id} className="border-t border-border">
-                  <td className="px-5 py-2.5 font-semibold">{s.series}</td><td className="px-3 py-2.5">{s.fiscalYear}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs">{s.prefix}</td><td className="px-5 py-2.5 text-end tabular-nums">{s.next}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption="Number series"
+            rows={series.data}
+            rowKey={(s) => s._id}
+            columns={[
+              { key: "series", header: "Series", card: "primary", className: "font-semibold", cell: (s) => s.series },
+              { key: "year", header: "Year", card: "meta", cell: (s) => s.fiscalYear },
+              { key: "prefix", header: "Prefix", card: "title", className: "font-mono text-xs", cell: (s) => s.prefix },
+              { key: "next", header: "Last number issued", align: "end", card: "amount", className: "tabular-nums", cell: (s) => s.next },
+            ]}
+          />
         )}
       </Panel>
 

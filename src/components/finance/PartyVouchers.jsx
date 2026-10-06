@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axiosInstance from "../../axios/axios";
 import { AlertTriangle, Eye, Plus, Wand2 } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
+import { DataTable, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
 import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
@@ -37,11 +37,11 @@ function PartyVouchers({ direction }) {
   const [viewing, setViewing] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title={cfg.title} description={cfg.description} actions={<Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {cfg.one}</Button>} />
       <ListToolbar filters={list.filters} set={list.set}>
-        <Field label="Paid by" className="w-36">
-          <select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={list.filters.paymentMode} onChange={(e) => list.set({ paymentMode: e.target.value })}>
+        <Field label="Paid by" className="w-full sm:w-36">
+          <select className={inputClass} value={list.filters.paymentMode} onChange={(e) => list.set({ paymentMode: e.target.value })}>
             <option value="">Any</option>
             {PAYMENT_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
@@ -49,25 +49,22 @@ function PartyVouchers({ direction }) {
       </ListToolbar>
       <Panel bodyClassName="p-0">
         <ListBody list={list} emptyTitle={`No ${cfg.title.toLowerCase()}`} emptyText={`Record the first one with New ${cfg.one}.`}>
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-start">{cfg.noun}</th><th className="px-3 py-2 text-start">Paid by</th><th className="px-3 py-2 text-end">Invoices</th><th className="px-3 py-2 text-end">Amount</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
-            </thead>
-            <tbody>
-              {list.rows.map((v) => (
-                <tr key={v._id} className="border-t border-border hover:bg-accent/40">
-                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs font-semibold">{v.voucherNo}{isForeign(v) && <span title="Foreign currency" className="ms-2 font-sans"><Pill tone="info">{v.currency}</Pill></span>}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(v.date)}</td>
-                  <td className="px-3 py-2.5 font-medium">{v.partyName}</td>
-                  <td className="max-w-xs px-3 py-2.5"><span className="font-medium">{modeLabel(v.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground">{describePayment(v)}</span></td>
-                  <td className="px-3 py-2.5 text-end tabular-nums">{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</td>
-                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</td>
-                  <td className="px-3 py-2.5"><StatusPill status={v.status} /></td>
-                  <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption={cfg.title}
+            rows={list.rows}
+            rowKey={(v) => v._id}
+            onRowClick={(v) => setViewing(v._id)}
+            columns={[
+              { key: "no", header: "Voucher", card: "primary", className: "whitespace-nowrap font-mono text-xs font-semibold", cell: (v) => <>{v.voucherNo}{isForeign(v) && <span title="Foreign currency" className="ms-2 font-sans"><Pill tone="info">{v.currency}</Pill></span>}</> },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
+              { key: "party", header: cfg.noun, card: "title", className: "font-medium", cell: (v) => v.partyName },
+              { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs", cell: (v) => <><span className="font-medium">{modeLabel(v.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground md:inline md:ms-1">{describePayment(v)}</span></> },
+              { key: "invoices", header: "Invoices", align: "end", card: "hidden", className: "tabular-nums", cell: (v) => <>{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</> },
+              { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => <>{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "view", header: <span className="sr-only">Actions</span>, align: "end", card: "hidden", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
+            ]}
+          />
         </ListBody>
       </Panel>
       {form && <PartyVoucherForm cfg={cfg} direction={direction} onClose={() => setForm(false)} onSaved={(msg) => { setForm(false); notify(msg); list.reload(); }} />}

@@ -16,6 +16,7 @@
   } from "lucide-react";
   import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
+import { DataTable } from "../accounting/DataTable";
 
   const UnitMeasureConversion = () => {
     const [activeTab, setActiveTab] = useState("units");
@@ -115,8 +116,8 @@ import { toastClasses } from "../../lib/status";
     const filteredConversions = useMemo(() => {
       return conversions.filter(
         (conversion) =>
-          conversion.fromUOM?.unitName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          conversion.toUOM?.unitName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          conversion.fromUOM?.unitName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          conversion.toUOM?.unitName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           conversion.category?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }, [conversions, searchTerm]);
@@ -444,7 +445,7 @@ import { toastClasses } from "../../lib/status";
         )}
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4 mb-8">
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-blue-100 rounded-xl">
@@ -597,88 +598,31 @@ import { toastClasses } from "../../lib/status";
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Unit Name
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Short Code
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUnits.map((unit) => (
-                      <tr
-                        key={unit.id}
-                        className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200"
-                      >
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {unit.unitName}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 font-mono">
-                          {unit.shortCode}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeBadge(
-                              unit.type
-                            )}`}
-                          >
-                            {unit.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {unit.category}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                              unit.status
-                            )}`}
-                          >
-                            {unit.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
-                            <button
-                              onClick={() => handleEdit(unit, "unit")}
-                              className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              onClick={() =>
-                                showDeleteConfirmation(
-                                  unit._id,
-                                  unit.unitName,
-                                  "unit"
-                                )
-                              }
-                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <DataTable
+                  caption="Units"
+                  rows={filteredUnits}
+                  rowKey={(unit) => unit.id}
+                  columns={[
+                    { key: "unitName", header: "Unit Name", card: "primary", cell: (u) => <span className="text-sm font-medium text-gray-900">{u.unitName}</span> },
+                    { key: "shortCode", header: "Short Code", card: "title", cell: (u) => <span className="text-sm text-gray-600 font-mono">{u.shortCode}</span> },
+                    { key: "type", header: "Type", card: "badge", cell: (u) => <span className={`px-3 py-1 rounded-full text-xs font-medium ${getTypeBadge(u.type)}`}>{u.type}</span> },
+                    { key: "category", header: "Category", card: "meta", cell: (u) => u.category },
+                    { key: "status", header: "Status", card: "meta", cell: (u) => <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(u.status)}`}>{u.status}</span> },
+                    {
+                      key: "actions", header: "Actions", card: "actions",
+                      cell: (u) => (
+                        <div className="flex items-center space-x-3">
+                          <button onClick={() => handleEdit(u, "unit")} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" aria-label={`Edit ${u.unitName}`}>
+                            <Edit size={16} />
+                          </button>
+                          <button onClick={() => showDeleteConfirmation(u._id, u.unitName, "unit")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label={`Delete ${u.unitName}`}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
               </div>
             )
           ) : filteredConversions.length === 0 ? (
@@ -700,82 +644,31 @@ import { toastClasses } from "../../lib/status";
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-purple-50 to-indigo-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      From UOM
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      To UOM
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Conversion Ratio
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Category
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredConversions.map((conversion) => (
-                    <tr
-                      key={conversion._id}
-                      className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 transition-all duration-200"
-                    >
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {conversion.fromUOM.unitName}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {conversion.toUOM.unitName}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-mono">
-                        1 : {conversion.conversionRatio}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {conversion.category}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                            conversion.status
-                          )}`}
-                        >
-                          {conversion.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
+              <DataTable
+                  caption="Conversions"
+                  rows={filteredConversions}
+                  rowKey={(conversion) => conversion._id}
+                  columns={[
+                    { key: "from", header: "From UOM", card: "primary", cell: (c) => <span className="text-sm font-medium text-gray-900">{c.fromUOM.unitName}</span> },
+                    { key: "to", header: "To UOM", card: "title", cell: (c) => <span className="text-sm font-medium text-gray-900">{c.toUOM.unitName}</span> },
+                    { key: "ratio", header: "Conversion Ratio", card: "amount", cell: (c) => <span className="text-sm text-gray-600 font-mono">1 : {c.conversionRatio}</span> },
+                    { key: "category", header: "Category", card: "meta", cell: (c) => c.category },
+                    { key: "status", header: "Status", card: "badge", cell: (c) => <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(c.status)}`}>{c.status}</span> },
+                    {
+                      key: "actions", header: "Actions", card: "actions",
+                      cell: (c) => (
                         <div className="flex items-center space-x-3">
-                          <button
-                            onClick={() => handleEdit(conversion, "conversion")}
-                            className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-all duration-200"
-                          >
+                          <button onClick={() => handleEdit(c, "conversion")} className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-all duration-200" aria-label="Edit conversion">
                             <Edit size={16} />
                           </button>
-                          <button
-                            onClick={() =>
-                              showDeleteConfirmation(
-                                conversion._id,
-                                `${conversion.fromUOM.unitName} to ${conversion.toUOM.unitName}`,
-                                "conversion"
-                              )
-                            }
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          >
+                          <button onClick={() => showDeleteConfirmation(c._id, `${c.fromUOM.unitName} to ${c.toUOM.unitName}`, "conversion")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label="Delete conversion">
                             <Trash2 size={16} />
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      ),
+                    },
+                  ]}
+                />
             </div>
           )}
         </div>
@@ -784,7 +677,7 @@ import { toastClasses } from "../../lib/status";
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div
               className={`flex justify-between items-center p-6 border-b border-gray-200 ${
                 modalType === "unit"

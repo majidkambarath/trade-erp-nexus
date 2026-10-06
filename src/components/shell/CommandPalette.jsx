@@ -21,7 +21,7 @@ export default function CommandPalette({ open, onOpenChange, modules }) {
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed inset-x-0 top-[12vh] z-50 mx-auto w-[min(36rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-elevated"
+          className="fixed inset-x-0 top-[12dvh] z-50 mx-auto w-[min(36rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-elevated"
         >
           <Dialog.Title className="sr-only">Go to page</Dialog.Title>
           {/* Navigation search wants predictable matching, not fuzzy scoring: cmdk's
@@ -44,7 +44,7 @@ export default function CommandPalette({ open, onOpenChange, modules }) {
                 className="h-12 w-full bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
-            <Command.List className="erp-scroll max-h-[min(60vh,24rem)] overflow-y-auto p-2">
+            <Command.List className="erp-scroll max-h-[min(60dvh,24rem)] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-8 text-center text-sm text-muted-foreground">
                 No page matches that search.
               </Command.Empty>

@@ -24,7 +24,7 @@ export default function EInvoicing() {
   const active = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "dashboard";
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="e-Invoicing"
         description="Check, send and track UAE electronic invoices, and review the ones your suppliers send you."

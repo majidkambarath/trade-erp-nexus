@@ -4,7 +4,7 @@ import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
 import { StatCard } from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Balance, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "./kit";
+import { Balance, DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "./kit";
 import AccountsStep from "./openingBalances/AccountsStep";
 import PartiesStep from "./openingBalances/PartiesStep";
 import StockStep from "./openingBalances/StockStep";
@@ -20,10 +20,10 @@ import { formatDate, formatDateTime } from "../../utils/format";
 
 const STEPS = [
   { id: "date", label: "Go-live date", done: (s) => Boolean(s?.goLive) },
-  { id: "accounts", label: "Accounts", done: (s) => s?.sections.accounts.rows > 0 },
-  { id: "customers", label: "Customers", done: (s) => s?.sections.customers.rows > 0 },
-  { id: "vendors", label: "Vendors", done: (s) => s?.sections.vendors.rows > 0 },
-  { id: "stock", label: "Stock", done: (s) => s?.sections.stock.rows > 0 },
+  { id: "accounts", label: "Accounts", done: (s) => s?.sections?.accounts?.rows > 0 },
+  { id: "customers", label: "Customers", done: (s) => s?.sections?.customers?.rows > 0 },
+  { id: "vendors", label: "Vendors", done: (s) => s?.sections?.vendors?.rows > 0 },
+  { id: "stock", label: "Stock", done: (s) => s?.sections?.stock?.rows > 0 },
   { id: "review", label: "Review", done: () => false },
 ];
 
@@ -36,7 +36,7 @@ export default function OpeningBalances() {
   const props = { goLive, notify, onChanged: () => summary.reload(), goToDate: () => setTab("date") };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Opening balances"
         description="Start the books from where the old ones stood. Choose the go-live date, then enter the account balances, what customers owe and what is owed to vendors, and the stock on hand. Everything is posted against Opening Balance Equity, and the opening trial balance must balance."
@@ -194,33 +194,23 @@ function ReviewStep({ summary, loading, reload, go }) {
 
       <Panel title="Per section" bodyClassName="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Section</th><th className="px-3 py-2 text-end">Rows</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-5 py-2 text-end"><span className="sr-only">Open</span></th></tr>
-            </thead>
-            <tbody>
-              <tr className="border-t border-border">
-                <td className="px-5 py-2.5 font-medium">Accounts</td><td className="px-3 py-2.5 text-end tabular-nums">{sec.accounts.rows}</td>
-                <td className="px-3 py-2.5 text-end tabular-nums">{fmt(sec.accounts.debit)}</td><td className="px-3 py-2.5 text-end tabular-nums">{fmt(sec.accounts.credit)}</td>
-                <td className="px-5 py-2.5 text-end"><Button size="sm" variant="ghost" onClick={() => go("accounts")}>Open</Button></td>
-              </tr>
-              <tr className="border-t border-border">
-                <td className="px-5 py-2.5 font-medium">Customers</td><td className="px-3 py-2.5 text-end tabular-nums">{sec.customers.rows}</td>
-                <td className="px-3 py-2.5 text-end tabular-nums">{fmt(sec.customers.total)}</td><td className="px-3 py-2.5 text-end tabular-nums" />
-                <td className="px-5 py-2.5 text-end"><Button size="sm" variant="ghost" onClick={() => go("customers")}>Open</Button></td>
-              </tr>
-              <tr className="border-t border-border">
-                <td className="px-5 py-2.5 font-medium">Vendors</td><td className="px-3 py-2.5 text-end tabular-nums">{sec.vendors.rows}</td>
-                <td className="px-3 py-2.5 text-end tabular-nums" /><td className="px-3 py-2.5 text-end tabular-nums">{fmt(sec.vendors.total)}</td>
-                <td className="px-5 py-2.5 text-end"><Button size="sm" variant="ghost" onClick={() => go("vendors")}>Open</Button></td>
-              </tr>
-              <tr className="border-t border-border">
-                <td className="px-5 py-2.5 font-medium">Stock</td><td className="px-3 py-2.5 text-end tabular-nums">{sec.stock.rows}</td>
-                <td className="px-3 py-2.5 text-end tabular-nums">{fmt(sec.stock.value)}</td><td className="px-3 py-2.5 text-end tabular-nums" />
-                <td className="px-5 py-2.5 text-end"><Button size="sm" variant="ghost" onClick={() => go("stock")}>Open</Button></td>
-              </tr>
-            </tbody>
-          </table>
+          <DataTable
+            caption="Opening balances by section"
+            rows={[
+              { step: "accounts", label: "Accounts", rows: sec.accounts.rows, debit: sec.accounts.debit, credit: sec.accounts.credit },
+              { step: "customers", label: "Customers", rows: sec.customers.rows, debit: sec.customers.total, credit: null },
+              { step: "vendors", label: "Vendors", rows: sec.vendors.rows, debit: null, credit: sec.vendors.total },
+              { step: "stock", label: "Stock", rows: sec.stock.rows, debit: sec.stock.value, credit: null },
+            ]}
+            rowKey={(s) => s.step}
+            columns={[
+              { key: "section", header: "Section", card: "primary", className: "font-medium", cell: (s) => s.label },
+              { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (s) => `${s.rows} rows` },
+              { key: "debit", header: "Debit", align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.debit == null ? "" : fmt(s.debit)) },
+              { key: "credit", header: "Credit", align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.credit == null ? "" : fmt(s.credit)) },
+              { key: "open", header: <span className="sr-only">Open</span>, align: "end", card: "actions", cell: (s) => <Button size="sm" variant="ghost" onClick={() => go(s.step)}>Open</Button> },
+            ]}
+          />
         </div>
         <p className="px-5 py-3 text-xs text-muted-foreground">
           Accounts net {fmt(Math.abs(accountsNet))} {accountsNet > 0 ? "debit" : accountsNet < 0 ? "credit" : ""}; customer invoices, vendor invoices and stock are each balanced by an entry to Opening Balance Equity.

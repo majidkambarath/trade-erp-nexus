@@ -1,11 +1,12 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { LogOut, Menu, Moon, Search, Settings } from "lucide-react";
+import { Download, LogOut, Moon, Search, Settings } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { initials } from "./useSession";
 import BrandMark from "./BrandMark";
 import { PRODUCT_NAME } from "../../config/product";
+import { useInstall } from "./InstallApp";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -17,13 +18,15 @@ const menuItem =
 function UserMenu({ profile, onLogout }) {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { canInstall, install, iosSheet } = useInstall();
   const name = profile?.name || "Signed in";
 
   return (
+    <>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={`Account menu for ${name}`}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground lg:h-9 lg:w-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         {initials(profile?.name)}
       </DropdownMenu.Trigger>
@@ -40,6 +43,13 @@ function UserMenu({ profile, onLogout }) {
             )}
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-border" />
+          {/* Only once the browser says it can be installed, and never once it is. */}
+          {canInstall && (
+            <DropdownMenu.Item className={menuItem} onSelect={install}>
+              <Download className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Install app
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Item className={menuItem} onSelect={() => navigate("/settings")}>
             <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             Settings
@@ -74,44 +84,46 @@ function UserMenu({ profile, onLogout }) {
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+    {iosSheet}
+    </>
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch, onOpenMobileNav }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
+  // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
+  // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4 sm:px-6">
-      <button
-        type="button"
-        onClick={onOpenMobileNav}
-        aria-label="Open navigation"
-        className="grid h-9 w-9 place-items-center rounded-lg text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
-      >
-        <Menu className="h-5 w-5" aria-hidden="true" />
-      </button>
-      <BrandMark className="h-8 w-8 sm:hidden" iconClassName="h-4 w-4" />
-      {/* The product leads; the client whose data this is follows it, quieter. */}
-      <span className="text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
-      {appName && (
-        <>
-          <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:block" />
-          <span className="hidden text-sm text-muted-foreground sm:block">{appName}</span>
-        </>
-      )}
+    <header className="pt-safe shrink-0 border-b border-border bg-card">
+      <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
+        {/* The rail carries the mark on a pointer; on touch the rail is gone, so it sits here.
+            Navigation itself is the bottom bar - there is deliberately no hamburger. */}
+        <BrandMark className="h-8 w-8 lg:hidden" iconClassName="h-4 w-4" />
+        {/* The product leads; the client whose data this is follows it, quieter. */}
+        <span className="shrink-0 text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+        {appName && (
+          <>
+            <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:block" />
+            <span className="hidden min-w-0 truncate text-sm text-muted-foreground sm:block">
+              {appName}
+            </span>
+          </>
+        )}
 
-      <button
-        type="button"
-        onClick={onOpenSearch}
-        className="ms-auto flex h-9 w-9 items-center justify-center gap-2 rounded-lg border border-input bg-background text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-72 sm:justify-start sm:px-3"
-      >
-        <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="hidden sm:inline">Search pages…</span>
-        <kbd className="ms-auto hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-semibold sm:inline">
-          {isMac ? "⌘K" : "Ctrl K"}
-        </kbd>
-        <span className="sr-only sm:hidden">Search pages</span>
-      </button>
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          className="ms-auto flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-input bg-background text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-9 lg:w-72 lg:justify-start lg:px-3"
+        >
+          <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="hidden lg:inline">Search pages…</span>
+          <kbd className="ms-auto hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-semibold lg:inline">
+            {isMac ? "⌘K" : "Ctrl K"}
+          </kbd>
+          <span className="sr-only lg:hidden">Search pages</span>
+        </button>
 
-      <UserMenu profile={profile} onLogout={onLogout} />
+        <UserMenu profile={profile} onLogout={onLogout} />
+      </div>
     </header>
   );
 }

@@ -16,7 +16,7 @@ export default function LedgerBook() {
   const options = accounts.map((a) => ({ value: a._id, label: a.accountName, hint: a.accountCode, searchText: `${a.groupName} ${a.category}` }));
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Ledger"
         description="Choose an account to see every posting to it, with the running balance."

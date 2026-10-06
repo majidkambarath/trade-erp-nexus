@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { BookOpen } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { Balance, EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit";
+import { Balance, DataTable, EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
 import { banking } from "../../lib/bankingApi";
 import { drCr } from "../../utils/format";
@@ -24,34 +24,25 @@ export default function CashAndBank() {
   const table = (rows, kind) => (
     <Panel bodyClassName="p-0" title={kind === "bank" ? "Bank accounts" : "Cash accounts"} actions={<Link to="/chart-of-accounts" className="text-sm text-primary underline-offset-2 hover:underline">Add an account</Link>}>
       {rows.length === 0 ? <EmptyState title={`No ${kind} accounts`} text="Add one in the chart of accounts." /> : (
-        <div className="relative overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Account</th>{kind === "bank" && <><th className="px-3 py-2 text-start">Bank</th><th className="px-3 py-2 text-start">Number</th></>}<th className="px-3 py-2 text-end">Balance</th><th className="px-5 py-2"><span className="sr-only">Ledger</span></th></tr>
-            </thead>
-            <tbody>
-              {rows.map((a) => (
-                <tr key={a._id} className="border-t border-border hover:bg-accent/40">
-                  <td className="px-5 py-2.5"><span className="font-medium">{a.accountName}</span><span className="block font-mono text-xs text-muted-foreground">{a.accountCode}</span></td>
-                  {kind === "bank" && (
-                    <>
-                      <td className="px-3 py-2.5">{a.bank?.bankName || <span className="text-muted-foreground">Not set</span>}</td>
-                      <td className="px-3 py-2.5 text-muted-foreground">{a.bank?.accountNumberMasked}{a.bank?.iban && <span className="block font-mono text-xs">{a.bank.iban}</span>}</td>
-                    </>
-                  )}
-                  <td className="px-3 py-2.5 text-end font-medium"><Balance net={a.balance} /></td>
-                  <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          caption="Accounts"
+          rows={rows}
+          rowKey={(a) => a._id}
+          columns={[
+            { key: "account", header: "Account", card: "primary", cell: (a) => <><span className="font-medium">{a.accountName}</span><span className="block font-mono text-xs font-normal text-muted-foreground">{a.accountCode}</span></> },
+            // the bank columns only exist on the bank tab; false entries are filtered out by DataTable
+            kind === "bank" && { key: "bank", header: "Bank", card: "title", cell: (a) => a.bank?.bankName || <span className="text-muted-foreground">Not set</span> },
+            kind === "bank" && { key: "number", header: "Number", card: "meta", className: "text-muted-foreground", cell: (a) => <>{a.bank?.accountNumberMasked}{a.bank?.iban && <span className="ms-1 font-mono text-xs">{a.bank.iban}</span>}</> },
+            { key: "balance", header: "Balance", align: "end", card: "amount", className: "font-medium", cell: (a) => <Balance net={a.balance} /> },
+            { key: "ledger", header: <span className="sr-only">Ledger</span>, align: "end", card: "actions", cell: (a) => <button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button> },
+          ]}
+        />
       )}
     </Panel>
   );
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Cash and bank"
         description="Every cash and bank account with its balance. Open an account's ledger for each posting and the running balance."

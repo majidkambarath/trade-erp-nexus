@@ -3,7 +3,7 @@ import { Eye, History, RefreshCw, RotateCcw, Search, Send } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
-import { ConfirmDialog, EmptyState, ErrorNote, Modal, Panel, Pill, Select, Spinner, errorMessage, formatDateTime, useAsync } from "../accounting/kit";
+import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
 import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
 
 export default function Outbound({ notify, enabled }) {
@@ -52,39 +52,38 @@ export default function Outbound({ notify, enabled }) {
       {docs.error && <div className="p-5"><ErrorNote error={docs.error} onRetry={docs.reload} /></div>}
       {docs.data && rows.length === 0 && <EmptyState title="No documents" text={status || query ? "Nothing matches that filter." : "Approved sales invoices and sales returns appear here."} />}
       {rows.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Document</th><th className="px-3 py-2 text-start">Customer</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Total</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2 text-end">Actions</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((d) => {
-                const busy = busyId === d._id;
-                return (
-                  <tr key={d._id} className="border-t border-border align-top">
-                    <td className="px-5 py-3"><span className="font-mono text-xs font-semibold">{d.transactionNo}</span><span className="block text-xs text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></td>
-                    <td className="px-3 py-3">{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3">{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</td>
-                    <td className="px-3 py-3 text-end tabular-nums">{formatNumber(d.total, 2)}</td>
-                    <td className="px-3 py-3"><StatusPill status={d.status} />{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs text-muted-foreground">{d.lastError}</span>}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-wrap items-center justify-end gap-1.5">
-                        {d.status === "NOT_SENT" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => act(async () => setPreview({ doc: d, ...(await einvoice.preview(d._id)) }), d, "")} disabled={busy}><Eye className="h-3.5 w-3.5" aria-hidden="true" />Review</Button>
-                            <Button size="sm" onClick={() => setPreview({ doc: d, confirmSend: true })} disabled={busy || !enabled}><Send className="h-3.5 w-3.5" aria-hidden="true" />Send</Button>
-                          </>
-                        )}
-                        {d.status === "FAILED" && <Button size="sm" onClick={() => act(() => einvoice.retry(d.submissionId), d, `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
-                        {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Check status</Button>}
-                        {d.submissionId && <Button size="sm" variant="ghost" onClick={() => setDetail(d.submissionId)} aria-label={`History of ${d.transactionNo}`}><History className="h-3.5 w-3.5" aria-hidden="true" />History</Button>}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="erp-scroll table-pin-first overflow-x-auto">
+          <DataTable
+            caption="Documents to send"
+            rows={rows}
+            rowKey={(d) => d._id}
+            columns={[
+              { key: "document", header: "Document", card: "primary", cell: (d) => <><span className="font-mono text-xs font-semibold">{d.transactionNo}</span><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
+              { key: "customer", header: "Customer", card: "title", cell: (d) => <>{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</> },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (d) => <>{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</> },
+              { key: "total", header: "Total", align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
+              { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
+              {
+      key: "actions", header: "Actions", align: "end", card: "actions",
+      cell: (d) => {
+        const busy = busyId === d._id;
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {d.status === "NOT_SENT" && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => act(async () => setPreview({ doc: d, ...(await einvoice.preview(d._id)) }), d, "")} disabled={busy}><Eye className="h-3.5 w-3.5" aria-hidden="true" />Review</Button>
+                <Button size="sm" onClick={() => setPreview({ doc: d, confirmSend: true })} disabled={busy || !enabled}><Send className="h-3.5 w-3.5" aria-hidden="true" />Send</Button>
+              </>
+            )}
+            {d.status === "FAILED" && <Button size="sm" onClick={() => act(() => einvoice.retry(d.submissionId), d, `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
+            {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Check status</Button>}
+            {d.submissionId && <Button size="sm" variant="ghost" onClick={() => setDetail(d.submissionId)} aria-label={`History of ${d.transactionNo}`}><History className="h-3.5 w-3.5" aria-hidden="true" />History</Button>}
+          </div>
+        );
+      },
+    },
+            ]}
+          />
         </div>
       )}
 
@@ -124,7 +123,7 @@ function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSe
             <div><dt className="text-xs text-muted-foreground">Issue date</dt><dd className="font-medium">{payload.issueDate}</dd></div>
             {payload.invoiceRef && <div><dt className="text-xs text-muted-foreground">Credits invoice</dt><dd className="font-mono font-medium">{payload.invoiceRef}</dd></div>}
           </dl>
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-xs">
               <thead className="bg-secondary/60 text-muted-foreground"><tr><th className="px-3 py-2 text-start">#</th><th className="px-3 py-2 text-start">Item</th><th className="px-3 py-2 text-end">Qty</th><th className="px-3 py-2 text-end">Net</th><th className="px-3 py-2 text-start">Tax</th><th className="px-3 py-2 text-end">VAT</th></tr></thead>
               <tbody>{payload.lines.map((l) => (

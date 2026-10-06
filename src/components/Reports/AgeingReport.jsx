@@ -31,9 +31,9 @@ export default function AgeingReport() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Ageing" description={`${t.help} Each open invoice is placed by its due date, which is the invoice date plus the party's payment terms.`}
-        actions={<Button variant="outline" onClick={exportCsv} disabled={!data?.rows.length}><Download className="h-4 w-4" aria-hidden="true" />Export CSV</Button>} />
+        actions={<Button variant="outline" onClick={exportCsv} disabled={!data?.rows?.length}><Download className="h-4 w-4" aria-hidden="true" />Export CSV</Button>} />
 
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <div role="tablist" aria-label="Ageing type" className="inline-flex rounded-full bg-secondary/80 p-1">
@@ -57,9 +57,9 @@ export default function AgeingReport() {
       <Panel bodyClassName="p-0" title={data ? `${data.rows.length} ${data.rows.length === 1 ? "party" : "parties"}` : t.label}>
         {loading && !data && <Spinner label="Working out the ageing" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data?.rows.length === 0 && <EmptyState title="Nothing outstanding" text={`There are no unpaid approved ${type === "receivable" ? "sales" : "purchase"} invoices as at this date.`} />}
-        {data?.rows.length > 0 && (
-          <div className="overflow-x-auto">
+        {data?.rows?.length === 0 && <EmptyState title="Nothing outstanding" text={`There are no unpaid approved ${type === "receivable" ? "sales" : "purchase"} invoices as at this date.`} />}
+        {data?.rows?.length > 0 && (
+          <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>

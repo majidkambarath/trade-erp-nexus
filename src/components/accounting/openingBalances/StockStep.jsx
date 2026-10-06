@@ -187,7 +187,7 @@ export default function StockStep({ goLive, notify, onChanged, goToDate }) {
                   : <span className="text-xs text-muted-foreground">Cannot be reversed: {v.blockedBy.join(", ")} {v.blockedBy.length === 1 ? "has" : "have"} later stock movements</span>
               )}
             </header>
-            <div className="overflow-x-auto">
+            <div className="erp-scroll table-pin-first overflow-x-auto">
               <table className="w-full text-sm" aria-label={`Rows of ${v.voucherNo}`}>
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr><th className="px-5 py-2 text-start">Item</th><th className="px-3 py-2 text-end">Quantity</th><th className="px-3 py-2 text-end">Unit cost</th><th className="px-3 py-2 text-start">Batch</th><th className="px-3 py-2 text-start">Expiry</th><th className="px-5 py-2 text-end">Value</th></tr>

@@ -41,7 +41,7 @@ export default function Currencies() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Currencies</h1>
@@ -56,7 +56,7 @@ export default function Currencies() {
       </div>
 
       {list.data && (
-        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatCard title="Base currency" count={base} subText="Every ledger amount is kept in it" tone="neutral" />
           <StatCard title="Ready for vouchers" count={String(ready)} subText="Switched on, with a rate" tone="teal" />
           <StatCard title="Need a rate" count={String(missing)} subText={missing ? "Switched on, but no rate yet" : "Every switched-on currency has a rate"} tone={missing ? "warning" : "neutral"} />
@@ -68,7 +68,7 @@ export default function Currencies() {
         {list.error && <div className="p-5"><ErrorNote error={list.error} onRetry={list.reload} /></div>}
         {list.data && rows.length === 0 && <EmptyState title="No currencies yet" text="Add one with Add currency." />}
         {rows.length > 0 && (
-          <div className="relative overflow-x-auto">
+          <div className="erp-scroll table-pin-first relative overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Currencies and their latest exchange rate to {base}</caption>
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -282,7 +282,7 @@ function RatesModal({ currency, base, onClose, onChanged }) {
           {history.error && <ErrorNote error={history.error} onRetry={history.reload} />}
           {history.data && rows.length === 0 && <p className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground">No rate yet. {code} cannot be used on a voucher until one is added.</p>}
           {rows.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr><th className="px-4 py-2 text-start">From</th><th className="px-3 py-2 text-end">Rate</th><th className="px-3 py-2 text-start">Source</th><th className="px-3 py-2 text-start">Note</th><th className="px-4 py-2 text-start">Saved</th></tr>

@@ -88,9 +88,15 @@ function Dashboard() {
 
   const dubaiLabel = useMemo(() => dubaiClock.format(now), [now]);
 
+  // The tab row scrolls on a phone, so the chosen tab is brought into view - otherwise
+  // picking "Reports" leaves it half off the right edge.
+  const tabEls = useRef({});
+  const tabRef = (value) => (el) => { tabEls.current[value] = el; };
+
   const openTab = (value) => {
     setTab(value);
     setVisited((v) => (v[value] ? v : { ...v, [value]: true }));
+    tabEls.current[value]?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
   };
 
   const refresh = () => {
@@ -132,25 +138,30 @@ function Dashboard() {
         </div>
 
         <Tabs value={tab} onValueChange={openTab} className="gap-6">
-          <div className="sticky top-0 z-20 flex justify-center bg-background/90 py-1 backdrop-blur-md" data-anim="hero">
-            <TabsList className="h-12 gap-1 rounded-full bg-secondary/90 px-1.5 shadow-inner">
-              <TabsTrigger value="overview" className="rounded-full px-5">
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="sales" className="rounded-full px-5">
-                <ShoppingCart className="h-4 w-4" />
-                Sales
-              </TabsTrigger>
-              <TabsTrigger value="inventory" className="rounded-full px-5">
-                <Package className="h-4 w-4" />
-                Inventory
-              </TabsTrigger>
-              <TabsTrigger value="finance" className="rounded-full px-5">
-                <TrendingUp className="h-4 w-4" />
-                Reports
-              </TabsTrigger>
-            </TabsList>
+          {/* Four pills with icons are ~510px. Centring that in a 390px screen made the whole
+              page 450px wide and scrolled every card's left edge out of view. The row scrolls
+              on its own instead, and only centres once it fits. */}
+          <div className="sticky top-0 z-20 bg-background/90 py-1 backdrop-blur-md" data-anim="hero">
+            <div className="scrollbar-none -mx-4 flex overflow-x-auto px-4 sm:mx-0 sm:justify-center sm:px-0">
+              <TabsList className="h-12 shrink-0 gap-1 rounded-full bg-secondary/90 px-1.5 shadow-inner">
+                <TabsTrigger ref={tabRef("overview")} value="overview" className="rounded-full px-3.5 sm:px-5">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </TabsTrigger>
+                <TabsTrigger ref={tabRef("sales")} value="sales" className="rounded-full px-3.5 sm:px-5">
+                  <ShoppingCart className="h-4 w-4" />
+                  Sales
+                </TabsTrigger>
+                <TabsTrigger ref={tabRef("inventory")} value="inventory" className="rounded-full px-3.5 sm:px-5">
+                  <Package className="h-4 w-4" />
+                  Inventory
+                </TabsTrigger>
+                <TabsTrigger ref={tabRef("finance")} value="finance" className="rounded-full px-3.5 sm:px-5">
+                  <TrendingUp className="h-4 w-4" />
+                  Reports
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
           <TabsContent value="overview" className="mt-2">

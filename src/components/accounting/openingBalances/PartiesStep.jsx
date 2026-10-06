@@ -167,7 +167,7 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
       <Panel title="Entered" description={`Opening invoices already posted. One can be removed while nothing has been set against it.`} bodyClassName="p-0">
         {data.data && list.length === 0 && <EmptyState title="Nothing entered yet" text={k.empty} />}
         {list.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>

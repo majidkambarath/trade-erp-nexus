@@ -232,6 +232,8 @@ Orders (`OrderEntry/OrderForm.jsx`) send line discounts, tax codes, batch/expiry
 - Manage payables from vendor purchase vouchers and payment vouchers.
 - API:
   - Vendors: `GET /vendors/vendors`
+- One document's effects and history: `GET /transactions/transactions/:id/audit` -> `{ document, party, ledger, stock, partyBalance, settlements, einvoice, activity }`
+- One voucher's effects and history: `GET /vouchers/vouchers/:id/audit` -> `{ voucher, ledger, allocations, onAccount, cheque, activity }`
   - Invoices: `GET /vouchers/vouchers?voucherType=purchase`
   - Vouchers: `GET /vouchers/vouchers?voucherType=payment`
 - Features:
@@ -280,6 +282,7 @@ Orders (`OrderEntry/OrderForm.jsx`) send line discounts, tax codes, batch/expiry
 - Journal Voucher: `src/components/FinancialModules/Journal/JournalVoucherManagement.jsx`, `JournalVoucherView.jsx`
 - Contra Voucher: `src/components/FinancialModules/Contra/ContraVoucherManagement.jsx`, `ContraVoucherView.jsx`
 - Expense Voucher: `src/components/FinancialModules/Expense/ExpenseVoucherManagement.jsx`
+- Audit trail (every Finance tab): `VoucherAuditTrail` from `components/audit/AuditTrail.jsx`, a read-only modal over `GET /vouchers/vouchers/:id/audit`. It shows the double entry the voucher posted (with totals and whether they balance, and the reversing entries once it is deleted), the invoices it was set against with the balance each moved from and to, anything left on account, its cheque with that cheque's own history, and then every save, edit, approval and deletion with who did it. Reached from the **Receipts, Payments, Journal, Contra, Expenses and Notes** screens through the shared `VoucherView` (`finance/shared.jsx`), from **Cheques** on each row, and from **Ledger** and **Cash & bank** by clicking a posting's voucher number - which opens the document trail for the four order types and the voucher trail for everything else (`LedgerBody` in `accounting/ChartOfAccounts.jsx`, so the same drill-down works wherever `LedgerModal` is used: Chart of accounts, Financial statements, Ledger reports, Cash & bank). A voucher with nothing posted says why (not approved, cancelled, posting off, or the older Transactors format).
 
 ## 7. Sales & Purchase Orders
 - Purchase Order:
@@ -288,7 +291,8 @@ Orders (`OrderEntry/OrderForm.jsx`) send line discounts, tax codes, batch/expiry
 - Sales Order:
   - `sales/` -> GridView, InvoiceView, SOForm, SalesOrderPage, TableView
   - `salesReturn/` -> analogous components for returns
-- Tests: `components/PurchaseOrder/sales/__tests__/InvoiceView.test.jsx` using Vitest.
+- Audit trail (all four modules): the row menu in TableView, a button on the card in GridView and a button on the document screen (`shared/InvoiceScreen.jsx`) open `components/audit/AuditTrail.jsx`, a read-only modal over `GET /transactions/transactions/:id/audit`. It shows, in order, the **financial effect** - the ledger entries the document posted with their totals and whether they balance (and the reversing entries, behind a toggle, once it has been cancelled or deleted), the stock it moved with the costing trail, the party balance row it wrote, the vouchers that settled it and its e-invoice - and then the **audit trail**: every save, edit, approval, rejection, cancellation and deletion, with who did it and the before/after of each. A document with nothing posted says why (not approved yet, posting off, an opening document, or approved but never posted) instead of showing an empty table.
+- Tests: `components/PurchaseOrder/sales/__tests__/InvoiceView.test.jsx` and `components/PurchaseOrder/shared/__tests__/AuditTrail.test.jsx` using Vitest.
 
 ## 8. Inventory & Stock
 - InventoryManagement: `src/components/Inventory/InventoryManagement.jsx`
@@ -391,6 +395,85 @@ VAT treatment of a line is its tax code's kind (`standard`, `zero_rated`, `exemp
 - Reusability:
   - `InvoiceView` and componentized form inputs/selectors
 - Sidebar structure and role-based filtering (role placeholder currently "Admin")
+
+## 17b. Touch, responsiveness and installing the app
+
+Two breakpoints, each with a reason:
+
+| Below | What changes | Why |
+| --- | --- | --- |
+| `lg` (1024px) | the labelled rail gives way to a bottom bar + More sheet | the 88px rail plus a tab row leaves too little width for a dense table |
+| `md` (768px) | tables become card rows; entry grids become a card per line | a seven-column table at 390px is unreadable either way you turn it |
+| `sm` (640px) | dialogs become bottom sheets | there is no rail or header worth leaving uncovered on a phone |
+
+### The shell
+
+`components/shell/` holds it, and all of it reads `src/config/navigation.js`:
+
+- **`AppRail`** - the pointer rail, `lg` and up.
+- **`BottomNav`** - four modules in the thumb zone plus More, below `lg`. Which four comes from
+  `mobilePrimary` in `MODULES`; `getMobileNav()` fills a slot from the remaining modules when a
+  role cannot see a flagged one, and never pins a `footer` module.
+- **`MoreSheet`** - everything that did not fit, one level deep, as a bottom sheet.
+- **`ModuleTabs`** - the active module's pages; the strip snap-scrolls with a fade at the edge.
+- There is deliberately **no hamburger**: navigation is the bar.
+
+Device insets are `pt-safe` / `pb-safe` utilities (`env(safe-area-inset-*)`), and `index.html`
+carries `viewport-fit=cover`, so the shell paints under the notch and the home bar without
+putting controls there.
+
+### Lists: `DataTable`
+
+`components/accounting/DataTable.jsx` (re-exported from `kit.jsx`) renders **one** of two
+shapes, chosen by a live `matchMedia` match - never both, so a 200-row list builds one tree.
+A column says where it belongs on a card through `card`:
+
+| `card` | Where it lands |
+| --- | --- |
+| `primary` | the headline, top-left |
+| `badge` | top-right, for a status pill |
+| `title` | the line under the headline |
+| `amount` | bottom-right, emphasised |
+| `meta` | the muted bottom line; several join with a divider |
+| `actions` | a row of controls at the foot, outside the card's own tap target |
+| `hidden` | in the table only |
+| *(none)* | a labelled line in the card body |
+
+A card's tap target is an overlay behind the content, so a card can hold its own buttons
+without nesting a control inside a control. `rowHref` makes it a link, `onRowClick` a button.
+
+Figures that only mean something lined up - a trial balance, a VAT return, an ageing - stay
+tables. Those use `TableScroll`, or the `table-pin-first` class on an existing
+`overflow-x-auto` wrapper: the first column freezes and the numbers scroll under it.
+
+### Installing it (PWA)
+
+- `public/manifest.webmanifest` - name, icons, colours, and four app shortcuts.
+- `public/sw.js` - caches the shell (hashed assets, fonts, icons) and **never** the API. That
+  rule is absolute: this is a ledger, and a stale figure is worse than a slow one.
+- `src/lib/pwa.js` - registers the worker, holds Chromium's `beforeinstallprompt` for the
+  "Install app" item in the account menu, and detects iOS, which has no such event and gets
+  instructions instead (`components/shell/InstallApp.jsx`).
+- A new version is **offered**, not applied: the worker waits until the person taps Reload, so
+  the app never swaps itself out mid-voucher.
+- `npm run icons` regenerates the icons from the brand colours (no image library - see
+  `scripts/make-icons.mjs`).
+
+**Tokens live in `sessionStorage`**, which does not survive closing the app, so an installed
+copy asks for a sign-in on each launch. Moving them is a security decision, not a layout one.
+
+### Checking it
+
+| Command | What it does |
+| --- | --- |
+| `npm run audit:mobile` | static scan of every screen for the patterns that cannot work at 390px |
+| `npm run check:mobile` | renders every route in `navigation.js` at 390 / 820 / 1440 against a stub API, screenshots it, and fails on horizontal overflow or a blank page |
+| `npm run check:pwa` | builds, serves, and checks the manifest, icons, worker registration and that no API response was cached |
+
+`check:mobile` writes to `.shots/` (gitignored) and drives its page list from `navigation.js`,
+so a new screen is checked without anyone remembering to add it. Its stub API answers from
+`scripts/shoot-mobile.mjs`; a page that comes back blank there usually means the stub's shape
+has drifted from the server's, not that the page is broken.
 
 ## 18. Considerations & Future Improvements
 - Role-based access: Sidebar role is hardcoded; integrate with backend auth to control access and visibility.

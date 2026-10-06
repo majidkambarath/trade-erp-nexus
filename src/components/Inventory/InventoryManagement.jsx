@@ -30,6 +30,7 @@ import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
+import { DataTable } from "../accounting/DataTable";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -449,7 +450,7 @@ const InventoryManagement = () => {
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
             onClick={handleExport}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
           >
             <Download size={16} className="text-gray-600" />
@@ -457,7 +458,7 @@ const InventoryManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isLoading}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -496,7 +497,7 @@ const InventoryManagement = () => {
       )}
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-5 mb-8">
         {[
           {
             title: "Total Movements",
@@ -654,137 +655,97 @@ const InventoryManagement = () => {
         {/* Movements Table */}
         {!isLoading && (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Item Details
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Movement
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Event Type
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Reference
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date & User
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Value
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {movements.map((movement) => {
-                  const MovementIcon = getMovementIcon(movement.quantity);
-                  const movementColor = getMovementColor(movement.quantity);
-
-                  return (
-                    <tr
-                      key={movement._id}
-                      className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-indigo-100 rounded-lg">
-                            <Package size={16} className="text-indigo-600" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {movement.itemName || movement.stockId}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              ID: {movement.stockId}
-                            </p>
-                          </div>
+            <DataTable
+              caption="Stock movements"
+              rows={movements}
+              rowKey={(movement) => movement._id}
+              columns={[
+                {
+                  key: "item", header: "Item Details", card: "primary",
+                  cell: (m) => (
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Package size={16} className="text-indigo-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 truncate">{m.itemName || m.stockId}</p>
+                        <p className="text-sm font-normal text-gray-500">ID: {m.stockId}</p>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: "movement", header: "Movement", card: "title",
+                  cell: (m) => {
+                    const MovementIcon = getMovementIcon(m.quantity);
+                    const movementColor = getMovementColor(m.quantity);
+                    return (
+                      <div className="flex items-center space-x-2">
+                        <MovementIcon size={20} className={movementColor} />
+                        <div>
+                          <p className={`font-bold ${movementColor}`}>{m.quantity > 0 ? "+" : ""}{m.quantity}</p>
+                          <p className="text-xs text-gray-500">Stock: {m.previousStock} &rarr; {m.newStock}</p>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <MovementIcon size={20} className={movementColor} />
-                          <div>
-                            <p className={`font-bold ${movementColor}`}>
-                              {movement.quantity > 0 ? "+" : ""}
-                              {movement.quantity}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Stock: {movement.previousStock} → {movement.newStock}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getEventTypeBadge(
-                            movement.eventType
-                          )}`}
-                        >
-                          {eventTypes.find(
-                            (t) => t.value === movement.eventType
-                          )?.label || movement.eventType}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <FileText size={16} className="text-gray-400" />
-                          <span className="font-mono text-sm text-gray-900">
-                            {movement.referenceNumber}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <Calendar size={14} className="text-gray-400" />
-                            <span className="text-sm text-gray-600">
-                              {formatDate(movement.date)}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <User size={14} className="text-gray-400" />
-                            <span className="text-sm text-gray-600">
-                              {movement.createdBy || "Unknown"}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-right">
-                          <p
-                            className={`font-bold ${getMovementColor(
-                              movement.totalValue
-                            )}`}
-                          >
-                            {movement.totalValue >= 0 ? "+" : ""}
-                            {formatCurrency(movement.totalValue, getMovementColor(movement.totalValue))}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                             {formatCurrency(movement.unitCost)}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => showMovementDetails(movement)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200"
-                            title="View Details"
-                          >
-                            <Eye size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    );
+                  },
+                },
+                {
+                  key: "eventType", header: "Event Type", card: "badge",
+                  cell: (m) => (
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getEventTypeBadge(m.eventType)}`}>
+                      {eventTypes.find((t) => t.value === m.eventType)?.label || m.eventType}
+                    </span>
+                  ),
+                },
+                {
+                  key: "reference", header: "Reference", card: "meta",
+                  cell: (m) => (
+                    <div className="flex items-center space-x-2">
+                      <FileText size={16} className="text-gray-400" />
+                      <span className="font-mono text-sm text-gray-900">{m.referenceNumber}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "date", header: "Date & User", card: "meta",
+                  cell: (m) => (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="flex items-center space-x-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        <span className="text-sm text-gray-600">{formatDate(m.date)}</span>
+                      </span>
+                      <span className="flex items-center space-x-2">
+                        <User size={14} className="text-gray-400" />
+                        <span className="text-sm text-gray-600">{m.createdBy || "Unknown"}</span>
+                      </span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "value", header: "Value", align: "end", card: "amount",
+                  cell: (m) => (
+                    <div className="text-right">
+                      <p className={`font-bold ${getMovementColor(m.totalValue)}`}>
+                        {m.totalValue >= 0 ? "+" : ""}
+                        {formatCurrency(m.totalValue, getMovementColor(m.totalValue))}
+                      </p>
+                      <p className="text-xs font-normal text-gray-500">{formatCurrency(m.unitCost)}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", align: "center", card: "actions",
+                  cell: (m) => (
+                    <div className="flex items-center justify-center space-x-2">
+                      <button onClick={() => showMovementDetails(m)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="View Details">
+                        <Eye size={16} />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
 
             {movements.length === 0 && (
               <div className="text-center py-12">
@@ -854,7 +815,7 @@ const InventoryManagement = () => {
       {/* Add Movement Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
@@ -1108,7 +1069,7 @@ const InventoryManagement = () => {
       {/* Movement Details Modal */}
       {showDetailsModal && selectedMovement && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <h3 className="text-xl font-bold text-gray-900">
                 Movement Details

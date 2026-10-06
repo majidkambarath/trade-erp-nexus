@@ -102,7 +102,7 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
         )}
 
         {data && hasActivity && !(shown.length === 0 && filtered) && (
-          <div className={cn("overflow-x-auto", loading && "opacity-60")} aria-busy={loading || undefined}>
+          <div className={cn("erp-scroll table-pin-first overflow-x-auto", loading && "opacity-60")} aria-busy={loading || undefined}>
             <table className="w-full text-sm">
               <caption className="sr-only">Statement of account for {name}</caption>
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">

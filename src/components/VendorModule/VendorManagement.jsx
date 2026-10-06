@@ -27,6 +27,7 @@ import { toastClasses } from "../../lib/status";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
+import { DataTable } from "../accounting/DataTable";
 // Session management utilities (using memory storage for Claude environment)
 const SessionManager = {
   storage: {},
@@ -294,7 +295,7 @@ const VendorManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-[60vh] bg-background flex items-center justify-center">
+      <div className="min-h-[60dvh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -311,7 +312,7 @@ const VendorManagement = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
         <div className="flex items-center space-x-4">
-          <button className="p-2 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+          <button className="grid min-h-10 min-w-10 place-items-center p-2 rounded-lg lg:min-h-0 lg:min-w-0 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
             <ArrowLeft size={16} className="text-gray-600" />
           </button>
           <div>
@@ -329,7 +330,7 @@ const VendorManagement = () => {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
           >
             <RefreshCw
@@ -520,122 +521,67 @@ const VendorManagement = () => {
               </p>
             </div>
           ) : (
-            <table className="w-full min-w-[640px]">
-              <thead className="bg-background">
-                <tr>
-                  {[
-                    { key: "vendorId", label: "Vendor ID" },
-                    { key: "vendorName", label: "Vendor Name" },
-                    { key: "contactPerson", label: "Contact Person" },
-                    { key: "email", label: "Email" },
-                    { key: "phone", label: "Phone Number" },
-                    { key: "address", label: "Billing Address" },
-                    { key: "trnNO", label: "TRN NO" },
-                    { key: "status", label: "Status" },
-                    { key: null, label: "Actions" },
-                  ].map((column) => (
-                    <th
-                      key={column.key || "actions"}
-                      className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={
-                        column.key ? () => handleSort(column.key) : undefined
-                      }
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{column.label}</span>
-                        {column.key && sortConfig.key === column.key && (
-                          <span className="text-blue-600">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredVendors.map((vendor) => (
-                  <tr
-                    key={vendor._id}
-                    className="hover:bg-background transition-colors duration-150"
-                  >
-                    <td className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-900">
-                      {vendor.vendorId}
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
+            <DataTable
+              caption="Vendors"
+              rows={sortedAndFilteredVendors}
+              rowKey={(vendor) => vendor._id}
+              columns={[
+                // Sorting lives in the column header, which only the table shape shows; on a
+                // card the order is whatever the page's own sort control set.
+                ...[
+                  { key: "vendorId", label: "Vendor ID", card: "meta", cell: (v) => <span className="font-medium text-gray-900">{v.vendorId}</span> },
+                  {
+                    key: "vendorName", label: "Vendor Name", card: "primary",
+                    cell: (v) => (
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                           <User size={16} className="text-blue-600" />
                         </div>
-                        <div>
-                          <div className="font-medium">{vendor.vendorName}</div>
-                          <ExpiryPill documents={vendor.documents} />
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{v.vendorName}</div>
+                          <ExpiryPill documents={v.documents} />
                         </div>
                       </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      {vendor.contactPerson}
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      <a
-                        href={`mailto:${vendor.email}`}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        {vendor.email}
-                      </a>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      <a
-                        href={`tel:${vendor.phone}`}
-                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        {vendor.phone}
-                      </a>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      <div className="max-w-xs truncate" title={vendor.address}>
-                        {vendor.address}
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-900">
-                      {vendor.trnNO || "-"}
-                    </td>
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(vendor.status)}
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                            vendor.status
-                          )}`}
-                        >
-                          {vendor.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => handleEdit(vendor)}
-                          className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50"
-                          title="Edit vendor"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleDelete(vendor._id, vendor.vendorName)
-                          }
-                          className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50"
-                          title="Delete vendor"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ),
+                  },
+                  { key: "contactPerson", label: "Contact Person", card: "title", cell: (v) => v.contactPerson },
+                  { key: "email", label: "Email", cell: (v) => <a href={`mailto:${v.email}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.email}</a> },
+                  { key: "phone", label: "Phone Number", cell: (v) => <a href={`tel:${v.phone}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.phone}</a> },
+                  { key: "address", label: "Billing Address", card: "hidden", cell: (v) => <div className="max-w-xs truncate" title={v.address}>{v.address}</div> },
+                  { key: "trnNO", label: "TRN NO", cell: (v) => v.trnNO || "-" },
+                ].map((c) => ({
+                  ...c,
+                  header: (
+                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                      <span>{c.label}</span>
+                      {sortConfig.key === c.key && <span className="text-blue-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+                    </button>
+                  ),
+                })),
+                {
+                  key: "status", header: "Status", card: "badge",
+                  cell: (v) => (
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(v.status)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(v.status)}`}>{v.status}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", card: "actions",
+                  cell: (v) => (
+                    <div className="flex items-center space-x-3">
+                      <button onClick={() => handleEdit(v)} className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50" title="Edit vendor">
+                        <Edit size={16} />
+                      </button>
+                      <button onClick={() => handleDelete(v._id, v.vendorName)} className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50" title="Delete vendor">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           )}
         </div>
       </div>

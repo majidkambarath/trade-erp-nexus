@@ -472,7 +472,7 @@ export default function OrderForm({
   const numberIsEditable = V.numberMode && manualNumber;
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button

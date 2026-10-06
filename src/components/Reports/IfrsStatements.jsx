@@ -31,7 +31,7 @@ export default function IfrsStatements() {
   const set = (k) => (e) => e.target.value && setRange((r) => ({ ...r, [k]: e.target.value }));
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="IFRS statements"
         description="Statement of financial position, profit or loss, changes in equity, cash flows and notes, prepared from the general ledger with a comparative period."
@@ -59,7 +59,7 @@ export default function IfrsStatements() {
         )}
       </div>
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto">
+        <div className="erp-scroll table-pin-first overflow-x-auto">
           <TabsList aria-label="IFRS statements">
             {TABS.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
           </TabsList>
@@ -170,7 +170,7 @@ function StatementTable({ block, caption }) {
   return (
     <div>
       {block.title && <h3 className="px-5 pb-1 pt-4 text-sm font-semibold text-foreground">{block.title}</h3>}
-      <div className="overflow-x-auto">
+      <div className="erp-scroll table-pin-first overflow-x-auto">
         <table className="w-full min-w-[32rem] text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="text-xs text-muted-foreground">

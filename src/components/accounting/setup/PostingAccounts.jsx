@@ -57,13 +57,13 @@ const sectionOf = (r) => (r.parentConfigKey === "purchase-group" ? "buy" : r.par
 function flatGroups(chart) {
   const out = [];
   const walk = (nodes, depth) => nodes.forEach((g) => { out.push({ _id: g._id, name: g.name, category: g.category, depth }); walk(g.children, depth + 1); });
-  chart?.categories.forEach((c) => walk(c.groups, 0));
+  chart?.categories?.forEach((c) => walk(c.groups, 0));
   return out;
 }
 function flatAccounts(chart) {
   const out = [];
   const walk = (nodes, category) => nodes.forEach((g) => { g.accounts.forEach((a) => a.isActive && out.push({ ...a, category })); walk(g.children, category); });
-  chart?.categories.forEach((c) => { walk(c.groups, c.category); c.ungrouped.forEach((a) => a.isActive && out.push({ ...a, category: c.category })); });
+  chart?.categories?.forEach((c) => { walk(c.groups, c.category); c.ungrouped.forEach((a) => a.isActive && out.push({ ...a, category: c.category })); });
   return out;
 }
 

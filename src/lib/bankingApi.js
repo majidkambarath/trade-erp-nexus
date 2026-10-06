@@ -47,4 +47,7 @@ export const vouchers = {
   create: (body) => axiosInstance.post("/vouchers/vouchers", body).then((r) => r.data?.data).catch(fail),
   update: (id, body) => axiosInstance.put(`/vouchers/vouchers/${id}`, { ...body, forceUpdate: true }).then((r) => r.data?.data).catch(fail),
   remove: (id) => axiosInstance.delete(`/vouchers/vouchers/${id}`).then((r) => r.data).catch(fail),
+  // Everything the voucher did: its ledger entries, the invoices it settled, its cheque and the
+  // activity log behind it.
+  audit: (id) => axiosInstance.get(`/vouchers/vouchers/${id}/audit`).then((r) => r.data?.data).catch(fail),
 };

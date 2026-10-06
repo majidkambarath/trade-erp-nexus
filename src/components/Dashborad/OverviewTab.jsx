@@ -65,12 +65,12 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
   const navigate = useNavigate();
   const c = core.data;
   const a = analytics.data;
-  const word = PERIOD_WORD[c?.period.id || period] || "period";
+  const word = PERIOD_WORD[c?.period?.id || period] || "period";
   const mix = slices(theme);
   const range = a ? `${formatDate(a.period.from)} – ${formatDate(a.period.to)}` : "";
 
   const monthly = (c?.monthly || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
-  const rate = c?.collection.ratePct ?? null;
+  const rate = c?.collection?.ratePct ?? null;
 
   return (
     <>
@@ -129,7 +129,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             {/* In the narrow centre column (xl) the period control sits above the three figures, not beside them: beside them
                 a figure like "AED 900.00" ran into the next one. */}
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-2 xl:flex-col-reverse xl:items-stretch xl:gap-3">
-              <div className="grid w-full grid-cols-3 gap-3 pr-2">
+              <div className="grid w-full grid-cols-1 gap-3 pr-2 min-[420px]:grid-cols-3">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-muted-foreground">Sales value</p>
                   <p className="mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl xl:text-2xl 2xl:text-3xl">
@@ -240,13 +240,13 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
               <CardContent className="p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <Link to="/vat-reports" className="text-sm font-bold hover:underline">VAT this quarter</Link>
-                  {c?.vat.hasActivity && c.vat.position !== "nil" && (
+                  {c?.vat?.hasActivity && c.vat.position !== "nil" && (
                     <Badge variant="secondary" className="rounded-full">{c.vat.position === "payable" ? "Payable" : "Refundable"}</Badge>
                   )}
                 </div>
                 {!c && <Skeleton className="h-28" />}
                 {c && !c.vat.hasActivity && <Empty height={112}>No VAT transactions this quarter</Empty>}
-                {c?.vat.hasActivity && (
+                {c?.vat?.hasActivity && (
                   <>
                     <p className="text-lg font-extrabold tracking-tight">{formatCurrencyAED(Math.abs(c.vat.net))}</p>
                     <p className="text-sm text-muted-foreground">
@@ -311,7 +311,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             <CardContent className="space-y-4">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
               {c && c.recent.length === 0 && <Empty height={120}>No activity yet</Empty>}
-              {c?.recent.map((r) => (
+              {c?.recent?.map((r) => (
                 <Link key={r.voucherId} to={recentLink(r.voucherType)} className="flex gap-3 rounded-lg hover:bg-secondary/60">
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <CheckCircle2 className="h-4 w-4" />
@@ -367,7 +367,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
 
 function Gallery({ a, analytics, word, theme, mix, range }) {
   const weekly = (a?.weekly || []).map((w) => ({ ...w, day: weekdayLabel(w.date) }));
-  const customerMix = a?.customerMix.rows || [];
+  const customerMix = a?.customerMix?.rows || [];
   const perf = a
     ? [
         { name: "Collection rate", value: a.performance.collectionRatePct, fill: "#737373" },
@@ -376,10 +376,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
       ].filter((p) => p.value !== null)
     : [];
   const monthly = (a?.monthly || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
-  const categories = (a?.categorySales.rows || []).map((r) => ({ name: r.name, current: r.current, previous: r.previous }));
-  const monthsOf = a?.categoryMonths.months || [];
-  const categoryBars = (a?.categoryMonths.rows || []).map((r) => ({ cat: r.name, m0: r.values[0], m1: r.values[1], m2: r.values[2] }));
-  const cash = (a?.cashFlow.months || []).map((m) => ({ month: monthLabel(m.month), inflow: m.inflow, outflow: m.outflow }));
+  const categories = (a?.categorySales?.rows || []).map((r) => ({ name: r.name, current: r.current, previous: r.previous }));
+  const monthsOf = a?.categoryMonths?.months || [];
+  const categoryBars = (a?.categoryMonths?.rows || []).map((r) => ({ cat: r.name, m0: r.values[0], m1: r.values[1], m2: r.values[2] }));
+  const cash = (a?.cashFlow?.months || []).map((m) => ({ month: monthLabel(m.month), inflow: m.inflow, outflow: m.outflow }));
   const pipeline = (a?.pipeline || []).map((p, i) => ({ ...p, name: p.label, display: `${p.label} · ${p.value}`, fill: [mutedInk, "#a8a29e", ink, gold][i] }));
   const settlement = (a?.settlement || []).map((s, i) => ({ ...s, name: s.label, fill: [gold, mutedInk, "#525252", ink][i] }));
   const topCustomers = (a?.topCustomers || []).map((r) => ({ name: r.name, aed: r.netRevenue }));
@@ -557,7 +557,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
             <CardDescription>Cash and bank accounts · last 8 months · AED</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!a || a.cashFlow.accounts === 0 || !cash.some((m) => m.inflow || m.outflow)} emptyText={a?.cashFlow.accounts === 0 ? "No cash or bank account set up" : "No money in or out in the last 8 months"} height={240}>
+            <ChartArea state={analytics} empty={!a || a.cashFlow.accounts === 0 || !cash.some((m) => m.inflow || m.outflow)} emptyText={a?.cashFlow?.accounts === 0 ? "No cash or bank account set up" : "No money in or out in the last 8 months"} height={240}>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={cash}>
                   <defs>
@@ -596,7 +596,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {!a && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-[1.35rem]" />)}
-        {a?.kpis.map((kpi) => (
+        {a?.kpis?.map((kpi) => (
           <Link key={kpi.key} to={kpi.to} className="block">
             <Card data-anim="bento" className="h-full rounded-[1.35rem] border-0 shadow-[var(--shadow-card)]">
               <CardContent className="p-4">
@@ -624,11 +624,11 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
           <CardContent>
             <ChartArea state={analytics} empty={!a || a.radar.categories.length === 0} emptyText={`No category sales this ${word}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
-                <RadarChart data={a?.radar.metrics}>
+                <RadarChart data={a?.radar?.metrics}>
                   <PolarGrid stroke="var(--border)" />
                   <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                  {a?.radar.categories.map((cat, i) => (
+                  {a?.radar?.categories?.map((cat, i) => (
                     <Radar key={cat.key} name={cat.name} dataKey={cat.key} stroke={radarColours[i]} fill={radarColours[i]} fillOpacity={0.15 + i * 0.03} strokeWidth={2} />
                   ))}
                   <Legend />

@@ -74,7 +74,7 @@ export default function QuickCreateDialog({
           onCloseAutoFocus={(e) => {
             if (onCloseFocus?.()) e.preventDefault();
           }}
-          className="fixed start-1/2 top-[18vh] z-[60] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
+          className="fixed start-1/2 top-[18dvh] z-[60] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
         >
           <div className="mb-5 flex items-start justify-between gap-4">
             <Dialog.Title className="text-lg font-bold tracking-tight">{spec.title}</Dialog.Title>

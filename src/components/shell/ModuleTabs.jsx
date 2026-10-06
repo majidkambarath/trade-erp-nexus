@@ -17,23 +17,31 @@ export default function ModuleTabs({ module, activeTab }) {
   if (!module || module.tabs.length < 2) return null;
 
   return (
-    <div className="flex shrink-0 items-center gap-4 border-b border-border bg-card px-4 sm:px-6">
-      <span className="hidden shrink-0 text-sm font-bold text-foreground md:block">
+    <div className="flex shrink-0 items-center gap-4 border-b border-border bg-card px-4 lg:px-6">
+      {/* The module name is already under the thumb in the bottom bar on touch, so it only
+          earns its width next to the rail. */}
+      <span className="hidden shrink-0 text-sm font-bold text-foreground lg:block">
         {module.label}
       </span>
-      <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border md:block" />
-      <nav aria-label={module.label} className="scrollbar-none -mb-px min-w-0 overflow-x-auto">
+      <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border lg:block" />
+      <nav
+        aria-label={module.label}
+        // snap-x makes the flick land on a tab edge instead of mid-label; the gradient
+        // mask on the trailing edge is what tells a touch user there is more to swipe to.
+        className="scrollbar-none tab-strip-fade -mb-px min-w-0 snap-x snap-proximity overflow-x-auto overscroll-x-contain"
+      >
         <ul className="flex">
           {module.tabs.map((tab) => {
             const isActive = tab === activeTab;
             return (
-              <li key={tab.to} className="shrink-0">
+              <li key={tab.to} className="shrink-0 snap-start">
                 <Link
                   ref={isActive ? activeRef : undefined}
                   to={tab.to}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "relative flex h-11 items-center whitespace-nowrap px-3 text-sm font-semibold transition-colors",
+                    // 48px tall on touch (44px is the minimum comfortable target), 44 on a pointer
+                    "relative flex h-12 items-center whitespace-nowrap px-3.5 text-sm font-semibold transition-colors lg:h-11 lg:px-3",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                     isActive
                       ? "text-foreground"

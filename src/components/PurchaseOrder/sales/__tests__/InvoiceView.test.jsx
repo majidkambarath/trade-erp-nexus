@@ -1,34 +1,36 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 
 import SaleInvoiceView from '../InvoiceView.jsx';
+import { buildSalesDocument } from '../../shared/invoiceDocuments';
 
-// Mock axios instance used in component
-vi.mock('../../../axios/axios', () => ({ default: { get: vi.fn().mockResolvedValue({ data: { success: false } }) } }));
+// The Settings profile: an empty company unless a test overrides it.
+vi.mock('../../shared/useCompanyProfile', () => ({ useCompanyProfile: vi.fn(() => ({ companyName: '', vatNumber: '' })) }));
 
-// Mock dynamic imports for html2canvas and jspdf used in PDF generation
+// Mock the PDF libraries used on Download PDF
 vi.mock('html2canvas', () => ({ default: vi.fn(async () => ({ width: 800, height: 1200, toDataURL: vi.fn(() => 'data:image/png;base64,FAKE') })) }));
-vi.mock('jspdf', () => ({ jsPDF: vi.fn().mockImplementation(() => ({ addImage: vi.fn(), save: vi.fn() })) }));
+const pdfInstances = [];
+vi.mock('jspdf', () => ({
+  jsPDF: vi.fn().mockImplementation(() => {
+    const doc = { addImage: vi.fn(), addPage: vi.fn(), save: vi.fn() };
+    pdfInstances.push(doc);
+    return doc;
+  }),
+}));
 
-// Provide a stub for document.getElementById('copy-label') used during PDF generation cleanup
 beforeEach(() => {
-  const el = document.createElement('span');
-  el.id = 'copy-label';
-  document.body.appendChild(el);
-});
-
-afterEach(() => {
-  const el = document.getElementById('copy-label');
-  if (el) el.remove();
+  // jsdom has no 2D canvas; the PDF slicing only needs a context and a data URL
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ drawImage: vi.fn() }));
+  HTMLCanvasElement.prototype.toDataURL = vi.fn(() => 'data:image/png;base64,AA');
 });
 
 const baseProps = {
   selectedSO: null,
   createdSO: {
     transactionNo: 'SO-1234',
-    displayTransactionNo: '0001',
     status: 'DRAFT',
     date: '2025-01-10T00:00:00.000Z',
     customerId: 'c1',
@@ -45,93 +47,130 @@ const baseProps = {
   setCreatedSO: vi.fn(),
 };
 
-const setupSession = () => {
-  // Provide tokens to trigger profile fetch path, but our axios mock returns success: false
-  sessionStorage.setItem('adminId', 'admin');
-  sessionStorage.setItem('accessToken', 'token');
-};
-
-const clearSession = () => {
-  sessionStorage.clear();
-};
+// The Link on the TRN warning needs a router, as it does in the app.
+const renderView = (props) => render(<MemoryRouter><SaleInvoiceView {...props} /></MemoryRouter>);
 
 describe('SaleInvoiceView', () => {
-  beforeEach(() => {
-    setupSession();
-  });
   afterEach(() => {
-    clearSession();
     vi.clearAllMocks();
+    pdfInstances.length = 0;
   });
 
-  it('renders header and basic invoice fields', () => {
-    render(<SaleInvoiceView {...baseProps} />);
+  it('shows a draft as a sales order, with the customer copy selected', () => {
+    renderView(baseProps);
 
-    // Title based on status DRAFT => SALES ORDER
-    expect(screen.getByText('SALES ORDER')).toBeInTheDocument();
-    // Bill to info
-    expect(screen.getByText('BILL TO:')).toBeInTheDocument();
+    expect(screen.getByText('Sales order', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByText('Bill to')).toBeInTheDocument();
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
-
-    // Copy label defaults to Customer Copy
-    expect(screen.getByText('Customer Copy')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Customer copy' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('computes totals correctly and displays them', () => {
-    render(<SaleInvoiceView {...baseProps} />);
+  it('computes and shows the totals and the VAT breakdown', () => {
+    renderView(baseProps);
 
-    // grossAmount = sum(rate) = 200 + 300 = 500
-    // vatTotal = 10 + 15 = 25
-    // grandTotal = 525
-    expect(screen.getByText('500.00')).toBeInTheDocument();
-    expect(screen.getByText('25.00')).toBeInTheDocument();
-    expect(screen.getByText('525.00')).toBeInTheDocument();
+    // net 500, VAT 25, grand total 525; the breakdown repeats net and VAT for the 5% rate
+    expect(screen.getAllByText('500.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('25.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('525.00').length).toBeGreaterThan(0);
+    expect(screen.getByText('5%')).toBeInTheDocument();
   });
 
-  it('derives unit price and line totals per row', () => {
-    render(<SaleInvoiceView {...baseProps} />);
-
-    // For first row: qty 2, lineValue 200 => unit price 100
-    expect(screen.getAllByText('100.00')[0]).toBeInTheDocument();
-    // Line values present
-    expect(screen.getByText('200.00')).toBeInTheDocument();
-    // VAT amount shown
-    expect(screen.getByText('10.00')).toBeInTheDocument();
-    // Total incl VAT 210 for first line
-    expect(screen.getByText('210.00')).toBeInTheDocument();
+  it('shows the amount in words', () => {
+    renderView(baseProps);
+    expect(screen.getByText(/Five Hundred Twenty Five Dirhams Only/)).toBeInTheDocument();
   });
 
-  it('prints when Print is clicked', async () => {
-    const winMock = window.open;
-    render(<SaleInvoiceView {...baseProps} />);
+  it('never prints placeholder company details or the seller in the Bill to block', () => {
+    renderView(baseProps);
 
+    expect(screen.queryByText(/971 50 836/)).toBeNull();
+    expect(screen.queryByText(/United Arab Emirates/)).toBeNull();
+    expect(screen.queryByText(/Kerala/)).toBeNull();
+    // the customer's own phone is shown, and the company email is not borrowed for it
+    expect(screen.getByText(/Tel: 123/)).toBeInTheDocument();
+    expect(screen.queryByText(/admin@test/)).toBeNull();
+  });
+
+  it('does not invent an invoice number for a sales order', () => {
+    renderView(baseProps);
+    expect(screen.queryByText('0000')).toBeNull();
+    expect(screen.getByText('Order no.')).toBeInTheDocument();
+    expect(screen.getAllByText('SO-1234').length).toBeGreaterThan(0);
+  });
+
+  it('shows the TRN warning on an invoice when the company has none', () => {
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
+    expect(screen.getByText(/Your TRN is not set/)).toBeInTheDocument();
+    expect(screen.getByText('Tax invoice', { selector: 'div' })).toBeInTheDocument();
+  });
+
+  it('keeps Send disabled until emailing exists, instead of faking a send', () => {
+    renderView(baseProps);
+    const send = screen.getByRole('button', { name: /send/i });
+    expect(send).toBeDisabled();
+    expect(screen.getByText('Coming soon')).toBeInTheDocument();
+  });
+
+  it('prints through a hidden frame, not a popup window', () => {
+    renderView(baseProps);
     fireEvent.click(screen.getByRole('button', { name: /print/i }));
-
-    await waitFor(() => {
-      expect(winMock).toHaveBeenCalled();
-    });
+    expect(document.querySelector('iframe')).not.toBeNull();
   });
 
-  it('generates two PDFs when Download PDF is clicked', async () => {
+  it('builds one PDF with the customer copy and the internal copy', async () => {
     const { jsPDF } = await import('jspdf');
-    render(<SaleInvoiceView {...baseProps} />);
+    renderView(baseProps);
 
-    const btn = screen.getByRole('button', { name: /download pdf/i });
-    fireEvent.click(btn);
+    fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
 
-    await waitFor(() => {
-      // the component calls generatePDF twice (Internal Copy and Customer Copy)
-      expect(jsPDF).toHaveBeenCalled();
-    });
+    await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Sales-order_SO-1234.pdf'));
+    // the second copy starts a new page
+    expect(pdfInstances[0].addPage).toHaveBeenCalled();
   });
 
-  it('navigates back to list on Back to List', () => {
-    render(<SaleInvoiceView {...baseProps} />);
+  it('navigates back to list on Back to list', () => {
+    renderView(baseProps);
 
     fireEvent.click(screen.getByRole('button', { name: /back to list/i }));
 
     expect(baseProps.setSelectedSO).toHaveBeenCalledWith(null);
     expect(baseProps.setCreatedSO).toHaveBeenCalledWith(null);
     expect(baseProps.setActiveView).toHaveBeenCalledWith('list');
+  });
+});
+
+describe('buildSalesDocument', () => {
+  const customer = { customerId: 'CUST-001', customerName: 'Acme', paymentTerms: '' };
+  const company = { companyName: 'NH Foods', vatNumber: '100000000000003' };
+
+  it('uses the tax invoice title and number only once the order is approved', () => {
+    const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED');
+    const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED');
+    expect(draft.sheet.title).toBe('Sales order');
+    expect(approved.sheet.title).toBe('Tax invoice');
+    expect(approved.sheet.number).toEqual({ label: 'Invoice no.', value: 'SO-1' });
+    expect(approved.fileName).toBe('Tax-invoice_SO-1');
+  });
+
+  it('shows the receipt block only on the order, not on the tax invoice', () => {
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED').sheet.receipt).toBe(true);
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED').sheet.receipt).toBe(false);
+  });
+
+  it('prints a zero-rated line as 0%', () => {
+    const doc = buildSalesDocument(
+      { transactionNo: 'SO-1', status: 'DRAFT', items: [{ qty: 1, rate: 100, vatAmount: 0, vatPercent: 0 }] },
+      customer,
+      company,
+      'AED'
+    );
+    expect(doc.sheet.lines[0].vatPercent).toBe(0);
+    expect(doc.sheet.breakdown).toEqual([{ rate: 0, taxable: 100, vat: 0 }]);
+  });
+
+  it('flags a missing TRN only on an invoice', () => {
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(false);
   });
 });

@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# screenshots from the mobile check harness
+.shots/
+
+# machine-specific API address for testing on a phone over the LAN
+# (.env.production is committed on purpose - see CLAUDE.md)
+.env.local
+.env.*.local

@@ -39,6 +39,7 @@ import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
+import { DataTable } from "../accounting/DataTable";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -557,7 +558,7 @@ const StaffManagement = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-[60vh] bg-background flex items-center justify-center">
+      <div className="min-h-[60dvh] bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2
             size={48}
@@ -607,7 +608,7 @@ const StaffManagement = () => {
       )}
 
       <div className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
           {[
             {
               title: "Total Staff",
@@ -729,112 +730,63 @@ const StaffManagement = () => {
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                <tr>
-                  {[
-                    { key: "name", label: "Staff Info" },
-                    { key: "designation", label: "Designation" },
-                    { key: "contactNo", label: "Contact No" },
-                    { key: "idNo", label: "ID Number" },
-                    { key: "joiningDate", label: "Joining Date" },
-                    { key: "status", label: "Status" },
-                    { key: null, label: "Actions" },
-                  ].map((column) => (
-                    <th
-                      key={column.key || "actions"}
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={
-                        column.key ? () => handleSort(column.key) : undefined
-                      }
-                    >
-                      <div className="flex items-center space-x-1">
-                        <span>{column.label}</span>
-                        {column.key && sortConfig.key === column.key && (
-                          <span className="text-indigo-600">
-                            {sortConfig.direction === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredStaff.map((member) => (
-                  <tr
-                    key={member._id}
-                    className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 transition-all duration-200"
-                  >
-                    <td className="px-6 py-4">
+            <DataTable
+              caption="Staff"
+              rows={sortedAndFilteredStaff}
+              rowKey={(member) => member._id}
+              columns={[
+                ...[
+                  {
+                    key: "name", label: "Staff Info", card: "primary",
+                    cell: (m) => (
                       <div className="flex items-center space-x-3">
                         <div className="p-2 bg-indigo-100 rounded-lg">
                           <User size={20} className="text-indigo-600" />
                         </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {member.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            ID: {member._id}
-                          </p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{m.name}</p>
+                          <p className="text-xs font-normal text-gray-500">ID: {m._id}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-indigo-600">
-                        {member.designation}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-600">
-                        {member.contactNo}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-mono font-bold text-gray-600">
-                        {member.idNo}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-gray-600">
-                        {formatDate(member.joiningDate)}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(member.status)}
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                            member.status
-                          )}`}
-                        >
-                          {member.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => handleEdit(member)}
-                          className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-                          title="Edit staff"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => showDeleteConfirmation(member)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200"
-                          title="Delete staff"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ),
+                  },
+                  { key: "designation", label: "Designation", card: "title", cell: (m) => <p className="text-sm font-medium text-indigo-600">{m.designation}</p> },
+                  { key: "contactNo", label: "Contact No", card: "meta", cell: (m) => m.contactNo },
+                  { key: "idNo", label: "ID Number", cell: (m) => <p className="text-sm font-mono font-bold text-gray-600">{m.idNo}</p> },
+                  { key: "joiningDate", label: "Joining Date", card: "meta", cell: (m) => formatDate(m.joiningDate) },
+                ].map((c) => ({
+                  ...c,
+                  header: (
+                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                      <span>{c.label}</span>
+                      {sortConfig.key === c.key && <span className="text-indigo-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+                    </button>
+                  ),
+                })),
+                {
+                  key: "status", header: "Status", card: "badge",
+                  cell: (m) => (
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(m.status)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(m.status)}`}>{m.status}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "actions", header: "Actions", card: "actions",
+                  cell: (m) => (
+                    <div className="flex items-center space-x-3">
+                      <button onClick={() => handleEdit(m)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit staff">
+                        <Edit size={16} />
+                      </button>
+                      <button onClick={() => showDeleteConfirmation(m)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete staff">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
         )}
       </div>
@@ -894,7 +846,7 @@ const StaffManagement = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90dvh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
@@ -923,7 +875,7 @@ const StaffManagement = () => {
             </div>
 
             <div className="p-6" ref={formRef}>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
                 <div className="lg:col-span-3">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <User size={20} className="mr-2 text-indigo-600" />

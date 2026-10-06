@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Panel, Pill, Spinner, useAsync, DateInput } from "./kit";
+import { DataTable, DateInput, EmptyState, ErrorNote, Field, Panel, Pill, Spinner, useAsync } from "./kit";
 import { currencies } from "../../lib/currencyApi";
 import { REGISTER_CSV_HEADERS, REGISTER_TYPES, formatForeign, formatRate, registerCsvRows, typeLabel } from "../../lib/currencyForms";
 import { describePayment, modeLabel } from "../../lib/voucherForms";
@@ -33,7 +33,7 @@ export default function CurrencyRegister() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Currency register</h1>
@@ -70,7 +70,7 @@ export default function CurrencyRegister() {
         <div className="space-y-5">
           {totals.length > 0 && (
             <Panel bodyClassName="p-0" title="Totals" description="Posted vouchers only. The average rate is the AED value divided by the foreign amount.">
-              <div className="relative overflow-x-auto">
+              <div className="erp-scroll table-pin-first relative overflow-x-auto">
                 <table className="w-full text-sm">
                   <caption className="sr-only">Totals by currency and direction</caption>
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -103,39 +103,22 @@ export default function CurrencyRegister() {
           <Panel bodyClassName="p-0" title="Vouchers">
             {rows.length === 0 && <EmptyState title="No foreign-currency vouchers" text="Nothing was received or paid in a foreign currency in this period." />}
             {rows.length > 0 && (
-              <div className="relative overflow-x-auto">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">Foreign-currency receipts and payments</caption>
-                  <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th scope="col" className="px-5 py-2 text-start">Voucher</th>
-                      <th scope="col" className="px-3 py-2 text-start">Date</th>
-                      <th scope="col" className="px-3 py-2 text-start">Party</th>
-                      <th scope="col" className="px-3 py-2 text-end">Foreign amount</th>
-                      <th scope="col" className="px-3 py-2 text-end">Rate</th>
-                      <th scope="col" className="px-3 py-2 text-end">{base} amount</th>
-                      <th scope="col" className="px-3 py-2 text-start">Paid by</th>
-                      <th scope="col" className="px-5 py-2 text-start">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => {
-                      const [tone, label] = STATUS[r.status] || ["neutral", r.status || ""];
-                      return (
-                        <tr key={r._id} className="border-t border-border hover:bg-accent/40">
-                          <td className="px-5 py-2.5"><span className="font-mono text-xs font-semibold">{r.voucherNo}</span><span className="block text-xs text-muted-foreground">{typeLabel(r.voucherType)}</span></td>
-                          <td className="whitespace-nowrap px-3 py-2.5">{formatDate(r.date)}</td>
-                          <td className="px-3 py-2.5 font-medium">{r.partyName}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-end tabular-nums">{formatForeign(r.foreignAmount, r.currency)}</td>
-                          <td className="px-3 py-2.5 text-end tabular-nums">{formatRate(r.exchangeRate)}{r.rateOverridden && <abbr title={r.rateOverrideReason || "Rate overridden"} className="ms-1 text-[11px] font-semibold uppercase text-status-warning no-underline">Override</abbr>}</td>
-                          <td className="px-3 py-2.5 text-end font-medium tabular-nums">{formatNumber(r.totalAmount, 2)}</td>
-                          <td className="max-w-xs px-3 py-2.5"><span className="font-medium">{modeLabel(r.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground">{describePayment(r)}</span></td>
-                          <td className="px-5 py-2.5"><Pill tone={tone}>{label}</Pill></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="erp-scroll table-pin-first relative overflow-x-auto">
+                <DataTable
+                  caption="Foreign-currency receipts and payments"
+                  rows={rows}
+                  rowKey={(r) => r._id}
+                  columns={[
+                    { key: "voucher", header: "Voucher", card: "primary", cell: (r) => <><span className="font-mono text-xs font-semibold">{r.voucherNo}</span><span className="block text-xs font-normal text-muted-foreground">{typeLabel(r.voucherType)}</span></> },
+                    { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (r) => formatDate(r.date) },
+                    { key: "party", header: "Party", card: "title", className: "font-medium", cell: (r) => r.partyName },
+                    { key: "foreign", header: "Foreign amount", align: "end", card: "amount", className: "whitespace-nowrap tabular-nums", cell: (r) => formatForeign(r.foreignAmount, r.currency) },
+                    { key: "rate", header: "Rate", align: "end", cell: (r) => <span className="tabular-nums">{formatRate(r.exchangeRate)}{r.rateOverridden && <abbr title={r.rateOverrideReason || "Rate overridden"} className="ms-1 text-[11px] font-semibold uppercase text-status-warning no-underline">Override</abbr>}</span> },
+                    { key: "base", header: `${base} amount`, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
+                    { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs", cell: (r) => <><span className="font-medium">{modeLabel(r.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground md:inline md:ms-1">{describePayment(r)}</span></> },
+                    { key: "status", header: "Status", card: "badge", cell: (r) => { const [tone, label] = STATUS[r.status] || ["neutral", r.status || ""]; return <Pill tone={tone}>{label}</Pill>; } },
+                  ]}
+                />
               </div>
             )}
             {reg.data.truncated && <p className="border-t border-border px-5 py-3 text-sm text-muted-foreground">Only the first {formatNumber(rows.length, 0)} vouchers are shown. Narrow the dates to see the rest.</p>}

@@ -145,7 +145,7 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
       <Panel title="Already entered" description="These accounts have an opening balance and are not offered again. Reverse the voucher below to correct them." bodyClassName="p-0">
         {data.data && entered.length === 0 && <EmptyState title="Nothing entered yet" text="Accounts you post appear here with their amounts." />}
         {entered.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-start">Voucher</th><th className="px-5 py-2"><span className="sr-only">Ledger</span></th></tr>
@@ -171,7 +171,7 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
 
       {vouchers.length > 0 && (
         <Panel title="Opening vouchers" description="Each submission is one voucher. Reversing it removes all its lines and the balancing line, while the fiscal period is open." bodyClassName="p-0">
-          <div className="overflow-x-auto">
+          <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr><th className="px-5 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Accounts</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">To equity</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2 text-end"><span className="sr-only">Action</span></th></tr>

@@ -74,7 +74,7 @@ export default function PartyAccountPage({ kind, partyId }) {
   const busy = party.loading || summary.loading || ageing.loading || statement.loading;
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <Link to={k.listPath} className="mb-3 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />{k.listLabel}
       </Link>
@@ -126,11 +126,11 @@ export default function PartyAccountPage({ kind, partyId }) {
         {summary.error && !s ? (
           <ErrorNote error={summary.error} onRetry={summary.reload} />
         ) : summary.loading && !s ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true">
             {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 w-full rounded-xl" />)}
           </div>
         ) : s ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
               title={k.balanceTitle}
               icon={<Scale />}

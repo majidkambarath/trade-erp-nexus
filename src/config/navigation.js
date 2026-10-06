@@ -24,12 +24,14 @@ const INVENTORY = ["Admin", "Inventory Manager"];
 export const MODULES = [
   {
     id: "home",
+    mobilePrimary: true,
     label: "Home",
     icon: LayoutDashboard,
     tabs: [{ label: "Dashboard", to: "/dashboard", keywords: ["overview", "kpi"] }],
   },
   {
     id: "sales",
+    mobilePrimary: true,
     label: "Sales",
     icon: ShoppingBag,
     tabs: [
@@ -46,6 +48,7 @@ export const MODULES = [
   },
   {
     id: "purchase",
+    mobilePrimary: true,
     label: "Purchase",
     icon: Truck,
     tabs: [
@@ -81,6 +84,7 @@ export const MODULES = [
   },
   {
     id: "finance",
+    mobilePrimary: true,
     label: "Finance",
     icon: Landmark,
     tabs: [
@@ -170,6 +174,21 @@ export const findActive = (pathname, modules = MODULES) => {
     if (tab) return { module, tab };
   }
   return null;
+};
+
+/** The phone's bottom bar: four modules in the thumb zone, everything else behind More.
+ * `mobilePrimary` in MODULES marks the intended four; a role that cannot see one of them
+ * has its slot filled from the remaining modules in rail order, so the bar is never short.
+ * Footer modules (Settings) are never pinned - they live in the More sheet. */
+export const MOBILE_SLOTS = 4;
+
+export const getMobileNav = (modules) => {
+  const pinnable = modules.filter((m) => m.placement !== "footer");
+  const flagged = pinnable.filter((m) => m.mobilePrimary);
+  const fill = pinnable.filter((m) => !m.mobilePrimary);
+  const primary = [...flagged, ...fill].slice(0, MOBILE_SLOTS);
+  const pinned = new Set(primary.map((m) => m.id));
+  return { primary, rest: modules.filter((m) => !pinned.has(m.id)) };
 };
 
 /** A module's landing page: its first visible tab. */

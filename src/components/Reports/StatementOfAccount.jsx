@@ -49,7 +49,7 @@ export default function StatementOfAccount() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Statement of account" description="Every invoice, return, receipt and payment for one party, with a running balance."
         actions={data && (
           <>
@@ -94,7 +94,7 @@ export default function StatementOfAccount() {
           <Panel bodyClassName="p-0" title={`${data.party.name} · ${data.rows.length} ${data.rows.length === 1 ? "entry" : "entries"}`}>
             {data.rows.length === 0 && data.opening === 0 && <EmptyState title="No activity" text="No approved invoice, return, receipt or payment for this party in the period." />}
             {(data.rows.length > 0 || data.opening !== 0) && (
-              <div className="overflow-x-auto">
+              <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr><th className="px-5 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Document</th><th className="px-3 py-2 text-start">Type</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-5 py-2 text-end">Balance</th></tr>

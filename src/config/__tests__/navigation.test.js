@@ -3,8 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  MOBILE_SLOTS,
   MODULES,
   findActive,
+  getMobileNav,
   getVisibleModules,
   pageTitle,
   tabMatches,
@@ -110,5 +112,43 @@ describe("pageTitle", () => {
 
   it("falls back to the app name for unmapped pages", () => {
     expect(pageTitle(null, "Harbour Trading")).toBe("Harbour Trading");
+  });
+});
+
+describe("getMobileNav", () => {
+  const ids = (list) => list.map((m) => m.id);
+
+  it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
+    const { primary, rest } = getMobileNav(getVisibleModules("Admin"));
+    expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
+    expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
+  });
+
+  it("splits every module into exactly one of the two", () => {
+    const modules = getVisibleModules("Admin");
+    const { primary, rest } = getMobileNav(modules);
+    expect([...ids(primary), ...ids(rest)].sort()).toEqual(ids(modules).sort());
+  });
+
+  it("fills the bar from the remaining modules when a role cannot see a flagged one", () => {
+    // An Accountant sees neither Sales' nor Purchase's order pages... but does see their
+    // receivables and payables, so those modules survive. Use a role that loses one outright.
+    const modules = getVisibleModules("HR");
+    const { primary } = getMobileNav(modules);
+    expect(primary.length).toBe(Math.min(MOBILE_SLOTS, modules.filter((m) => m.placement !== "footer").length));
+    expect(ids(primary)).toContain("home");
+  });
+
+  it("never pins a footer module - Settings belongs in the sheet", () => {
+    const { primary, rest } = getMobileNav(getVisibleModules("HR"));
+    expect(ids(primary)).not.toContain("settings");
+    expect(ids(rest)).toContain("settings");
+  });
+
+  it("leaves the bar short rather than repeating a module", () => {
+    const one = [MODULES[0]];
+    const { primary, rest } = getMobileNav(one);
+    expect(ids(primary)).toEqual(["home"]);
+    expect(rest).toEqual([]);
   });
 });

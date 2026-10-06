@@ -10,6 +10,7 @@ import {
   CheckSquare as ConfirmIcon,
   Trash2,
   User,
+  History,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
 
@@ -27,6 +28,7 @@ const GridView = ({
   deleteSO,
   onDownloadInternal,
   onDownloadCustomer,
+  onShowAudit,
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -64,8 +66,8 @@ const GridView = ({
           </div>
 
           {/* Card Body */}
-          <div className="p-6">
-            <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 mb-4 min-[380px]:grid-cols-2">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Date</p>
                 <p className="text-sm font-medium text-foreground">{formatDate(so.date)}</p>
@@ -133,7 +135,14 @@ const GridView = ({
                   className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
                 >
                   <FileText className="w-4 h-4" />
-                  <span className="text-sm">Duplicate</span>
+                  <span className="text-sm">Customer copy</span>
+                </button>
+                <button
+                  onClick={() => onShowAudit && onShowAudit(so)}
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                >
+                  <History className="w-4 h-4" />
+                  <span className="text-sm">Audit trail</span>
                 </button>
                 {so.status === "DRAFT" && (
                   <button

@@ -28,6 +28,7 @@ const TableView = ({
   editPO,
   approvePO,
   deletePO,
+  onShowAudit,
 }) => {
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
@@ -248,7 +249,10 @@ const TableView = ({
                       <button className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
                         <MoreVertical className="w-4 h-4" />
                       </button>
-                      <div className="absolute right-0 top-8 w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                      <div className="absolute right-0 top-8 w-36 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-10">
+                        <button onClick={() => onShowAudit && onShowAudit(po)} className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+                          Audit trail
+                        </button>
                         <button className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
                           Download
                         </button>

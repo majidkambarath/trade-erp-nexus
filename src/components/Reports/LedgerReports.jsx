@@ -29,11 +29,11 @@ export default function LedgerReports() {
   const openLedger = (a) => setLedgerFor({ _id: a.accountId || a._id, accountCode: a.accountCode, accountName: a.accountName });
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Ledger reports" description="General ledger, day book, journals, and cash and bank, straight from the books." />
       <DateRange value={range} onChange={setRange} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto"><TabsList>
+        <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList>
           <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger>
         </TabsList></div>
         <TabsContent value="gl">{tab === "gl" && <GeneralLedger range={range} onLedger={openLedger} />}</TabsContent>
@@ -73,7 +73,7 @@ function GeneralLedger({ range, onLedger }) {
               <Panel bodyClassName="p-0" title="General ledger" description="Opening balance, the period's debits and credits, and the closing balance of every account, by group."
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.groups.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.groups.length === 0 ? <EmptyState title="No postings" text="Nothing has been posted to the ledger for this selection." /> : (
-                  <div className="overflow-x-auto">
+                  <div className="erp-scroll table-pin-first overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-5 py-2 text-end">Closing</th></tr>
@@ -149,7 +149,7 @@ function DayBook({ range }) {
               <Panel bodyClassName="p-0" title="Day book" description="Every voucher posted in the period, newest first. Open one to see the debits and credits it made."
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No vouchers" text="Nothing was posted for this selection." /> : (
-                  <div className="overflow-x-auto">
+                  <div className="erp-scroll table-pin-first overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr><th className="px-5 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Type</th><th className="px-3 py-2 text-start">Party</th><th className="px-3 py-2 text-start">Narration</th><th className="px-5 py-2 text-end">Amount</th></tr>
@@ -197,7 +197,7 @@ function VoucherImpact({ voucher, onClose }) {
       <ErrorNote error={error} onRetry={reload} />
       {data && (
         <>
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-2 text-start">Account</th><th className="px-4 py-2 text-end">Debit</th><th className="px-4 py-2 text-end">Credit</th></tr></thead>
               <tbody>
@@ -241,7 +241,7 @@ function Journals({ range }) {
             {d.rows.map((r) => (
               <Panel key={r.voucherId} bodyClassName="p-0" title={`${r.voucherNo} · ${formatDate(r.date)}`} description={r.narration || undefined}
                 actions={<Pill tone={r.balanced ? "success" : "danger"}>{r.balanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{r.balanced ? "Balanced" : "Does not balance"}</Pill>}>
-                <div className="overflow-x-auto">
+                <div className="erp-scroll table-pin-first overflow-x-auto">
                   <table className="w-full text-sm">
                     <tbody>
                       {r.lines.map((l, i) => (
@@ -295,7 +295,7 @@ function CashAndBankBook({ range, onLedger }) {
               <Panel bodyClassName="p-0" title="Cash and bank book" description="Each cash and bank account: what it held, what came in, what went out, and what it holds now."
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No cash or bank accounts" text="Add them in the chart of accounts." /> : (
-                  <div className="overflow-x-auto">
+                  <div className="erp-scroll table-pin-first overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-start">Type</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Receipts</th><th className="px-3 py-2 text-end">Payments</th><th className="px-3 py-2 text-end">Closing</th><th className="px-5 py-2"><span className="sr-only">Ledger</span></th></tr>
@@ -309,7 +309,7 @@ function CashAndBankBook({ range, onLedger }) {
                             <td className="px-3 py-2 text-end tabular-nums">{r.receipts ? money(r.receipts) : ""}</td>
                             <td className="px-3 py-2 text-end tabular-nums">{r.payments ? money(r.payments) : ""}</td>
                             <td className="px-3 py-2 text-end"><Balance net={r.closing} /></td>
-                            <td className="px-5 py-2 text-end"><button type="button" aria-label={`Ledger of ${r.accountName}`} onClick={() => onLedger(r)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></td>
+                            <td className="px-5 py-2 text-end"><button type="button" aria-label={`Ledger of ${r.accountName}`} onClick={() => onLedger(r)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></td>
                           </tr>
                         ))}
                       </tbody>

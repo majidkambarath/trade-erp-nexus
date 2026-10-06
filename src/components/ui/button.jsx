@@ -19,11 +19,13 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:opacity-90",
       },
+      // The small and icon sizes were drawn for a cursor. On touch they grow to a finger and
+      // go back to their dense selves from lg, where there is a pointer.
       size: {
-        default: "h-10 px-5 py-2",
-        sm: "h-8 rounded-full px-3 text-xs",
+        default: "h-11 px-5 py-2 lg:h-10",
+        sm: "h-10 rounded-full px-3 text-xs lg:h-8",
         lg: "h-11 rounded-full px-6",
-        icon: "h-10 w-10",
+        icon: "h-11 w-11 lg:h-10 lg:w-10",
       },
     },
     defaultVariants: {

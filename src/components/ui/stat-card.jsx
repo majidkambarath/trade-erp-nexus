@@ -38,24 +38,24 @@ export function StatCard({ title, count, icon, subText, trend, tone, textColor, 
     <Root
       {...(interactive ? { type: "button", onClick } : {})}
       className={cn(
-        "flex w-full flex-col rounded-xl border border-border bg-card p-5 text-start shadow-card",
+        "flex w-full flex-col rounded-xl border border-border bg-card p-4 text-start shadow-card sm:p-5",
         interactive &&
           "transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+        <h3 className="text-xs font-medium text-muted-foreground sm:text-sm">{title}</h3>
         {icon && (
           <span
             aria-hidden="true"
-            className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px]", t.tile)}
+            className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg [&>svg]:h-4 [&>svg]:w-4 sm:h-9 sm:w-9 sm:[&>svg]:h-[18px] sm:[&>svg]:w-[18px]", t.tile)}
           >
             {icon}
           </span>
         )}
       </div>
-      <p className={cn("mt-3 text-2xl font-bold tracking-tight tabular-nums", t.value)}>{count}</p>
+      <p className={cn("mt-2 text-xl font-bold tracking-tight tabular-nums sm:mt-3 sm:text-2xl", t.value)}>{count}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
         {subText && <p className="text-xs text-muted-foreground">{subText}</p>}
         {trend && (

@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Receipt,
   User,
+  History,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
 
@@ -24,6 +25,7 @@ const GridView = ({
   approvePO,
   rejectPO,
   deletePO,
+  onShowAudit,
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -76,7 +78,7 @@ const GridView = ({
           </div>
 
           <div className="p-6">
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 mb-4 min-[380px]:grid-cols-2">
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">
                   Date
@@ -164,6 +166,13 @@ const GridView = ({
                 >
                   <Eye className="w-4 h-4" />
                   <span className="text-sm">View</span>
+                </button>
+                <button
+                  onClick={() => onShowAudit && onShowAudit(po)}
+                  className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  <span className="text-sm">Audit trail</span>
                 </button>
                 {po.status === "DRAFT" && (
                   <button

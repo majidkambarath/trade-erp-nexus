@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
 
 // Visa, Mastercard, American Express... with the fee the card processor takes when a customer
@@ -15,31 +15,25 @@ export default function CardTypeMaster() {
   const [editing, setEditing] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Card types" description="The kinds of card you accept or pay with, and the processing fee on each." actions={<Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card type</Button>} />
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading card types" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
         {data?.length === 0 && <EmptyState title="No card types yet" text="Add Visa, Mastercard and the others you accept." />}
         {data?.length > 0 && (
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-2 text-start">Card type</th><th className="px-3 py-2 text-start">Description</th><th className="px-3 py-2 text-end">Processing fee</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
-              </thead>
-              <tbody>
-                {data.map((t) => (
-                  <tr key={t._id} className="border-t border-border hover:bg-accent/40">
-                    <td className="px-5 py-2.5 font-medium">{t.name}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground">{t.description}</td>
-                    <td className="px-3 py-2.5 text-end tabular-nums">{t.feePercent}%</td>
-                    <td className="px-3 py-2.5">{t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill>}</td>
-                    <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...t, feePercent: String(t.feePercent) })} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            caption="Card types"
+            rows={data}
+            rowKey={(t) => t._id}
+            columns={[
+              { key: "name", header: "Card type", card: "primary", className: "font-medium", cell: (t) => t.name },
+              { key: "description", header: "Description", card: "title", className: "text-muted-foreground", cell: (t) => t.description },
+              { key: "fee", header: "Processing fee", align: "end", card: "amount", className: "tabular-nums", cell: (t) => `${t.feePercent}%` },
+              { key: "status", header: "Status", card: "badge", cell: (t) => t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...t, feePercent: String(t.feePercent) })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+            ]}
+          />
         )}
       </Panel>
       {editing && <CardTypeForm type={editing} onClose={() => setEditing(null)} onSaved={(msg) => { setEditing(null); notify(msg); reload(); }} />}

@@ -175,7 +175,7 @@ function DocumentFile({ row, index, onChange }) {
         <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
           <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate text-sm text-foreground">{row.fileName || "File"}{row.fileSize ? <span className="ms-2 text-xs text-muted-foreground">{formatBytes(row.fileSize)}</span> : null}</span>
-          <button type="button" aria-label={`Download file of document ${index + 1}`} onClick={download} className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Download className="h-4 w-4" aria-hidden="true" /></button>
+          <button type="button" aria-label={`Download file of document ${index + 1}`} onClick={download} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Download className="h-4 w-4" aria-hidden="true" /></button>
           <button type="button" aria-label={`Remove file of document ${index + 1}`} onClick={detach} className={iconButton}><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
         </div>
       ) : (

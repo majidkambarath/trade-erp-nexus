@@ -51,10 +51,18 @@ import InvoiceView from "./InvoiceView";
 import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
+import { useDeleteConfirm } from "../shared/useDeleteConfirm";
+import DocumentAuditTrail from "../../audit/AuditTrail";
+import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 const PurchaseOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard");
-  const [viewMode, setViewMode] = useState("table");
+  // The table is the right list for a pointer and the cards for a thumb, so the default
+  // follows the screen. Choosing a view by hand still wins, and holds until a reload.
+  const wide = useMediaQuery(WIDE);
+  const [viewMode, setViewMode] = useState(() => (wide ? "table" : "grid"));
   const [selectedPO, setSelectedPO] = useState(null);
+  // The document whose audit trail is open, or null.
+  const [auditPO, setAuditPO] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
@@ -499,13 +507,21 @@ const PurchaseOrderManagement = () => {
         fetchTransactions();
         fetchStockItems();
       } else if (action === "delete") {
-        if (window.confirm(`Delete ${selectedPOs.length} selected orders?`)) {
-          for (const poId of selectedPOs) {
-            await processTransaction(poId, "reject");
-          }
-          addNotification(`${selectedPOs.length} orders deleted`, "success");
-          fetchTransactions();
-        }
+        askDelete({
+          title: `Delete ${selectedPOs.length} purchase orders?`,
+          text: "Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          onConfirm: async () => {
+            try {
+              for (const poId of selectedPOs) {
+                await axiosInstance.delete(`/transactions/transactions/${poId}`);
+              }
+              addNotification(`${selectedPOs.length} orders deleted`, "success");
+            } catch (error) {
+              addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
+            }
+            fetchTransactions();
+          },
+        });
       } else if (action === "export") {
         addNotification(`Exporting ${selectedPOs.length} orders...`, "info");
         downloadCSV(
@@ -545,7 +561,7 @@ const PurchaseOrderManagement = () => {
           key={i}
           className={`max-w-sm ${toastClasses(notification.type)}`}
         >
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             {notification.type === "success" && (
               <CheckCircle className="w-4 h-4" />
             )}
@@ -565,7 +581,7 @@ const PurchaseOrderManagement = () => {
   // Dashboard Component
   const Dashboard = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <StatCard
           title="Total Orders"
           count={statistics.total}
@@ -597,7 +613,7 @@ const PurchaseOrderManagement = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-sm font-semibold text-foreground">Recent purchase orders</h3>
@@ -702,7 +718,7 @@ const PurchaseOrderManagement = () => {
 
     return (
       <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
-        <div className="flex items-center space-x-4">
+        <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
           <span className="text-sm text-muted-foreground">
             Showing {startItem} to {endItem} of {filteredPOs.length} orders
           </span>
@@ -721,7 +737,7 @@ const PurchaseOrderManagement = () => {
           </select>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
@@ -874,32 +890,33 @@ const PurchaseOrderManagement = () => {
   };
 
   // Delete PO
-  const deletePO = async (id) => {
-    if (
-      window.confirm("Are you sure you want to delete this purchase order?")
-    ) {
-      try {
-        await processTransaction(id, "reject");
-        addNotification("Purchase Order deleted successfully", "success");
-        fetchTransactions();
-      } catch (error) {
-        console.error("Delete PO Error:", error);
-        addNotification(
-          "Failed to delete purchase order: " +
-            (error.response?.data?.message || error.message),
-          "error"
-        );
-      }
-    }
+  const [askDelete, deleteDialog] = useDeleteConfirm();
+
+  const deletePO = (id) => {
+    askDelete({
+      title: "Delete this purchase order?",
+      text: "The order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      onConfirm: async () => {
+        try {
+          await axiosInstance.delete(`/transactions/transactions/${id}`);
+          addNotification("Purchase Order deleted successfully", "success");
+          fetchTransactions();
+        } catch (error) {
+          console.error("Delete PO Error:", error);
+          addNotification("Failed to delete purchase order: " + (error.response?.data?.message || error.message), "error");
+        }
+      },
+    });
   };
 
   return (
     <div className="bg-background font-sans">
+      {deleteDialog}
       <NotificationList />
       <div className="relative bg-card border-b border-border">
-        <div className="px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                   Purchase orders
@@ -909,7 +926,7 @@ const PurchaseOrderManagement = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <button
                 onClick={() => {
                   resetForm();
@@ -940,10 +957,10 @@ const PurchaseOrderManagement = () => {
         </div>
 
         {(activeView === "dashboard" || activeView === "list") && (
-          <div className="px-8 py-4 bg-secondary/60 border-t border-border">
+          <div className="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 bg-secondary/60 border-t border-border">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center space-x-4">
-                <div className="relative">
+              <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
+                <div className="relative col-span-2 sm:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
@@ -953,7 +970,7 @@ const PurchaseOrderManagement = () => {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="w-80 pl-10 pr-4 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    className="w-full sm:w-80 pl-10 pr-4 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                   />
                 </div>
 
@@ -1003,9 +1020,11 @@ const PurchaseOrderManagement = () => {
                 </select>
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
                 <button
                   onClick={() => setActiveView("dashboard")}
+                  aria-label="Overview"
+                  title="Overview"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     activeView === "dashboard"
                       ? "border-foreground bg-foreground text-background"
@@ -1019,6 +1038,10 @@ const PurchaseOrderManagement = () => {
                     setViewMode("table");
                     setActiveView("list");
                   }}
+                  // hidden with the table itself: a dense row of eight columns is not a phone view
+                  hidden={!wide}
+                  aria-label="Table view"
+                  title="Table view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "table" && activeView === "list"
                       ? "border-foreground bg-foreground text-background"
@@ -1032,6 +1055,8 @@ const PurchaseOrderManagement = () => {
                     setViewMode("grid");
                     setActiveView("list");
                   }}
+                  aria-label="Card view"
+                  title="Card view"
                   className={`grid h-10 w-10 place-items-center rounded-lg border transition-colors ${
                     viewMode === "grid" && activeView === "list"
                       ? "border-foreground bg-foreground text-background"
@@ -1041,7 +1066,7 @@ const PurchaseOrderManagement = () => {
                   <Grid className="w-5 h-5" />
                 </button>
                 {selectedPOs.length > 0 && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleBulkAction("approve")}
                       className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
@@ -1071,7 +1096,7 @@ const PurchaseOrderManagement = () => {
         )}
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
@@ -1081,7 +1106,7 @@ const PurchaseOrderManagement = () => {
             {activeView === "dashboard" && <Dashboard />}
             {activeView === "list" && (
               <>
-                {viewMode === "table" ? (
+                {wide && viewMode === "table" ? (
                   <TableView
                     paginatedPOs={paginatedPOs}
                     selectedPOs={selectedPOs}
@@ -1097,6 +1122,7 @@ const PurchaseOrderManagement = () => {
                     editPO={editPO}
                     approvePO={approvePO}
                     deletePO={deletePO}
+                    onShowAudit={setAuditPO}
                   />
                 ) : (
                   <GridView
@@ -1112,6 +1138,7 @@ const PurchaseOrderManagement = () => {
                     approvePO={approvePO}
                     rejectPO={rejectPO}
                     deletePO={deletePO}
+                    onShowAudit={setAuditPO}
                   />
                 )}
                 {filteredPOs.length > 0 && <Pagination />}
@@ -1148,6 +1175,13 @@ const PurchaseOrderManagement = () => {
           </>
         )}
       </div>
+      {auditPO && (
+        <DocumentAuditTrail
+          id={auditPO.id}
+          documentNo={auditPO.transactionNo}
+          onClose={() => setAuditPO(null)}
+        />
+      )}
     </div>
   );
 };

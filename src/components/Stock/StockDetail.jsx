@@ -131,7 +131,7 @@ const StockDetail = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] bg-background">
+      <div className="flex items-center justify-center min-h-[60dvh] bg-background">
         <div className="flex items-center space-x-3 text-gray-600">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-lg font-medium">Loading...</span>
@@ -142,7 +142,7 @@ const StockDetail = () => {
 
   if (error || !stockItem) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] bg-background">
+      <div className="flex items-center justify-center min-h-[60dvh] bg-background">
         <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border border-gray-100">
           <div className="flex justify-center mb-4">
             <AlertCircle size={40} className="text-red-500" />
@@ -193,14 +193,14 @@ const StockDetail = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
           {/* Basic Information */}
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
             <h3 className="text-lg font-semibold text-gray-800 mb-5 flex items-center">
               <Package size={20} className="mr-2 text-indigo-500" />
               Basic Information
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
               <div>
                 <p className="text-sm font-medium text-gray-600 flex items-center">
                   <Tag size={16} className="mr-2 text-gray-500" />
@@ -392,7 +392,7 @@ const StockDetail = () => {
                 No purchase logs found for this item.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-background">
                     <tr>

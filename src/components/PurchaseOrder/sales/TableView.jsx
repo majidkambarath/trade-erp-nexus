@@ -30,8 +30,8 @@ const TableView = ({
   deleteSO,
   onDownloadInternal,
   onDownloadCustomer,
+  onShowAudit,
 }) => {
-  console.log(paginatedSOs)
   return (
     <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
@@ -220,7 +220,7 @@ const TableView = ({
                         setSelectedSO(so);
                         setActiveView("invoice");
                       }}
-                      className="p-1.5 text-foreground hover:bg-secondary rounded-full transition-colors"
+                      className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                       title="View Details"
                     >
                       <Eye className="w-4 h-4" />
@@ -228,7 +228,7 @@ const TableView = ({
                     {so.status === "DRAFT" && (
                       <button
                         onClick={() => editSO(so)}
-                        className="p-1.5 text-muted-foreground hover:bg-secondary rounded-full transition-colors"
+                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                         title="Edit"
                       >
                         <Edit3 className="w-4 h-4" />
@@ -237,22 +237,25 @@ const TableView = ({
                     {so.status === "DRAFT" && (
                       <button
                         onClick={() => confirmSO(so.id)}
-                        className="p-1.5 text-foreground hover:bg-secondary rounded-full transition-colors"
+                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                         title="Confirm"
                       >
                         <CheckSquare className="w-4 h-4" />
                       </button>
                     )}
                     <div className="relative group">
-                      <button className="p-1.5 text-muted-foreground hover:bg-secondary rounded-full transition-colors">
+                      <button className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors">
                         <MoreVertical className="w-4 h-4" />
                       </button>
-                      <div className="absolute right-0 top-8 w-32 bg-card rounded-2xl shadow-lg border border-border py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                      <div className="absolute right-0 top-8 w-36 bg-card rounded-2xl shadow-lg border border-border py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-10">
+                        <button onClick={() => onShowAudit && onShowAudit(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
+                          Audit trail
+                        </button>
                         <button onClick={() => onDownloadInternal && onDownloadInternal(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                           Download
                         </button>
                         <button onClick={() => onDownloadCustomer && onDownloadCustomer(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
-                          Duplicate
+                          Customer copy
                         </button>
                         {so.status === "DRAFT" && (
                           <button

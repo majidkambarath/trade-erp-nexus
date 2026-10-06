@@ -26,11 +26,11 @@ export default function PartyBalances() {
   const tab = params.get("tab") === "vendors" ? "vendors" : "customers";
   const [asOn, setAsOn] = useState(todayInput());
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Party balances" description="What customers owe, what is owed to vendors, credit limit use and overdue amounts, as on a date." />
       <DateRange asAt value={{ to: asOn }} onChange={(v) => setAsOn(v.to)} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-        <div className="overflow-x-auto"><TabsList><TabsTrigger value="customers">Customers</TabsTrigger><TabsTrigger value="vendors">Vendors</TabsTrigger></TabsList></div>
+        <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList><TabsTrigger value="customers">Customers</TabsTrigger><TabsTrigger value="vendors">Vendors</TabsTrigger></TabsList></div>
         <TabsContent value="customers">{tab === "customers" && <Parties type="customer" asOn={asOn} />}</TabsContent>
         <TabsContent value="vendors">{tab === "vendors" && <Parties type="vendor" asOn={asOn} />}</TabsContent>
       </Tabs>
@@ -90,7 +90,7 @@ function Parties({ type, asOn }) {
               <Panel bodyClassName="p-0" title={customer ? "Customer balances" : "Vendor balances"} description={`As on ${asOn}. ${customer ? "Dr means the customer owes us." : "Cr means we owe the vendor."}`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {rows.length === 0 ? <EmptyState title="Nothing to show" text={d.rows.length ? "No one matches this filter." : "No balances on this date."} /> : (
-                  <div className="overflow-x-auto">
+                  <div className="erp-scroll table-pin-first overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
@@ -111,10 +111,10 @@ function Parties({ type, asOn }) {
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-center gap-3">
                                     {r.creditLimit > 0 && (
-                                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-secondary" role="presentation"><div className={`h-full rounded-full ${BAR[r.status]}`} style={{ width: `${Math.min(r.utilisation || 0, 100)}%` }} /></div>
+                                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-secondary" role="presentation"><div className={`h-full rounded-full ${BAR[r.status] || "bg-muted-foreground"}`} style={{ width: `${Math.min(r.utilisation || 0, 100)}%` }} /></div>
                                     )}
                                     <span className="tabular-nums text-muted-foreground">{r.utilisation != null ? `${formatNumber(r.utilisation, 0)}%` : ""}</span>
-                                    <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill>
+                                    {STATUS[r.status] && <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill>}
                                   </div>
                                 </td>
                               </>

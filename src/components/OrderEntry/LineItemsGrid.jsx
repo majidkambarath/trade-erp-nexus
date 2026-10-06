@@ -5,6 +5,7 @@ import { formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
 import { DateInput } from "../accounting/kit";
+import { WIDE, useMediaQuery } from "../accounting/DataTable";
 // Line items as an ARIA grid (https://www.w3.org/WAI/ARIA/apg/patterns/grid/).
 //
 // Keyboard model:
@@ -45,7 +46,7 @@ const compactSelect = {
 };
 
 const fieldInput =
-  "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
+  "h-11 md:h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
 
 // Date inputs use the arrow keys for their own day / month / year parts, so the grid leaves
 // them alone; Tab or Enter moves on. A native <select> keeps Up/Down for choosing a value.
@@ -72,6 +73,7 @@ export default function LineItemsGrid({
   focusRequest,
   selectOptions = {},
 }) {
+  const wide = useMediaQuery(WIDE);
   const navCols = useMemo(
     () => columns.map((c, i) => (navigable(c) ? i : -1)).filter((i) => i >= 0),
     [columns]
@@ -288,8 +290,65 @@ export default function LineItemsGrid({
     }
   };
 
+  // ---------------------------------------------------------------- touch: a card per line
+  //
+  // The grid above is built for a keyboard: a roving tabindex, arrow keys between cells, Enter
+  // to add a row. None of that exists on a phone, and eight columns of inputs behind a
+  // sideways scroll is not a form anyone can fill in. Below md each line becomes a card with
+  // labelled fields instead, reusing the same editors so there is one definition of each.
+  if (!wide) {
+    const editable = columns.filter((c) => EDITABLE.has(c.kind));
+    const readouts = columns.filter((c) => c.kind === "money" || c.kind === "ro");
+    const removeCol = columns.find((c) => c.kind === "remove");
+
+    return (
+      <div className="flex flex-col gap-3" aria-label={label} role="group">
+        {rows.map((row, r) => (
+          <div key={`card-${r}`} className="rounded-xl border border-border bg-card p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Line {r + 1}
+              </span>
+              {removeCol && renderEditor(removeCol, row, r, 0)}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              {editable.map((col) => (
+                <label
+                  key={col.key}
+                  // the item picker and anything free-text need the full width; figures pair up
+                  className={cn(
+                    "flex min-w-0 flex-col gap-1",
+                    (col.kind === "item" || col.kind === "text" || col.wide) && "col-span-2"
+                  )}
+                >
+                  <span className="text-xs font-medium text-muted-foreground">{col.label || col.key}</span>
+                  {renderEditor(col, row, r, 0)}
+                  {errors?.[r]?.[col.key] && (
+                    <span className="text-xs font-medium text-status-danger">{errors[r][col.key]}</span>
+                  )}
+                </label>
+              ))}
+            </div>
+
+            {readouts.length > 0 && (
+              <dl className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-border pt-2.5 text-sm">
+                {readouts.map((col) => (
+                  <div key={col.key} className="flex items-baseline gap-1.5">
+                    <dt className="text-xs text-muted-foreground">{col.label || col.key}</dt>
+                    <dd className="font-medium tabular-nums">{renderEditor(col, row, r, -1)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+    <div className="erp-scroll overflow-x-auto rounded-xl border border-border bg-card">
       <table role="grid" aria-label={label} aria-rowcount={rows.length + 1} aria-colcount={columns.length} className="w-full min-w-max border-collapse text-sm" onKeyDown={onKeyDown} onFocus={onFocusCapture}>
         <thead className="bg-secondary text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <tr role="row" aria-rowindex={1}>

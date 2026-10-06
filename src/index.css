@@ -202,6 +202,136 @@ body {
   background-color: var(--input);
 }
 
+/* ---------------------------------------------------------------------------
+   Touch layout. Below lg (1024px) the pointer rail gives way to a bottom bar;
+   everything in this section exists to make that shell feel like an app rather
+   than a desktop page squeezed into a phone.
+   --------------------------------------------------------------------------- */
+
+/* The device's own insets - the notch and the home bar - as padding. env() is 0 on a
+   desktop browser and on anything without insets, so these are safe everywhere. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Fades the trailing edge of a horizontally scrolling row (the module tab strip) so it
+   reads as continuing off screen. Pure paint - it never eats a tap. */
+.tab-strip-fade {
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%);
+}
+
+.tab-strip-fade:dir(rtl) {
+  mask-image: linear-gradient(to left, #000 calc(100% - 1.5rem), transparent 100%);
+}
+
+/* A scrolled-to-the-end strip has nothing left to hint at. */
+.tab-strip-fade[data-at-end="true"] {
+  mask-image: none;
+}
+
+/* On a phone a dialog is a sheet: it owns the screen instead of floating inside the
+   workspace, because there is no rail or header worth keeping uncovered on a 390px screen.
+   This overrides the inset-inside-the-workspace rules above. A tablet keeps the centred
+   dialog - it has the width for it. */
+@media (max-width: 767px) {
+  .erp-scope .fixed.inset-0.flex {
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    align-items: flex-end;
+    padding: 0 !important;
+    background-color: color-mix(in oklab, #000 45%, transparent) !important;
+  }
+
+  .erp-scope .fixed.inset-0.flex > * {
+    max-height: calc(100dvh - 2.5rem);
+    width: 100%;
+    max-width: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+
+/* A table of figures that has to stay a table on a phone (TableScroll): the identifying
+   first column stays put while the numbers scroll under the thumb, so a row never loses
+   its label. Only below the breakpoint - on a wide screen nothing is clipped. */
+@media (max-width: 767px) {
+  .table-pin-first th:first-child,
+  .table-pin-first td:first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 1;
+    background-color: var(--card);
+    /* the shadow is what separates the pinned column from what slides beneath it */
+    box-shadow: 1px 0 0 0 var(--border);
+  }
+
+  .table-pin-first thead th:first-child {
+    background-color: var(--secondary);
+  }
+
+  /* A w-full table does not scroll, it squeezes: eight columns across 390px gives each
+     one about 45px, and every figure wraps to three lines. Giving the table a floor makes
+     it scroll under the pinned label instead, which is the readable trade. */
+  .table-pin-first > table {
+    min-width: 36rem;
+  }
+}
+
+/* The chart of accounts is a tree, and its indent is what pushes a deep row off a narrow
+   screen. The steps are variables so the breakpoint can shrink them without the component
+   knowing the numbers. --tree-leaf is the extra step an account gets under its group. */
+:root {
+  --tree-pad: 1.25rem;
+  --tree-step: 1.25rem;
+  --tree-leaf: 1.75rem;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --tree-pad: 0.75rem;
+    --tree-step: 0.625rem;
+    --tree-leaf: 0.75rem;
+  }
+}
+
+/* A panel whose whole body is a card list is a frame around frames: on a phone the cards are
+   already separate surfaces, so the panel's own border, background and shadow are dropped and
+   the cards sit on the page. Only when the panel has no header of its own to orphan.
+   :has() is unsupported in older browsers, which simply keep the framed look. */
+@media (max-width: 767px) {
+  section:not(:has(> header)):has(> div > ul[data-cards]) {
+    border-color: transparent;
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  section:not(:has(> header)) > div > ul[data-cards] {
+    padding-inline: 0;
+  }
+}
+
+/* Momentum scrolling inside the panes that scroll, and no rubber-banding of the page
+   behind them. */
+.erp-scroll,
+main {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS zooms the viewport when a focused field's text is under 16px. Every control in the
+   app is 14px by design, so the rule is relaxed on phones only: the fields grow to 16px
+   there and the layout stops jumping on focus. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+}
+
 table {
   font-variant-numeric: tabular-nums;
 }

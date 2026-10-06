@@ -4,7 +4,7 @@ import { batches } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts } from "../accounting/kit";
+import { DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
 
 const WINDOWS = [{ v: "", l: "All batches in stock" }, { v: "0", l: "Expired" }, { v: "7", l: "Expire within 7 days" }, { v: "30", l: "Expire within 30 days" }, { v: "90", l: "Expire within 90 days" }];
 const qtyFmt = (n) => formatNumber(n, 3).replace(/\.?0+$/, "");
@@ -41,7 +41,7 @@ export default function BatchManagement() {
   }, [data]);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Batches and expiry" description="Each delivery is tracked as a batch with its own expiry date. Sales take the soonest-expiring batch first, and expired stock is never sold." />
       {data && window_ === "" && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -58,23 +58,19 @@ export default function BatchManagement() {
         {data?.length === 0 && <EmptyState title="No batches" text={window_ === "" ? "Batches are created when a purchase order is approved. Give each line a batch number and expiry date." : "Nothing matches that filter."} />}
         {data?.length > 0 && (
           <div className="relative overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-2 text-start">Item</th><th className="px-3 py-2 text-start">Batch</th><th className="px-3 py-2 text-start">Received</th><th className="px-3 py-2 text-start">Expiry</th><th className="px-3 py-2 text-end">On hand</th><th className="px-5 py-2 text-end"><span className="sr-only">Action</span></th></tr>
-              </thead>
-              <tbody>
-                {data.map((b) => (
-                  <tr key={b._id} className="border-t border-border">
-                    <td className="px-5 py-3"><span className="font-medium">{b.itemName || b.itemCode}</span><span className="block text-xs text-muted-foreground">{b.sku}</span></td>
-                    <td className="px-3 py-3"><span className="font-mono text-xs font-semibold">{b.batchNumber}</span>{b.sourceTransactionNo && <span className="block text-xs text-muted-foreground">{b.sourceTransactionNo}</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3">{formatDateGB(b.receivedAt)}</td>
-                    <td className="px-3 py-3"><span className="me-2 whitespace-nowrap">{b.expiryDate ? formatDateGB(b.expiryDate) : "—"}</span><ExpiryPill b={b} /></td>
-                    <td className="px-3 py-3 text-end tabular-nums">{qtyFmt(b.qtyOnHand)} <span className="text-xs text-muted-foreground">of {qtyFmt(b.receivedQty)}</span></td>
-                    <td className="px-5 py-3 text-end"><Button size="sm" variant={b.expired ? "default" : "outline"} onClick={() => setWriting(b)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Write off</Button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              caption="Batches"
+              rows={data}
+              rowKey={(b) => b._id}
+              columns={[
+                { key: "batch", header: "Batch", card: "primary", cell: (b) => <><span className="font-mono text-xs font-semibold">{b.batchNumber}</span>{b.sourceTransactionNo && <span className="block text-xs font-normal text-muted-foreground">{b.sourceTransactionNo}</span>}</> },
+                { key: "item", header: "Item", card: "title", cell: (b) => <><span className="font-medium">{b.itemName || b.itemCode}</span><span className="ms-1 text-xs text-muted-foreground">{b.sku}</span></> },
+                { key: "received", header: "Received", card: "meta", className: "whitespace-nowrap", cell: (b) => formatDateGB(b.receivedAt) },
+                { key: "expiry", header: "Expiry", card: "badge", cell: (b) => <><span className="me-2 whitespace-nowrap">{b.expiryDate ? formatDateGB(b.expiryDate) : "—"}</span><ExpiryPill b={b} /></> },
+                { key: "onhand", header: "On hand", align: "end", card: "amount", className: "tabular-nums", cell: (b) => <>{qtyFmt(b.qtyOnHand)} <span className="text-xs font-normal text-muted-foreground">of {qtyFmt(b.receivedQty)}</span></> },
+                { key: "action", header: <span className="sr-only">Action</span>, align: "end", card: "actions", cell: (b) => <Button size="sm" variant={b.expired ? "default" : "outline"} onClick={() => setWriting(b)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Write off</Button> },
+              ]}
+            />
           </div>
         )}
       </Panel>

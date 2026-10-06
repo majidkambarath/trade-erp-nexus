@@ -135,11 +135,11 @@ export default function AttachmentPanel({ ownerType, ownerId, value, onChange, l
                   <p className="truncate text-sm font-medium text-foreground">{it.fileName}</p>
                   <p className="text-xs text-muted-foreground">{formatBytes(it.fileSize)}{it.label ? ` · ${it.label}` : ""}</p>
                 </div>
-                <button type="button" onClick={() => download(it)} aria-label={`Download ${it.fileName}`} className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
+                <button type="button" onClick={() => download(it)} aria-label={`Download ${it.fileName}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
                   <Download className="h-4 w-4" aria-hidden="true" />
                 </button>
                 {!readOnly && (
-                  <button type="button" onClick={() => remove(it)} aria-label={`Remove ${it.fileName}`} className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger">
+                  <button type="button" onClick={() => remove(it)} aria-label={`Remove ${it.fileName}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 )}

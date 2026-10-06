@@ -65,7 +65,7 @@ export default function OpenInvoicesTab({ k, ageing, row }) {
           <EmptyState title="No open invoices" text={`Every approved ${k.docNoun} invoice for this ${k.noun} is paid.`} />
         )}
         {invoices.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <caption className="sr-only">Unpaid {k.docNoun} invoices</caption>
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">

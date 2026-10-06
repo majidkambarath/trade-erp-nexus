@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { Eye, Plus } from "lucide-react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts, DateInput } from "../accounting/kit";
+import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
@@ -36,7 +36,7 @@ export default function DebitCreditNotes() {
   const [viewing, setViewing] = useState(null);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 sm:p-8">
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Debit and credit notes"
         description="Adjust what a customer or vendor owes without a new invoice: a price correction, damaged goods, an extra charge."
@@ -55,25 +55,22 @@ export default function DebitCreditNotes() {
       <ListToolbar filters={list.filters} set={list.set} />
       <Panel bodyClassName="p-0">
         <ListBody list={list} emptyTitle={`No ${TYPES[type].label.toLowerCase()}`} emptyText={`Raise one with New ${TYPES[type].one}.`}>
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Note</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-start">Party</th><th className="px-3 py-2 text-start">Against</th><th className="px-3 py-2 text-end">VAT</th><th className="px-3 py-2 text-end">Total</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Actions</span></th></tr>
-            </thead>
-            <tbody>
-              {list.rows.map((v) => (
-                <tr key={v._id} className="border-t border-border hover:bg-accent/40">
-                  <td className="whitespace-nowrap px-5 py-2.5 font-mono text-xs font-semibold">{v.voucherNo}</td>
-                  <td className="whitespace-nowrap px-3 py-2.5">{formatDateGB(v.date)}</td>
-                  <td className="px-3 py-2.5"><span className="font-medium">{v.partyName}</span><span className="block text-xs text-muted-foreground">{v.partyType}</span></td>
-                  <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-muted-foreground">{v.referenceInvoiceNo || "On account"}</td>
-                  <td className="px-3 py-2.5 text-end tabular-nums text-muted-foreground">{v.vatTotal ? money(toCents(v.vatTotal)) : ""}</td>
-                  <td className="px-3 py-2.5 text-end font-medium tabular-nums">{money(toCents(v.totalAmount))}</td>
-                  <td className="px-3 py-2.5"><StatusPill status={v.status} /></td>
-                  <td className="px-5 py-2.5 text-end"><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption="Debit and credit notes"
+            rows={list.rows}
+            rowKey={(v) => v._id}
+            onRowClick={(v) => setViewing(v._id)}
+            columns={[
+              { key: "no", header: "Note", card: "primary", className: "whitespace-nowrap font-mono text-xs font-semibold", cell: (v) => v.voucherNo },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
+              { key: "party", header: "Party", card: "title", cell: (v) => <><span className="font-medium">{v.partyName}</span><span className="ms-1 text-xs text-muted-foreground">{v.partyType}</span></> },
+              { key: "against", header: "Against", card: "meta", className: "whitespace-nowrap font-mono text-xs text-muted-foreground", cell: (v) => v.referenceInvoiceNo || "On account" },
+              { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
+              { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
+            ]}
+          />
         </ListBody>
       </Panel>
       {form && <NoteForm initialType={type} onClose={() => setForm(false)} onSaved={(msg, savedType) => { setForm(false); notify(msg); if (savedType !== type) setParams({ type: savedType }, { replace: true }); else list.reload(); }} />}

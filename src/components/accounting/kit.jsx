@@ -4,6 +4,9 @@ import ReactSelect from "react-select";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
 import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
+import { DataTable, TableScroll } from "./DataTable";
+
+export { DataTable, TableScroll };
 
 // Small building blocks shared by the accounting, reporting, batch and e-invoicing screens.
 // Everything here reads the existing design tokens (bg-card, border-border, brand-soft, status
@@ -13,12 +16,18 @@ import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
 
 export function PageHeader({ title, description, actions }) {
   return (
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-tight text-foreground">{title}</h1>
+        <h1 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {/* On a phone the actions get their own row and stretch, so a primary button is a
+          full-width target rather than a 90px one in the corner. */}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 [&>*]:min-h-11 [&>*]:flex-1 sm:[&>*]:min-h-0 sm:[&>*]:flex-none">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -27,7 +36,7 @@ export function Panel({ title, description, actions, children, className, bodyCl
   return (
     <section className={cn("rounded-2xl border border-border bg-card shadow-card", className)}>
       {(title || actions) && (
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-5 sm:py-3.5">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
@@ -35,7 +44,7 @@ export function Panel({ title, description, actions, children, className, bodyCl
           {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cn("p-5", bodyClassName)}>{children}</div>
+      <div className={cn("p-4 sm:p-5", bodyClassName)}>{children}</div>
     </section>
   );
 }
@@ -108,8 +117,10 @@ export function Balance({ net, className }) {
 
 // ---------- forms ----------
 
+// h-11 (44px) on touch, h-10 on a pointer: the minimum comfortable target without
+// loosening every form on a desktop screen.
 export const inputClass =
-  "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-status-danger";
+  "h-11 lg:h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-status-danger";
 
 // Label, control, hint and error, wired together with ids so screen readers announce them.
 export function Field({ label, hint, error, required, className, children }) {
@@ -200,7 +211,7 @@ export const DateInput = React.forwardRef(function DateInput(
       <button
         type="button" tabIndex={-1} disabled={disabled} aria-label="Open calendar"
         onClick={() => { try { picker.current?.showPicker?.(); } catch { /* not allowed here: type the date instead */ } }}
-        className="absolute end-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+        className="absolute end-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 lg:end-1.5 lg:h-7 lg:w-7"
       >
         <Calendar className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -348,26 +359,47 @@ export function Modal({ title, description, onClose, children, footer, size = "m
   };
 
   const width = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl", xl: "max-w-5xl" }[size];
+  // On a phone this is a bottom sheet: flush to the bottom edge, full width, square at the
+  // foot and rounded at the head, with the page showing above it. From md up it is the
+  // centred dialog it has always been.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={onKeyDown}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4"
+      onKeyDown={onKeyDown}
+    >
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={cn("flex max-h-[min(90vh,52rem)] w-full flex-col rounded-2xl border border-border bg-card shadow-elevated", width)}
+        className={cn(
+          "flex max-h-[88dvh] w-full flex-col rounded-t-2xl border border-border bg-card shadow-elevated",
+          "md:max-h-[min(90dvh,52rem)] md:rounded-2xl",
+          width
+        )}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+        <header className="relative flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 pb-3 pt-4 md:px-6 md:py-4">
+          {/* grab handle, phones only - the sheet's own affordance */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 top-1.5 mx-auto h-1 w-10 rounded-full bg-border md:hidden"
+          />
           <div className="min-w-0">
             <h2 id={titleId} className="text-base font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
-            <X className="h-4 w-4" aria-hidden="true" />
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-8">
+            <X className="h-5 w-5 md:h-4 md:w-4" aria-hidden="true" />
           </button>
         </header>
-        <div className="erp-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
-        {footer && <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-3.5">{footer}</footer>}
+        <div className="erp-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-5">{children}</div>
+        {/* The footer is the sheet's action bar on a phone: buttons stretch and clear the
+            home bar, so the primary action is always reachable with a thumb. */}
+        {footer && (
+          <footer className="pb-safe flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3 md:px-6 md:py-3.5 [&>button]:min-h-11 [&>button]:flex-1 md:[&>button]:min-h-0 md:[&>button]:flex-none">
+            {footer}
+          </footer>
+        )}
       </div>
     </div>
   );
@@ -404,7 +436,15 @@ export function useToasts() {
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
   const node = toast ? (
-    <div role="status" className={cn("fixed bottom-4 end-4 z-[70] flex max-w-sm items-start gap-2", toastClasses(toast.type))}>
+    <div
+      role="status"
+      className={cn(
+        // clears the bottom bar (3.5rem + the device inset) below lg
+        "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] end-3 start-3 z-[70] flex items-start gap-2",
+        "lg:bottom-4 lg:start-auto lg:max-w-sm",
+        toastClasses(toast.type)
+      )}
+    >
       {toast.type === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-status-success" aria-hidden="true" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-status-danger" aria-hidden="true" />}
       <p className="text-sm">{toast.message}</p>
     </div>
@@ -415,16 +455,24 @@ export function useToasts() {
 export const errorMessage = (err) => err?.message || "Something went wrong";
 
 // A yes/no question that names the consequence. The confirm button says what it does.
-export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = false, busy = false, onConfirm, onClose }) {
+// `typeToConfirm` (e.g. "delete") makes the confirm button wait until the user has typed that word.
+// Use it for anything that removes a record, so a stray click or Enter cannot delete it.
+export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = false, busy = false, typeToConfirm = "", onConfirm, onClose }) {
+  const [typed, setTyped] = useState("");
+  const matches = !typeToConfirm || typed.trim().toLowerCase() === typeToConfirm.toLowerCase();
+  const inputId = useId();
+  const confirm = () => {
+    if (matches && !busy) onConfirm();
+  };
   return (
     <Modal
       size="sm" title={title} onClose={onClose}
       footer={
         <>
-          <button type="button" onClick={onClose} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-5 text-sm font-medium hover:bg-accent">Cancel</button>
+          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-full border border-input bg-card px-5 text-sm font-medium hover:bg-accent md:h-10">Cancel</button>
           <button
-            type="button" onClick={onConfirm} disabled={busy} data-autofocus
-            className={cn("inline-flex h-10 items-center rounded-full px-5 text-sm font-medium text-primary-foreground disabled:opacity-60", danger ? "bg-destructive" : "bg-primary")}
+            type="button" onClick={confirm} disabled={busy || !matches} data-autofocus={!typeToConfirm || undefined}
+            className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 text-sm font-medium text-primary-foreground disabled:opacity-60 md:h-10", danger ? "bg-destructive" : "bg-primary")}
           >
             {busy ? "Working…" : confirmLabel}
           </button>
@@ -432,6 +480,27 @@ export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = 
       }
     >
       <p className="text-sm text-muted-foreground">{text}</p>
+      {typeToConfirm && (
+        <div className="mt-4 space-y-1.5">
+          <label htmlFor={inputId} className="block text-sm">
+            Type <span className="font-semibold text-foreground">{typeToConfirm}</span> to confirm
+          </label>
+          <input
+            id={inputId}
+            autoFocus
+            autoComplete="off"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                confirm();
+              }
+            }}
+            className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </div>
+      )}
     </Modal>
   );
 }

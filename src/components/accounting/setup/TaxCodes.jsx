@@ -3,7 +3,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../../utils/format";
 import { Button } from "../../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, errorMessage, useAsync, DateInput } from "../kit";
+import { DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../kit";
 
 export const KINDS = {
   standard: "Standard-rated",
@@ -36,23 +36,19 @@ export default function TaxCodes({ notify }) {
       {codes.error && <div className="p-5"><ErrorNote error={codes.error} onRetry={codes.reload} /></div>}
       {codes.data?.length === 0 && <EmptyState title="No tax codes" text="Add a standard-rated code (5% in the UAE) to start." />}
       {codes.data?.length > 0 && (
-        <table className="w-full text-sm">
-          <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-            <tr><th className="px-5 py-2 text-start">Name</th><th className="px-3 py-2 text-start">Treatment</th><th className="px-3 py-2 text-end">Rate</th><th className="px-3 py-2 text-start">Rate changes</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2"><span className="sr-only">Edit</span></th></tr>
-          </thead>
-          <tbody>
-            {codes.data.map((c) => (
-              <tr key={c._id} className="border-t border-border">
-                <td className="px-5 py-3 font-medium">{c.name} {c.isDefault && <Pill tone="info" className="ms-1">Default</Pill>}</td>
-                <td className="px-3 py-3">{KINDS[c.kind]}</td>
-                <td className="px-3 py-3 text-end tabular-nums">{formatNumber(c.ratePercent, 2)}%</td>
-                <td className="px-3 py-3 text-xs text-muted-foreground">{c.rateHistory?.length ? c.rateHistory.map((h) => `${formatNumber(h.ratePercent, 2)}% from ${formatDateGB(h.date)}`).join(" · ") : "—"}</td>
-                <td className="px-3 py-3">{c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill>}</td>
-                <td className="px-5 py-3 text-end"><button type="button" onClick={() => setModal({ code: c })} aria-label={`Edit ${c.name}`} className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-accent"><Pencil className="h-4 w-4" aria-hidden="true" /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable
+          caption="Tax codes"
+          rows={codes.data}
+          rowKey={(c) => c._id}
+          columns={[
+            { key: "name", header: "Name", card: "primary", className: "font-medium", cell: (c) => <>{c.name} {c.isDefault && <Pill tone="info" className="ms-1">Default</Pill>}</> },
+            { key: "kind", header: "Treatment", card: "title", cell: (c) => KINDS[c.kind] },
+            { key: "rate", header: "Rate", align: "end", card: "amount", className: "tabular-nums", cell: (c) => `${formatNumber(c.ratePercent, 2)}%` },
+            { key: "history", header: "Rate changes", card: "meta", className: "text-xs text-muted-foreground", cell: (c) => c.rateHistory?.length ? c.rateHistory.map((h) => `${formatNumber(h.ratePercent, 2)}% from ${formatDateGB(h.date)}`).join(" · ") : "—" },
+            { key: "status", header: "Status", card: "badge", cell: (c) => c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
+            { key: "edit", header: <span className="sr-only">Edit</span>, align: "end", card: "actions", cell: (c) => <button type="button" onClick={() => setModal({ code: c })} aria-label={`Edit ${c.name}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+          ]}
+        />
       )}
       {modal && <TaxCodeModal {...modal} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); notify(m); codes.reload(); }} />}
     </Panel>
@@ -116,7 +112,7 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
             <div key={i} className="mb-2 flex items-end gap-2">
               <Field label="From" className="flex-1"><DateInput value={h.date} onChange={(e) => setHist(i, "date", e.target.value)} /></Field>
               <Field label="New rate (%)" className="w-32"><TextInput type="number" step="0.01" min="0" max="100" value={h.ratePercent} onChange={(e) => setHist(i, "ratePercent", e.target.value)} /></Field>
-              <button type="button" aria-label={`Remove rate change ${i + 1}`} onClick={() => setForm((f) => ({ ...f, history: f.history.filter((_, j) => j !== i) }))} className="mb-1 grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+              <button type="button" aria-label={`Remove rate change ${i + 1}`} onClick={() => setForm((f) => ({ ...f, history: f.history.filter((_, j) => j !== i) }))} className="mb-1 grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
             </div>
           ))}
           {errors.history && <p className="mb-2 text-xs font-medium text-status-danger">{errors.history}</p>}
