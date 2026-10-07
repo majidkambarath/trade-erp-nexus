@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   colLetter, columnOptions, formFromMapping, mappingFromForm, mappingReady, postingKinds, proofRows, readiness, signedAmount,
-  splitDifference, splitGross, unexplained, LINE_TABS,
+  settlementCheck, splitDifference, splitGross, unexplained, LINE_TABS,
 } from "../bankReconcile";
 
 describe("signs and what can be posted", () => {
@@ -120,5 +120,34 @@ describe("the bank reconciliation statement", () => {
     expect(readiness(proof)).toEqual({ ready: true, text: "The two sides agree. This can be finished." });
     expect(readiness({ ...proof, canFinish: false, blockers: [{ message: "2 statement lines are not matched or ignored yet" }] })).toEqual({ ready: false, text: "2 statement lines are not matched or ignored yet" });
     expect(readiness(null).ready).toBe(false);
+  });
+});
+
+describe("could this payment be these sales less commission and VAT?", () => {
+  it("accepts the ordinary cases: a little kept, a little returned, or exactly right", () => {
+    expect(settlementCheck({ expected: 294, fees: 6, received: 293.7 }).ok).toBe(true); // VAT on the commission
+    expect(settlementCheck({ expected: 294, fees: 6, received: 294 }).ok).toBe(true);
+    expect(settlementCheck({ expected: 98, fees: 2, received: 98.5 }).ok).toBe(true); // 0.50 of the 2.00 commission handed back
+    expect(settlementCheck({ expected: 294, fees: 6, received: 300 }).ok).toBe(true); // the whole commission waived
+  });
+
+  it("refuses more kept than 10% of the sales, and says what to do", () => {
+    const r = settlementCheck({ expected: 294, fees: 6, received: 100 });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("too-large");
+    expect(r.text).toMatch(/194.00 less than these sales are worth/);
+    expect(r.text).toMatch(/refunds and chargebacks/);
+    // small sales may still lose AED 5.00
+    expect(settlementCheck({ expected: 40, fees: 1, received: 35.5 }).ok).toBe(true);
+    expect(settlementCheck({ expected: 40, fees: 1, received: 34.9 }).ok).toBe(false);
+  });
+
+  it("refuses more paid than the commission that was booked", () => {
+    const r = settlementCheck({ expected: 98, fees: 2, received: 293.7 });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("exceeds");
+    expect(r.text).toMatch(/195.70 more than these sales are worth after commission/);
+    expect(settlementCheck({ expected: 98, fees: 0, received: 98.5 }).ok).toBe(true); // 50 fils of rounding
+    expect(settlementCheck({ expected: 98, fees: 0, received: 98.6 }).ok).toBe(false);
   });
 });

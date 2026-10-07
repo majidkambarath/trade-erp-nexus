@@ -49,7 +49,19 @@ const DEEP = {
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "deliver", clicks: ["^View$", "Mark delivered"], settle: 1300 },
   ],
+  // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
+  "finance-reconcile": [
+    { name: "import", clicks: ["^Import a statement$"], settle: 900 },
+    { name: "set-up", clicks: ["^Set up$"], settle: 1100 },
+    { name: "find", clicks: ["Find another"], settle: 1100 },
+    { name: "post", clicks: ["Post an entry"], settle: 1300 },
+    { name: "card", clicks: ["^Card settlement$"], settle: 1300 }, // the button on a line, not the tab named Card settlements
+    { name: "ignore", clicks: ["^Ignore$"], settle: 900 },
+    { name: "statement", clicks: ["^History$", "^Statement$"], settle: 1300 },
+  ],
 };
+// a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
+DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 
 /** The first visible, enabled control whose text or label matches. */
 async function findByText(page, label) {
@@ -255,6 +267,11 @@ function stubFor(pathname) {
     if (p.endsWith("/card/ageing")) return { asOf: "2026-10-06", buckets: [{ label: "0-3 days", from: 0, to: 3, count: 1, total: 98 }, { label: "4-7 days", from: 4, to: 7, count: 1, total: 196 }, { label: "8-14 days", from: 8, to: 14, count: 0, total: 0 }, { label: "15+ days", from: 15, to: null, count: 0, total: 0 }], total: 294, count: 2, items: [{ entryId: "e1", voucherNo: "RV-2026-0004", day: "2026-10-03", cardLabel: "POS 1", gross: 100, feeBooked: 2, net: 98, workingDays: 2 }] };
     if (p.endsWith("/card/variance")) return { summary: { settlements: 1, gross: 300, feeBooked: 6, extraCommission: 0.4, vat: 0.3, received: 293.3, bookedRate: 2, effectiveRate: 2.133 }, months: [], cards: [{ cardId: "k1", cardLabel: "POS 1", sales: 2, gross: 300, feeBooked: 6, bookedRate: 2 }], settlements: [{ _id: "s1", settlementDate: "2026-10-03", settlementRef: "NI-0099", gross: 300, feeBooked: 6, extraCommission: 0.4, vat: 0.3, received: 293.3, receiptCount: 2, effectiveRate: 2.133 }] };
     if (p.endsWith("/card/settlements")) return [];
+    if (p.endsWith("/card/unsettled")) {
+      const sale = (id, no, day, gross, fee) => ({ entryId: id, ledgerEntryId: `l${id}`, voucherNo: no, day, cardId: "k1", cardLabel: "POS 1", gross, feeBooked: fee, net: gross - fee });
+      return { receipts: [sale("e1", "RV-2026-0004", "2026-10-01", 100, 2), sale("e2", "RV-2026-0005", "2026-10-02", 200, 4), sale("e3", "RV-2026-0006", "2026-10-03", 100, 2)], vatRate: 5, line: {}, suggestion: { cutoffDay: "2026-10-02", entryIds: ["e1", "e2"], expectedNet: 294, difference: 0.3 } };
+    }
+    if (p.endsWith("/setup/preview")) return { account: { _id: "b1", accountName: "Emirates NBD Current" }, startDay: "2026-09-01", bookBalanceBefore: 1060, existing: null, candidates: [{ ...entry, id: "e8", ledgerEntryId: "le8", voucherNo: "RV-2026-0002", day: "2026-08-28", amount: 60 }, { ...entry, id: "e9", ledgerEntryId: "le9", voucherNo: "RV-2026-0001", day: "2026-08-01", amount: 1000 }] };
     if (p.endsWith("/entries")) return { rows: [entry], total: 1 };
     if (p.endsWith("/profile")) return null;
     return {};

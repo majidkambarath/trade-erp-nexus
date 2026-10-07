@@ -127,6 +127,24 @@ export function splitDifference({ difference, feeBooked = 0, vatRate = 5 }) {
 // What is still unexplained, in fils; zero is what the server needs.
 export const unexplained = (difference, extraCommission, vat) => (cents(difference) - cents(extraCommission) - cents(vat)) / 100;
 
+// Could this payment be what these sales are worth less commission and VAT? Mirrors the server
+// (CardSettlementService.limits), which is the one that refuses; this says so before the button.
+//   the bank kept more than booked: at most 10% of the sales' net (never less than AED 5.00)
+//   the bank paid more than booked: at most the commission that was booked (50 fils of rounding)
+export function settlementCheck({ expected, fees, received }) {
+  const e = cents(expected);
+  const diff = e - cents(received);
+  const maxKept = Math.max(500, Math.round(e * 0.1));
+  const maxReturned = Math.max(50, cents(fees));
+  if (diff > maxKept) {
+    return { ok: false, code: "too-large", text: `The bank paid ${((diff) / 100).toFixed(2)} less than these sales are worth. That is more than commission and VAT could be (at most ${(maxKept / 100).toFixed(2)}). Check you ticked the right sales; refunds and chargebacks taken off a payment are posted as a journal first.` };
+  }
+  if (-diff > maxReturned) {
+    return { ok: false, code: "exceeds", text: `The bank paid ${((-diff) / 100).toFixed(2)} more than these sales are worth after commission. Tick the other sales this payment covers.` };
+  }
+  return { ok: true, text: "" };
+}
+
 // A bank fee: the statement fixes the gross, so net and VAT are worked back from it and add up exactly.
 // Mirrors the server (utils/bankStatement.js splitGross), which is the one that posts; this is the preview.
 export function splitGross(gross, ratePercent) {

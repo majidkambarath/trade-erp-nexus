@@ -99,7 +99,7 @@ describe("module tabs", () => {
     const tabs = screen.getByRole("navigation", { name: "Finance" });
     const links = within(tabs).getAllByRole("link");
     expect(links.map((a) => a.textContent)).toEqual([
-      "Receipts", "Payments", "Journal", "Contra", "Expenses", "Notes", "Cheques", "Cash & bank", "Ledger",
+      "Receipts", "Payments", "Journal", "Contra", "Expenses", "Notes", "Cheques", "Cash & bank", "Reconcile", "Ledger",
     ]);
     expect(within(tabs).getByRole("link", { name: "Payments" })).toHaveAttribute("aria-current", "page");
   });

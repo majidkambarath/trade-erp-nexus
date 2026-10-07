@@ -21,7 +21,7 @@ export const Day = ({ value }) => <span className="whitespace-nowrap tabular-num
 // One book entry, in a sentence a person can check against the statement.
 export function EntryRow({ entry, trailing, className }) {
   return (
-    <div className={cn("flex items-start justify-between gap-3 text-sm", className)}>
+    <div className={cn("flex min-w-0 items-start justify-between gap-3 text-sm", className)}>
       <div className="min-w-0">
         <p className="truncate">
           <span className="font-mono text-xs font-semibold">{entry.voucherNo}</span>

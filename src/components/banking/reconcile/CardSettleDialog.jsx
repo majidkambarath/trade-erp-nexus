@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorNote, Field, Spinner, TextInput, useAsync } from "../../accounting/kit";
 import { ActionModal, Note } from "../../salesDocs/parts";
 import { reconcile } from "../../../lib/bankReconcileApi";
-import { splitDifference, unexplained } from "../../../lib/bankReconcile";
+import { settlementCheck, splitDifference, unexplained } from "../../../lib/bankReconcile";
 import { formatNumber } from "../../../utils/format";
 import { Amount, Day } from "./parts";
 import { useAction } from "./helpers";
@@ -45,6 +45,7 @@ export default function CardSettleDialog({ accountId, line, onClose, onDone }) {
     setVat(String(s.vat));
   }, [diff, fees, vatRate]);
 
+  const check = rows.length ? settlementCheck({ expected: expected / 100, fees: fees / 100, received: line.amount }) : { ok: true, text: "" };
   const left = useMemo(() => (diff > 0 ? cents(unexplained(diff / 100, extra, vat)) : 0), [diff, extra, vat]);
   const toggle = (id) => { edited.current = false; setPicked((s) => { const n = new Set(s || []); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
   const { busy, problem, go } = useAction(
@@ -56,7 +57,7 @@ export default function CardSettleDialog({ accountId, line, onClose, onDone }) {
 
   return (
     <ActionModal
-      size="xl" title="Card settlement" confirmLabel="Record settlement" busy={busy} disabled={rows.length === 0 || left !== 0} problem={problem} onClose={onClose} onConfirm={go}
+      size="xl" title="Card settlement" confirmLabel="Record settlement" busy={busy} disabled={rows.length === 0 || left !== 0 || !check.ok} problem={problem} onClose={onClose} onConfirm={go}
       description="Tick the card sales this payment settles. The acquirer's commission is already in the books at the rate on the card; what it took beyond that is posted here."
     >
       <div className="rounded-lg border border-border bg-secondary/50 p-3 text-sm">
@@ -95,7 +96,8 @@ export default function CardSettleDialog({ accountId, line, onClose, onDone }) {
             </dl>
           </section>
 
-          {rows.length > 0 && diff > 0 && (
+          {!check.ok && <Note tone="warning">{check.text}</Note>}
+          {rows.length > 0 && check.ok && diff > 0 && (
             <div>
               <p className="mb-2 text-sm text-muted-foreground">The acquirer kept {money(diff)} more than the books carried. Say what it is:</p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -105,8 +107,8 @@ export default function CardSettleDialog({ accountId, line, onClose, onDone }) {
               <p className={left === 0 ? "mt-2 text-sm text-status-success" : "mt-2 text-sm text-status-warning"} aria-live="polite">{left === 0 ? "The difference is fully explained." : `${money(Math.abs(left))} ${left > 0 ? "still to explain" : "too much"}`}</p>
             </div>
           )}
-          {rows.length > 0 && diff < 0 && <Note>The bank paid {money(-diff)} more than the books expected: the commission booked at the sale was a little too high. It is posted back to card processing fees.</Note>}
-          {rows.length > 0 && diff === 0 && <p className="text-sm text-status-success">The bank paid exactly what the books expected.</p>}
+          {rows.length > 0 && check.ok && diff < 0 && <Note>The bank paid {money(-diff)} more than the books expected: the commission booked at the sale was a little too high. It is posted back to card processing fees.</Note>}
+          {rows.length > 0 && check.ok && diff === 0 && <p className="text-sm text-status-success">The bank paid exactly what the books expected.</p>}
 
           <Field label="Settlement reference" hint="The acquirer's number for this payment (optional)"><TextInput value={ref} onChange={(e) => setRef(e.target.value)} maxLength={80} /></Field>
         </>

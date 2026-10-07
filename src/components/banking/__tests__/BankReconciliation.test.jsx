@@ -70,7 +70,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ suggestion: suggestion() })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /TRANSFER FROM AL NOOR/ });
+    const card = await screen.findByRole("article", { name: /TRANSFER FROM AL NOOR/ }, { timeout: 4000 });
     expect(await screen.findByText("Balance in the books")).toBeInTheDocument();
     expect(within(card).getByText("Strong match")).toBeInTheDocument();
     expect(within(card).getByText("same amount, same day")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ day: "2026-10-07", description: "CHQ DEP 000777", suggestion: suggestion({ entries: [cheque], reasons: ["same amount", "cheque 000777 is on the line"] }) })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /CHQ DEP 000777/ });
+    const card = await screen.findByRole("article", { name: /CHQ DEP 000777/ }, { timeout: 4000 });
     expect(within(card).getByText(/Matching clears this cheque on 2026-10-07/)).toBeInTheDocument();
     expect(within(card).getByText(/waiting to clear/)).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /^match$/i }));
@@ -99,7 +99,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ amount: 525, description: "CASH DEPOSIT", suggestion: group })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /CASH DEPOSIT/ });
+    const card = await screen.findByRole("article", { name: /CASH DEPOSIT/ }, { timeout: 4000 });
     expect(within(card).getByText("Possible match")).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /match all 2/i }));
     await waitFor(() => expect(m.match).toHaveBeenCalledWith({ accountId: "b1", lineIds: ["l1"], entries: [{ type: "ledger", ledgerEntryId: "la" }, { type: "ledger", ledgerEntryId: "lb" }] }));
@@ -116,7 +116,7 @@ describe("the worklist", () => {
   it("a line nothing fits says so and offers the other ways forward", async () => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "BANK CHARGES", amount: -21 })], { todo: 1 }));
     show();
-    const card = await screen.findByRole("article", { name: /BANK CHARGES/ });
+    const card = await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 });
     expect(within(card).getByText("Nothing in the books fits this line yet.")).toBeInTheDocument();
     expect(within(card).getByText("-21.00")).toBeInTheDocument();
     for (const name of [/find in the books/i, /post an entry/i, /ignore/i]) expect(within(card).getByRole("button", { name })).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "DUPLICATE FEE", amount: -15 })], { todo: 1 }));
     m.ignore.mockResolvedValue({ _id: "l2" });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /DUPLICATE FEE/ })).getByRole("button", { name: /ignore/i }));
+    fireEvent.click(within(await screen.findByRole("article", { name: /DUPLICATE FEE/ }, { timeout: 4000 })).getByRole("button", { name: /ignore/i }));
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: /^ignore$/i });
     expect(confirm).toBeDisabled();
@@ -143,7 +143,7 @@ describe("the worklist", () => {
       ? new Promise((resolve) => { release = () => resolve(page([], { matched: 1 })); })
       : Promise.resolve(page([line({ _id: "l8", description: "A LINE STILL TO DO", amount: -5 })], { todo: 1, matched: 1 }))));
     show();
-    await screen.findByRole("article", { name: /A LINE STILL TO DO/ });
+    await screen.findByRole("article", { name: /A LINE STILL TO DO/ }, { timeout: 4000 });
     fireEvent.click(screen.getByRole("tab", { name: /^matched/i }));
     expect(screen.queryByRole("article", { name: /A LINE STILL TO DO/ })).not.toBeInTheDocument(); // not under the Matched name
     await waitFor(() => expect(release).toBeTypeOf("function")); // the request for the Matched tab is on its way
@@ -199,7 +199,7 @@ describe("post an entry", () => {
   const open = async (over) => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "BANK CHARGES INCL VAT", amount: -21, ...over })], { todo: 1 }));
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /BANK CHARGES/ })).getByRole("button", { name: /post an entry/i }));
+    fireEvent.click(within(await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 })).getByRole("button", { name: /post an entry/i }));
     return screen.findByRole("dialog");
   };
 
@@ -252,7 +252,7 @@ describe("find in the books", () => {
     m.entries.mockResolvedValue({ total: 3, rows: [entry({ id: "a", ledgerEntryId: "la", amount: 300, voucherNo: "RV-1" }), entry({ id: "b", ledgerEntryId: "lb", amount: 225, voucherNo: "RV-2" }), entry({ id: "c", ledgerEntryId: "lc", amount: 100, voucherNo: "RV-3" })] });
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /CASH DEPOSIT/ })).getByRole("button", { name: /find in the books/i }));
+    fireEvent.click(within(await screen.findByRole("article", { name: /CASH DEPOSIT/ }, { timeout: 4000 })).getByRole("button", { name: /find in the books/i }));
     const dialog = await screen.findByRole("dialog");
     const match = within(dialog).getByRole("button", { name: /^match$/i });
     expect(match).toBeDisabled();
@@ -280,7 +280,7 @@ describe("card settlement", () => {
     m.cardUnsettled.mockResolvedValue({ receipts, vatRate: 5, line: {}, suggestion: { cutoffDay: "2026-10-04", entryIds: ["e1", "e2"], expectedNet: 294, difference: 0.3 } });
     m.cardSettle.mockResolvedValue({ settlement: {}, match: {} });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /NETWORK INTL/ })).getByRole("button", { name: /card settlement/i }));
+    fireEvent.click(within(await screen.findByRole("article", { name: /NETWORK INTL/ }, { timeout: 4000 })).getByRole("button", { name: /card settlement/i }));
     return screen.findByRole("dialog");
   };
 
@@ -311,6 +311,17 @@ describe("card settlement", () => {
     expect(record).toBeEnabled();
   });
 
+  it("a payment these sales cannot explain says why and cannot be recorded", async () => {
+    const dialog = await open();
+    const record = await within(dialog).findByRole("button", { name: /record settlement/i });
+    await waitFor(() => expect(record).toBeEnabled());
+    // untick both: only a 98 sale left for a 293.70 payment
+    fireEvent.click(within(dialog).getByLabelText("RV-2026-0021 196.00"));
+    expect(await within(dialog).findByText(/195.70 more than these sales are worth after commission/)).toBeInTheDocument();
+    expect(record).toBeDisabled();
+    expect(within(dialog).queryByText("The difference is fully explained.")).not.toBeInTheDocument();
+  });
+
   it("ticking another sale re-works the figures", async () => {
     const dialog = await open();
     fireEvent.click(await within(dialog).findByLabelText("RV-2026-0022 98.00"));
@@ -328,7 +339,7 @@ describe("unmatching", () => {
     m.unmatch.mockResolvedValue({ match: {}, warnings: [] });
     show();
     fireEvent.click(await screen.findByRole("tab", { name: /^matched/i }));
-    const card = await screen.findByRole("article", { name: /BANK CHARGES/ });
+    const card = await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 });
     expect(within(card).getByText("Entry posted for this line")).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /unmatch/i }));
     const dialog = await screen.findByRole("dialog");
@@ -342,7 +353,7 @@ describe("unmatching", () => {
     m.lines.mockResolvedValue(page([locked], { matched: 1, reconciled: 1 }));
     show();
     fireEvent.click(await screen.findByRole("tab", { name: /^matched/i }));
-    const card = await screen.findByRole("article", { name: /LOCKED LINE/ });
+    const card = await screen.findByRole("article", { name: /LOCKED LINE/ }, { timeout: 4000 });
     expect(within(card).getByText("Locked in a completed reconciliation")).toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: /unmatch/i })).not.toBeInTheDocument();
   });

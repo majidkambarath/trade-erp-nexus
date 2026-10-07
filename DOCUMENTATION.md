@@ -318,6 +318,24 @@ The profile of a customer (`/credit-accounts/customer/:id?tab=documents`, throug
 - **Above the list:** out with the customer, accepted and not ordered, draft invoices to approve, and delivered and not invoiced (with how many are past the 14-day window).
 - Tests: `lib/__tests__/documentFlow.test.js` (stepper, next step, groups, part deliveries) and `salesDocs/__tests__/CustomerDocumentsTab.test.jsx`. `check:mobile` opens the tab on a phone.
 
+### 7c. Bank and card reconciliation (`components/banking/BankReconciliation.jsx`, route `/bank-reconciliation`)
+Finance → **Reconcile** (also a "Reconcile" link on each bank account of Cash & bank). It brings a bank account's statement and its ledger into agreement line by line and proves they agree as of a date. The page has an account chooser, four figures (balance in the books, lines to do, last reconciled, statement covers up to), and three views: **Statement lines**, **Card settlements**, **History**. `?account=<id>&view=lines|card|history` opens one directly.
+
+**The flow, as a person does it**
+1. **Import a statement** (header button). Choose the bank's CSV, Excel or MT940 file. The server reads it and the dialog shows what an import will do: how many lines, how many are already there, the opening and closing balance, whether the running balance chains, and any row it could not read. "How the columns were read" lets you correct the guess (date, description, debit and credit or one signed amount, balance...); the layout is remembered for the next month. The first statement of an account also asks where it starts and the bank's balance the day before.
+2. **Set up** (header button) refines that start: tick the older entries the bank had not recorded yet (a cheque not cleared, a deposit not credited). The difference must reach zero.
+3. **Work the lines.** The list opens on *Suggested* when there are suggestions: each says why (same amount, same day, a reference or cheque number in the text) and has one **Match** button; **Accept all strong matches** does every high-confidence one. A deposit made of several receipts is suggested as a group. For the rest: **Find in the books** (tick several entries; they must add up to the line exactly), **Post an entry** (bank charge with its VAT, interest, a transfer to another account, a customer receipt or vendor payment, or any account), **Card settlement**, or **Ignore** with a reason. A matched line shows what it matched and can be **Unmatched**; a line in a finished reconciliation is locked.
+4. **Finish and prove.** Enter the statement date and closing balance (filled from the latest import). The panel says whether the two sides agree, what is in the way, and shows the reconciliation statement. **Finish reconciliation** numbers it (`BRC-2026-0001`) and locks the matched lines.
+5. **History** keeps every reconciliation with its statement (download as CSV) and can reopen the latest one.
+
+**Rules worth knowing**
+- A **pending cheque** appears as a match for a statement credit; matching it clears the cheque on that day (the bank has paid it).
+- A **matched voucher cannot be edited, deleted or have its cheque bounced** until the line is unmatched (`BANK_MATCHED`), or the reconciliation reopened (`BANK_RECONCILED`).
+- **Card settlement** (button on a credit line): tick the card sales the payment settles; the dialog shows what the books expect against what the bank paid, and the difference is split into the VAT on the commission and any commission beyond the booked rate, which must be fully explained before it can be recorded. A difference too large to be commission and VAT, or a payment bigger than the sales, is refused with the reason. The **Card settlements** tab shows card sales still waiting to be paid out (by working days), the settlements, and the commission booked against the commission taken.
+- Nothing posts a voucher without a click: suggestions are never applied silently.
+- Not built (shown nowhere as a control): bank rules, live bank feeds, PDF statements, CAMT.053, foreign-currency bank accounts, importing the acquirer's own settlement file.
+- Tests: `lib/__tests__/bankReconcile.test.js`, `statementFile.test.js`, `components/banking/__tests__/BankReconciliation.test.jsx`. `check:mobile` opens the page, its tabs and seven dialogs at three widths.
+
 ## 8. Inventory & Stock
 - InventoryManagement: `src/components/Inventory/InventoryManagement.jsx`
 - CategoryManagement: `src/components/Inventory/CategoryManagement.jsx`
