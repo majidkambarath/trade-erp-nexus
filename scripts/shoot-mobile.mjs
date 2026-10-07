@@ -12,6 +12,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import puppeteer from "puppeteer";
+// the same responses the screen tests use, so the sweep and the tests cannot drift apart
+import { POSITION, PROFIT, EQUITY, CASH, NOTES } from "../src/lib/__tests__/ifrsFixtures.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = process.env.SHOT_DIR || join(ROOT, ".shots");
@@ -95,6 +97,8 @@ async function measureDialog(page) {
       // an A4 preview is a fixed 210mm sheet in a pane that scrolls on purpose; it is the page
       // around it that has to fit
       if (el.closest("[data-print-preview]")) return false;
+      // the line-items grid scrolls inside its own card on purpose (below md it becomes a card per line)
+      if (el.querySelector(":scope > table[role='grid']")) return false;
       const st = getComputedStyle(el);
       return st.overflowX === "auto" || st.overflowX === "scroll";
     });
@@ -363,6 +367,24 @@ function stubFor(pathname) {
   }
 
   if (p.includes("einvoic") || p.includes("e-invoic")) {
+    if (p.endsWith("/settings")) return { enabled: true, provider: "sandbox", environment: "sandbox", participantId: "0235:100123456700003", dueDays: 0, retryMax: 5, connected: false, hasWebhookSecret: true };
+    if (p.endsWith("/readiness")) {
+      return {
+        ready: false,
+        seller: [{ key: "trn", label: "Company TRN (15 digits)", ok: false }, { key: "legalName", label: "Company legal name", ok: true }],
+        parties: { total: 2, ready: 1, notReady: [{ _id: "c2", customerName: "Incomplete Trading LLC", missing: ["City"], problems: ["VAT Number must be 15 digits"] }] },
+      };
+    }
+    if (p.endsWith("/dashboard")) {
+      return {
+        outbound: { total: 6, byStatus: { REPORTED: 3, FAILED: 1, REJECTED: 1 }, net: 1000, tax: 50, payable: 1050, successRate: 60, needsAttention: 2 },
+        inbound: { RECEIVED: 4 }, recent: [{ _id: "r1", documentNo: "SO-2026-0001", buyerName: "Al Noor Trading", status: "REPORTED", updatedAt: "2026-10-04T08:00:00Z" }],
+      };
+    }
+    if (p.endsWith("/documents")) {
+      const d = (i, status, over = {}) => ({ _id: `d${i}`, transactionNo: `SO-2026-000${i}`, type: "sales_order", invoiceTypeCode: "380", date: "2026-10-0" + i, customer: `Al Noor Trading ${i}`, total: 1050 * i, status, partyReady: true, partyMissing: [], submissionId: null, lastError: null, overdue: false, ...over });
+      return [d(1, "NOT_SENT"), d(2, "REPORTED", { submissionId: "s1" }), d(3, "FAILED", { submissionId: "s2", lastError: "Timed out" }), d(4, "NOT_SENT", { partyReady: false, partyMissing: ["City", "Participant ID"] })];
+    }
     return {
       counts: { RECEIVED: 4, NOT_SENT: 3, QUEUED: 1, SUBMITTED: 2, ACKNOWLEDGED: 2, REPORTED: 5, FAILED: 1, REJECTED: 0 },
       inbound: { RECEIVED: 4, QUEUED: 0, SUBMITTED: 0, ACKNOWLEDGED: 2, REPORTED: 3, FAILED: 0, REJECTED: 0 },
@@ -453,120 +475,57 @@ function stubFor(pathname) {
   }
 
   if (p.includes("account-configuration") || p.includes("posting")) {
-    return { map: [], keys: [], accounts: n(account, 4), unmapped: [], configured: [] };
-  }
-
-  if (p.includes("fiscal-year")) return [{ _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" }];
-  if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
-  if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }];
-  if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
-
-  // The audit trail: the whole posting picture behind one document or voucher. Its shape is
-  // pinned by src/components/audit/__tests__/AuditTrail.test.jsx.
-  if (p.endsWith("/audit")) {
-    const entry = (id, code, name, dr, cr) => ({ _id: id, accountCode: code, accountName: name, debit: dr, credit: cr, narration: "" });
+    const row = (configKey, displayName, accountCategory, targetKind, parentConfigKey = null) => ({ configKey, displayName, accountCategory, targetKind, parentConfigKey, isActive: true, targetGroup: null, targetAccount: null });
     return {
-      document: {
-        _id: "t1", transactionNo: "SO-2026-0001", type: "sales_order", typeLabel: "Sales order",
-        status: "APPROVED", date: "2026-10-04T00:00:00.000Z", totalAmount: 1312.5,
-        paidAmount: 312.5, outstandingAmount: 1000, items: 1, isOpening: false,
-      },
-      voucher: {
-        _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", typeLabel: "Receipt",
-        date: "2026-10-05T00:00:00.000Z", totalAmount: 312.5, status: "approved",
-        paymentMode: "bank", ledgerBased: true, onAccountAmount: 0,
-      },
-      party: { _id: "c1", type: "Customer", name: "Al Noor Trading" },
-      ledger: {
-        postingEnabled: true, posted: true, isReversed: false, reversedAt: null, note: null,
-        entries: [
-          entry("l1", "ARA0001", "Customer - Al Noor Trading", 1312.5, 0),
-          entry("l2", "INC0001", "Sales Revenue", 0, 1250),
-          entry("l3", "TAXL0001", "Output VAT", 0, 62.5),
-        ],
-        reversals: [],
-        totals: { debit: 1312.5, credit: 1312.5 },
-        balanced: true,
-      },
-      stock: {
-        movements: [{
-          _id: "m1", itemId: "RICE5", itemName: "Rice 5kg", eventType: "SALES_DISPATCH", quantity: -5,
-          previousStock: 100, newStock: 95, unitCost: 9.2, totalValue: 46, cogsAmount: 46,
-          costBasis: "sale", batchNumber: "LOT-1", date: "2026-10-04T00:00:00.000Z", isReversed: false,
-        }],
-      },
-      partyBalance: {
-        rows: [{ _id: "p1", type: "sales_order", date: "2026-10-04T00:00:00.000Z", invNo: "SO-2026-0001", amount: -1312.5, paid: 0, balance: -1312.5, status: "UNPAID", isReversal: false }],
-      },
-      settlements: [{ _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", date: "2026-10-05T00:00:00.000Z", paymentMode: "bank", status: "approved", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
-      allocations: [{ _id: "i1", invoiceId: "i1", typeLabel: "Sales order", outstandingNow: 1000, transactionNo: "SO-2026-0001", date: "2026-10-04T00:00:00.000Z", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
-      einvoice: null,
-      cheque: null,
-      activity: [
-        { _id: "a1", at: "2026-10-04T06:00:00.000Z", action: "TRANSACTION_CREATED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 saved as DRAFT", before: null, after: { status: "DRAFT" } },
-        { _id: "a2", at: "2026-10-04T06:05:00.000Z", action: "TRANSACTION_APPROVED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 approved - 3 ledger entries, 1 stock movements, 1 party balance rows", before: null, after: { effects: { ledgerEntries: 3 } } },
+      ledgerPostingEnabled: true,
+      accountConfiguration: [
+        row("cash-account-group", "Cash accounts", "ASSET", "group"), row("bank-account-group", "Bank accounts", "ASSET", "group"),
+        row("share-capital-group", "Share capital & equity", "EQUITY", "none"), row("pdc-receipt", "Cheques in hand (received, not yet cleared)", "ASSET", "account"),
+        row("card-charges", "Card processing fees", "EXPENSE", "account"), row("bank-charges", "Bank charges", "EXPENSE", "account"),
+        row("bank-interest", "Bank interest income", "INCOME", "account"), row("purchase-group", "Purchase postings", null, "none"),
+        row("vat-purchase", "Input VAT", "ASSET", "account", "purchase-group"), row("sales-group", "Sales postings", null, "none"),
+        row("vat-sales", "Output VAT", "LIABILITY", "account", "sales-group"),
       ],
-    };
-  }
-
-  // ---- reports: each returns its own summary object, so each gets its own shape ----
-
-  const grp = (name) => ({
-    _id: `g-${name}`, name, code: "1000", category: "Assets", children: [], ungrouped: [],
-    accounts: n(account, 3).map((a) => ({ ...a, isActive: true, opening: 1000, debit: 500, credit: 200, closing: 1300 })),
-    totals: { opening: 3000, debit: 1500, credit: 600, closing: 3900 },
-  });
-
-  if (p.includes("general-ledger")) {
-    return {
-      groups: [grp("Current assets"), grp("Revenue")],
-      totals: { opening: 6000, debit: 3000, credit: 1200, closing: 7800 },
-      rows: [], entries: [],
-    };
-  }
-
-  if (p.includes("party-balances")) {
-    return {
-      rows: n(party), parties: n(party),
-      totals: { owed: 342000, overdue: 48000, count: 6, advance: 12000 },
-    };
-  }
-
-  if (p.includes("ageing")) {
-    const buckets = [
-      { key: "current", label: "Current" }, { key: "d30", label: "1-30" },
-      { key: "d60", label: "31-60" }, { key: "d90", label: "61-90" }, { key: "d90p", label: "90+" },
-    ];
-    const amounts = { current: 1000, d30: 2000, d60: 500, d90: 0, d90p: 250 };
-    return {
-      buckets,
-      rows: n(party).map((x) => ({ ...x, buckets: amounts, total: 3750, paymentTerms: "30 days", invoices: [] })),
-      totals: { current: 6000, d30: 12000, d60: 3000, d90: 0, d90p: 1500, total: 22500 },
     };
   }
 
   if (p.includes("opening-balances")) {
     return {
-      goLiveDate: "2026-01-01", locked: false, balanced: true, difference: 0,
+      goLive: "2026-01-01", postedAt: null, equity: { id: "obe", accountName: "Opening Balance Equity" },
       sections: {
-        accounts: { rows: 4, debit: 120000, credit: 120000 },
-        customers: { rows: 6, total: 84000 },
-        vendors: { rows: 3, total: 42000 },
-        stock: { rows: 12, value: 196000 },
+        accounts: { rows: 4, vouchers: 1, debit: 120000, credit: 120000, difference: 0 },
+        customers: { rows: 6, parties: 4, total: 84000, outstanding: 84000 },
+        vendors: { rows: 3, parties: 2, total: 42000, outstanding: 42000 },
+        stock: { rows: 12, items: 12, vouchers: 1, value: 196000 },
       },
+      trialBalance: { debit: 120000, credit: 120000, entries: 4, balanced: true, equity: { accountName: "Opening Balance Equity", openingBalance: 0, balance: 0 } },
+      stockReconciliation: { available: true, stockValue: 196000, ledgerBalance: 196000, difference: 0, reconciles: true, account: { name: "Inventory Stock" } },
+      warnings: [], missing: [],
     };
   }
 
   if (p.includes("vat-return") || p.includes("/vat")) {
+    if (p.endsWith("/returns")) return [];
+    if (p.endsWith("/detail")) {
+      const doc = (i, direction, kinds, taxable, vat) => ({ source: "invoice", docId: `v${i}`, date: "2026-09-0" + i, docNo: `SO-2026-000${i}`, direction, partyName: `Al Noor Trading ${i}`, trn: "100123456700003", kinds, taxable, vat });
+      return { total: 3, totals: { taxable: 21000, vat: 1000 }, rows: [doc(1, "output", ["standard"], 10000, 500), doc(2, "output", ["standard", "zero_rated"], 8000, 400), doc(3, "input", ["standard"], 3000, 100)] };
+    }
+    const box = (id, label, amount = 0, vat = 0) => ({ box: id, label, amount, vat });
     return {
+      from: "2026-07-01", to: "2026-09-30", emirate: "Dubai", currency: "AED",
       boxes: [
-        { box: "1", label: "Standard rated supplies", amount: 480000, vat: 24000 },
-        { box: "4", label: "Standard rated expenses", amount: 180000, vat: 9000 },
+        box("1a", "Standard-rated supplies in Abu Dhabi"), box("1b", "Standard-rated supplies in Dubai", 480000, 24000), box("1c", "Standard-rated supplies in Sharjah"),
+        box("1d", "Standard-rated supplies in Ajman"), box("1e", "Standard-rated supplies in Umm Al Quwain"), box("1f", "Standard-rated supplies in Ras Al Khaimah"),
+        box("1g", "Standard-rated supplies in Fujairah"), box("3", "Supplies subject to the reverse charge"), box("4", "Zero-rated supplies", 12000),
+        box("5", "Exempt supplies", 8000), box("8", "Total supplies", 500000, 24000), box("9", "Standard-rated expenses", 180000, 9000),
+        box("10", "Expenses subject to the reverse charge"), box("11", "Total expenses", 180000, 9000), box("12", "Total VAT due", 0, 24000),
+        box("13", "Recoverable input VAT", 0, 9000), box("14", "Net VAT payable", 0, 15000),
       ],
-      rows: [], lines: [], totals: { output: 24000, input: 9000, payable: 15000 },
-      unclassified: { count: 0, amount: 0, lines: [] },
-      emirates: [], adjustments: [],
-      reconciliation: { matched: true, difference: 0 }, saved: null, returns: [],
+      totals: { outputVat: 24000, recoverableVat: 9000, netPayable: 15000 },
+      unclassified: { count: 0, amount: 0, vat: 0, lines: [] },
+      notReported: { count: 0, amount: 0 },
+      notTracked: [{ box: "2", label: "Tax refunds provided to tourists" }, { box: "6", label: "Goods imported into the UAE" }, { box: "7", label: "Import adjustments" }],
+      reconciliation: { rows: [{ label: "Output VAT", documents: 24000, ledger: 24000, difference: 0, agrees: true }, { label: "Input VAT", documents: 9000, ledger: 8995, difference: 5, agrees: false }] },
     };
   }
 
@@ -579,14 +538,13 @@ function stubFor(pathname) {
 
   if (p.includes("lookups")) return { items: n(batch), categories: [], warehouses: [], units: [] };
 
-  if (p.includes("ifrs")) {
-    const section = () => ({ current: n(account, 2), nonCurrent: n(account, 2), total: 240000, lines: n(account, 3) });
-    return {
-      assets: section(), liabilities: section(), equity: section(),
-      profitOrLoss: { lines: n(account, 4), total: 84000 },
-      cashFlows: { operating: [], investing: [], financing: [], total: 0 },
-      changesInEquity: { rows: [] }, notes: [], comparative: null,
-    };
+  if (p.includes("/ifrs/")) {
+    if (p.endsWith("/financial-position")) return POSITION;
+    if (p.endsWith("/profit-or-loss")) return PROFIT;
+    if (p.endsWith("/changes-in-equity")) return EQUITY;
+    if (p.endsWith("/cash-flows")) return CASH;
+    if (p.endsWith("/notes")) return NOTES;
+    return {};
   }
 
   if (p.includes("document-expiry") || p.includes("kyc")) {
@@ -911,4 +869,9 @@ for (const vp of VIEWPORTS) {
 await browser.close();
 writeFileSync(join(OUT, "report.json"), JSON.stringify(results, null, 2));
 console.log(`\nShots in ${OUT}`);
-await stop(results.some((r) => r.bleeds || r.blank || r.error) ? 1 : 0);
+// A screen that throws is not "ok" just because something else is still drawn: a tab that throws inside its
+// panel hides the layout the sweep exists to check, and (with no error boundary) can blank the whole page.
+const threw = (r) => (r.errors || []).some((e) => /^pageerror/.test(e));
+const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r));
+for (const r of broken.filter((x) => threw(x) && !x.bleeds && !x.blank)) console.log(`THREW  ${r.vp.padEnd(8)} ${r.page}  ${r.errors.find((e) => /^pageerror/.test(e))}`);
+await stop(broken.length ? 1 : 0);
