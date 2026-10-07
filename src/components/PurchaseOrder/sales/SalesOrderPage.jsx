@@ -246,6 +246,9 @@ const formatDisplayTransactionNo = (t) => {
       createdBy: t.createdBy,
       createdAt: t.createdAt,
       invoiceGenerated: t.invoiceGenerated,
+      // an opening balance invoice has no goods; an order the customer will not take the rest of takes no more deliveries
+      isOpening: Boolean(t.isOpening),
+      closedShort: t.closedShort?.at ? t.closedShort : null,
       priority: t.priority || "Medium",
       // Map backend fields for LPO, Doc No, and Discount to UI fields
       refNo: t.lpono ?? t.refNo ?? "",

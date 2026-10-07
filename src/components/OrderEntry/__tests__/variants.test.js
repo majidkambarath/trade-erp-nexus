@@ -77,6 +77,24 @@ describe("sales order payload", () => {
   });
 });
 
+describe("editing a saved sales order keeps each line's identity", () => {
+  const V = VARIANTS.sales;
+
+  it("sends the stored line id back, so delivery notes raised against the line stay attached", () => {
+    const saved = { itemId: "s1", description: "Juice", qty: 4, price: 55, vatPercent: 5, _id: "line-1" };
+    const row = V.rowFromSaved(saved);
+    expect(row.lineId).toBe("line-1");
+    const p = buildPayload(V, { partyId: "c1" }, [{ ...row, itemId: "s1" }], byId(stock()));
+    expect(p.items[0]._id).toBe("line-1");
+  });
+
+  it("a line added in the form has no id yet", () => {
+    const fresh = { ...V.rowTemplate(), itemId: "s1", qty: "4", rate: "55", vatPercent: "5" };
+    const p = buildPayload(V, { partyId: "c1" }, [fresh], byId(stock()));
+    expect("_id" in p.items[0]).toBe(false);
+  });
+});
+
 describe("purchase order payload", () => {
   const V = VARIANTS.purchase;
   const row = { ...V.rowTemplate(), itemId: "s1", qty: "2", currentPurchasePrice: "10", vatPercent: "5" };

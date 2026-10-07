@@ -64,6 +64,7 @@ const DEEP = {
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
+DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 
 /** The first visible, enabled control whose text or label matches. */
 async function findByText(page, label) {
@@ -397,6 +398,11 @@ function stubFor(pathname) {
   // reads a nested figure, so this is the one shape worth writing out in full - a missing key
   // here reads as a blank page and hides whatever the harness was meant to catch.
   if (p.includes("dashboard")) {
+    const AGEING = [
+      { key: "current", label: "Not yet due", receivables: 120000, payables: 64000 }, { key: "d1_30", label: "1-30 days", receivables: 48000, payables: 12000 },
+      { key: "d31_60", label: "31-60 days", receivables: 0, payables: 0 }, { key: "d61_90", label: "61-90 days", receivables: 0, payables: 0 },
+      { key: "d90plus", label: "Over 90 days", receivables: 4700, payables: 0 },
+    ];
     const months = (n2 = 8) =>
     Array.from({ length: n2 }, (_, i) => ({
       month: `2026-0${(i % 9) + 1}`, revenue: 80000 + i * 9000, purchases: 60000 + i * 7000,
@@ -426,11 +432,11 @@ function stubFor(pathname) {
     }
     if (p.includes("/reports")) {
       return {
-        period, monthly: months(),
-        pnl: { revenue: 1284000, cogs: 820000, grossProfit: 464000, expenses: 180000, netProfit: 284000 },
-        cash: { opening: 120000, inflow: 640000, outflow: 520000, closing: 240000 },
-        receivables: { total: 342000, overdue: 48000 }, payables: { total: 128000, overdue: 12000 },
-        rows: [], links: [],
+        currency: "AED", period, grossProfit: 464000, netProfit: 284000,
+        vat: { from: "2026-10-01", to: "2026-10-31", outputVat: 64200, recoverableVat: 41000, net: 23200, position: "payable", hasActivity: true },
+        valueGrowth: months().map(({ month }, i) => ({ month, grossProfit: 30000 + i * 9000 })),
+        vouchers: [{ voucherType: "receipt", amount: 930000 }, { voucherType: "payment", amount: 520000 }, { voucherType: "journal", amount: 40000 }, { voucherType: "contra", amount: 120000 }, { voucherType: "expense", amount: 64000 }],
+        ageing: AGEING,
       };
     }
     if (p.includes("/analytics")) {
@@ -447,6 +453,11 @@ function stubFor(pathname) {
         settlement: named(["Cash", "Bank", "Cheque", "Card"]),
         topCustomers: n(party, 5).map((x) => ({ name: x.name, netRevenue: 42000 })),
         radar: { categories: [{ name: "Rice", value: 80 }, { name: "Oil", value: 62 }, { name: "Sugar", value: 45 }] },
+        ageing: AGEING,
+        topVendors: [{ partyId: "v2", name: "Delta Foods", purchases: 100000, previous: 80000, changePct: 25 }, { partyId: "v1", name: "Gulf Mills", purchases: 50000, previous: 0, changePct: null }],
+        collections: ["2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((weekStart, i) => ({ weekStart, receipts: i * 10000, invoiced: i * 20000 })),
+        treemap: [{ itemId: "RICE", name: "Rice", size: 640000 }, { itemId: "OIL", name: "Oil", size: 300000 }],
+        hourly: [{ hour: 8, mon: 1, tue: 0, wed: 2, thu: 0, fri: 0, weekend: 0 }, { hour: 10, mon: 0, tue: 0, wed: 0, thu: 3, fri: 0, weekend: 1 }],
       };
     }
 
@@ -486,6 +497,185 @@ function stubFor(pathname) {
         row("vat-purchase", "Input VAT", "ASSET", "account", "purchase-group"), row("sales-group", "Sales postings", null, "none"),
         row("vat-sales", "Output VAT", "LIABILITY", "account", "sales-group"),
       ],
+    };
+  }
+
+  if (p.includes("fiscal-year")) return [{ _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" }];
+  if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
+  if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }];
+  if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
+
+  // The audit trail: the whole posting picture behind one document or voucher. Its shape is
+  // pinned by src/components/audit/__tests__/AuditTrail.test.jsx.
+  if (p.endsWith("/audit")) {
+    const entry = (id, code, name, dr, cr) => ({ _id: id, accountCode: code, accountName: name, debit: dr, credit: cr, narration: "" });
+    return {
+      document: {
+        _id: "t1", transactionNo: "SO-2026-0001", type: "sales_order", typeLabel: "Sales order",
+        status: "APPROVED", date: "2026-10-04T00:00:00.000Z", totalAmount: 1312.5,
+        paidAmount: 312.5, outstandingAmount: 1000, items: 1, isOpening: false,
+      },
+      voucher: {
+        _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", typeLabel: "Receipt",
+        date: "2026-10-05T00:00:00.000Z", totalAmount: 312.5, status: "approved",
+        paymentMode: "bank", ledgerBased: true, onAccountAmount: 0,
+      },
+      party: { _id: "c1", type: "Customer", name: "Al Noor Trading" },
+      ledger: {
+        postingEnabled: true, posted: true, isReversed: false, reversedAt: null, note: null,
+        entries: [
+          entry("l1", "ARA0001", "Customer - Al Noor Trading", 1312.5, 0),
+          entry("l2", "INC0001", "Sales Revenue", 0, 1250),
+          entry("l3", "TAXL0001", "Output VAT", 0, 62.5),
+        ],
+        reversals: [],
+        totals: { debit: 1312.5, credit: 1312.5 },
+        balanced: true,
+      },
+      stock: {
+        movements: [{
+          _id: "m1", itemId: "RICE5", itemName: "Rice 5kg", eventType: "SALES_DISPATCH", quantity: -5,
+          previousStock: 100, newStock: 95, unitCost: 9.2, totalValue: 46, cogsAmount: 46,
+          costBasis: "sale", batchNumber: "LOT-1", date: "2026-10-04T00:00:00.000Z", isReversed: false,
+        }],
+      },
+      partyBalance: {
+        rows: [{ _id: "p1", type: "sales_order", date: "2026-10-04T00:00:00.000Z", invNo: "SO-2026-0001", amount: -1312.5, paid: 0, balance: -1312.5, status: "UNPAID", isReversal: false }],
+      },
+      settlements: [{ _id: "v1", voucherNo: "RV-2026-0004", voucherType: "receipt", date: "2026-10-05T00:00:00.000Z", paymentMode: "bank", status: "approved", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
+      allocations: [{ _id: "i1", invoiceId: "i1", typeLabel: "Sales order", outstandingNow: 1000, transactionNo: "SO-2026-0001", date: "2026-10-04T00:00:00.000Z", allocatedAmount: 312.5, previousBalance: 1312.5, newBalance: 1000 }],
+      einvoice: null,
+      cheque: null,
+      activity: [
+        { _id: "a1", at: "2026-10-04T06:00:00.000Z", action: "TRANSACTION_CREATED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 saved as DRAFT", before: null, after: { status: "DRAFT" } },
+        { _id: "a2", at: "2026-10-04T06:05:00.000Z", action: "TRANSACTION_APPROVED", username: "boss@test.uae", summary: "Sales order SO-2026-0001 - 1312.50 approved - 3 ledger entries, 1 stock movements, 1 party balance rows", before: null, after: { effects: { ledgerEntries: 3 } } },
+      ],
+    };
+  }
+
+  // ---- reports: each returns its own summary object, so each gets its own shape ----
+
+  const grp = (name) => ({
+    _id: `g-${name}`, name, code: "1000", category: "Assets", children: [], ungrouped: [],
+    accounts: n(account, 3).map((a) => ({ ...a, isActive: true, opening: 1000, debit: 500, credit: 200, closing: 1300 })),
+    totals: { opening: 3000, debit: 1500, credit: 600, closing: 3900 },
+  });
+
+  if (p.includes("/reports/profit-loss")) {
+    const group = (id, name, total, code, account) => ({ groupId: id, name, total, accounts: [{ accountId: `${id}a`, accountCode: code, accountName: account, amount: total }] });
+    return {
+      revenue: { groups: [group("g1", "Sales Income", 1284000, "SAL0001", "Sales Revenue")], total: 1284000 },
+      directCosts: { groups: [group("g2", "Cost of Goods Sold", 820000, "COGS0001", "Cost of Goods Sold")], total: 820000 },
+      grossProfit: 464000, grossMargin: 36.1,
+      otherIncome: { groups: [], total: 0 },
+      operatingExpenses: { groups: [group("g3", "Operating Expenses", 180000, "OPEX0001", "Rent")], total: 180000 },
+      netProfit: 284000,
+    };
+  }
+  if (p.includes("/reports/day-book")) {
+    return {
+      total: 3, page: 1, limit: 50,
+      byType: [{ voucherType: "sales_order", label: "Sales invoice", amount: 210, count: 1 }, { voucherType: "receipt", label: "Receipt", amount: 100, count: 1 }],
+      rows: n(voucher, 3).map((v, i) => ({ voucherId: `v${i}`, date: "2026-10-04T08:00:00Z", voucherNo: `SO-2026-000${i + 1}`, voucherType: i ? "receipt" : "sales_order", typeLabel: i ? "Receipt" : "Sales invoice", party: "Al Noor Trading", narration: i ? "" : "Month-end accrual", amount: 210 - i * 100, balanced: true, lines: [{ accountId: "a", accountCode: "OPEX0006", accountName: "Rent Expense", debit: 210 - i * 100, credit: 0 }, { accountId: "b", accountCode: "CASH0001", accountName: "Cash in Hand", debit: 0, credit: 210 - i * 100 }] })),
+    };
+  }
+  if (p.includes("/reports/cash-book")) {
+    return {
+      rows: [
+        { accountId: "a1", accountCode: "CASH0001", accountName: "Cash in Hand", kind: "cash", opening: 0, receipts: 5100, payments: 1510, closing: 3590 },
+        { accountId: "a2", accountCode: "BANK0002", accountName: "Emirates NBD Current", kind: "bank", opening: 0, receipts: 1000, payments: 0, closing: 1000 },
+      ],
+      totals: { cash: { opening: 0, receipts: 5100, payments: 1510, closing: 3590 }, bank: { opening: 0, receipts: 1000, payments: 0, closing: 1000 }, all: { opening: 0, receipts: 6100, payments: 1510, closing: 4590 } },
+    };
+  }
+  if (p.includes("/stock-reports/slow-moving")) {
+    return {
+      days: 90, asOn: "2026-10-04",
+      rows: [
+        { stockId: "s2", itemId: "OIL", sku: "OIL-1L", itemName: "Sunflower Oil 1L", unit: "ltr", categoryName: "Oils", qty: 45, avgCost: 20.67, value: 930, lastSaleDate: "2026-06-01T08:00:00.000Z", neverSold: false, daysSince: 125 },
+        { stockId: "s3", itemId: "SALT", sku: "SALT-1KG", itemName: "Sea Salt 1kg", unit: "kg", categoryName: "Spices", qty: 30, avgCost: 2, value: 60, lastSaleDate: null, neverSold: true, daysSince: 100 },
+      ],
+      totals: { items: 2, value: 990, neverSold: 1, pctOfStockValue: 43.5, stockValue: 2276.15 },
+    };
+  }
+  if (p.includes("/stock-reports/reorder")) {
+    return {
+      rows: [
+        { stockId: "s1", itemId: "RICE", sku: "RICE-5KG", itemName: "Basmati Rice 5kg", unit: "kg", categoryName: "Grains", qty: 0, reorderLevel: 150, shortfall: 150, avgCost: 11.69, shortfallValue: 1753.85, status: "out", vendorName: "Gulf Mills" },
+        { stockId: "s3", itemId: "SALT", sku: "SALT-1KG", itemName: "Sea Salt 1kg", unit: "kg", categoryName: "Spices", qty: 20, reorderLevel: 30, shortfall: 10, avgCost: 2, shortfallValue: 20, status: "below", vendorName: "" },
+      ],
+      totals: { items: 2, outOfStock: 1, shortfallValue: 1773.85 },
+    };
+  }
+  if (p.includes("/stock-reports/expiry")) {
+    const batch = (over) => ({ batchId: "b", batchNumber: "O1", stockId: "s2", itemId: "OIL", sku: "OIL-1L", itemName: "Sunflower Oil 1L", unit: "ltr", categoryName: "Oils", qtyOnHand: 40, expiryDate: "2026-10-29T00:00:00.000Z", daysToExpiry: 25, expired: false, fefoRank: 2, unitCost: 20.67, receiptCost: 20, valueAtCost: 826.67, ...over });
+    return {
+      withinDays: 30, asOn: "2026-10-04",
+      rows: [
+        batch({ batchId: "b1", batchNumber: "O-OLD", qtyOnHand: 5, expiryDate: "2026-10-01T00:00:00.000Z", daysToExpiry: -3, expired: true, fefoRank: 1, valueAtCost: 103.33 }),
+        batch({ batchId: "b2" }),
+        batch({ batchId: "b3", batchNumber: "O2", qtyOnHand: 3, daysToExpiry: 5, fefoRank: 3, valueAtCost: 62 }),
+      ],
+      totals: { batches: 3, items: 1, qty: 48, value: 992, expired: { batches: 1, qty: 5, value: 103.33 }, expiring: { batches: 2, qty: 43, value: 888.67 } },
+    };
+  }
+  if (p.includes("/reports/cash-flow")) {
+    return {
+      opening: 120000, totalIn: 640000, totalOut: 520000, net: 120000, closing: 240000, closingPerLedger: 240000, reconciles: true, accounts: 3,
+      lines: [
+        { voucherType: "receipt", label: "Received from customers", inflow: 640000, outflow: 0, net: 640000, count: 31 },
+        { voucherType: "payment", label: "Paid to vendors", inflow: 0, outflow: 520000, net: -520000, count: 24 },
+      ],
+    };
+  }
+  if (p.includes("/stock-reports/sales-analysis")) {
+    return {
+      from: "2026-10-01", to: "2026-10-04", groupBy: "item", direction: "sales",
+      rows: [
+        { key: "RICE", name: "Basmati Rice 5kg", code: "RICE-5KG", quantity: 70, soldQty: 80, returnedQty: 10, revenue: 1460, returns: 180, netRevenue: 1280, cogs: 833.85, grossProfit: 446.15, marginPct: 34.9, sharePct: 81, documents: 3 },
+        { key: "OIL", name: "Sunflower Oil 1L", code: "OIL-1L", quantity: 10, soldQty: 10, returnedQty: 0, revenue: 300, returns: 0, netRevenue: 300, cogs: 200, grossProfit: 100, marginPct: 33.3, sharePct: 19, documents: 1 },
+      ],
+      totals: { quantity: 80, revenue: 1760, returns: 180, netRevenue: 1580, cogs: 1033.85, grossProfit: 546.15, marginPct: 34.6, documents: 3 },
+    };
+  }
+  if (p.includes("/stock-reports/movement")) {
+    const mv = (qty, value) => ({ qty, value });
+    const row = (id, name, cat, o, pur, sal, c) => ({ stockId: id, itemId: id.toUpperCase(), sku: `${id}-SKU`, itemName: name, categoryName: cat, opening: mv(o, o * 12), purchases: mv(pur, pur * 12), salesReturns: mv(0, 0), purchaseReturns: mv(0, 0), sales: mv(sal, sal * 12), writeOffs: mv(0, 0), adjustments: mv(0, 0), closing: mv(c, c * 12) });
+    return {
+      from: "2026-10-01", to: "2026-10-04",
+      rows: [row("s1", "Basmati Rice 5kg", "Grains", 200, 0, 60, 140), row("s2", "Sunflower Oil 1L", "Oils", 50, 20, 10, 60)],
+      totals: { opening: mv(250, 3000), purchases: mv(20, 240), salesReturns: mv(0, 0), purchaseReturns: mv(0, 0), sales: mv(70, 840), writeOffs: mv(0, 0), adjustments: mv(0, 0), closing: mv(200, 2400) },
+      reconciliation: { available: true, stockValue: 2400, ledgerBalance: 2400, difference: 0, reconciles: true, account: { name: "Inventory Stock" } },
+    };
+  }
+  if (p.includes("/accounting/settings")) {
+    return { creditControl: { mode: "warn", overdueBlockDays: 30 }, returnWindowDays: 14, requireReturnLink: false, profile: { legalName: "Harbour Trading LLC", trn: "100123456700003" } };
+  }
+  if (p.includes("general-ledger")) {
+    return {
+      groups: [grp("Current assets"), grp("Revenue")],
+      totals: { opening: 6000, debit: 3000, credit: 1200, closing: 7800 },
+      rows: [], entries: [],
+    };
+  }
+
+  if (p.includes("party-balances")) {
+    return {
+      rows: n(party), parties: n(party),
+      totals: { owed: 342000, overdue: 48000, count: 6, advance: 12000 },
+    };
+  }
+
+  if (p.includes("ageing")) {
+    const buckets = [
+      { key: "current", label: "Current" }, { key: "d30", label: "1-30" },
+      { key: "d60", label: "31-60" }, { key: "d90", label: "61-90" }, { key: "d90p", label: "90+" },
+    ];
+    const amounts = { current: 1000, d30: 2000, d60: 500, d90: 0, d90p: 250 };
+    return {
+      buckets,
+      rows: n(party).map((x) => ({ ...x, buckets: amounts, total: 3750, paymentTerms: "30 days", invoices: [] })),
+      totals: { current: 6000, d30: 12000, d60: 3000, d90: 0, d90p: 1500, total: 22500 },
     };
   }
 
@@ -870,8 +1060,9 @@ await browser.close();
 writeFileSync(join(OUT, "report.json"), JSON.stringify(results, null, 2));
 console.log(`\nShots in ${OUT}`);
 // A screen that throws is not "ok" just because something else is still drawn: a tab that throws inside its
-// panel hides the layout the sweep exists to check, and (with no error boundary) can blank the whole page.
-const threw = (r) => (r.errors || []).some((e) => /^pageerror/.test(e));
+// panel hides the layout the sweep exists to check. The page error boundary catches it and shows "Something went
+// wrong on this page" instead of a blank window, so the crash arrives as a console error, not a page error.
+const threw = (r) => (r.errors || []).some((e) => /^pageerror/.test(e) || /^console: Page crashed:/.test(e));
 const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r));
-for (const r of broken.filter((x) => threw(x) && !x.bleeds && !x.blank)) console.log(`THREW  ${r.vp.padEnd(8)} ${r.page}  ${r.errors.find((e) => /^pageerror/.test(e))}`);
+for (const r of broken.filter((x) => threw(x) && !x.bleeds && !x.blank)) console.log(`THREW  ${r.vp.padEnd(8)} ${r.page}  ${r.errors.find((e) => /^pageerror|^console: Page crashed:/.test(e))}`);
 await stop(broken.length ? 1 : 0);

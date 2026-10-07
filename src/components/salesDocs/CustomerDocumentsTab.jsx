@@ -3,13 +3,15 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Check, CircleDot, Minus, X } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { EmptyState, ErrorNote, Pill, Spinner, useAsync } from "../accounting/kit";
-import { documentFlow } from "../../lib/salesDocumentsApi";
+import { ConfirmDialog, EmptyState, ErrorNote, Pill, Spinner, useAsync, useToasts } from "../accounting/kit";
+import { documentFlow, orderClose } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, clockText } from "../../lib/salesDocuments";
-import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, nextAction } from "../../lib/documentFlow";
-import { formatNumber } from "../../utils/format";
+import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
+import { formatDate, formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Note, PillTabs } from "./parts";
+import CloseShortDialog from "./CloseShortDialog";
+import { useDocumentAction } from "./hooks";
 
 // One customer's deals, each as a stepper from the offer to the invoice, with the one thing to do next.
 // The server joins the documents (GET /document-flow/customer/:id); lib/documentFlow.js decides how a deal
@@ -56,12 +58,20 @@ function Step({ step }) {
   );
 }
 
-function Deal({ deal }) {
+function Deal({ deal, notify, reload }) {
+  const [dialog, setDialog] = useState(null); // "close" | "reopen"
+  const action = useDocumentAction({ notify, reload });
   const title = dealTitle(deal);
   const steps = dealSteps(deal);
   const next = nextAction(deal);
   const group = dealGroup(deal);
   const grid = steps.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
+  const cs = deal.closeShort;
+  const offerClose = canCloseShort(deal);
+  const closeDialog = () => {
+    setDialog(null);
+    action.clear();
+  };
   return (
     <article aria-label={`${title.kind} ${title.no}`} className="rounded-xl border border-border bg-card shadow-card">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
@@ -74,6 +84,7 @@ function Deal({ deal }) {
           {deal.expiresInDays !== null && deal.expiresInDays !== undefined && (
             <Pill tone="warning">Offer expires {deal.expiresInDays === 0 ? "today" : `in ${deal.expiresInDays} day${deal.expiresInDays === 1 ? "" : "s"}`}</Pill>
           )}
+          {cs && <Pill tone="warning">Closed short</Pill>}
           <Pill tone={STAGE_TONE[deal.stage]}>{STAGE_LABEL[deal.stage]}</Pill>
           <span className="text-sm font-semibold tabular-nums text-foreground">{formatNumber(deal.amount, 2)} <span className="text-xs font-normal text-muted-foreground">AED</span></span>
         </div>
@@ -81,13 +92,46 @@ function Deal({ deal }) {
       <ol className={cn("grid px-4 py-4 sm:px-5 md:gap-4", grid)} aria-label="Steps of this deal">
         {steps.map((s) => <Step key={s.key} step={s} />)}
       </ol>
-      {next && (
+      {cs && (
+        <div className="flex flex-wrap items-start justify-between gap-3 border-t border-border px-4 py-3 sm:px-5">
+          <Note className="min-w-0 flex-1">
+            Closed short on {formatDate(cs.at)}: {leftText(cs.left)} will not be delivered. Reason: {cs.reason}.
+            {cs.trimmed ? " The order was cut down to what was delivered." : " The invoice was not changed."}
+          </Note>
+          {canReopenShort(deal) && <Button size="sm" variant="outline" onClick={() => setDialog("reopen")}>Reopen</Button>}
+        </div>
+      )}
+      {(next || offerClose) && (
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-secondary/40 px-4 py-3 sm:px-5">
-          <p className="min-w-0 text-sm text-muted-foreground"><span className="font-medium text-foreground">Next:</span> {next.why}</p>
-          <Button asChild size="sm" variant={group === "action" ? "default" : "outline"}>
-            <Link to={next.to}>{next.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
-          </Button>
+          <p className="min-w-0 text-sm text-muted-foreground">{next && <><span className="font-medium text-foreground">Next:</span> {next.why}</>}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {offerClose && <Button size="sm" variant="outline" onClick={() => setDialog("close")}>Close order short</Button>}
+            {next && (
+              <Button asChild size="sm" variant={group === "action" ? "default" : "outline"}>
+                <Link to={next.to}>{next.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+              </Button>
+            )}
+          </div>
         </footer>
+      )}
+      {dialog === "close" && (
+        <CloseShortDialog
+          orderId={deal.order._id} orderNo={deal.order.transactionNo} busy={action.busy} problem={action.problem} onClose={closeDialog}
+          onConfirm={async (body) => {
+            const done = await action.run(() => orderClose.closeShort(deal.order._id, body), `${deal.order.transactionNo} closed short`);
+            if (done) setDialog(null);
+          }}
+        />
+      )}
+      {dialog === "reopen" && (
+        <ConfirmDialog
+          title={`Reopen ${deal.order.transactionNo}`} confirmLabel="Reopen order" busy={action.busy} onClose={closeDialog}
+          text={cs?.trimmed ? "The order goes back to the quantities it had before it was closed short, and what is left can be delivered again." : "The order is open again, and what is left can be delivered."}
+          onConfirm={async () => {
+            const done = await action.run(() => orderClose.reopen(deal.order._id), `${deal.order.transactionNo} reopened`);
+            if (done) setDialog(null);
+          }}
+        />
       )}
     </article>
   );
@@ -95,6 +139,7 @@ function Deal({ deal }) {
 
 export default function CustomerDocumentsTab({ customerId }) {
   const { data, loading, error, reload } = useAsync(() => documentFlow.customer(customerId), [customerId]);
+  const { notify, toastNode } = useToasts();
   const [filter, setFilter] = useState(null); // null until the person chooses: then the default decides
   const chains = useMemo(() => data?.chains || [], [data]);
   const counts = useMemo(() => flowCounts(chains), [chains]);
@@ -110,6 +155,7 @@ export default function CustomerDocumentsTab({ customerId }) {
 
   return (
     <div className="space-y-5">
+      {toastNode}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard title="Out with the customer" count={amount(s.outWithCustomer)} subText={`${s.outWithCustomer.count} offer${s.outWithCustomer.count === 1 ? "" : "s"} still valid`} tone="teal" />
         <StatCard title="Accepted, not ordered" count={amount(s.acceptedNotOrdered)} subText={`${s.acceptedNotOrdered.count} waiting to be converted`} tone="plum" />
@@ -136,7 +182,7 @@ export default function CustomerDocumentsTab({ customerId }) {
               {active === "action" ? "Nothing needs doing for this customer." : "No deals here."}
             </p>
           ) : (
-            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} />)}</div>
+            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} notify={notify} reload={reload} />)}</div>
           )}
         </>
       )}

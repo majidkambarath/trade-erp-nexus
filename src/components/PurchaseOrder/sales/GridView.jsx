@@ -63,6 +63,7 @@ const GridView = ({
                   {getStatusIcon(so.status)}
                   <span className="ml-1">{so.status}</span>
                 </div>
+                {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
               </div>
             </div>
           </div>
@@ -146,7 +147,7 @@ const GridView = ({
                   <History className="w-4 h-4" />
                   <span className="text-sm">Audit trail</span>
                 </button>
-                {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && (
+                {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && !so.closedShort && (
                   <button
                     onClick={() => onDeliveryNote(so)}
                     className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"

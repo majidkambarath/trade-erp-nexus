@@ -1,13 +1,16 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 
 import CustomerDocumentsTab from "../CustomerDocumentsTab";
-import { documentFlow } from "../../../lib/salesDocumentsApi";
+import { documentFlow, orderClose } from "../../../lib/salesDocumentsApi";
 
-vi.mock("../../../lib/salesDocumentsApi", () => ({ documentFlow: { customer: vi.fn() } }));
+vi.mock("../../../lib/salesDocumentsApi", () => ({
+  documentFlow: { customer: vi.fn() },
+  orderClose: { preview: vi.fn(), closeShort: vi.fn(), reopen: vi.fn() },
+}));
 
 const summary = (over = {}) => ({
   outWithCustomer: { count: 1, value: 100 }, acceptedNotOrdered: { count: 1, value: 300 }, ordersToApprove: { count: 1, value: 500 },
@@ -152,5 +155,141 @@ describe("CustomerDocumentsTab", () => {
     documentFlow.customer.mockResolvedValue({ customer: {}, chains: [], summary: summary(), truncated: false });
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(await screen.findByText("No quotations, orders or delivery notes yet")).toBeInTheDocument();
+  });
+
+  describe("closing an order short", () => {
+    const rice = [{ description: "Rice", qty: 4 }];
+    const part = (over = {}) => chain({
+      key: "p", stage: "delivering", mode: "order_first",
+      order: order({ _id: "o5", transactionNo: "SO-2026-0050", ...(over.order || {}) }),
+      notes: [note({ _id: "n5", deliveryNoteNo: "DLN-2026-0050" })],
+      delivery: { started: true, complete: false, remaining: rice },
+      ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== "order")),
+    });
+    const closedShort = (over = {}) => ({ at: "2026-10-05T08:00:00.000Z", reason: "Customer found another supplier", trimmed: false, valueShort: 84, left: rice, returns: [], creditDue: true, ...over });
+    const previewOf = (over = {}) => ({
+      order: { _id: "o5", transactionNo: "SO-2026-0050", status: "DRAFT", totalAmount: 210 },
+      mode: "trim", valueShort: 84, newTotal: 126,
+      lines: [{ lineId: "l1", description: "Rice", ordered: 10, delivered: 6, short: 4, valueShort: 84 }],
+      ...over,
+    });
+    const openDialog = async (name = "Sales order SO-2026-0050") => {
+      const deal = await screen.findByRole("article", { name });
+      fireEvent.click(within(deal).getByRole("button", { name: "Close order short" }));
+      return screen.findByRole("dialog");
+    };
+
+    it("is offered next to delivering the rest", async () => {
+      show({ chains: [part()] });
+      const deal = await screen.findByRole("article", { name: "Sales order SO-2026-0050" });
+      expect(within(deal).getByRole("button", { name: "Close order short" })).toBeInTheDocument();
+      expect(within(deal).getByRole("link", { name: /deliver the rest/i })).toBeInTheDocument();
+    });
+
+    it("is not offered while a delivery is still out", async () => {
+      show({ chains: [part({ notes: [note({ _id: "n5", deliveryNoteNo: "DLN-2026-0050", status: "DISPATCHED" })] })] });
+      const deal = await screen.findByRole("article", { name: "Sales order SO-2026-0050" });
+      expect(within(deal).queryByRole("button", { name: "Close order short" })).not.toBeInTheDocument();
+    });
+
+    it("shows what fell short and what will happen to a draft before anything is changed", async () => {
+      orderClose.preview.mockResolvedValue(previewOf());
+      show({ chains: [part()] });
+      const dialog = await openDialog();
+      expect(orderClose.preview).toHaveBeenCalledWith("o5");
+      expect(await within(dialog).findByText("Rice")).toBeInTheDocument();
+      const cells = within(dialog).getAllByRole("cell").map((c) => c.textContent);
+      expect(cells).toEqual(["Rice", "10", "6", "4"]);
+      expect(within(dialog).getByText(/cut down to what was delivered/)).toHaveTextContent("AED 210.00 to AED 126.00");
+      expect(orderClose.closeShort).not.toHaveBeenCalled();
+    });
+
+    it("says an invoiced order is left alone and a sales return is the way to put it right", async () => {
+      orderClose.preview.mockResolvedValue(previewOf({ mode: "credit", newTotal: null, order: { _id: "o5", transactionNo: "SO-2026-0050", status: "APPROVED", totalAmount: 210 } }));
+      show({ chains: [part({ order: { status: "APPROVED" } })] });
+      const dialog = await openDialog("Tax invoice SO-2026-0050");
+      expect(await within(dialog).findByText(/already invoiced in full/)).toHaveTextContent("about AED 84.00 with VAT");
+      expect(within(dialog).getByText(/raise a sales return/)).toBeInTheDocument();
+    });
+
+    it("needs a reason, then closes the order and says so", async () => {
+      orderClose.preview.mockResolvedValue(previewOf());
+      orderClose.closeShort.mockResolvedValue({ _id: "o5" });
+      show({ chains: [part()] });
+      const dialog = await openDialog();
+      const confirm = await within(dialog).findByRole("button", { name: "Close order short" });
+      expect(confirm).toBeDisabled();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Customer found another supplier" }));
+      expect(within(dialog).getByRole("textbox")).toHaveValue("Customer found another supplier");
+      expect(confirm).toBeEnabled();
+      fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "  Stock ran out for good  " } });
+      fireEvent.click(confirm);
+      await waitFor(() => expect(orderClose.closeShort).toHaveBeenCalledWith("o5", { reason: "Stock ran out for good" }));
+      expect(await screen.findByText("SO-2026-0050 closed short")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(documentFlow.customer).toHaveBeenCalledTimes(2); // the deals were read again
+    });
+
+    it("keeps the dialog open and shows the servers words when it refuses", async () => {
+      orderClose.preview.mockResolvedValue(previewOf());
+      orderClose.closeShort.mockRejectedValue(new Error("DLN-2026-0051 is not signed for yet. Confirm or cancel it first"));
+      show({ chains: [part()] });
+      const dialog = await openDialog();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "We cannot supply the rest" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close order short" }));
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("is not signed for yet");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(within(dialog).getByRole("textbox")).toHaveValue("We cannot supply the rest");
+    });
+
+    it("shows why it cannot be closed instead of an empty dialog", async () => {
+      orderClose.preview.mockRejectedValue(new Error("Everything ordered on SO-2026-0050 was delivered, so there is nothing left to close"));
+      show({ chains: [part()] });
+      const dialog = await openDialog();
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("nothing left to close");
+      expect(within(dialog).getByRole("button", { name: "Close order short" })).toBeDisabled();
+    });
+
+    it("a closed deal says what will not come and why, and an invoiced one asks for the sales return", async () => {
+      const closed = chain({
+        key: "c", stage: "invoiced", mode: "order_first", order: order({ _id: "o5", transactionNo: "SO-2026-0050", status: "APPROVED", outstandingAmount: 0 }),
+        notes: [note({ _id: "n5", deliveryNoteNo: "DLN-2026-0050" })], delivery: { started: true, complete: true, remaining: [] }, closeShort: closedShort(),
+      });
+      show({ chains: [closed] });
+      const deal = await screen.findByRole("article", { name: "Tax invoice SO-2026-0050" });
+      expect(within(deal).getByText("Closed short")).toBeInTheDocument();
+      expect(within(deal).getByText(/will not be delivered. Reason: Customer found another supplier/)).toHaveTextContent("The invoice was not changed");
+      expect(within(deal).getByRole("link", { name: /raise a sales return/i })).toHaveAttribute("href", "/sales-return");
+      expect(within(deal).queryByRole("button", { name: "Close order short" })).not.toBeInTheDocument();
+    });
+
+    it("reopens it after a question", async () => {
+      const closed = chain({
+        key: "c", stage: "delivered", mode: "order_first", order: order({ _id: "o5", transactionNo: "SO-2026-0050" }),
+        notes: [note({ _id: "n5", deliveryNoteNo: "DLN-2026-0050" })], delivery: { started: true, complete: true, remaining: [] }, closeShort: closedShort({ trimmed: true, creditDue: false }),
+      });
+      orderClose.reopen.mockResolvedValue({ _id: "o5" });
+      show({ chains: [closed] });
+      const deal = await screen.findByRole("article", { name: "Sales order SO-2026-0050" });
+      expect(within(deal).getByText(/The order was cut down to what was delivered/)).toBeInTheDocument();
+      fireEvent.click(within(deal).getByRole("button", { name: "Reopen" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(orderClose.reopen).not.toHaveBeenCalled();
+      fireEvent.click(within(dialog).getByRole("button", { name: "Reopen order" }));
+      await waitFor(() => expect(orderClose.reopen).toHaveBeenCalledWith("o5"));
+      expect(await screen.findByText("SO-2026-0050 reopened")).toBeInTheDocument();
+    });
+
+    it("an invoiced order with a sales return raised cannot be reopened", async () => {
+      const returned = chain({
+        key: "c", stage: "invoiced", mode: "order_first", order: order({ _id: "o5", transactionNo: "SO-2026-0050", status: "APPROVED", outstandingAmount: 0 }),
+        notes: [note({ _id: "n5", deliveryNoteNo: "DLN-2026-0050" })], delivery: { started: true, complete: true, remaining: [] },
+        closeShort: closedShort({ creditDue: false, returns: [{ _id: "r1", transactionNo: "SR-2026-0004", status: "APPROVED", totalAmount: 84 }] }),
+      });
+      show({ chains: [returned] });
+      fireEvent.click(await screen.findByRole("tab", { name: /^done/i }));
+      const deal = screen.getByRole("article", { name: "Tax invoice SO-2026-0050" });
+      expect(within(deal).queryByRole("button", { name: "Reopen" })).not.toBeInTheDocument();
+    });
   });
 });

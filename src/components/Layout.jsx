@@ -10,6 +10,7 @@ import CommandPalette from "./shell/CommandPalette";
 import BottomNav from "./shell/BottomNav";
 import MoreSheet from "./shell/MoreSheet";
 import { UpdateNotice } from "./shell/InstallApp";
+import PageErrorBoundary from "./shell/PageErrorBoundary";
 import { useSession } from "./shell/useSession";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
@@ -157,9 +158,13 @@ const Layout = () => {
           tabIndex={-1}
           className="erp-scope min-h-0 flex-1 overflow-y-auto focus:outline-none"
         >
-          <Suspense fallback={<PageLoading />}>
-            <Outlet />
-          </Suspense>
+          {/* a page that breaks shows a message here; the rail and header stay usable, and
+              moving to another page clears it */}
+          <PageErrorBoundary resetKey={pathname}>
+            <Suspense fallback={<PageLoading />}>
+              <Outlet />
+            </Suspense>
+          </PageErrorBoundary>
         </main>
 
         <BottomNav

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { INVOICE_QUEUE, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo } from "../documentFlow";
+import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo } from "../documentFlow";
 
 const quote = (over = {}) => ({ _id: "q1", quotationNo: "QT-2026-0007", status: "SENT", expired: false, daysLeft: 12, validUntil: "2026-11-05T00:00:00.000Z", totalAmount: 210, ...over });
 const order = (over = {}) => ({ _id: "o1", transactionNo: "SO-2026-0031", status: "DRAFT", totalAmount: 210, outstandingAmount: 210, ...over });
@@ -187,5 +187,65 @@ describe("part deliveries", () => {
     expect(leftText([{ description: "Rice", qty: 4 }, { description: "Oil", qty: 2.5 }])).toBe("4 x Rice, 2.5 x Oil");
     expect(leftText([{ description: "A", qty: 1 }, { description: "B", qty: 2 }, { description: "C", qty: 3 }, { description: "D", qty: 4 }])).toBe("1 x A, 2 x B +2 more");
     expect(leftText([])).toBe("");
+  });
+});
+
+describe("an order closed short", () => {
+  const rice = [{ description: "Rice", qty: 4 }];
+  const part = { started: true, complete: false, remaining: rice };
+  const closed = (over = {}) => ({ at: "2026-10-05T08:00:00.000Z", reason: "Customer left", trimmed: false, valueShort: 84, left: rice, returns: [], creditDue: true, ...over });
+
+  it("is offered when goods went out, all of them are signed for, and some of the order is still to come", () => {
+    const c = deal({ mode: "order_first", order: order(), notes: [note()], delivery: part });
+    expect(canCloseShort(c)).toBe(true);
+    expect(canCloseShort({ ...c, order: order({ status: "APPROVED" }) })).toBe(true);
+    expect(nextAction(c).label).toBe("Deliver the rest"); // closing is the other way out of the same state
+  });
+
+  it("is not offered where it cannot be done", () => {
+    const base = deal({ mode: "order_first", order: order(), notes: [note()], delivery: part });
+    expect(canCloseShort({ ...base, notes: [note(), note({ _id: "n2", status: "DISPATCHED" })] })).toBe(false); // one is still on the road
+    expect(canCloseShort({ ...base, notes: [] })).toBe(false);
+    expect(canCloseShort({ ...base, delivery: { started: true, complete: true, remaining: [] } })).toBe(false); // delivered in full
+    expect(canCloseShort({ ...base, delivery: { started: false, complete: false, remaining: rice }, notes: [] })).toBe(false);
+    expect(canCloseShort({ ...base, mode: "delivery_first" })).toBe(false); // an invoice raised from the notes bills what went out
+    expect(canCloseShort({ ...base, order: order({ status: "REJECTED" }) })).toBe(false);
+    expect(canCloseShort({ ...base, closeShort: closed() })).toBe(false); // once
+    expect(canCloseShort(deal({ quotation: quote() }))).toBe(false);
+  });
+
+  it("finishes the delivery step and says what will not come", () => {
+    const c = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED" }), notes: [note()], delivery: { started: true, complete: true, remaining: [] }, closeShort: closed() });
+    expect(state(c).delivery).toBe("done");
+    expect(step(c, "delivery").hint).toBe("Closed short: 4 x Rice will not be delivered");
+  });
+
+  it("an invoiced order is owed a sales return: raise it, then approve it, then the deal is done", () => {
+    const c = (closeShort) => deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED" }), notes: [note()], delivery: { started: true, complete: true, remaining: [] }, closeShort });
+    const owed = c(closed());
+    expect(nextAction(owed)).toMatchObject({ label: "Raise a sales return", to: "/sales-return" });
+    expect(nextAction(owed).why).toContain("4 x Rice was invoiced but never delivered (about AED 84.00 with VAT)");
+    expect(dealGroup(owed)).toBe("action");
+
+    const drafted = c(closed({ returns: [{ _id: "r1", transactionNo: "SR-2026-0004", status: "DRAFT", totalAmount: 84 }] }));
+    expect(nextAction(drafted)).toMatchObject({ label: "Approve the sales return" });
+    expect(nextAction(drafted).why).toMatch(/SR-2026-0004/);
+
+    const settled = c(closed({ creditDue: false, returns: [{ _id: "r1", transactionNo: "SR-2026-0004", status: "APPROVED", totalAmount: 84 }] }));
+    expect(nextAction(settled)).toBeNull();
+    expect(dealGroup(settled)).toBe("done");
+  });
+
+  it("a draft that was cut down goes straight on to be approved", () => {
+    const c = deal({ stage: "delivered", mode: "order_first", order: order(), notes: [note()], delivery: { started: true, complete: true, remaining: [] }, closeShort: closed({ trimmed: true, creditDue: false }) });
+    expect(nextAction(c).label).toBe("Approve the order to invoice it");
+  });
+
+  it("can be undone while nothing was built on it", () => {
+    expect(canReopenShort(deal({ order: order(), closeShort: closed({ trimmed: true }) }))).toBe(true);
+    expect(canReopenShort(deal({ order: order({ status: "APPROVED" }), closeShort: closed({ trimmed: true }) }))).toBe(false); // approved after cutting down
+    expect(canReopenShort(deal({ order: order({ status: "APPROVED" }), closeShort: closed() }))).toBe(true);
+    expect(canReopenShort(deal({ order: order({ status: "APPROVED" }), closeShort: closed({ returns: [{ _id: "r1", status: "DRAFT" }] }) }))).toBe(false);
+    expect(canReopenShort(deal({ order: order() }))).toBe(false);
   });
 });

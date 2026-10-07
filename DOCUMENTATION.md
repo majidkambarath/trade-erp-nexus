@@ -314,7 +314,8 @@ The profile of a customer (`/credit-accounts/customer/:id?tab=documents`, throug
 
 - **Two shapes of deal.** *Order first*: Quotation -> Sales order -> Delivery -> Invoice. *Goods first* (a note raised from an offer, or on its own, then a draft invoice made from it): Quotation -> Delivery -> Invoice, with no separate order step. Every step says where it stands in a word as well as a colour (Done / In hand / Stopped / To do) and links to its document.
 - **Next step.** Each deal has one button: Finish and send, Convert to a sales order, Approve the order, Dispatch or Confirm the delivery, **Deliver the rest**, Approve the invoice, Create the invoice. A sent offer waiting on the customer is *In progress*, not *Needs action*. The tab opens on *Needs action* when there is anything, otherwise on *All*.
-- **A signed-for note is not a finished delivery.** The server compares the order's lines with what the notes carried (`fulfilment()`), so a part delivery, or a short line, keeps the Delivery step *In hand* with "Still to deliver: 5 x Rice" and offers **Deliver the rest** (`/delivery-notes?order=<id>`, which starts from what is left) - even on an order that has already been invoiced. There is no "close short" action yet, so such a deal stays under *Needs action* until the rest is delivered.
+- **A signed-for note is not a finished delivery.** The server compares the order's lines with what the notes carried (`fulfilment()`), so a part delivery, or a short line, keeps the Delivery step *In hand* with "Still to deliver: 5 x Rice" and offers **Deliver the rest** (`/delivery-notes?order=<id>`, which starts from what is left) - even on an order that has already been invoiced.
+- **Close order short.** When all the notes are signed for and part of the order is still to come, the deal also offers **Close order short** next to *Deliver the rest*, for the customer who will never take the rest. The dialog shows the lines that fell short first, asks why (required, kept in the audit trail), and says what will happen: a **draft** order is cut down to what was delivered (so the invoice charges only for those goods, and **Reopen** puts it back until it is approved); an **invoiced** order is left as it is, marked *Closed short*, and the deal then asks for a **sales return** for the undelivered goods (it puts them back in stock and credits the customer) until an approved one exists. A closed order takes no more deliveries and shows a *Closed short* mark in the sales order list.
 - **Above the list:** out with the customer, accepted and not ordered, draft invoices to approve, and delivered and not invoiced (with how many are past the 14-day window).
 - Tests: `lib/__tests__/documentFlow.test.js` (stepper, next step, groups, part deliveries) and `salesDocs/__tests__/CustomerDocumentsTab.test.jsx`. `check:mobile` opens the tab on a phone.
 
@@ -459,6 +460,7 @@ Two breakpoints, each with a reason:
 - **`MoreSheet`** - everything that did not fit, one level deep, as a bottom sheet.
 - **`ModuleTabs`** - the active module's pages; the strip snap-scrolls with a fade at the edge.
 - There is deliberately **no hamburger**: navigation is the bar.
+- **`PageErrorBoundary`** - a page that throws shows "Something went wrong on this page" (Reload page, Go to dashboard, folded technical details) instead of a blank window, with the rail and header still usable; moving to another page clears it. A page file that no longer exists after a new deploy reads "A newer version is available". `App.jsx` wraps the whole app in one too, as a last resort.
 
 Device insets are `pt-safe` / `pb-safe` utilities (`env(safe-area-inset-*)`), and `index.html`
 carries `viewport-fit=cover`, so the shell paints under the notch and the home bar without
@@ -515,7 +517,7 @@ copy asks for a sign-in on each launch. Moving them is a security decision, not 
 `check:mobile` writes to `.shots/` (gitignored) and drives its page list from `navigation.js`,
 so a new screen is checked without anyone remembering to add it. Its stub API answers from
 `scripts/shoot-mobile.mjs`; a page that comes back blank there usually means the stub's shape
-has drifted from the server's, not that the page is broken.
+has drifted from the server's, not that the page is broken. Since the error boundary, such a page no longer goes blank: it shows the error screen and logs `Page crashed:`, which the sweep reports as `THREW` and fails on - so a crash cannot read as a pass. Write a stub's shape from the screen's own test fixture.
 
 ## 18. Considerations & Future Improvements
 - Role-based access: Sidebar role is hardcoded; integrate with backend auth to control access and visibility.

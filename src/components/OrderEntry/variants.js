@@ -152,6 +152,7 @@ const itemPayload = (V, row, stock) => {
   const vatPercent = num(row[V.fields.vatPercent]);
   const line = rowLine({ qty, price: unit, vatPercent, discountPercent: row.discountPercent });
   return {
+    ...(row.lineId ? { _id: row.lineId } : {}),
     itemId: row.itemId,
     itemCode: row.itemCode || stock?.itemId || stock?.itemCode || "",
     description: row.description || "",
@@ -197,6 +198,8 @@ const unitOf = (i) => {
   return num(i.qty) ? num(i.rate) / num(i.qty) : 0;
 };
 const savedBase = (i) => ({
+  // the stored line's own id, sent back on save so a delivery note raised against the line stays attached to it
+  lineId: i._id || "",
   itemId: i.itemId?._id || i.itemId,
   itemCode: i.itemCode || "",
   description: i.description || "",

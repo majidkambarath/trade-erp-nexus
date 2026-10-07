@@ -39,6 +39,20 @@ const invoiceDoc = (o) => {
 
 const delivered = (n) => n.status === "DELIVERED";
 
+// ---- closing an order short ----------------------------------------------------------------
+// The customer took part of an order and will never take the rest. The server decides whether that can be
+// done (utils/closeShort.js) and says why not; these only decide whether to OFFER it: goods were delivered
+// against the order's own lines, all of them are signed for, some of the order is still to come, and it has
+// not been closed already.
+export const canCloseShort = (c) =>
+  Boolean(
+    c.order && ["DRAFT", "APPROVED"].includes(c.order.status) && c.mode === "order_first" && !c.closeShort &&
+    c.delivery && c.delivery.started && !c.delivery.complete && (c.notes || []).length > 0 && c.notes.every(delivered)
+  );
+// Undoing it: a cut-down draft can be put back until it is approved; an invoiced order until a sales return exists.
+export const canReopenShort = (c) =>
+  Boolean(c.order && c.closeShort && (c.closeShort.trimmed ? c.order.status === "DRAFT" : !(c.closeShort.returns || []).length));
+
 // "4 x Rice, 2 x Oil", and "+1 more" past two lines: what an order still has to send.
 const qtyText = (q) => String(Math.round(Number(q) * 1000) / 1000);
 export function leftText(remaining = []) {
@@ -66,7 +80,9 @@ export function dealSteps(c) {
     steps.push({ key: "order", label: "Sales order", state: o ? "done" : quoteState === "stopped" ? "none" : "todo", docs: o ? [orderDoc(o)] : [], hint: o ? "" : orderHint });
   }
 
-  const deliveryHint = o && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
+  const deliveryHint = c.closeShort
+    ? `Closed short: ${leftText(c.closeShort.left)} will not be delivered`
+    : o && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
   steps.push({
     key: "delivery", label: "Delivery",
     state: !notes.length ? (quoteState === "stopped" && !o ? "none" : "todo") : notes.every(delivered) && !partDelivered(c) ? "done" : "doing",
@@ -104,6 +120,14 @@ export function nextAction(c) {
   // part of the order has gone out: the rest is the next delivery, whether or not it has been invoiced
   if (o && partDelivered(c)) {
     return { label: "Deliver the rest", why: `Still to deliver: ${leftText(c.delivery.remaining)}`, to: `/delivery-notes?order=${o._id}` };
+  }
+  // an invoiced order closed short billed goods that never left: a sales return puts the books right
+  if (o && c.closeShort?.creditDue) {
+    const cs = c.closeShort;
+    const draft = (cs.returns || []).find((r) => r.status === "DRAFT");
+    return draft
+      ? { label: "Approve the sales return", why: `${draft.transactionNo} is still a draft: approving it puts the undelivered goods back in stock and credits the customer`, to: "/sales-return" }
+      : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about AED ${formatNumber(cs.valueShort, 2)} with VAT). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
   }
   if (o) {
     if (o.status === "APPROVED") return null;

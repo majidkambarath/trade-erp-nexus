@@ -350,7 +350,7 @@ function ActivitySection({ activity }) {
                   ) : (
                     <span className="w-6" />
                   )}
-                  <Pill>{a.action.replace(/^(TRANSACTION|VOUCHER|CHEQUE)_/, "")}</Pill>
+                  <Pill>{a.action.replace(/^(TRANSACTION|VOUCHER|CHEQUE)_/, "").replace(/_/g, " ")}</Pill>
                   <span className="min-w-0 flex-1 truncate text-foreground">{a.summary}</span>
                   <span className="text-xs text-muted-foreground">
                     {a.username || "system"} · {formatDateTime(a.at)}

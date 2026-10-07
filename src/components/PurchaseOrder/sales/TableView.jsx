@@ -194,6 +194,7 @@ const TableView = ({
                         {so.status.replace("_", " ")}
                       </span>
                     </div>
+                    {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
                     <div className="flex space-x-1">
                       {so.invoiceGenerated && (
                         <div
@@ -252,7 +253,7 @@ const TableView = ({
                         <button onClick={() => onShowAudit && onShowAudit(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                           Audit trail
                         </button>
-                        {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && (
+                        {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && !so.closedShort && (
                           <button onClick={() => onDeliveryNote(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                             Delivery note
                           </button>

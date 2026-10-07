@@ -15,4 +15,4 @@ export const PRODUCT_NAME = "Zarvia";
 export const PRODUCT_TAGLINE = "Trade & Finance Platform";
 
 /** Shown in the sign-in footer beside the product name. */
-export const PRODUCT_VERSION = "1.0.0.5";
+export const PRODUCT_VERSION = "1.0.0.6";

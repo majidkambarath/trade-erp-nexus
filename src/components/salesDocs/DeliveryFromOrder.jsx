@@ -13,7 +13,7 @@ const numInput = "h-11 w-full rounded-lg border border-input bg-background px-3 
 // Orders a note can be made against: still a draft, or already approved (the goods go out after the invoice).
 const loadOrders = async (customerId) => {
   const r = await axiosInstance.get("/transactions/transactions", { params: { type: "sales_order", partyId: customerId, limit: 200 } });
-  return (r.data?.data || []).filter((t) => ["DRAFT", "APPROVED"].includes(t.status) && !t.isOpening);
+  return (r.data?.data || []).filter((t) => ["DRAFT", "APPROVED"].includes(t.status) && !t.isOpening && !t.closedShort?.at);
 };
 
 const headerFrom = (dn) => ({

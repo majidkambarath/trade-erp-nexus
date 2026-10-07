@@ -39,26 +39,23 @@ export default function FiscalYears({ notify }) {
         {years.error && <div className="p-5"><ErrorNote error={years.error} onRetry={years.reload} /></div>}
         {years.data?.length === 0 && <EmptyState title="No fiscal years" text="Add the current year to start controlling which periods are open." />}
         {years.data?.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-2 text-start">Year</th><th className="px-3 py-2 text-start">From</th><th className="px-3 py-2 text-start">To</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2 text-end">Action</th></tr>
-            </thead>
-            <tbody>
-              {years.data.map((y) => (
-                <tr key={y._id} className="border-t border-border">
-                  <td className="px-5 py-3 font-semibold">{y.code}</td>
-                  <td className="px-3 py-3">{formatDateGB(y.startDate)}</td>
-                  <td className="px-3 py-3">{formatDateGB(y.endDate)}</td>
-                  <td className="px-3 py-3">{y.status === "closed" ? <Pill tone="danger"><Lock className="h-3 w-3" aria-hidden="true" />Closed</Pill> : <Pill tone="success">Open</Pill>}</td>
-                  <td className="px-5 py-3 text-end">
-                    {y.status === "closed"
-                      ? <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "reopen" })}><LockOpen className="h-3.5 w-3.5" aria-hidden="true" />Reopen</Button>
-                      : <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "close" })}><Lock className="h-3.5 w-3.5" aria-hidden="true" />Close year</Button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption="Fiscal years"
+            rows={years.data}
+            rowKey={(y) => y._id}
+            columns={[
+              { key: "year", header: "Year", card: "primary", className: "font-semibold", cell: (y) => y.code },
+              { key: "from", header: "From", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.startDate) },
+              { key: "to", header: "To", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.endDate) },
+              { key: "status", header: "Status", card: "badge", cell: (y) => (y.status === "closed" ? <Pill tone="danger"><Lock className="h-3 w-3" aria-hidden="true" />Closed</Pill> : <Pill tone="success">Open</Pill>) },
+              {
+                key: "action", header: "Action", align: "end", card: "actions",
+                cell: (y) => (y.status === "closed"
+                  ? <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "reopen" })}><LockOpen className="h-3.5 w-3.5" aria-hidden="true" />Reopen</Button>
+                  : <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "close" })}><Lock className="h-3.5 w-3.5" aria-hidden="true" />Close year</Button>),
+              },
+            ]}
+          />
         )}
       </Panel>
 

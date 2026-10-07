@@ -43,20 +43,21 @@ export default function ReportsTab({ state }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3">
+      {/* one tile per row on a phone: a six-figure amount does not fit beside another tile */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-[1.75rem]" />)}
         {tiles?.map((m, i) => {
           const Icon = m.icon;
           return (
             <Link key={m.label} to={m.to} className="block">
               <Card data-anim="bento" className={cn(cardClass, "h-full", i === 2 && "bg-brand-soft")}>
-                <CardContent className="flex items-center justify-between p-5">
-                  <div>
+                <CardContent className="flex items-center justify-between gap-3 p-5">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground/70">{m.label}</p>
-                    <p className="mt-1 text-2xl font-extrabold tracking-tight">{m.value}</p>
+                    <p className="mt-1 break-words text-2xl font-extrabold tracking-tight">{m.value}</p>
                     {m.note && <p className="mt-1 text-xs text-foreground/70">{m.note}</p>}
                   </div>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-card/70"><Icon className="h-5 w-5" /></span>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-card/70"><Icon className="h-5 w-5" /></span>
                 </CardContent>
               </Card>
             </Link>

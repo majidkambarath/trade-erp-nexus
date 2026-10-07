@@ -63,3 +63,11 @@ export const deliveryNotes = {
 export const documentFlow = {
   customer: (customerId) => api.get(`/document-flow/customer/${customerId}`),
 };
+
+// A sales order the customer will not take the rest of. `preview` says what closing would do and refuses
+// (with the reason) when it cannot be done; `reopen` undoes it while nothing has been built on it.
+export const orderClose = {
+  preview: (orderId) => api.get(`/transactions/transactions/${orderId}/close-short`),
+  closeShort: (orderId, body) => api.post(`/transactions/transactions/${orderId}/close-short`, body),
+  reopen: (orderId) => api.post(`/transactions/transactions/${orderId}/reopen-short`, {}),
+};
