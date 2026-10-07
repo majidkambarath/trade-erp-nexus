@@ -46,7 +46,8 @@ export default function LinesView({ account, version, onChanged, notify, onImpor
   const waiting = Boolean(data) && (tab === null || data.forTab !== shownTab);
 
   useEffect(() => {
-    if (tab === null && data) setTab(data.counts.suggested > 0 ? "suggested" : "todo");
+    // only fills in a tab nobody has chosen: a click that lands in the same moment as the first answer must win
+    if (tab === null && data) setTab((current) => current ?? (data.counts.suggested > 0 ? "suggested" : "todo"));
   }, [tab, data]);
 
   const done = (message) => { setDialog(null); notify(message); onChanged(); };

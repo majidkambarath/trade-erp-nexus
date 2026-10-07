@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, configure } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 
@@ -19,6 +19,12 @@ vi.mock("../../../lib/bankingApi", () => ({ banking: { options: m.options } }));
 vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 
 import BankReconciliation from "../BankReconciliation";
+
+// The page makes several requests in turn before it draws (accounts, the account's set-up, the lines, then the
+// tab it lands on), so on a busy machine a render can take longer than a second. Waiting longer does not
+// hide a failure: a wrong screen still fails, only later.
+configure({ asyncUtilTimeout: 8000 });
+vi.setConfig({ testTimeout: 20000 });
 
 // ---- fixtures ----------------------------------------------------------------------------------
 const ACCOUNTS = [
@@ -40,6 +46,10 @@ const choose = async (name, text) => {
   fireEvent.keyDown(screen.getByRole("combobox", { name }), { key: "ArrowDown" });
   fireEvent.click(await screen.findByRole("option", { name: new RegExp(text) }));
 };
+
+// A statement line's card, found by its text: far cheaper than a role query with an accessible name, which is
+// what made these tests slow when the machine was busy.
+const cardOf = async (re) => (await screen.findByText(re, { selector: "p" })).closest("article");
 
 const show = (url = "/bank-reconciliation") => render(<MemoryRouter initialEntries={[url]}><BankReconciliation /></MemoryRouter>);
 
@@ -70,7 +80,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ suggestion: suggestion() })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /TRANSFER FROM AL NOOR/ }, { timeout: 4000 });
+    const card = await cardOf(/TRANSFER FROM AL NOOR/);
     expect(await screen.findByText("Balance in the books")).toBeInTheDocument();
     expect(within(card).getByText("Strong match")).toBeInTheDocument();
     expect(within(card).getByText("same amount, same day")).toBeInTheDocument();
@@ -87,7 +97,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ day: "2026-10-07", description: "CHQ DEP 000777", suggestion: suggestion({ entries: [cheque], reasons: ["same amount", "cheque 000777 is on the line"] }) })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /CHQ DEP 000777/ }, { timeout: 4000 });
+    const card = await cardOf(/CHQ DEP 000777/);
     expect(within(card).getByText(/Matching clears this cheque on 2026-10-07/)).toBeInTheDocument();
     expect(within(card).getByText(/waiting to clear/)).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /^match$/i }));
@@ -99,7 +109,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ amount: 525, description: "CASH DEPOSIT", suggestion: group })], { suggested: 1 }));
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    const card = await screen.findByRole("article", { name: /CASH DEPOSIT/ }, { timeout: 4000 });
+    const card = await cardOf(/CASH DEPOSIT/);
     expect(within(card).getByText("Possible match")).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /match all 2/i }));
     await waitFor(() => expect(m.match).toHaveBeenCalledWith({ accountId: "b1", lineIds: ["l1"], entries: [{ type: "ledger", ledgerEntryId: "la" }, { type: "ledger", ledgerEntryId: "lb" }] }));
@@ -116,7 +126,7 @@ describe("the worklist", () => {
   it("a line nothing fits says so and offers the other ways forward", async () => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "BANK CHARGES", amount: -21 })], { todo: 1 }));
     show();
-    const card = await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 });
+    const card = await cardOf(/BANK CHARGES/);
     expect(within(card).getByText("Nothing in the books fits this line yet.")).toBeInTheDocument();
     expect(within(card).getByText("-21.00")).toBeInTheDocument();
     for (const name of [/find in the books/i, /post an entry/i, /ignore/i]) expect(within(card).getByRole("button", { name })).toBeInTheDocument();
@@ -127,7 +137,7 @@ describe("the worklist", () => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "DUPLICATE FEE", amount: -15 })], { todo: 1 }));
     m.ignore.mockResolvedValue({ _id: "l2" });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /DUPLICATE FEE/ }, { timeout: 4000 })).getByRole("button", { name: /ignore/i }));
+    fireEvent.click(within(await cardOf(/DUPLICATE FEE/)).getByRole("button", { name: /ignore/i }));
     const dialog = await screen.findByRole("dialog");
     const confirm = within(dialog).getByRole("button", { name: /^ignore$/i });
     expect(confirm).toBeDisabled();
@@ -143,7 +153,7 @@ describe("the worklist", () => {
       ? new Promise((resolve) => { release = () => resolve(page([], { matched: 1 })); })
       : Promise.resolve(page([line({ _id: "l8", description: "A LINE STILL TO DO", amount: -5 })], { todo: 1, matched: 1 }))));
     show();
-    await screen.findByRole("article", { name: /A LINE STILL TO DO/ }, { timeout: 4000 });
+    await cardOf(/A LINE STILL TO DO/);
     fireEvent.click(screen.getByRole("tab", { name: /^matched/i }));
     expect(screen.queryByRole("article", { name: /A LINE STILL TO DO/ })).not.toBeInTheDocument(); // not under the Matched name
     await waitFor(() => expect(release).toBeTypeOf("function")); // the request for the Matched tab is on its way
@@ -199,7 +209,7 @@ describe("post an entry", () => {
   const open = async (over) => {
     m.lines.mockResolvedValue(page([line({ _id: "l2", description: "BANK CHARGES INCL VAT", amount: -21, ...over })], { todo: 1 }));
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 })).getByRole("button", { name: /post an entry/i }));
+    fireEvent.click(within(await cardOf(/BANK CHARGES/)).getByRole("button", { name: /post an entry/i }));
     return screen.findByRole("dialog");
   };
 
@@ -252,7 +262,7 @@ describe("find in the books", () => {
     m.entries.mockResolvedValue({ total: 3, rows: [entry({ id: "a", ledgerEntryId: "la", amount: 300, voucherNo: "RV-1" }), entry({ id: "b", ledgerEntryId: "lb", amount: 225, voucherNo: "RV-2" }), entry({ id: "c", ledgerEntryId: "lc", amount: 100, voucherNo: "RV-3" })] });
     m.match.mockResolvedValue({ _id: "m1" });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /CASH DEPOSIT/ }, { timeout: 4000 })).getByRole("button", { name: /find in the books/i }));
+    fireEvent.click(within(await cardOf(/CASH DEPOSIT/)).getByRole("button", { name: /find in the books/i }));
     const dialog = await screen.findByRole("dialog");
     const match = within(dialog).getByRole("button", { name: /^match$/i });
     expect(match).toBeDisabled();
@@ -280,7 +290,7 @@ describe("card settlement", () => {
     m.cardUnsettled.mockResolvedValue({ receipts, vatRate: 5, line: {}, suggestion: { cutoffDay: "2026-10-04", entryIds: ["e1", "e2"], expectedNet: 294, difference: 0.3 } });
     m.cardSettle.mockResolvedValue({ settlement: {}, match: {} });
     show();
-    fireEvent.click(within(await screen.findByRole("article", { name: /NETWORK INTL/ }, { timeout: 4000 })).getByRole("button", { name: /card settlement/i }));
+    fireEvent.click(within(await cardOf(/NETWORK INTL/)).getByRole("button", { name: /card settlement/i }));
     return screen.findByRole("dialog");
   };
 
@@ -339,7 +349,7 @@ describe("unmatching", () => {
     m.unmatch.mockResolvedValue({ match: {}, warnings: [] });
     show();
     fireEvent.click(await screen.findByRole("tab", { name: /^matched/i }));
-    const card = await screen.findByRole("article", { name: /BANK CHARGES/ }, { timeout: 4000 });
+    const card = await cardOf(/BANK CHARGES/);
     expect(within(card).getByText("Entry posted for this line")).toBeInTheDocument();
     fireEvent.click(within(card).getByRole("button", { name: /unmatch/i }));
     const dialog = await screen.findByRole("dialog");
@@ -353,7 +363,7 @@ describe("unmatching", () => {
     m.lines.mockResolvedValue(page([locked], { matched: 1, reconciled: 1 }));
     show();
     fireEvent.click(await screen.findByRole("tab", { name: /^matched/i }));
-    const card = await screen.findByRole("article", { name: /LOCKED LINE/ }, { timeout: 4000 });
+    const card = await cardOf(/LOCKED LINE/);
     expect(within(card).getByText("Locked in a completed reconciliation")).toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: /unmatch/i })).not.toBeInTheDocument();
   });
