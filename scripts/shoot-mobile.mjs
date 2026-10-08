@@ -145,7 +145,14 @@ async function measureDialog(page) {
 
 // Screens with no navigation entry of their own. The public document link is the only page a customer ever
 // sees, so it is checked like any other: a phone is exactly where it will be opened.
-const EXTRA_PAGES = [["share", "/d/ABCDEFGHJKM.demo-token-demo-token-demo-token-demo-tok"]];
+// The developer console is a second app inside this one (its own sign-in, its own frame), also reached by address only.
+const EXTRA_PAGES = [
+  ["share", "/d/ABCDEFGHJKM.demo-token-demo-token-demo-token-demo-tok"],
+  ["console-organisations", "/platform"],
+  ["console-new-organisation", "/platform/new"],
+  ["console-organisation", "/platform/organisations/gulf-fresh"],
+  ["console-activity", "/platform/activity"],
+];
 const PAGES = [
   ["login", "/"],
   ...MODULES.flatMap((m) =>
@@ -284,6 +291,61 @@ function stubFor(pathname) {
       accessToken: "stub-access-token",
       admin: { _id: "a1", name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [], isActive: true, status: "active" },
     };
+  }
+
+  // The organisation the signed-in person belongs to: its plan, what that switches on, its use, where its subscription stands.
+  if (p.includes("/organisation/status")) {
+    return {
+      organisation: { code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "premium", planName: "Premium" },
+      subscription: { state: "active", blocked: false, canRead: true, canWrite: true, endsAt: null, daysLeft: null, onExpiry: "block" },
+      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true },
+      limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
+      usage: { users: 4, branches: 1, documentsPerMonth: 120 },
+      room: {},
+      support: { contact: "help@zarvia.example" },
+    };
+  }
+
+  // The developer console (/api/v1/platform/*).
+  if (p.includes("/platform/")) {
+    const org = (over) => ({ code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "standard", status: "active", featureOverrides: { einvoicing: true }, limitOverrides: { users: 25 }, subscription: { endsAt: "2026-12-31T23:59:59.999Z", graceDays: 7, onExpiry: "block" }, provisioning: { complete: true, steps: { settings: { state: "done" }, chart: { state: "done" }, taxCodes: { state: "done" } } }, ...over });
+    if (p.endsWith("/catalog")) {
+      return {
+        plans: [
+          { code: "trial", name: "Trial", trialDays: 14, features: { quotations: true, deliveryNotes: true, batches: true }, limits: { users: 3, branches: 1, documentsPerMonth: 200 } },
+          { code: "standard", name: "Standard", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, currencies: true, vatReturn: true, messaging: true }, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
+          { code: "premium", name: "Premium", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true }, limits: { users: 50, branches: 20, documentsPerMonth: 20000 } },
+        ],
+        features: [["quotations", "Quotations"], ["deliveryNotes", "Delivery notes"], ["batches", "Batches and expiry"], ["banking", "Banks, cards and cheques"], ["reconciliation", "Bank and card reconciliation"], ["currencies", "Foreign currency"], ["vatReturn", "VAT return"], ["ifrsStatements", "IFRS statements"], ["einvoicing", "E-invoicing"], ["messaging", "Send documents to customers"], ["multiBranch", "More than one branch"]].map(([key, label]) => ({ key, label })),
+        limits: ["users", "branches", "documentsPerMonth"],
+        currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }],
+        unsupportedCurrencies: ["KWD", "BHD", "OMR"],
+        timezones: ["Asia/Dubai", "Asia/Riyadh", "Europe/London"],
+        accountTypes: ["super_admin", "admin", "manager", "operator", "viewer"],
+      };
+    }
+    if (p.endsWith("/audit")) return { total: 3, rows: n((i) => ({ _id: `pa${i}`, at: `2026-10-0${i}T09:30:00.000Z`, action: ["ORGANISATION_CREATED", "SUBSCRIPTION_EXTENDED", "USER_CREATED"][i - 1], organisation: "gulf-fresh", summary: ["Organisation created on the standard plan, books in AED", "Subscription now ends 2026-12-31", "Account created for owner@gulffresh.example (super_admin)"][i - 1], by: "dev@zarvia.test" }), 3) };
+    if (p.endsWith("/users")) return n((i) => ({ _id: `u${i}`, name: ["Owner One", "Sara Khan", "Imran Ali", "Lina Haddad"][i - 1], email: `user${i}@gulffresh.example`, type: ["super_admin", "admin", "operator", "viewer"][i - 1], status: i === 4 ? "inactive" : "active", isActive: i !== 4, branchId: "main", lastLogin: "2026-10-06T08:00:00.000Z" }), 4);
+    if (p.endsWith("/branches")) return [{ code: "main", name: "Head office", isHeadOffice: true, isActive: true, address: { city: "Dubai" } }, { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, isActive: true, address: { city: "Sharjah" } }];
+    const orgTail = p.split("/organisations/")[1]; // one organisation: .../organisations/<code>
+    if (orgTail && !orgTail.includes("/")) {
+      return {
+        organisation: org(),
+        features: {}, limits: { users: 25, branches: 3, documentsPerMonth: 2000 }, usage: { users: 4, branches: 2, documentsPerMonth: 180 },
+        state: { state: "grace", daysLeft: 3, onExpiry: "block", endsAt: "2026-12-31T23:59:59.999Z" },
+        room: { users: { ok: true }, branches: { ok: true }, documentsPerMonth: { ok: true } },
+        profile: { legalName: "Gulf Fresh Foods LLC", trn: "100123456700003", addressLine1: "Al Quoz, Dubai", city: "Dubai", emirate: "Dubai", email: "accounts@gulffresh.example", phone: "04 123 4567", vatRegistered: true },
+      };
+    }
+    if (p.endsWith("/organisations")) {
+      return { total: 4, rows: [
+        org({ state: { state: "active", daysLeft: 200 } }),
+        org({ code: "harbour", legalName: "Harbour Trading LLC", planCode: "premium", state: { state: "active", daysLeft: 9 }, subscription: { endsAt: "2026-10-17T23:59:59.999Z" } }),
+        org({ code: "desert-rose", legalName: "Desert Rose Catering", country: "SA", baseCurrency: "SAR", planCode: "trial", status: "trial", state: { state: "expired", onExpiry: "readonly" }, subscription: { endsAt: "2026-10-01T23:59:59.999Z" } }),
+        org({ code: "old-client", legalName: "Old Client Foodstuff", status: "suspended", state: { state: "suspended" } }),
+      ] };
+    }
+    return {};
   }
 
   // Bank reconciliation: one account that is set up, a worklist with a strong suggestion, a line with
@@ -908,6 +970,8 @@ for (const vp of VIEWPORTS) {
     sessionStorage.setItem("refreshToken", "stub");
     sessionStorage.setItem("role", "Admin");
     sessionStorage.setItem("user", JSON.stringify({ name: "Super Admin", email: "admin@test.uae", role: "Admin" }));
+    // the developer console keeps its own sign-in (see src/platform/platformSession.js)
+    sessionStorage.setItem("zarvia.console", JSON.stringify({ token: "stub-console-token", user: { email: "dev@zarvia.test", name: "Dev One" } }));
   });
 
   // A blank screenshot is almost always a thrown render, so the console is part of the check.

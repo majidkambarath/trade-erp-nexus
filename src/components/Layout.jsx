@@ -12,6 +12,11 @@ import MoreSheet from "./shell/MoreSheet";
 import { UpdateNotice } from "./shell/InstallApp";
 import PageErrorBoundary from "./shell/PageErrorBoundary";
 import { useSession } from "./shell/useSession";
+import { OrganisationProvider, useOrganisation } from "./shell/OrganisationContext";
+import OrganisationBlocked from "./shell/OrganisationBlocked";
+import NotInPlan from "./shell/NotInPlan";
+import SubscriptionNotice from "./shell/SubscriptionNotice";
+import { subscriptionNotice } from "../lib/organisation";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
 // the workspace reads as a failure; this reads as a pause.
@@ -26,9 +31,10 @@ function PageLoading() {
 
 // Workspace-first shell (Aurify ERP Redesign): a narrow labelled rail for modules, a top
 // bar for search and account, and the active module's pages as tabs above the content.
-const Layout = () => {
+const LayoutShell = () => {
   const { pathname } = useLocation();
   const { profile, role, logout } = useSession();
+  const { status, blocked, refresh, featureOn } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // set by main.jsx when the service worker has a newer build waiting
@@ -37,9 +43,18 @@ const Layout = () => {
   // name; the browser tab falls back to the product when there is none.
   const clientName = getBrand().shortName;
   const appName = clientName || PRODUCT_NAME;
+  // The top bar names the organisation whose data this is; the client pack's name is the fallback.
+  const organisationName = status?.organisation?.legalName || clientName;
 
-  const modules = useMemo(() => getVisibleModules(role), [role]);
+  // Only what the person's role may open AND the organisation's plan includes. While the status is unknown
+  // nothing is hidden (the server refuses what the plan lacks).
+  const modules = useMemo(() => getVisibleModules(role, undefined, status), [role, status]);
   const active = useMemo(() => findActive(pathname, modules), [pathname, modules]);
+  // A page the plan does not include can still be reached by a typed address or an old bookmark: say so,
+  // rather than loading a screen whose every request will be refused.
+  const requested = useMemo(() => findActive(pathname, getVisibleModules(role)), [pathname, role]);
+  const outOfPlan = requested?.tab?.feature && !featureOn(requested.tab.feature) ? requested.tab.feature : null;
+  const notice = useMemo(() => subscriptionNotice(status?.subscription), [status]);
   // Four modules for the bottom bar, the remainder for the More sheet.
   const { primary, rest } = useMemo(() => getMobileNav(modules), [modules]);
 
@@ -127,6 +142,9 @@ const Layout = () => {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // A subscription that has ended (or a suspended account) replaces the whole app with one page that says why.
+  if (blocked) return <OrganisationBlocked blocked={blocked} onCheckAgain={refresh} onSignOut={logout} />;
+
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
       <a
@@ -140,11 +158,12 @@ const Layout = () => {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
-          appName={clientName}
+          appName={organisationName}
           profile={profile}
           onLogout={logout}
           onOpenSearch={() => setSearchOpen(true)}
         />
+        <SubscriptionNotice notice={notice} />
         <ModuleTabs module={active?.module} activeTab={active?.tab} />
 
         {/* erp-scope stays on the content only: it is the legacy shim that still themes
@@ -161,9 +180,13 @@ const Layout = () => {
           {/* a page that breaks shows a message here; the rail and header stay usable, and
               moving to another page clears it */}
           <PageErrorBoundary resetKey={pathname}>
-            <Suspense fallback={<PageLoading />}>
-              <Outlet />
-            </Suspense>
+            {outOfPlan ? (
+              <NotInPlan feature={outOfPlan} />
+            ) : (
+              <Suspense fallback={<PageLoading />}>
+                <Outlet />
+              </Suspense>
+            )}
           </PageErrorBoundary>
         </main>
 
@@ -184,5 +207,12 @@ const Layout = () => {
     </div>
   );
 };
+
+// The organisation is loaded once, here, for everything inside the shell.
+const Layout = () => (
+  <OrganisationProvider>
+    <LayoutShell />
+  </OrganisationProvider>
+);
 
 export default Layout;

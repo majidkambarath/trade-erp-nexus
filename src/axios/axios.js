@@ -1,5 +1,6 @@
 import axios from "axios";
 import { clearSession, announceSignOut, getAccessToken, setSession } from "./session";
+import { BLOCKED_EVENT, blockedFrom } from "../lib/organisation";
 
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
 // environment variable) to point the app at another backend; with nothing set it is the local
@@ -84,6 +85,10 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // A subscription that has ended (or a suspended account) refuses every request the same way. Tell the shell, so it
+    // can say why instead of every screen showing its own error. The request still fails as before.
+    const blocked = blockedFrom(error);
+    if (blocked && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(BLOCKED_EVENT, { detail: blocked }));
     const original = error.config;
     const unauthorized = error.response?.status === 401;
     if (!unauthorized || !original || original._retry || AUTH_PATH.test(original.url || "")) {

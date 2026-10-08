@@ -63,12 +63,17 @@ const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNot
 // The page a customer opens from an emailed link. Lazy, so no signed-in user pays for it, and outside both
 // the sign-in guard and the app shell, so it needs its own loading boundary (Layout owns the only other).
 const SharedDocument = lazy(() => import("../components/send/SharedDocument.jsx"));
+// The developer console: its own sign-in and frame, outside the product's session guard and shell, loaded only by the
+// people who open it.
+const PlatformApp = lazy(() => import("../platform/PlatformApp.jsx"));
+const ConsoleLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the console…</div>;
 const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
 export default function AdminRouter() {
   return (
     <Routes>
       <Route path="/" element={<ERPLogin />} />
       <Route path="/d/:token" element={<Suspense fallback={<SharedLoading />}><SharedDocument /></Suspense>} />
+      <Route path="/platform/*" element={<Suspense fallback={<ConsoleLoading />}><PlatformApp /></Suspense>} />
       <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />

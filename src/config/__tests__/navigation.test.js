@@ -11,13 +11,15 @@ import {
   pageTitle,
   tabMatches,
 } from "../navigation";
+import { FEATURE_LABELS } from "../../lib/organisation";
 
 // Read the real router so a page added without a navigation entry fails here.
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8");
-// Login, the 404 catch-all and the page a customer opens from an emailed link (/d/:token, outside the
-// app shell and the session guard) have no navigation.
-const NON_APP = new Set(["/", "*", "/d/:token"]);
+// Login, the 404 catch-all, the page a customer opens from an emailed link (/d/:token, outside the
+// app shell and the session guard) and the developer console (/platform, its own sign-in and frame) have
+// no navigation.
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));
@@ -154,5 +156,36 @@ describe("getMobileNav", () => {
     const { primary, rest } = getMobileNav(one);
     expect(ids(primary)).toEqual(["home"]);
     expect(rest).toEqual([]);
+  });
+});
+
+describe("what the plan includes", () => {
+  const tabs = (modules) => modules.flatMap((m) => m.tabs.map((t) => `${t.label}@${t.to}`));
+  const everything = tabs(getVisibleModules("Admin"));
+
+  it("every feature a tab names is one the server knows", () => {
+    for (const { tab } of allTabs) if (tab.feature) expect(Object.keys(FEATURE_LABELS)).toContain(tab.feature);
+  });
+
+  it("hides nothing while the organisation status is not known", () => {
+    expect(tabs(getVisibleModules("Admin", undefined, null))).toEqual(everything);
+    expect(tabs(getVisibleModules("Admin", undefined, {}))).toEqual(everything);
+  });
+
+  it("hides exactly the tabs whose feature is switched off", () => {
+    const status = { features: { einvoicing: false, banking: false, quotations: true } };
+    const shown = tabs(getVisibleModules("Admin", undefined, status));
+    expect(shown).not.toContain("e-Invoicing@/e-invoicing");
+    for (const t of ["Cheques@/cheques", "Banks@/banks", "Card types@/card-types", "Cards@/cards"]) expect(shown).not.toContain(t);
+    expect(shown).toContain("Quotations@/quotations");
+    expect(shown).toContain("Cash & bank@/cash-and-bank"); // chart-based, not the banking feature
+    expect(shown).toContain("Orders@/sales-order");
+  });
+
+  it("drops every tab of a switched-off feature but keeps the module while it has others", () => {
+    const off = Object.fromEntries(Object.keys(FEATURE_LABELS).map((k) => [k, false]));
+    const modules = getVisibleModules("Admin", undefined, { features: off });
+    expect(modules.map((m) => m.id)).toContain("sales");
+    expect(tabs(modules).filter((t) => /Quotations|Delivery notes|Batches|Reconcile|IFRS|VAT|e-Invoicing/.test(t))).toEqual([]);
   });
 });
