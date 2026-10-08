@@ -130,10 +130,11 @@ describe("working in a branch", () => {
     { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false },
   ];
 
-  it("shows nothing for an organisation with one branch", async () => {
-    status = { ...base(), branches: [branches[0]], branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } };
+  it("names the head office for an organisation with one branch, and offers no choice", async () => {
+    status = { ...base(), branches: [branches[0]], branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: false } };
     renderAt("/sales-order");
     await screen.findByText("Acme Trading LLC");
+    expect(await screen.findByText("Head office")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Change branch/ })).toBeNull();
   });
 

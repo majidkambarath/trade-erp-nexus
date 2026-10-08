@@ -79,11 +79,12 @@ export function branchChoices(status) {
 export const validBranchSelection = (status, selected) =>
   selected && branchChoices(status).some((c) => c.value === selected) ? selected : null;
 
-/** What the top bar says about where the person is working; null for an organisation with a single branch. */
+/** What the top bar says about where the person is working: always the branch, so a person knows where they are even
+ * when there is only the head office. null only while the status is not known. */
 export function branchLabel(status, selected) {
   const branches = status?.branches || [];
-  if (branches.length < 2) return null;
-  if (!status.branch?.canSwitch) return status.branch?.name || null;
+  if (!status?.branch) return null;
+  if (branches.length < 2 || !status.branch.canSwitch) return status.branch.name || null;
   const chosen = validBranchSelection(status, selected);
   return chosen ? branches.find((b) => b.code === chosen)?.name || chosen : "All branches";
 }

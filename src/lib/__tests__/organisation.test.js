@@ -148,12 +148,12 @@ describe("working in a branch", () => {
     expect(validBranchSelection(null, "shj")).toBeNull();
   });
 
-  it("says where the person is working, and says nothing for a single branch", () => {
+  it("says where the person is working, even when there is only the head office", () => {
     expect(branchLabel(headOffice, null)).toBe("All branches");
     expect(branchLabel(headOffice, "shj")).toBe("Sharjah Warehouse");
     expect(branchLabel(headOffice, "gone")).toBe("All branches");
     expect(branchLabel(branchUser, "main")).toBe("Sharjah Warehouse"); // a branch user is always in their own
-    expect(branchLabel({ branches: [branches[0]], branch: { name: "Head office" } }, null)).toBeNull();
+    expect(branchLabel({ branches: [branches[0]], branch: { name: "Head office", canSwitch: false } }, null)).toBe("Head office");
     expect(branchLabel(null, null)).toBeNull();
   });
 });
