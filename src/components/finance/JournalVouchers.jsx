@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
+import Can from "../shell/Can";
 import { DataTable, DateInput, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
@@ -25,7 +26,7 @@ export default function JournalVouchers() {
       <PageHeader
         title="Journal vouchers"
         description="Move amounts between any accounts of the chart. Add as many rows as you need; the voucher posts when debits equal credits."
-        actions={<Button onClick={() => setForm({})}><Plus className="h-4 w-4" aria-hidden="true" />New journal</Button>}
+        actions={<Can permission="finance.create"><Button onClick={() => setForm({})}><Plus className="h-4 w-4" aria-hidden="true" />New journal</Button></Can>}
       />
       <ListToolbar filters={list.filters} set={list.set} />
       <Panel bodyClassName="p-0">
@@ -42,7 +43,7 @@ export default function JournalVouchers() {
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && (<button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>)}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
           />
         </ListBody>

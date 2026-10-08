@@ -28,6 +28,7 @@ import { toastClasses } from "../../lib/status";
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
+import Can from "../shell/Can";
 // Session management utilities (using memory storage for Claude environment)
 const SessionManager = {
   storage: {},
@@ -429,13 +430,15 @@ const VendorManagement = () => {
         <div className="p-4 sm:p-6 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-lg font-semibold text-gray-900">All Vendors</h2>
-            <button
-              onClick={openAddModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 w-full sm:w-auto transform hover:scale-105 active:scale-95"
-            >
-              <Plus size={16} />
-              Add Vendor
-            </button>
+            <Can permission="purchase.create">
+              <button
+                onClick={openAddModal}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 w-full sm:w-auto transform hover:scale-105 active:scale-95"
+              >
+                <Plus size={16} />
+                Add Vendor
+              </button>
+            </Can>
           </div>
 
           {/* Search and Filters */}

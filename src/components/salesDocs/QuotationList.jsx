@@ -16,7 +16,8 @@ import { allowActions } from "../../lib/salesDocuments";
 // Offers to customers: what is out, what was said yes to, what ran out. Opening one shows the document and
 // every action on it (sending, accepting, converting); the list only finds it, so there is one place for each.
 export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey }) {
-  const { me } = useOrganisation();
+  const { me, can } = useOrganisation();
+  const mayAdd = can("sales.create");
   const acts = (r) => allowActions(r.actions, me);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
@@ -54,7 +55,7 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
       <PageHeader
         title="Quotations"
         description="Offers to your customers. When one is accepted it becomes a sales order, or goes out as a delivery note first."
-        actions={<Button onClick={onNew}><FilePlus2 className="h-4 w-4" aria-hidden="true" />New quotation</Button>}
+        actions={mayAdd && <Button onClick={onNew}><FilePlus2 className="h-4 w-4" aria-hidden="true" />New quotation</Button>}
       />
 
       {s && (
@@ -81,7 +82,7 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
           <EmptyState
             title={status || search ? "No quotations match" : "No quotations yet"}
             text={status || search ? "Try another status or clear the search." : "Write an offer to a customer. It is priced exactly as the invoice will be."}
-            action={!status && !search ? <Button onClick={onNew}>New quotation</Button> : undefined}
+            action={!status && !search && mayAdd ? <Button onClick={onNew}>New quotation</Button> : undefined}
           />
         )}
         {rows.length > 0 && (

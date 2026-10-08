@@ -169,7 +169,7 @@ const TableView = ({
                     </button>
 
                     {po.status === "DRAFT" && (
-                      <Can permission="purchase.create">
+                      <Can permission="purchase.edit">
                         <button
                           onClick={() => editPO(po)}
                           className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"

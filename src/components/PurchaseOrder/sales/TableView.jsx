@@ -245,7 +245,7 @@ const TableView = ({
                       <Eye className="w-4 h-4" />
                     </button>
                     {so.status === "DRAFT" && (
-                      <Can permission="sales.create">
+                      <Can permission="sales.edit">
                         <button
                           onClick={() => editSO(so)}
                           className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"

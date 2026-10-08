@@ -810,18 +810,20 @@ const PurchaseReturnOrderManagement = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
-              <button
-                onClick={() => {
-                  resetForm();
-                  setSelectedPO(null);
-                  setActiveView("create");
-                  generateTransactionNumber();
-                }}
-                className="erp-btn-primary"
-              >
-                <Plus className="w-5 h-5" />
-                <span>New purchase return</span>
-              </button>
+              <Can permission="purchase.create">
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setSelectedPO(null);
+                    setActiveView("create");
+                    generateTransactionNumber();
+                  }}
+                  className="erp-btn-primary"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>New purchase return</span>
+                </button>
+              </Can>
               <button
                 onClick={() => {
                   fetchVendors();

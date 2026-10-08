@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { Eye, Plus } from "lucide-react";
 import { Button } from "../ui/button";
+import Can from "../shell/Can";
 import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
@@ -40,7 +41,7 @@ export default function DebitCreditNotes() {
       <PageHeader
         title="Debit and credit notes"
         description="Adjust what a customer or vendor owes without a new invoice: a price correction, damaged goods, an extra charge."
-        actions={<Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {TYPES[type].one}</Button>}
+        actions={<Can permission="finance.create"><Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {TYPES[type].one}</Button></Can>}
       />
       <div role="tablist" aria-label="Note type" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
         {Object.entries(TYPES).map(([key, t]) => (

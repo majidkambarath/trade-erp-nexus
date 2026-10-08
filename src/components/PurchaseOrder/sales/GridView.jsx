@@ -171,7 +171,7 @@ const GridView = ({
                   </button>
                 )}
                 {so.status === "DRAFT" && (
-                  <Can permission="sales.create">
+                  <Can permission="sales.edit">
                     <button
                       onClick={() => editSO(so)}
                       className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"

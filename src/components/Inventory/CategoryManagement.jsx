@@ -24,6 +24,7 @@ import StatCard from "../ui/stat-card";
 
 import { formatTime } from "../../utils/format";
 import { DataTable } from "../accounting/DataTable";
+import Can from "../shell/Can";
 // Session management utilities
 const SessionManager = {
   storage: {},
@@ -458,23 +459,25 @@ const CategoryManagement = () => {
                 Manage all inventory categories
               </p>
             </div>
-            <button
-              onClick={() => {
-                setShowModal(true);
-                setIsEditMode(false);
-                setEditCategoryId(null);
-                setTimeout(() => {
-                  if (formRef.current) {
-                    const firstInput = formRef.current.querySelector('input[name="name"]');
-                    if (firstInput) firstInput.focus();
-                  }
-                }, 10);
-              }}
-              className="erp-btn-primary"
-            >
-              <Plus size={18} />
-              Add Category
-            </button>
+            <Can permission="inventory.create">
+              <button
+                onClick={() => {
+                  setShowModal(true);
+                  setIsEditMode(false);
+                  setEditCategoryId(null);
+                  setTimeout(() => {
+                    if (formRef.current) {
+                      const firstInput = formRef.current.querySelector('input[name="name"]');
+                      if (firstInput) firstInput.focus();
+                    }
+                  }, 10);
+                }}
+                className="erp-btn-primary"
+              >
+                <Plus size={18} />
+                Add Category
+              </button>
+            </Can>
           </div>
 
           {showFilters && (

@@ -17,7 +17,8 @@ import { allowActions } from "../../lib/salesDocuments";
 // because a tax invoice is due within 14 days of delivery. The "Not invoiced" tab is where that is chased, and
 // where several notes of one customer are picked together for a single invoice.
 export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, notify, reloadKey, initialStatus = "" }) {
-  const { me } = useOrganisation();
+  const { me, can } = useOrganisation();
+  const mayAdd = can("sales.create");
   const acts = (r) => allowActions(r.actions, me);
   const [status, setStatus] = useState(initialStatus);
   const [q, setQ] = useState("");
@@ -56,7 +57,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
       <PageHeader
         title="Delivery notes"
         description="The paper that goes with the goods, signed by whoever takes them. Stock and ledger move when the invoice is approved."
-        actions={<Button onClick={onNew}><Truck className="h-4 w-4" aria-hidden="true" />New delivery note</Button>}
+        actions={mayAdd && <Button onClick={onNew}><Truck className="h-4 w-4" aria-hidden="true" />New delivery note</Button>}
       />
 
       {s && (
@@ -103,7 +104,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
           <EmptyState
             title={status || search ? "No delivery notes here" : "No delivery notes yet"}
             text={status === "UNINVOICED" ? "Every delivered note has been invoiced." : status || search ? "Try another status or clear the search." : "Make one against a sales order, or for goods that go out before they are invoiced."}
-            action={!status && !search ? <Button onClick={onNew}>New delivery note</Button> : undefined}
+            action={!status && !search && mayAdd ? <Button onClick={onNew}>New delivery note</Button> : undefined}
           />
         )}
         {rows.length > 0 && (

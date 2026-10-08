@@ -33,6 +33,7 @@ import StatCard from "../ui/stat-card";
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
+import Can from "../shell/Can";
 
 // Session management utilities
 const SessionManager = {
@@ -489,13 +490,15 @@ const CustomerManagement = () => {
                 Manage all your customer information
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="erp-btn-primary"
-            >
-              <Plus size={18} />
-              Add Customer
-            </button>
+            <Can permission="sales.create">
+              <button
+                onClick={openAddModal}
+                className="erp-btn-primary"
+              >
+                <Plus size={18} />
+                Add Customer
+              </button>
+            </Can>
           </div>
 
           {/* Search and Filters */}

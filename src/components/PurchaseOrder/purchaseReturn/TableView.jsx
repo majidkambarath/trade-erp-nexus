@@ -229,7 +229,7 @@ const TableView = ({
                       <Eye className="w-4 h-4" />
                     </button>
                     {po.status === "DRAFT" && (
-                      <Can permission="purchase.create">
+                      <Can permission="purchase.edit">
                         <button
                           onClick={() => editPO(po)}
                           className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"

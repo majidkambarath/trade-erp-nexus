@@ -176,7 +176,7 @@ const GridView = ({
                   <span className="text-sm">Audit trail</span>
                 </button>
                 {po.status === "DRAFT" && (
-                  <Can permission="purchase.create">
+                  <Can permission="purchase.edit">
                     <button
                       onClick={() => editPO(po)}
                       className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"

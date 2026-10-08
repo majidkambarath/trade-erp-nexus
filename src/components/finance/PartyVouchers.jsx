@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axiosInstance from "../../axios/axios";
 import { AlertTriangle, Eye, Plus, Wand2 } from "lucide-react";
 import { Button } from "../ui/button";
+import Can from "../shell/Can";
 import { DataTable, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
 import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
@@ -38,7 +39,7 @@ function PartyVouchers({ direction }) {
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title={cfg.title} description={cfg.description} actions={<Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {cfg.one}</Button>} />
+      <PageHeader title={cfg.title} description={cfg.description} actions={<Can permission="finance.create"><Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {cfg.one}</Button></Can>} />
       <ListToolbar filters={list.filters} set={list.set}>
         <Field label="Paid by" className="w-full sm:w-36">
           <select className={inputClass} value={list.filters.paymentMode} onChange={(e) => list.set({ paymentMode: e.target.value })}>

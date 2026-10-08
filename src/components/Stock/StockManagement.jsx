@@ -44,6 +44,7 @@ import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
+import Can from "../shell/Can";
 const SessionManager = {
   storage: {},
   get: (key) => {
@@ -1086,13 +1087,15 @@ const StockManagement = () => {
                 Manage your stock items and inventory
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="erp-btn-primary"
-            >
-              <Plus size={18} />
-              Add Stock Item
-            </button>
+            <Can permission="inventory.create">
+              <button
+                onClick={openAddModal}
+                className="erp-btn-primary"
+              >
+                <Plus size={18} />
+                Add Stock Item
+              </button>
+            </Can>
           </div>
 
           <div className="mt-6 space-y-4">

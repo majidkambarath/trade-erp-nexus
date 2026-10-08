@@ -17,6 +17,7 @@
   import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
 import { DataTable } from "../accounting/DataTable";
+import Can from "../shell/Can";
 
   const UnitMeasureConversion = () => {
     const [activeTab, setActiveTab] = useState("units");
@@ -547,19 +548,21 @@ import { DataTable } from "../accounting/DataTable";
                     : "Define conversion ratios between units and support automatic conversions"}
                 </p>
               </div>
-              <button
-                onClick={() =>
-                  openModal(activeTab === "units" ? "unit" : "conversion")
-                }
-                className={`flex items-center gap-3 px-6 py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 ${
-                  activeTab === "units"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                    : "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
-                }`}
-              >
-                <Plus size={18} />
-                Add {activeTab === "units" ? "Unit" : "Conversion"}
-              </button>
+              <Can permission="inventory.create">
+                <button
+                  onClick={() =>
+                    openModal(activeTab === "units" ? "unit" : "conversion")
+                  }
+                  className={`flex items-center gap-3 px-6 py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 ${
+                    activeTab === "units"
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                      : "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
+                  }`}
+                >
+                  <Plus size={18} />
+                  Add {activeTab === "units" ? "Unit" : "Conversion"}
+                </button>
+              </Can>
             </div>
 
             {/* Search */}

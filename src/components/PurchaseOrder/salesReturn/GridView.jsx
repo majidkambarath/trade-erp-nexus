@@ -143,7 +143,7 @@ const GridView = ({
                   <span className="text-sm">Audit trail</span>
                 </button>
                 {so.status === "DRAFT" && (
-                  <Can permission="sales.create">
+                  <Can permission="sales.edit">
                     <button
                       onClick={() => editSO(so)}
                       className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
