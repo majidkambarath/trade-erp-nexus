@@ -17,12 +17,11 @@ import {
 } from "lucide-react";
 // (with its extension: the mobile sweep loads this file straight from node, which does not guess one)
 import { tabInPlan } from "../lib/organisation.js";
+import { tabAllowed } from "../lib/permissions.js";
 
-// A tab may name a `feature` (the server's plan features, utils/plans.js): it is offered only when the organisation's
-// plan includes it. Role lists are carried over unchanged from the previous sidebar, per page.
-const ORDERS = ["Admin", "Purchase Officer", "Sales Executive"];
-const ACCOUNTS = ["Admin", "Accountant"];
-const INVENTORY = ["Admin", "Inventory Manager"];
+// A tab names the `permission` it needs (one, or a list of which any will do) and may name a `feature` of the plan. It is
+// offered only when the person's role holds the permission AND the organisation's plan includes the feature. A tab that
+// needs nothing says it is `open` and why. (The server decides every request for itself; this decides what to show.)
 
 export const MODULES = [
   {
@@ -30,7 +29,7 @@ export const MODULES = [
     mobilePrimary: true,
     label: "Home",
     icon: LayoutDashboard,
-    tabs: [{ label: "Dashboard", to: "/dashboard", keywords: ["overview", "kpi"] }],
+    tabs: [{ label: "Dashboard", to: "/dashboard", permission: "reports.view", keywords: ["overview", "kpi"] }],
   },
   {
     id: "sales",
@@ -38,21 +37,21 @@ export const MODULES = [
     label: "Sales",
     icon: ShoppingBag,
     tabs: [
-      { label: "Quotations", to: "/quotations", roles: ORDERS, feature: "quotations", keywords: ["quote", "offer", "proposal", "estimate", "rfq", "validity"] },
-      { label: "Orders", to: "/sales-order", roles: ORDERS, keywords: ["sales order", "invoice"] },
+      { label: "Quotations", to: "/quotations", permission: "sales.view", feature: "quotations", keywords: ["quote", "offer", "proposal", "estimate", "rfq", "validity"] },
+      { label: "Orders", to: "/sales-order", permission: "sales.view", keywords: ["sales order", "invoice"] },
       {
         label: "Delivery notes",
         to: "/delivery-notes",
-        roles: ORDERS,
+        permission: "sales.view",
         feature: "deliveryNotes",
         keywords: ["delivery order", "dispatch", "proof of delivery", "pod", "pick list", "not invoiced", "14 days", "driver"],
       },
-      { label: "Returns", to: "/sales-return", roles: ORDERS, keywords: ["sales return"] },
-      { label: "Customers", to: "/customer-creation", roles: ["Admin", "Sales Executive"], keywords: ["clients", "parties"] },
+      { label: "Returns", to: "/sales-return", permission: "sales.view", keywords: ["sales return"] },
+      { label: "Customers", to: "/customer-creation", permission: ["sales.view", "accounts.view"], keywords: ["clients", "parties"] },
       {
         label: "Receivables",
         to: "/credit-accounts",
-        roles: ACCOUNTS,
+        permission: ["finance.view", "reports.financial"],
         keywords: ["credit accounts", "customer balances", "ar"],
       },
     ],
@@ -63,13 +62,13 @@ export const MODULES = [
     label: "Purchase",
     icon: Truck,
     tabs: [
-      { label: "Orders", to: "/purchase-order", roles: ORDERS, keywords: ["purchase order", "po", "grn"] },
-      { label: "Returns", to: "/purchase-return", roles: ORDERS, keywords: ["purchase return"] },
-      { label: "Vendors", to: "/vendor-creation", roles: ["Admin", "Purchase Officer"], keywords: ["suppliers", "parties"] },
+      { label: "Orders", to: "/purchase-order", permission: "purchase.view", keywords: ["purchase order", "po", "grn"] },
+      { label: "Returns", to: "/purchase-return", permission: "purchase.view", keywords: ["purchase return"] },
+      { label: "Vendors", to: "/vendor-creation", permission: ["purchase.view", "accounts.view"], keywords: ["suppliers", "parties"] },
       {
         label: "Payables",
         to: "/debit-accounts",
-        roles: ACCOUNTS,
+        permission: ["finance.view", "reports.financial"],
         keywords: ["debit accounts", "vendor balances", "ap"],
       },
     ],
@@ -84,13 +83,13 @@ export const MODULES = [
         to: "/stock-item-creation",
         // /stock-detail/:id is not nested under the list route, so it is matched explicitly.
         match: ["/stock-item-creation", "/stock-detail"],
-        roles: INVENTORY,
+        permission: "inventory.view",
         keywords: ["products", "sku", "items"],
       },
-      { label: "Movements", to: "/inventory", roles: INVENTORY, keywords: ["inventory", "stock movement"] },
-      { label: "Categories", to: "/category-management", roles: INVENTORY },
-      { label: "Units", to: "/unit-setup", roles: INVENTORY, keywords: ["unit of measure", "uom"] },
-      { label: "Batches", to: "/batches", roles: INVENTORY, feature: "batches", keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },
+      { label: "Movements", to: "/inventory", permission: "inventory.view", keywords: ["inventory", "stock movement"] },
+      { label: "Categories", to: "/category-management", permission: "inventory.view" },
+      { label: "Units", to: "/unit-setup", permission: "inventory.view", keywords: ["unit of measure", "uom"] },
+      { label: "Batches", to: "/batches", permission: "inventory.view", feature: "batches", keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },
     ],
   },
   {
@@ -99,16 +98,16 @@ export const MODULES = [
     label: "Finance",
     icon: Landmark,
     tabs: [
-      { label: "Receipts", to: "/receipt-voucher", roles: ACCOUNTS, keywords: ["receipt voucher"] },
-      { label: "Payments", to: "/payment-voucher", roles: ACCOUNTS, keywords: ["payment voucher"] },
-      { label: "Journal", to: "/journal-voucher", roles: ACCOUNTS, keywords: ["journal voucher"] },
-      { label: "Contra", to: "/contra-voucher", roles: ACCOUNTS, keywords: ["contra voucher"] },
-      { label: "Expenses", to: "/expense-voucher", roles: ACCOUNTS, keywords: ["expense voucher"] },
-      { label: "Notes", to: "/debit-credit-notes", roles: ACCOUNTS, keywords: ["debit note", "credit note", "price adjustment", "dn", "cn"] },
-      { label: "Cheques", to: "/cheques", roles: ACCOUNTS, feature: "banking", keywords: ["cheque register", "pdc", "post-dated", "bounced", "clearing"] },
-      { label: "Cash & bank", to: "/cash-and-bank", match: ["/cash-and-bank", "/transactors"], roles: ACCOUNTS, keywords: ["cash", "bank", "balances", "accounts", "transfer"] },
-      { label: "Reconcile", to: "/bank-reconciliation", roles: ACCOUNTS, feature: "reconciliation", keywords: ["bank reconciliation", "reconcile", "statement", "import statement", "card settlement", "brs", "mt940"] },
-      { label: "Ledger", to: "/ledger", match: ["/ledger", "/transactions"], roles: ACCOUNTS, keywords: ["account ledger", "running balance", "transactions", "day book"] },
+      { label: "Receipts", to: "/receipt-voucher", permission: "finance.view", keywords: ["receipt voucher"] },
+      { label: "Payments", to: "/payment-voucher", permission: "finance.view", keywords: ["payment voucher"] },
+      { label: "Journal", to: "/journal-voucher", permission: "finance.view", keywords: ["journal voucher"] },
+      { label: "Contra", to: "/contra-voucher", permission: "finance.view", keywords: ["contra voucher"] },
+      { label: "Expenses", to: "/expense-voucher", permission: "finance.view", keywords: ["expense voucher"] },
+      { label: "Notes", to: "/debit-credit-notes", permission: "finance.view", keywords: ["debit note", "credit note", "price adjustment", "dn", "cn"] },
+      { label: "Cheques", to: "/cheques", permission: ["banking.view", "finance.view"], feature: "banking", keywords: ["cheque register", "pdc", "post-dated", "bounced", "clearing"] },
+      { label: "Cash & bank", to: "/cash-and-bank", match: ["/cash-and-bank", "/transactors"], permission: ["finance.view", "banking.view", "accounts.view"], keywords: ["cash", "bank", "balances", "accounts", "transfer"] },
+      { label: "Reconcile", to: "/bank-reconciliation", permission: "banking.view", feature: "reconciliation", keywords: ["bank reconciliation", "reconcile", "statement", "import statement", "card settlement", "brs", "mt940"] },
+      { label: "Ledger", to: "/ledger", match: ["/ledger", "/transactions"], permission: ["finance.view", "reports.financial"], keywords: ["account ledger", "running balance", "transactions", "day book"] },
     ],
   },
   {
@@ -117,14 +116,14 @@ export const MODULES = [
     label: "Accounts",
     icon: BookOpen,
     tabs: [
-      { label: "Chart of accounts", to: "/chart-of-accounts", roles: ACCOUNTS, keywords: ["coa", "ledger accounts", "account groups", "assets", "liabilities", "equity", "income", "expenses", "opening balance", "documents", "create account"] },
-      { label: "Banks", to: "/banks", roles: ACCOUNTS, feature: "banking", keywords: ["bank master", "swift", "iban", "branches"] },
-      { label: "KYC documents", to: "/kyc-documents", roles: ACCOUNTS, keywords: ["document types", "trade licence", "emirates id", "expiry", "kyc", "expiring documents"] },
-      { label: "Card types", to: "/card-types", roles: ACCOUNTS, feature: "banking", keywords: ["visa", "mastercard", "card fee", "processing fee"] },
-      { label: "Cards", to: "/cards", roles: ACCOUNTS, feature: "banking", keywords: ["card master", "pos terminal", "credit card", "merchant", "debit card", "prepaid"] },
-      { label: "Opening balances", to: "/opening-balances", roles: ACCOUNTS, keywords: ["go live", "conversion", "opening stock", "opening invoices", "trial balance", "opening balance equity", "migrate", "old books"] },
-      { label: "Currencies", to: "/currencies", roles: ACCOUNTS, feature: "currencies", keywords: ["exchange rate", "fx", "foreign currency", "usd", "eur", "rates", "base currency", "aed"] },
-      { label: "Setup", to: "/accounting-setup", roles: ACCOUNTS, keywords: ["posting accounts", "account configuration", "fiscal year", "period lock", "tax codes", "credit control", "audit log", "numbering"] },
+      { label: "Chart of accounts", to: "/chart-of-accounts", permission: "accounts.view", keywords: ["coa", "ledger accounts", "account groups", "assets", "liabilities", "equity", "income", "expenses", "opening balance", "documents", "create account"] },
+      { label: "Banks", to: "/banks", permission: "banking.view", feature: "banking", keywords: ["bank master", "swift", "iban", "branches"] },
+      { label: "KYC documents", to: "/kyc-documents", permission: ["accounts.view", "sales.view", "purchase.view"], keywords: ["document types", "trade licence", "emirates id", "expiry", "kyc", "expiring documents"] },
+      { label: "Card types", to: "/card-types", permission: "banking.view", feature: "banking", keywords: ["visa", "mastercard", "card fee", "processing fee"] },
+      { label: "Cards", to: "/cards", permission: "banking.view", feature: "banking", keywords: ["card master", "pos terminal", "credit card", "merchant", "debit card", "prepaid"] },
+      { label: "Opening balances", to: "/opening-balances", permission: "accounts.view", keywords: ["go live", "conversion", "opening stock", "opening invoices", "trial balance", "opening balance equity", "migrate", "old books"] },
+      { label: "Currencies", to: "/currencies", permission: "accounts.view", feature: "currencies", keywords: ["exchange rate", "fx", "foreign currency", "usd", "eur", "rates", "base currency", "aed"] },
+      { label: "Setup", to: "/accounting-setup", permission: "accounts.view", keywords: ["posting accounts", "account configuration", "fiscal year", "period lock", "tax codes", "credit control", "audit log", "numbering"] },
     ],
   },
   {
@@ -132,32 +131,32 @@ export const MODULES = [
     label: "Reports",
     icon: BarChart3,
     tabs: [
-      { label: "Statements", to: "/financial-statements", roles: ACCOUNTS, keywords: ["trial balance", "profit and loss", "p&l", "gross profit", "cash flow", "balance sheet", "financial statements"] },
-      { label: "IFRS", to: "/ifrs-statements", roles: ACCOUNTS, feature: "ifrsStatements", keywords: ["ifrs statements", "statement of financial position", "profit or loss", "changes in equity", "cash flows", "notes", "comparative", "ias 1", "ias 7"] },
-      { label: "Ledger", to: "/ledger-reports", roles: ACCOUNTS, keywords: ["general ledger", "day book", "journals register", "cash book", "bank book", "gl"] },
-      { label: "Balances", to: "/party-balances", roles: ACCOUNTS, keywords: ["customer balances", "vendor balances", "receivables", "payables", "credit exposure", "credit limit", "outstanding"] },
-      { label: "Ageing", to: "/ageing", roles: ACCOUNTS, keywords: ["aged receivables", "aged payables", "overdue", "outstanding"] },
-      { label: "Account statement", to: "/statement", roles: ACCOUNTS, keywords: ["statement of account", "customer statement", "vendor statement"] },
-      { label: "Stock", to: "/stock-reports", roles: ACCOUNTS, keywords: ["stock valuation", "inventory valuation", "stock movement", "item ledger", "sales analysis", "gross margin", "expiry", "slow moving", "dead stock", "reorder", "low stock"] },
-      { label: "Currency", to: "/currency-register", roles: ACCOUNTS, feature: "currencies", keywords: ["currency register", "foreign receipts", "foreign payments", "fx register"] },
-      { label: "VAT", to: "/vat-reports", roles: ACCOUNTS, feature: "vatReturn", keywords: ["vat report", "fta", "tax"] },
+      { label: "Statements", to: "/financial-statements", permission: "reports.financial", keywords: ["trial balance", "profit and loss", "p&l", "gross profit", "cash flow", "balance sheet", "financial statements"] },
+      { label: "IFRS", to: "/ifrs-statements", permission: "reports.financial", feature: "ifrsStatements", keywords: ["ifrs statements", "statement of financial position", "profit or loss", "changes in equity", "cash flows", "notes", "comparative", "ias 1", "ias 7"] },
+      { label: "Ledger", to: "/ledger-reports", permission: "reports.financial", keywords: ["general ledger", "day book", "journals register", "cash book", "bank book", "gl"] },
+      { label: "Balances", to: "/party-balances", permission: ["reports.financial", "finance.view"], keywords: ["customer balances", "vendor balances", "receivables", "payables", "credit exposure", "credit limit", "outstanding"] },
+      { label: "Ageing", to: "/ageing", permission: "reports.view", keywords: ["aged receivables", "aged payables", "overdue", "outstanding"] },
+      { label: "Account statement", to: "/statement", permission: ["reports.view", "finance.view"], keywords: ["statement of account", "customer statement", "vendor statement"] },
+      { label: "Stock", to: "/stock-reports", permission: "reports.view", keywords: ["stock valuation", "inventory valuation", "stock movement", "item ledger", "sales analysis", "gross margin", "expiry", "slow moving", "dead stock", "reorder", "low stock"] },
+      { label: "Currency", to: "/currency-register", permission: ["reports.financial", "accounts.view"], feature: "currencies", keywords: ["currency register", "foreign receipts", "foreign payments", "fx register"] },
+      { label: "VAT", to: "/vat-reports", permission: "reports.financial", feature: "vatReturn", keywords: ["vat report", "fta", "tax"] },
       // `soon`: the screens work against a built-in sandbox, but the connection to an accredited
       // service provider (live exchange with other businesses and the FTA) is not built yet.
-      { label: "e-Invoicing", to: "/e-invoicing", roles: ACCOUNTS, feature: "einvoicing", soon: true, keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tax invoice", "credit note"] },
+      { label: "e-Invoicing", to: "/e-invoicing", permission: ["reports.financial", "sales.view"], feature: "einvoicing", soon: true, keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tax invoice", "credit note"] },
     ],
   },
   {
     id: "people",
     label: "People",
     icon: Users,
-    tabs: [{ label: "Staff", to: "/staff-records", roles: ["Admin", "HR"], keywords: ["employees"] }],
+    tabs: [{ label: "Staff", to: "/staff-records", permission: "users.view", keywords: ["employees"] }],
   },
   {
     id: "settings",
     label: "Settings",
     icon: Settings,
     placement: "footer",
-    tabs: [{ label: "Settings", to: "/settings", keywords: ["profile", "company", "credit control", "returns", "trn", "tax registration", "password", "theme", "date format"] }],
+    tabs: [{ label: "Settings", to: "/settings", open: "every person has their own preferences and password here; what else the page shows is up to the server", keywords: ["profile", "company", "credit control", "returns", "trn", "tax registration", "password", "theme", "date format"] }],
   },
 ];
 
@@ -171,13 +170,13 @@ export const isPathActive = (path, currentPath) => {
 export const tabMatches = (tab, currentPath) =>
   (tab.match ?? [tab.to]).some((p) => isPathActive(p, currentPath));
 
-const canSee = (tab, role, status) => (!tab.roles || tab.roles.includes(role)) && tabInPlan(tab, status);
+const canSee = (tab, status) => tabInPlan(tab, status) && tabAllowed(tab, status?.me);
 
-/** Modules filtered to what `role` may open and the organisation's plan includes. A module with no visible tab is
- * dropped. `status` is the organisation status (or null while it is unknown, which hides nothing). */
-export const getVisibleModules = (role, modules = MODULES, status = null) =>
+/** Modules filtered to what the person's role may open and the organisation's plan includes. A module with no visible tab
+ * is dropped. `status` is the organisation status (or null while it is unknown, which hides nothing). */
+export const getVisibleModules = (status = null, modules = MODULES) =>
   modules
-    .map((m) => ({ ...m, tabs: m.tabs.filter((t) => canSee(t, role, status)) }))
+    .map((m) => ({ ...m, tabs: m.tabs.filter((t) => canSee(t, status)) }))
     .filter((m) => m.tabs.length > 0);
 
 /** The module and tab owning `pathname`, or null for an unmapped route. */

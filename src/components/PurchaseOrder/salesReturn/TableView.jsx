@@ -10,6 +10,7 @@ import {
   CheckSquare as ConfirmIcon,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const TableView = ({
   paginatedSOs,
@@ -195,22 +196,26 @@ const TableView = ({
                       <Eye className="w-4 h-4" />
                     </button>
                     {so.status === "DRAFT" && (
-                      <button
-                        onClick={() => editSO(so)}
-                        className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
+                      <Can permission="sales.create">
+                        <button
+                          onClick={() => editSO(so)}
+                          className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     {so.status === "DRAFT" && (
-                      <button
-                        onClick={() => confirmSO(so.id)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Confirm"
-                      >
-                        <ConfirmIcon className="w-4 h-4" />
-                      </button>
+                      <Can permission="sales.approve">
+                        <button
+                          onClick={() => confirmSO(so.id)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Confirm"
+                        >
+                          <ConfirmIcon className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     <div className="relative group">
                       <button className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
@@ -227,12 +232,14 @@ const TableView = ({
                           Duplicate
                         </button>
                         {so.status === "DRAFT" && (
-                          <button
-                            onClick={() => deleteSO(so.id)}
-                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                          <Can permission="sales.delete">
+                            <button
+                              onClick={() => deleteSO(so.id)}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          </Can>
                         )}
                       </div>
                     </div>

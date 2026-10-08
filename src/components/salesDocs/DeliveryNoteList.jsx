@@ -10,11 +10,15 @@ import { formatDate, formatNumber } from "../../utils/format";
 import { InvoiceDialog } from "./DeliveryDialogs";
 import { Note, PillTabs } from "./parts";
 import { useDebounced, useDocumentAction } from "./hooks";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { allowActions } from "../../lib/salesDocuments";
 
 // Delivery notes: what is being sent, what has arrived, and above all what has arrived and not been invoiced,
 // because a tax invoice is due within 14 days of delivery. The "Not invoiced" tab is where that is chased, and
 // where several notes of one customer are picked together for a single invoice.
 export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, notify, reloadKey, initialStatus = "" }) {
+  const { me } = useOrganisation();
+  const acts = (r) => allowActions(r.actions, me);
   const [status, setStatus] = useState(initialStatus);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -115,7 +119,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
                   <span onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox" className="h-4 w-4 accent-[var(--primary)]" aria-label={`Select ${r.deliveryNoteNo}`}
-                      checked={Boolean(picked[r._id])} disabled={!r.actions.invoice} title={r.actions.invoice ? undefined : "This note is against a sales order"}
+                      checked={Boolean(picked[r._id])} disabled={!acts(r).invoice} title={acts(r).invoice ? undefined : "This note is against a sales order"}
                       onChange={(e) => pick(r, e.target.checked)}
                     />
                   </span>
@@ -150,8 +154,8 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
                 cell: (r) => (
                   <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" onClick={() => onOpen(r._id)}><Eye className="h-3.5 w-3.5" aria-hidden="true" />View</Button>
-                    {r.actions.edit && <Button size="sm" variant="ghost" onClick={() => onEdit(r)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button>}
-                    {r.actions.delete && <Button size="sm" variant="ghost" onClick={() => setDialog({ remove: r })}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button>}
+                    {acts(r).edit && <Button size="sm" variant="ghost" onClick={() => onEdit(r)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button>}
+                    {acts(r).delete && <Button size="sm" variant="ghost" onClick={() => setDialog({ remove: r })}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button>}
                   </span>
                 ),
               },

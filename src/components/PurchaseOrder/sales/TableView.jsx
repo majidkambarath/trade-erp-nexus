@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { SentLine } from "../../send/shared";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const TableView = ({
   paginatedSOs,
@@ -244,22 +245,26 @@ const TableView = ({
                       <Eye className="w-4 h-4" />
                     </button>
                     {so.status === "DRAFT" && (
-                      <button
-                        onClick={() => editSO(so)}
-                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
+                      <Can permission="sales.create">
+                        <button
+                          onClick={() => editSO(so)}
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     {so.status === "DRAFT" && (
-                      <button
-                        onClick={() => confirmSO(so.id)}
-                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
-                        title="Confirm"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                      </button>
+                      <Can permission="sales.approve">
+                        <button
+                          onClick={() => confirmSO(so.id)}
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          title="Confirm"
+                        >
+                          <CheckSquare className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     <div className="relative group">
                       <button className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors">
@@ -281,12 +286,14 @@ const TableView = ({
                           Customer copy
                         </button>
                         {so.status === "DRAFT" && (
-                          <button
-                            onClick={() => deleteSO(so.id)}
-                            className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary"
-                          >
-                            Delete
-                          </button>
+                          <Can permission="sales.delete">
+                            <button
+                              onClick={() => deleteSO(so.id)}
+                              className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary"
+                            >
+                              Delete
+                            </button>
+                          </Can>
                         )}
                       </div>
                     </div>

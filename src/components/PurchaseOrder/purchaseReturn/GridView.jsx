@@ -11,6 +11,7 @@ import {
   History,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const GridView = ({
   paginatedPOs,
@@ -175,43 +176,51 @@ const GridView = ({
                   <span className="text-sm">Audit trail</span>
                 </button>
                 {po.status === "DRAFT" && (
-                  <button
-                    onClick={() => editPO(po)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    <span className="text-sm">Edit</span>
-                  </button>
+                  <Can permission="purchase.create">
+                    <button
+                      onClick={() => editPO(po)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span className="text-sm">Edit</span>
+                    </button>
+                  </Can>
                 )}
               </div>
 
               <div className="flex space-x-2">
                 {po.status === "PENDING" && (
                   <>
-                    <button
-                      onClick={() => approvePO(po.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
-                    >
-                      <CheckSquare className="w-4 h-4" />
-                      <span className="text-sm">Approve</span>
-                    </button>
-                    <button
-                      onClick={() => rejectPO(po.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                      <span className="text-sm">Reject</span>
-                    </button>
+                    <Can permission="purchase.approve">
+                      <button
+                        onClick={() => approvePO(po.id)}
+                        className="flex items-center space-x-1 px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                        <span className="text-sm">Approve</span>
+                      </button>
+                    </Can>
+                    <Can permission="purchase.approve">
+                      <button
+                        onClick={() => rejectPO(po.id)}
+                        className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Reject</span>
+                      </button>
+                    </Can>
                   </>
                 )}
                 {(po.status === "DRAFT" || po.status === "REJECTED") && (
-                  <button
-                    onClick={() => deletePO(po.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-sm">Delete</span>
-                  </button>
+                  <Can permission="purchase.delete">
+                    <button
+                      onClick={() => deletePO(po.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-sm">Delete</span>
+                    </button>
+                  </Can>
                 )}
               </div>
             </div>

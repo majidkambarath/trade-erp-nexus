@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CheckCircle2, CircleDashed } from "lucide-react";
 import { sendSettings } from "../../lib/sendDocumentsApi";
 import { Button } from "../ui/button";
+import Guarded from "../shell/Guarded";
 import { ErrorNote, Field, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync } from "../accounting/kit";
 
 // Sending documents to customers: where the email comes from and how it is sent. Admins only change this
@@ -31,12 +32,12 @@ export default function SendingSettings({ notify }) {
   if (settings.loading && !s) return <Spinner />;
   if (settings.error && !s) return <ErrorNote error={settings.error} onRetry={settings.reload} />;
   return (
-    <div className="space-y-5">
+    <Guarded permission="settings.manage" what="how documents are sent">
       <Switch settings={s} notify={notify} onSaved={refresh} />
       <Connection settings={s} readiness={ready.data} notify={notify} onSaved={refresh} />
       <Wording settings={s} notify={notify} onSaved={refresh} />
       <TestEmail notify={notify} />
-    </div>
+    </Guarded>
   );
 }
 

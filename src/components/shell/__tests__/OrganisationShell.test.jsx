@@ -163,3 +163,44 @@ describe("working in a branch", () => {
     await waitFor(() => expect(getSelectedBranch()).toBeNull());
   });
 });
+
+describe("what the person's role may open", () => {
+  const SALES = { role: { key: "sales", name: "Sales executive", rank: 40 }, grants: ["sales.view", "sales.create", "sales.send", "inventory.view", "lookups.view", "reports.view"] };
+
+  it("offers a sales executive their sales pages and no Finance", async () => {
+    status = { ...base(), me: SALES };
+    renderAt("/sales-order");
+    expect(await screen.findByRole("link", { name: "Quotations" })).toBeInTheDocument();
+    expect(screen.getByText("the page itself")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("link", { name: /Finance/ })).toBeNull());
+    expect(screen.queryByRole("link", { name: "Receivables" })).toBeNull();
+  });
+
+  it("says plainly, in place of the page, when a typed address is one their role does not include, and offers a way out", async () => {
+    status = { ...base(), me: SALES };
+    renderAt("/chart-of-accounts");
+    expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+    expect(screen.getByText(/Your role \(Sales executive\) does not include it/)).toBeInTheDocument();
+    expect(screen.queryByText("the page itself")).toBeNull();
+    const out = screen.getByRole("link", { name: /Go to a page you can open/ });
+    expect(out.getAttribute("href")).toBeTruthy();
+  });
+
+  it("opens a page the role does hold, and the plan message wins when the plan is the reason", async () => {
+    status = { ...base(), me: SALES };
+    renderAt("/e-invoicing"); // sales.view opens it, but this plan has no e-invoicing
+    expect(await screen.findByText("E-invoicing is not included in your plan")).toBeInTheDocument();
+  });
+
+  it("gives a person who holds nothing the pages open to everyone, and still a way out", async () => {
+    status = { ...base(), me: { role: { key: "lead", name: "Lead" }, grants: [] } };
+    renderAt("/dashboard");
+    expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Go to a page you can open/ }).getAttribute("href")).toBe("/settings");
+  });
+
+  it("hides nothing when the status carries no role, and the page opens", async () => {
+    renderAt("/chart-of-accounts");
+    expect(await screen.findByText("the page itself")).toBeInTheDocument();
+  });
+});

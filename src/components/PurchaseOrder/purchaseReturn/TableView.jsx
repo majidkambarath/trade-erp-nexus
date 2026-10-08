@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const TableView = ({
   paginatedPOs,
@@ -228,22 +229,26 @@ const TableView = ({
                       <Eye className="w-4 h-4" />
                     </button>
                     {po.status === "DRAFT" && (
-                      <button
-                        onClick={() => editPO(po)}
-                        className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
+                      <Can permission="purchase.create">
+                        <button
+                          onClick={() => editPO(po)}
+                          className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     {po.status === "PENDING" && (
-                      <button
-                        onClick={() => approvePO(po.id)}
-                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Approve"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                      </button>
+                      <Can permission="purchase.approve">
+                        <button
+                          onClick={() => approvePO(po.id)}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="Approve"
+                        >
+                          <CheckSquare className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     <div className="relative group">
                       <button className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
@@ -261,12 +266,14 @@ const TableView = ({
                         </button>
                         {(po.status === "DRAFT" ||
                           po.status === "REJECTED") && (
-                          <button
-                            onClick={() => deletePO(po.id)}
-                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                          >
-                            Delete
-                          </button>
+                          <Can permission="purchase.delete">
+                            <button
+                              onClick={() => deletePO(po.id)}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                            >
+                              Delete
+                            </button>
+                          </Can>
                         )}
                       </div>
                     </div>

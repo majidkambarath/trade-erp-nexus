@@ -12,6 +12,7 @@ import {
   tabMatches,
 } from "../navigation";
 import { FEATURE_LABELS } from "../../lib/organisation";
+import { tabAllowed } from "../../lib/permissions";
 
 // Read the real router so a page added without a navigation entry fails here.
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -73,27 +74,74 @@ describe("findActive", () => {
   });
 });
 
-describe("role filtering", () => {
-  it("Admin sees every module", () => {
-    expect(getVisibleModules("Admin").map((m) => m.id)).toEqual(MODULES.map((m) => m.id));
+// What a person's role holds comes from the server (status.me.grants); these are the lists the built-in roles expand to.
+const grants = (...keys) => ({ me: { grants: keys } });
+const allKeys = [...new Set(allTabs.flatMap(({ tab }) => [].concat(tab.permission || [])))];
+const EVERYTHING = grants(...allKeys);
+const SALES = grants("sales.view", "sales.create", "sales.send", "inventory.view", "lookups.view", "reports.view");
+const STOREKEEPER = grants("inventory.view", "inventory.create", "inventory.adjust", "sales.view", "purchase.view", "reports.view", "lookups.view");
+
+describe("what a role may open", () => {
+  it("shows everything while the person's role is not known, because the server is the lock and a missing answer must not lock anyone out", () => {
+    expect(getVisibleModules(null).map((m) => m.id)).toEqual(MODULES.map((m) => m.id));
+    expect(getVisibleModules({}).map((m) => m.id)).toEqual(MODULES.map((m) => m.id));
   });
 
-  it("an Accountant sees finance and reports but not inventory or people", () => {
-    const ids = getVisibleModules("Accountant").map((m) => m.id);
-    expect(ids).toEqual(expect.arrayContaining(["home", "finance", "reports", "settings"]));
-    expect(ids).not.toContain("inventory");
-    expect(ids).not.toContain("people");
+  it("someone who holds everything sees every module", () => {
+    expect(getVisibleModules(EVERYTHING).map((m) => m.id)).toEqual(MODULES.map((m) => m.id));
+  });
+
+  it("a storekeeper sees inventory and the stock reports, but not finance, the books or the people", () => {
+    const modules = getVisibleModules(STOREKEEPER);
+    const ids = modules.map((m) => m.id);
+    expect(ids).toEqual(expect.arrayContaining(["home", "inventory", "settings"]));
+    for (const hidden of ["finance", "people"]) expect(ids).not.toContain(hidden);
+    // the one Accounts page that follows the sales and purchase documents (customer and vendor paperwork), and nothing of the chart
+    expect(modules.find((m) => m.id === "accounts").tabs.map((t) => t.label)).toEqual(["KYC documents"]);
+    // (the e-invoicing page is open to whoever may see sales documents, as the server's own list of it is)
+    expect(modules.find((m) => m.id === "reports").tabs.map((t) => t.label)).toEqual(["Ageing", "Account statement", "Stock", "e-Invoicing"]);
   });
 
   it("drops individual tabs the role cannot open, keeping the module", () => {
-    const sales = getVisibleModules("Sales Executive").find((m) => m.id === "sales");
-    // Quotations and delivery notes are order paperwork, so they follow the order roles; the
-    // receivables tab is for accountants only and stays hidden from a sales executive.
+    const sales = getVisibleModules(SALES).find((m) => m.id === "sales");
+    // Quotations, orders, delivery notes, returns and customers are sales paperwork; the receivables tab is the books,
+    // which a sales executive does not hold, so it is not offered.
     expect(sales.tabs.map((t) => t.label)).toEqual(["Quotations", "Orders", "Delivery notes", "Returns", "Customers"]);
   });
 
-  it("a role with no access at all still keeps unrestricted pages", () => {
-    expect(getVisibleModules("Nobody").map((m) => m.id)).toEqual(["home", "settings"]);
+  it("a role that holds nothing still keeps the open pages", () => {
+    expect(getVisibleModules(grants()).map((m) => m.id)).toEqual(["settings"]);
+  });
+
+  it("any ONE of a tab's permissions is enough", () => {
+    const viaFinance = getVisibleModules(grants("finance.view")).find((m) => m.id === "sales");
+    expect(viaFinance.tabs.map((t) => t.label)).toEqual(["Receivables"]);
+    const viaReports = getVisibleModules(grants("reports.financial")).find((m) => m.id === "sales");
+    expect(viaReports.tabs.map((t) => t.label)).toEqual(["Receivables"]);
+  });
+
+  it("guarding is the default: every tab names what it needs, or says it is open and why", () => {
+    for (const { module, tab } of allTabs) {
+      const where = module.id + "/" + tab.label;
+      if (tab.open) expect(String(tab.open).length, where + " needs a real reason").toBeGreaterThan(10);
+      else {
+        expect(tab.permission, where + " names no permission").toBeTruthy();
+        for (const key of [].concat(tab.permission)) expect(key, where).toMatch(/^[a-z]+.[A-Za-z]+$/);
+      }
+    }
+    expect(allTabs.filter(({ tab }) => tab.open).map(({ tab }) => tab.label)).toEqual(["Settings"]);
+  });
+
+  it("the cosmetic role names are gone: nothing asks for a role any more", () => {
+    for (const { tab } of allTabs) expect(tab.roles).toBeUndefined();
+  });
+
+  it("a tab is refused once the role is known and does not hold what it needs", () => {
+    expect(tabAllowed({ permission: "finance.view" }, { grants: ["sales.view"] })).toBe(false);
+    expect(tabAllowed({ permission: "finance.view" }, { grants: ["finance.view"] })).toBe(true);
+    expect(tabAllowed({}, { grants: ["finance.view"] })).toBe(false); // names nothing: refused
+    expect(tabAllowed({ open: "reason given here" }, { grants: [] })).toBe(true);
+    expect(tabAllowed({ permission: "finance.view" }, null)).toBe(true); // role unknown: nothing hidden
   });
 });
 
@@ -125,13 +173,13 @@ describe("getMobileNav", () => {
   const ids = (list) => list.map((m) => m.id);
 
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
-    const { primary, rest } = getMobileNav(getVisibleModules("Admin"));
+    const { primary, rest } = getMobileNav(getVisibleModules());
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
     expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
   });
 
   it("splits every module into exactly one of the two", () => {
-    const modules = getVisibleModules("Admin");
+    const modules = getVisibleModules();
     const { primary, rest } = getMobileNav(modules);
     expect([...ids(primary), ...ids(rest)].sort()).toEqual(ids(modules).sort());
   });
@@ -139,14 +187,14 @@ describe("getMobileNav", () => {
   it("fills the bar from the remaining modules when a role cannot see a flagged one", () => {
     // An Accountant sees neither Sales' nor Purchase's order pages... but does see their
     // receivables and payables, so those modules survive. Use a role that loses one outright.
-    const modules = getVisibleModules("HR");
+    const modules = getVisibleModules(grants("users.view", "reports.view"));
     const { primary } = getMobileNav(modules);
     expect(primary.length).toBe(Math.min(MOBILE_SLOTS, modules.filter((m) => m.placement !== "footer").length));
     expect(ids(primary)).toContain("home");
   });
 
   it("never pins a footer module - Settings belongs in the sheet", () => {
-    const { primary, rest } = getMobileNav(getVisibleModules("HR"));
+    const { primary, rest } = getMobileNav(getVisibleModules(grants("users.view", "reports.view")));
     expect(ids(primary)).not.toContain("settings");
     expect(ids(rest)).toContain("settings");
   });
@@ -161,20 +209,20 @@ describe("getMobileNav", () => {
 
 describe("what the plan includes", () => {
   const tabs = (modules) => modules.flatMap((m) => m.tabs.map((t) => `${t.label}@${t.to}`));
-  const everything = tabs(getVisibleModules("Admin"));
+  const everything = tabs(getVisibleModules());
 
   it("every feature a tab names is one the server knows", () => {
     for (const { tab } of allTabs) if (tab.feature) expect(Object.keys(FEATURE_LABELS)).toContain(tab.feature);
   });
 
   it("hides nothing while the organisation status is not known", () => {
-    expect(tabs(getVisibleModules("Admin", undefined, null))).toEqual(everything);
-    expect(tabs(getVisibleModules("Admin", undefined, {}))).toEqual(everything);
+    expect(tabs(getVisibleModules(null))).toEqual(everything);
+    expect(tabs(getVisibleModules({}))).toEqual(everything);
   });
 
   it("hides exactly the tabs whose feature is switched off", () => {
     const status = { features: { einvoicing: false, banking: false, quotations: true } };
-    const shown = tabs(getVisibleModules("Admin", undefined, status));
+    const shown = tabs(getVisibleModules(status));
     expect(shown).not.toContain("e-Invoicing@/e-invoicing");
     for (const t of ["Cheques@/cheques", "Banks@/banks", "Card types@/card-types", "Cards@/cards"]) expect(shown).not.toContain(t);
     expect(shown).toContain("Quotations@/quotations");
@@ -184,7 +232,7 @@ describe("what the plan includes", () => {
 
   it("drops every tab of a switched-off feature but keeps the module while it has others", () => {
     const off = Object.fromEntries(Object.keys(FEATURE_LABELS).map((k) => [k, false]));
-    const modules = getVisibleModules("Admin", undefined, { features: off });
+    const modules = getVisibleModules({ features: off });
     expect(modules.map((m) => m.id)).toContain("sales");
     expect(tabs(modules).filter((t) => /Quotations|Delivery notes|Batches|Reconcile|IFRS|VAT|e-Invoicing/.test(t))).toEqual([]);
   });

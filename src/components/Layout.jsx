@@ -1,6 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { findActive, getMobileNav, getVisibleModules, pageTitle } from "../config/navigation";
+import { findActive, getMobileNav, getVisibleModules, moduleHref, pageTitle } from "../config/navigation";
 import { getBrand } from "../config/brands";
 import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
@@ -15,6 +15,8 @@ import { useSession } from "./shell/useSession";
 import { OrganisationProvider, useOrganisation } from "./shell/OrganisationContext";
 import OrganisationBlocked from "./shell/OrganisationBlocked";
 import NotInPlan from "./shell/NotInPlan";
+import NotAllowed from "./shell/NotAllowed";
+import { tabAllowed } from "../lib/permissions";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
 import { subscriptionNotice } from "../lib/organisation";
 
@@ -33,7 +35,7 @@ function PageLoading() {
 // bar for search and account, and the active module's pages as tabs above the content.
 const LayoutShell = () => {
   const { pathname } = useLocation();
-  const { profile, role, logout } = useSession();
+  const { profile, logout } = useSession();
   const { status, blocked, refresh, featureOn, branchKey } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -48,12 +50,15 @@ const LayoutShell = () => {
 
   // Only what the person's role may open AND the organisation's plan includes. While the status is unknown
   // nothing is hidden (the server refuses what the plan lacks).
-  const modules = useMemo(() => getVisibleModules(role, undefined, status), [role, status]);
+  const modules = useMemo(() => getVisibleModules(status), [status]);
   const active = useMemo(() => findActive(pathname, modules), [pathname, modules]);
   // A page the plan does not include can still be reached by a typed address or an old bookmark: say so,
   // rather than loading a screen whose every request will be refused.
-  const requested = useMemo(() => findActive(pathname, getVisibleModules(role)), [pathname, role]);
+  const requested = useMemo(() => findActive(pathname), [pathname]);
   const outOfPlan = requested?.tab?.feature && !featureOn(requested.tab.feature) ? requested.tab.feature : null;
+  // ...or by a role that does not include it: the same kindness, with a way to somewhere they CAN go
+  const notAllowed = requested?.tab && !outOfPlan && !tabAllowed(requested.tab, status?.me) ? requested.tab : null;
+  const home = modules[0] ? moduleHref(modules[0]) : null;
   const notice = useMemo(() => subscriptionNotice(status?.subscription), [status]);
   // Four modules for the bottom bar, the remainder for the More sheet.
   const { primary, rest } = useMemo(() => getMobileNav(modules), [modules]);
@@ -183,6 +188,8 @@ const LayoutShell = () => {
           <PageErrorBoundary key={branchKey} resetKey={pathname}>
             {outOfPlan ? (
               <NotInPlan feature={outOfPlan} />
+            ) : notAllowed ? (
+              <NotAllowed me={status?.me} needed={notAllowed.permission} home={home} />
             ) : (
               <Suspense fallback={<PageLoading />}>
                 <Outlet />

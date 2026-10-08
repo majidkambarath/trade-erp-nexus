@@ -8,6 +8,7 @@ import { accountOption, describePayment, money, toCents } from "../../lib/vouche
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
 import { formatDateGB } from "../../utils/format";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 // Pieces every finance voucher screen shares: the list with search, dates and paging; the
 // read-only view; and the account / bank lists the entry forms pick from.
@@ -157,7 +158,10 @@ export function printVoucher(v, title, companyName = "") {
 
 // Read-only view of any voucher: header, who and how, the ledger entries it posted, and what
 // can be done to it.
-export function VoucherView({ id, title, onClose, onDeleted, canDelete = true, extra }) {
+export function VoucherView({ id, title, onClose, onDeleted, canDelete: canDeleteProp, extra }) {
+  // Deleting (reversing) a posted voucher is the finance.delete permission, unless a caller says otherwise.
+  const { can } = useOrganisation();
+  const canDelete = canDeleteProp ?? can("finance.delete");
   const { data: v, loading, error } = useAsync(() => vouchers.get(id), [id]);
   const [audit, setAudit] = useState(false);
   const [confirm, setConfirm] = useState(false);

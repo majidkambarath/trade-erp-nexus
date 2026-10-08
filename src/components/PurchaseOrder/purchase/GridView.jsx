@@ -11,6 +11,7 @@ import {
   History,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const GridView = ({
   paginatedPOs,
@@ -175,43 +176,51 @@ const GridView = ({
                   <span className="text-sm">Audit trail</span>
                 </button>
                 {po.status === "DRAFT" && (
-                  <button
-                    onClick={() => editPO(po)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    <span className="text-sm">Edit</span>
-                  </button>
+                  <Can permission="purchase.create">
+                    <button
+                      onClick={() => editPO(po)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span className="text-sm">Edit</span>
+                    </button>
+                  </Can>
                 )}
               </div>
 
               <div className="flex space-x-2">
                 {po.status === "PENDING" && (
                   <>
-                    <button
-                      onClick={() => approvePO(po.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
-                    >
-                      <CheckSquare className="w-4 h-4" />
-                      <span className="text-sm">Approve</span>
-                    </button>
-                    <button
-                      onClick={() => rejectPO(po.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                    >
-                      <X className="w-4 h-4" />
-                      <span className="text-sm">Reject</span>
-                    </button>
+                    <Can permission="purchase.approve">
+                      <button
+                        onClick={() => approvePO(po.id)}
+                        className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                        <span className="text-sm">Approve</span>
+                      </button>
+                    </Can>
+                    <Can permission="purchase.approve">
+                      <button
+                        onClick={() => rejectPO(po.id)}
+                        className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Reject</span>
+                      </button>
+                    </Can>
                   </>
                 )}
                 {(po.status === "DRAFT" || po.status === "REJECTED") && (
-                  <button
-                    onClick={() => deletePO(po.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-sm">Delete</span>
-                  </button>
+                  <Can permission="purchase.delete">
+                    <button
+                      onClick={() => deletePO(po.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-sm">Delete</span>
+                    </button>
+                  </Can>
                 )}
               </div>
             </div>

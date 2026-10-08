@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { accounting } from "../../lib/accountingApi";
 import { Button } from "../ui/button";
+import Guarded from "../shell/Guarded";
 import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
 
 const MODES = [
@@ -18,11 +19,11 @@ export default function BusinessRules({ notify, companyDefaults }) {
   if (loading && !data) return <Spinner />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   return (
-    <div className="space-y-5">
+    <Guarded permission="settings.manage" what="the business rules">
       <CreditControl settings={data} notify={notify} onSaved={reload} />
       <Returns settings={data} notify={notify} onSaved={reload} />
       <TaxIdentity settings={data} defaults={companyDefaults} notify={notify} onSaved={reload} />
-    </div>
+    </Guarded>
   );
 }
 

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { BLOCKED_EVENT, branchLabel, featureOn, validBranchSelection } from "../../lib/organisation";
 import { getSelectedBranch, setSelectedBranch } from "../../axios/session";
+import { can, canAny } from "../../lib/permissions";
 import { getOrganisationStatus } from "../../lib/organisationApi";
 
 // The signed-in organisation, loaded once for the shell: what its plan includes (so a screen the plan does not
@@ -11,7 +12,7 @@ import { getOrganisationStatus } from "../../lib/organisationApi";
 // plan does not include, and a missing status must never lock a working organisation out of its own screen.
 const Context = createContext(null);
 
-const NOTHING = { status: null, blocked: null, loading: false, refresh: () => {}, featureOn: () => true, branch: null, branchKey: 0, selectBranch: () => {} };
+const NOTHING = { status: null, me: null, blocked: null, loading: false, refresh: () => {}, featureOn: () => true, can: () => true, canAny: () => true, branch: null, branchKey: 0, selectBranch: () => {} };
 export const useOrganisation = () => useContext(Context) || NOTHING;
 
 const REFRESH_AFTER_MS = 60 * 1000;
@@ -84,6 +85,10 @@ export function OrganisationProvider({ children }) {
   const value = useMemo(
     () => ({
       status,
+      // who is asking and what their role holds; unknown (and so nothing is hidden) until the status has loaded
+      me: status?.me || null,
+      can: (key) => can(status?.me, key),
+      canAny: (keys) => canAny(status?.me, keys),
       blocked: refused || blockedFromStatus(status),
       loading,
       refresh,

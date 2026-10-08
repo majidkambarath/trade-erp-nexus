@@ -10,10 +10,14 @@ import { formatDate, formatNumber } from "../../utils/format";
 import { PillTabs } from "./parts";
 import { useDebounced } from "./hooks";
 import { cn } from "../../lib/utils";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { allowActions } from "../../lib/salesDocuments";
 
 // Offers to customers: what is out, what was said yes to, what ran out. Opening one shows the document and
 // every action on it (sending, accepting, converting); the list only finds it, so there is one place for each.
 export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey }) {
+  const { me } = useOrganisation();
+  const acts = (r) => allowActions(r.actions, me);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -113,8 +117,8 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
                 cell: (r) => (
                   <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" onClick={() => onOpen(r._id)}><Eye className="h-3.5 w-3.5" aria-hidden="true" />View</Button>
-                    {r.actions.edit && <Button size="sm" variant="ghost" onClick={() => onEdit(r._id)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button>}
-                    {r.actions.delete && <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button>}
+                    {acts(r).edit && <Button size="sm" variant="ghost" onClick={() => onEdit(r._id)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button>}
+                    {acts(r).delete && <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button>}
                   </span>
                 ),
               },

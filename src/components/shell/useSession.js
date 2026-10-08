@@ -3,14 +3,9 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance, { signOutLocally } from "../../axios/axios";
 import { clearLegacySessionStorage } from "../../axios/session";
 
-// The navigation's role names (Admin / Accountant / Purchase Officer / ...) do not match
-// the backend's admin.type enum (super_admin / admin / manager / operator / viewer).
-// Mapping them is a product decision, so the role stays "Admin" (full access, the
-// existing behaviour) until that mapping is agreed. Wiring admin.type straight in would
-// hide every module, because no role list in src/config/navigation.js contains
-// "super_admin".
-export const CURRENT_ROLE = "Admin";
-
+// Who is signed in: their name and picture, and how to sign out. What they MAY DO is not here: that is their role,
+// which the server sends with the organisation's status (useOrganisation().me), so a role changed by an administrator
+// reaches the screen without waiting for a new sign-in.
 export function useSession() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -48,7 +43,7 @@ export function useSession() {
     navigate("/", { replace: true });
   }, [navigate]);
 
-  return { profile, role: CURRENT_ROLE, logout };
+  return { profile, logout };
 }
 
 /** "Super Admin" -> "SA"; falls back to a neutral glyph-free initial. */

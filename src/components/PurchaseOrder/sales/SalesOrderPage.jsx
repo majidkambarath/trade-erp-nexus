@@ -61,6 +61,7 @@ import { getBrand } from "../../../config/brands";
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
+import Can from "../../shell/Can";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
@@ -1079,20 +1080,24 @@ const formatDisplayTransactionNo = (t) => {
                 </button>
                 {selectedSOs.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => handleBulkAction("confirm")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
-                    >
-                      <CheckSquare className="w-4 h-4" />
-                      <span>Approve</span>
-                    </button>
-                    <button
-                      onClick={() => handleBulkAction("delete")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
+                    <Can permission="sales.approve">
+                      <button
+                        onClick={() => handleBulkAction("confirm")}
+                        className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                        <span>Approve</span>
+                      </button>
+                    </Can>
+                    <Can permission="sales.delete">
+                      <button
+                        onClick={() => handleBulkAction("delete")}
+                        className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    </Can>
                     <button
                       onClick={() => handleBulkAction("export")}
                       className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"

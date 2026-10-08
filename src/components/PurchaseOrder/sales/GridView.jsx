@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { SentLine } from "../../send/shared";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const GridView = ({
   paginatedSOs,
@@ -170,34 +171,40 @@ const GridView = ({
                   </button>
                 )}
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => editSO(so)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    <span className="text-sm">Edit</span>
-                  </button>
+                  <Can permission="sales.create">
+                    <button
+                      onClick={() => editSO(so)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span className="text-sm">Edit</span>
+                    </button>
+                  </Can>
                 )}
               </div>
 
               <div className="flex space-x-2">
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => confirmSO(so.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
-                  >
-                    <ConfirmIcon className="w-4 h-4" />
-                    <span className="text-sm">Confirm</span>
-                  </button>
+                  <Can permission="sales.approve">
+                    <button
+                      onClick={() => confirmSO(so.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
+                    >
+                      <ConfirmIcon className="w-4 h-4" />
+                      <span className="text-sm">Confirm</span>
+                    </button>
+                  </Can>
                 )}
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => deleteSO(so.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-sm">Delete</span>
-                  </button>
+                  <Can permission="sales.delete">
+                    <button
+                      onClick={() => deleteSO(so.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-sm">Delete</span>
+                    </button>
+                  </Can>
                 )}
               </div>
             </div>

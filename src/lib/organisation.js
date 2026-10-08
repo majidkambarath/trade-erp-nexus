@@ -17,6 +17,8 @@ export const isBlockedError = (error) => error?.response?.status === 403 && BLOC
 export const isReadOnlyError = (error) => error?.response?.status === 403 && codeOf(error) === "ORGANISATION_READ_ONLY";
 export const isFeatureError = (error) => error?.response?.status === 403 && codeOf(error) === "FEATURE_NOT_IN_PLAN";
 export const isLimitError = (error) => error?.response?.status === 403 && codeOf(error) === "LIMIT_REACHED";
+/** The person's role does not allow what they asked for: the server's own refusal, which names what was needed. */
+export const isPermissionError = (error) => error?.response?.status === 403 && codeOf(error) === "PERMISSION_DENIED";
 
 /** The organisation may not use the system: why, since when, and who to ask. null when the error is anything else. */
 export function blockedFrom(error) {
@@ -34,7 +36,7 @@ export function blockedFrom(error) {
 
 /** Where the server's own words are better than ours: a refusal for the plan, a limit, or a read-only organisation. */
 export function planRefusalMessage(error) {
-  if (isFeatureError(error) || isLimitError(error) || isReadOnlyError(error)) return error.response.data.message;
+  if (isFeatureError(error) || isLimitError(error) || isReadOnlyError(error) || isPermissionError(error)) return error.response.data.message;
   return null;
 }
 

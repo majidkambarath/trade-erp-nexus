@@ -54,6 +54,7 @@ import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/stat
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
+import Can from "../../shell/Can";
 const PurchaseReturnOrderManagement = () => {
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
   // The table is the right list for a pointer and the cards for a thumb, so the default
@@ -949,20 +950,24 @@ const PurchaseReturnOrderManagement = () => {
                 </button>
                 {selectedPOs.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => handleBulkAction("approve")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
-                    >
-                      <CheckSquare className="w-4 h-4" />
-                      <span>Approve Selected</span>
-                    </button>
-                    <button
-                      onClick={() => handleBulkAction("delete")}
-                      className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete Selected</span>
-                    </button>
+                    <Can permission="purchase.approve">
+                      <button
+                        onClick={() => handleBulkAction("approve")}
+                        className="flex items-center space-x-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
+                      >
+                        <CheckSquare className="w-4 h-4" />
+                        <span>Approve Selected</span>
+                      </button>
+                    </Can>
+                    <Can permission="purchase.delete">
+                      <button
+                        onClick={() => handleBulkAction("delete")}
+                        className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Selected</span>
+                      </button>
+                    </Can>
                     <button
                       onClick={() => handleBulkAction("export")}
                       className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"

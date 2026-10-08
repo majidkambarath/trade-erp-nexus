@@ -10,6 +10,8 @@ import { todayInput, formatDate } from "../../utils/format";
 import { buildQuotationDocument } from "./documents";
 import { ActionModal, ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { allowActions } from "../../lib/salesDocuments";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -17,6 +19,7 @@ const PRIMARY = "erp-btn-primary";
 // One quotation: the page the customer gets, the actions that move it along, and what has happened to it.
 // Which actions exist comes from the server (q.actions), so a rule is decided in one place.
 export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onChanged, notify }) {
+  const { me } = useOrganisation();
   const company = useCompanyProfile();
   const currency = getBrand().currency;
   const { data: q, loading, error, reload } = useAsync(() => quotations.get(id), [id]);
@@ -38,7 +41,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
   if (error) return <div className="mx-auto max-w-3xl p-6"><ErrorNote error={error} onRetry={reload} /></div>;
   if (!q) return null;
 
-  const A = q.actions;
+  const A = allowActions(q.actions, me);
   const finish = async (promise, message, after) => {
     // an action that leaves this screen (a delete, a revision) has nothing here left to refresh
     const out = await action.run(() => promise(), message, { refresh: !after });

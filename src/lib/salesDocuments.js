@@ -10,6 +10,16 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // ---- labels and tabs ---------------------------------------------------------------------
 
+// What a person's role lets them do to a quotation or a delivery note. The server says which actions the document's STATE
+// allows (actions.accept, actions.dispatch...); this narrows that to what the ROLE may do, so a sales executive is not
+// offered Accept or Dispatch, which belong to sales.approve. (The server refuses them either way.)
+const ACTION_PERMISSION = {
+  edit: "sales.create", revise: "sales.create", delete: "sales.delete", send: "sales.send",
+  accept: "sales.approve", reject: "sales.approve", convert: "sales.approve", dispatch: "sales.approve", deliver: "sales.approve", cancel: "sales.approve", invoice: "sales.approve",
+};
+export const allowActions = (actions, me) =>
+  Object.fromEntries(Object.entries(actions || {}).map(([name, on]) => [name, Boolean(on) && (!ACTION_PERMISSION[name] || !Array.isArray(me?.grants) || me.grants.includes(ACTION_PERMISSION[name]))]));
+
 export const STATUS_LABEL = {
   DRAFT: "Draft",
   SENT: "Sent",

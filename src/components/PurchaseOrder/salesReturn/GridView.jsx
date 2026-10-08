@@ -8,6 +8,7 @@ import {
   History,
 } from "lucide-react";
 import { formatNumber, formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 
 const GridView = ({
   paginatedSOs,
@@ -142,34 +143,40 @@ const GridView = ({
                   <span className="text-sm">Audit trail</span>
                 </button>
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => editSO(so)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                    <span className="text-sm">Edit</span>
-                  </button>
+                  <Can permission="sales.create">
+                    <button
+                      onClick={() => editSO(so)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span className="text-sm">Edit</span>
+                    </button>
+                  </Can>
                 )}
               </div>
 
               <div className="flex space-x-2">
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => confirmSO(so.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    <CheckSquare className="w-4 h-4" />
-                    <span className="text-sm">Confirm</span>
-                  </button>
+                  <Can permission="sales.approve">
+                    <button
+                      onClick={() => confirmSO(so.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      <span className="text-sm">Confirm</span>
+                    </button>
+                  </Can>
                 )}
                 {so.status === "DRAFT" && (
-                  <button
-                    onClick={() => deleteSO(so.id)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-sm">Delete</span>
-                  </button>
+                  <Can permission="sales.delete">
+                    <button
+                      onClick={() => deleteSO(so.id)}
+                      className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-sm">Delete</span>
+                    </button>
+                  </Can>
                 )}
               </div>
             </div>

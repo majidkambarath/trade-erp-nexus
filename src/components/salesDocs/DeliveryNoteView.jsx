@@ -11,6 +11,8 @@ import { buildDeliveryNoteDocument, buildPickListDocument } from "./documents";
 import { CancelDialog, DeliverDialog, DispatchDialog, InvoiceDialog } from "./DeliveryDialogs";
 import { ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { allowActions } from "../../lib/salesDocuments";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -18,6 +20,7 @@ const PRIMARY = "erp-btn-primary";
 // One delivery note: the sheet that travels with the goods (or the warehouse's pick list), the actions that
 // move it along, and what the order it serves has had delivered so far.
 export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvoiced, notify }) {
+  const { me } = useOrganisation();
   const company = useCompanyProfile();
   const currency = getBrand().currency;
   const { data: dn, loading, error, reload } = useAsync(() => deliveryNotes.get(id), [id]);
@@ -46,7 +49,7 @@ export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvo
   if (error) return <div className="mx-auto max-w-3xl p-6"><ErrorNote error={error} onRetry={reload} /></div>;
   if (!dn || !doc) return <div className="p-8"><Spinner label="Preparing the document" /></div>;
 
-  const A = dn.actions;
+  const A = allowActions(dn.actions, me);
   const finish = async (fn, message, after) => {
     const out = await action.run(fn, message, { refresh: !after });
     if (out) { close(); after?.(out); }

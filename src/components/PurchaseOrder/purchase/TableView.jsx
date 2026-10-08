@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { formatDate } from "../../../utils/format";
+import Can from "../../shell/Can";
 const TableView = ({
   paginatedPOs,
   selectedPOs,
@@ -168,23 +169,27 @@ const TableView = ({
                     </button>
 
                     {po.status === "DRAFT" && (
-                      <button
-                        onClick={() => editPO(po)}
-                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
+                      <Can permission="purchase.create">
+                        <button
+                          onClick={() => editPO(po)}
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
 
                     {po.status === "PENDING" && (
-                      <button
-                        onClick={() => approvePO(po.id)}
-                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
-                        title="Approve"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                      </button>
+                      <Can permission="purchase.approve">
+                        <button
+                          onClick={() => approvePO(po.id)}
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          title="Approve"
+                        >
+                          <CheckSquare className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
 
                     <div className="relative group">
@@ -206,13 +211,15 @@ const TableView = ({
                         </button>
                         {(po.status === "DRAFT" ||
                           po.status === "REJECTED") && (
-                          <button
-                            onClick={() => deletePO(po.id)}
-                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Delete</span>
-                          </button>
+                          <Can permission="purchase.delete">
+                            <button
+                              onClick={() => deletePO(po.id)}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          </Can>
                         )}
                       </div>
                     </div>
