@@ -31,7 +31,25 @@ const VIEWPORTS = [
 const { MODULES } = await import("../src/config/navigation.js");
 // Screens worth opening past their first screen, and how to get there. The labels are what a
 // person would tap, matched on visible text, so these survive markup changes.
+// What the sweep's signed-in administrator holds: everything any page asks for, so no page is hidden from the measurement.
+const ALL_GRANTS = [...new Set([
+  ...MODULES.flatMap((m) => m.tabs.flatMap((t) => [].concat(t.permission || []))),
+  ...Object.entries({
+    sales: ["view", "create", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "approve", "delete"],
+    inventory: ["view", "create", "delete", "adjust"], finance: ["view", "create", "approve", "delete"], banking: ["view", "manage", "reconcile"],
+    accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
+    audit: ["view"], lookups: ["view"],
+  }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
+])];
 const DEEP = {
+  // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
+  "people-users-and-roles": [
+    { name: "add-person", clicks: ["Add a person"], settle: 900 },
+    { name: "change-person", clicks: ["^Change"], settle: 900 },
+    { name: "roles", page: true, clicks: ["^Roles$"], settle: 900 },
+    { name: "new-role", clicks: ["^Roles$", "New role"], settle: 1100 },
+    { name: "built-in-role", clicks: ["^Roles$", "^View$"], settle: 1100 },
+  ],
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
@@ -80,6 +98,7 @@ DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 DEEP["sales-order"] = DEEP["sales-orders"]; // a single-page run (check:mobile -- /sales-order)
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
+DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 
 /** The first visible, enabled control whose text or label matches. */
 async function findByText(page, label) {
@@ -303,7 +322,56 @@ function stubFor(pathname) {
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},
       support: { contact: "help@zarvia.example" },
+      // Who is signed in and what the role holds. The sweep signs in as an administrator who holds every permission any page
+      // asks for, so every page is still measured; the Users and roles screen needs a rank to offer anything.
+      branches: [{ code: "main", name: "Head office", isHeadOffice: true }, { code: "shj", name: "Sharjah Warehouse" }],
+      branch: { code: "main", name: "Head office", canSwitch: true },
+      me: { id: "a1", name: "Super Admin", role: { key: "admin", name: "Administrator", rank: 80 }, grants: ALL_GRANTS },
     };
+  }
+
+  // The customer's own people and roles (/api/v1/access/*). The catalogue is what the server sends: modules, their
+  // actions, and what ticking each one brings along.
+  if (p.includes("/access/roles")) {
+    const act = (key, short, implies = []) => ({ key, action: key.split(".")[1], short, label: `${short} in this part of the product.`, read: key.endsWith(".view"), implies });
+    const mod = (key, label, hint, actions) => ({ key, label, hint, actions: actions.map(([a, s, i]) => act(`${key}.${a}`, s, i || [])) });
+    const sv = (k) => [`${k}.view`, "lookups.view"];
+    const catalogue = [
+      mod("sales", "Sales", "Quotations, orders, delivery notes, returns and customers", [["view", "View"], ["create", "Add and edit", sv("sales")], ["approve", "Approve", sv("sales")], ["delete", "Delete", sv("sales")], ["send", "Send to customers", sv("sales")], ["creditOverride", "Override credit limit", sv("sales")]]),
+      mod("purchase", "Purchase", "Purchase orders, returns and vendors", [["view", "View"], ["create", "Add and edit", sv("purchase")], ["approve", "Approve", sv("purchase")], ["delete", "Delete", sv("purchase")]]),
+      mod("inventory", "Inventory", "Items, batches and stock", [["view", "View"], ["create", "Add and edit", sv("inventory")], ["adjust", "Adjust stock", sv("inventory")], ["delete", "Delete", sv("inventory")]]),
+      mod("finance", "Finance", "Receipts, payments, journals and cheques", [["view", "View"], ["create", "Add and edit", sv("finance")], ["approve", "Approve", sv("finance")], ["delete", "Delete", sv("finance")]]),
+      mod("reports", "Reports", "Statements, VAT and financial reports", [["view", "View"], ["financial", "Financial reports", ["reports.view"]], ["vat", "File a VAT return", ["reports.view"]]]),
+      mod("banking", "Banking", "Banks, cards, statements and reconciliation", [["view", "View"], ["manage", "Add and change", ["banking.view"]], ["reconcile", "Reconcile", ["banking.view"]]]),
+      mod("accounts", "Accounts", "Chart of accounts, tax codes, numbering and the period lock", [["view", "View"], ["manage", "Add and change", ["accounts.view"]], ["close", "Close a period", ["accounts.view"]]]),
+      mod("users", "People", "Login accounts and roles", [["view", "View"], ["manage", "Add and change", ["users.view"]]]),
+      mod("settings", "Settings", "Company profile, sending and business rules", [["view", "View"], ["manage", "Change", ["settings.view"]]]),
+      mod("audit", "Activity trail", "Who did what, and when", [["view", "View"]]),
+      { key: "lookups", label: "Pick lists", hint: "", automatic: true, actions: [act("lookups.view", "Pick lists")] },
+    ];
+    const role = (key, name, rank, permissions, over = {}) => ({ key, name, rank, description: "", builtIn: true, isActive: true, permissions, people: 0, ...over });
+    return {
+      catalogue,
+      roles: [
+        role("super_admin", "Owner", 100, ALL_GRANTS, { description: "Everything, including other administrators.", people: 1 }),
+        role("admin", "Administrator", 80, ALL_GRANTS, { description: "Everything except managing owners.", people: 1 }),
+        role("manager", "Manager", 60, ["sales.view", "sales.approve", "purchase.view", "purchase.approve", "inventory.view", "lookups.view"], { people: 2 }),
+        role("storekeeper", "Storekeeper", 40, ["inventory.view", "inventory.create", "inventory.adjust", "lookups.view"], { people: 1 }),
+        role("viewer", "Viewer", 20, ["sales.view", "purchase.view", "inventory.view", "lookups.view"]),
+        role("supervisor", "Sales supervisor", 55, ["sales.view", "sales.create", "sales.approve", "lookups.view"], { builtIn: false, named: ["sales.create", "sales.approve"], description: "Approves what the sales team enters.", people: 1 }),
+        role("night_shift", "Night shift", 30, ["inventory.view", "lookups.view"], { builtIn: false, named: ["inventory.view"], people: 0 }),
+      ],
+    };
+  }
+  if (p.includes("/access/users")) {
+    const person = (i, name, key, roleName, rank, over = {}) => ({ id: `u${i}`, name, email: `user${i}@gulffresh.example`, role: { key, name: roleName, rank, builtIn: true, active: true }, branchId: i % 2 ? "main" : "shj", isActive: true, status: "active", lastLogin: "2026-10-06T08:00:00.000Z", ...over });
+    return [
+      person(1, "Owner One", "super_admin", "Owner", 100),
+      person(2, "Super Admin", "admin", "Administrator", 80, { id: "a1" }),
+      person(3, "Imran Ali", "manager", "Manager", 60),
+      person(4, "Sara Khan", "supervisor", "Sales supervisor", 55, { role: { key: "supervisor", name: "Sales supervisor", rank: 55, builtIn: false, active: true } }),
+      person(5, "Lina Haddad", "viewer", "Viewer", 20, { isActive: false, status: "inactive" }),
+    ];
   }
 
   // The developer console (/api/v1/platform/*).

@@ -153,9 +153,8 @@ describe("pageTitle", () => {
   });
 
   it("omits the redundant tab for single-page modules", () => {
-    // Staff is the single-page module here. Reports used to be one, until e-Invoicing
-    // was added alongside VAT.
-    expect(pageTitle(findActive("/staff-records"), "Harbour Trading")).toBe("People · Harbour Trading");
+    // Settings is the single-page module now. People used to be one, until Users and roles was added beside Staff.
+    expect(pageTitle(findActive("/settings"), "Harbour Trading")).toBe("Settings · Harbour Trading");
   });
 
   it("includes the tab now that Reports has more than one page", () => {

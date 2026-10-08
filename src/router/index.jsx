@@ -17,6 +17,7 @@ const CustomerCreation = lazy(() => import("../components/Customer/CustomerManag
 const StockCreation = lazy(() => import("../components/Stock/StockManagement.jsx"));
 const UnitOfMeasure = lazy(() => import("../components/UnitOfMeasure/UnitOfMeasure.jsx"));
 const Staff = lazy(() => import("../components/Staff/staff.jsx"));
+const UsersPage = lazy(() => import("../components/users/UsersPage.jsx"));
 const Settings = lazy(() => import("../components/Settings/Settings.jsx"));
 const PurchaseOrderPage = lazy(() => import("../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx"));
 const SalesOrderPage = lazy(() => import("../components/PurchaseOrder/sales/SalesOrderPage.jsx"));
@@ -83,6 +84,7 @@ export default function AdminRouter() {
         <Route path="/stock-detail/:id" element={<StockDetail />} />
         <Route path="/unit-setup" element={<UnitOfMeasure />} />
         <Route path="/staff-records" element={<Staff />} />
+        <Route path="/users" element={<UsersPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />
         <Route path="/sales-order" element={<SalesOrderPage />} />
