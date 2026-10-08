@@ -22,15 +22,27 @@ const EMPTY = {
 
 // The company as set in Settings. A field nobody has filled in stays empty and is left off the
 // printed page; the old sheets printed invented placeholders in its place.
+//
+// The TRN is the exception to "the profile": it is entered once, under Settings > Business rules > Tax
+// identity, and kept with the accounting settings (the same TRN the VAT return uses). The profile has no field
+// for it, so reading only the profile left every printed tax invoice without the seller's TRN and the screen
+// warning that it was missing. It is read from there, and the profile's own value, if an older record has
+// one, still wins.
 export const useCompanyProfile = () => {
   const [profile, setProfile] = useState(EMPTY);
 
   useEffect(() => {
     if (!getAccessToken()) return undefined;
     let active = true;
+    // the TRN, from the accounting settings; a failure here must never blank the rest of the company
+    const taxIdentity = axiosInstance
+      .get("/accounting/settings")
+      .then(({ data }) => String(data?.data?.profile?.trn || ""))
+      .catch(() => "");
     axiosInstance
       .get("/profile/me")
-      .then(({ data }) => {
+      .then(async ({ data }) => {
+        const trn = await taxIdentity;
         if (!active || !data?.success) return;
         const c = data.data?.companyInfo || {};
         const bank = c.bankDetails || {};
@@ -42,7 +54,7 @@ export const useCompanyProfile = () => {
           phoneNumber: c.phoneNumber || "",
           email: c.emailAddress || "",
           website: c.website || "",
-          vatNumber: c.vatNumber || "",
+          vatNumber: c.vatNumber || trn,
           logo: c.companyLogo?.url || null,
           bankName: bank.bankName || "",
           accountNumber: bank.accountNumber || "",

@@ -24,6 +24,16 @@ const SaleInvoiceView = ({
 
   if (!doc) return null;
 
+  // Only an approved order is a tax invoice, so only it can be sent: a draft shows no Send button at all.
+  const sendable = so.status === "APPROVED" && !so.isOpening;
+  const send = sendable
+    ? {
+        kind: "tax_invoice", sourceType: "Transaction", id: so.id || so._id, number: doc.sheet.number.value, title: doc.sheet.title,
+        companyName: company.companyName, lastSend: so.lastSend || null,
+        party: { email: customer.email, phone: customer.phone, contacts: customer.contacts },
+      }
+    : null;
+
   return (
     <InvoiceScreen
       sheet={doc.sheet}
@@ -31,6 +41,7 @@ const SaleInvoiceView = ({
       status={doc.status}
       missingTrn={doc.missingTrn}
       auditId={so.id || so._id}
+      send={send}
       onBack={() => {
         setSelectedSO(null);
         setCreatedSO(null);

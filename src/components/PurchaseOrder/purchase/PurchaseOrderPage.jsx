@@ -24,7 +24,6 @@ import {
   FileText,
   X,
   Save,
-  Send,
   Clock,
   CheckSquare,
   XCircle,

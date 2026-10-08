@@ -11,7 +11,7 @@
  */
 // Bump with the release (src/config/product.js). Every cache name carries it, so activating a
 // new worker drops the previous release's shell instead of serving it alongside.
-const VERSION = "v1.0.0.6";
+const VERSION = "v1.0.0.7";
 const SHELL = `zarvia-shell-${VERSION}`;
 const ASSETS = `zarvia-assets-${VERSION}`;
 const FONTS = `zarvia-fonts-${VERSION}`;

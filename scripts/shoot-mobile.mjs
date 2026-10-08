@@ -37,6 +37,8 @@ const DEEP = {
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
   // A quotation and a delivery note are each a printed document with a row of actions above it, and
   // dialogs behind those. `page: true` means the step lands on a page, not a dialog.
+  // The Sending tab with "your own mail server" chosen: five more fields and a warning, on a phone.
+  "settings-settings": [{ name: "smtp", page: true, clicks: ["^Sending$", "Your own mail server"], settle: 800, reveal: "^Mail server" }],
   "sales-quotations": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "convert", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
@@ -51,6 +53,17 @@ const DEEP = {
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "deliver", clicks: ["^View$", "Mark delivered"], settle: 1300 },
   ],
+  // The sales order list and the invoice behind a row. Send is a VISIBLE control on the row and the card, and
+  // on the document screen; the dialog behind it is a form someone fills in on a phone.
+  // The page opens on its dashboard, so the first tap is "View all orders". A row's View is the eye (labelled
+  // with the number) on a wide screen and the word View on a card, so the match is "View" then a number or the end.
+  "sales-orders": [
+    { name: "list", page: true, clicks: ["^View all orders"], settle: 1200 },
+    { name: "document", page: true, clicks: ["^View all orders", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "send", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
+    { name: "send-row", clicks: ["^View all orders", "^Send (SO|[0-9])"], settle: 1600 },
+    { name: "history", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
+  ],
   // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
   "finance-reconcile": [
     { name: "import", clicks: ["^Import a statement$"], settle: 900 },
@@ -64,11 +77,14 @@ const DEEP = {
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
+DEEP["sales-order"] = DEEP["sales-orders"]; // a single-page run (check:mobile -- /sales-order)
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
+DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 
 /** The first visible, enabled control whose text or label matches. */
 async function findByText(page, label) {
-  const handles = await page.$$("button, a[href], [role='button']");
+  // a radio option is a label around the input, not a button: the Sending setup's "how email is sent"
+  const handles = await page.$$("button, a[href], [role='button'], label:has(input[type='radio'])");
   for (const h of handles) {
     const ok = await page.evaluate(
       (el, want) => {
@@ -98,6 +114,8 @@ async function measureDialog(page) {
       // an A4 preview is a fixed 210mm sheet in a pane that scrolls on purpose; it is the page
       // around it that has to fit
       if (el.closest("[data-print-preview]")) return false;
+      // a strip of tabs scrolls sideways on purpose (Settings has six; the bar is meant to be swiped)
+      if (el.getAttribute("role") === "tablist" || el.querySelector(":scope > [role='tablist']")) return false;
       // the line-items grid scrolls inside its own card on purpose (below md it becomes a card per line)
       if (el.querySelector(":scope > table[role='grid']")) return false;
       const st = getComputedStyle(el);
@@ -113,15 +131,27 @@ async function measureDialog(page) {
       .filter((t) => t.getBoundingClientRect().width > box.clientWidth + 4)
       .slice(0, 3)
       .map((t) => `table ${Math.round(t.getBoundingClientRect().width)}px in ${box.clientWidth}px`);
+    // when something bleeds, name the first elements that stick out past the screen, so it is found, not guessed
+    if (worst.sw > worst.w + 4) {
+      for (const el of box.querySelectorAll("*")) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > window.innerWidth + 4) wide.push(`${el.tagName.toLowerCase()}.${String(el.className || "").toString().split(" ")[0]} ${Math.round(r.width)}px "${(el.textContent || "").trim().slice(0, 28)}"`);
+        if (wide.length >= 6) break;
+      }
+    }
     return { opened, text, bleeds: worst.sw > worst.w + 4, sw: worst.sw, w: worst.w, what: worst.what, wide };
   });
 }
 
+// Screens with no navigation entry of their own. The public document link is the only page a customer ever
+// sees, so it is checked like any other: a phone is exactly where it will be opened.
+const EXTRA_PAGES = [["share", "/d/ABCDEFGHJKM.demo-token-demo-token-demo-token-demo-tok"]];
 const PAGES = [
   ["login", "/"],
   ...MODULES.flatMap((m) =>
     m.tabs.map((t) => [`${m.id}-${t.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, t.to])
   ),
+  ...EXTRA_PAGES,
 ];
 
 // ---------------------------------------------------------------- the stub API
@@ -144,10 +174,16 @@ const voucher = (i) => ({
   partyType: "customer", vatTotal: 62.5 * i,
 });
 
+// how each of the first six went to the customer: opened, none (a draft), failed, never sent, none, WhatsApp
+const SENDS = {
+  1: { sendId: "s1", channel: "email", status: "SENT", at: "2026-10-06T10:32:00.000Z", to: "ali@alnoor.ae", openedAt: "2026-10-07T08:00:00.000Z", error: null },
+  3: { sendId: "s3", channel: "email", status: "FAILED", at: "2026-10-06T10:32:00.000Z", to: "ali@alnoor.ae", openedAt: null, error: "The mailbox is full" },
+  6: { sendId: "s6", channel: "whatsapp", status: "HANDED_OFF", at: "2026-10-06T10:32:00.000Z", to: "971501112222", openedAt: null, error: null },
+};
 const doc = (i) => ({
   _id: `d${i}`, id: `d${i}`, transactionNo: `SO-2026-004${i}`, date: "2026-10-0" + ((i % 9) + 1),
   deliveryDate: "2026-10-1" + ((i % 9) + 1), customerName: `Al Noor Trading ${i}`,
-  vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "DRAFT", "APPROVED"][i % 3],
+  vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "APPROVED", "DRAFT"][i % 3], lastSend: SENDS[i] || null,
   totalAmount: 12480.5 * i, items: [{}, {}, {}], priority: "normal", createdBy: "Admin",
   invoiceGenerated: i % 2 === 0, type: "sales_order", pricing: {},
 });
@@ -301,6 +337,26 @@ function stubFor(pathname) {
     };
   }
 
+  if (p.includes("/messaging/")) {
+    if (p.includes("/settings")) return { enabled: true, provider: "resend", fromName: "Harbour Trading LLC", fromEmail: "accounts@harbour.ae", replyTo: "", verifiedDomain: "harbour.ae", bccSelf: false, signature: "", defaultNote: "", attachPdf: true, shareEnabled: true, shareLinkDays: 30, statementShareDays: 14, retryMax: 3, dailyLimit: 200, connected: true, hasApiKey: true, lastAuthFailureAt: null };
+    if (p.includes("/readiness")) return { ready: true, provider: "resend", checks: [{ key: "key", label: "An email service key is saved", ok: true, blocking: true }, { key: "from", label: "A sender address is set", ok: true, blocking: true }, { key: "domain", label: "The sender domain is the one verified at the email service", ok: true, blocking: true }, { key: "company", label: "Your company name is set (Settings, Company)", ok: true, blocking: false }, { key: "trn", label: "Your TRN is set, because a tax invoice must show it", ok: false, blocking: false }] };
+    if (p.includes("/sends")) {
+      const future = "2026-11-05T00:00:00.000Z";
+      return { total: 2, page: 1, pages: 1, rows: [
+        { _id: "s1", channel: "email", status: "SENT", to: ["ali@alnoor.ae", "sara@alnoor.ae"], sentAt: "2026-10-06T10:32:00.000Z", sentByName: "Super Admin", attachment: { fileName: "Tax-invoice_SO-2026-0041.pdf" }, attempts: 1, openedAt: "2026-10-07T08:00:00.000Z", shareLinkId: "l1", share: { _id: "l1", publicId: "ABCDEFGHJKM", expiresAt: future, revokedAt: null, viewCount: 2, firstViewedAt: "2026-10-07T08:00:00.000Z" } },
+        { _id: "s2", channel: "email", status: "FAILED", retryable: true, to: ["ali@alnoor.ae"], failedAt: "2026-10-06T11:00:00.000Z", sentByName: "Super Admin", lastError: "We could not reach the email service. It will try again shortly.", nextRetryAt: "2026-10-06T11:05:00.000Z", attempts: 2, shareLinkId: "l2", share: { _id: "l2", publicId: "NMPQRSTVWXY", expiresAt: future, revokedAt: null, viewCount: 0 } },
+      ] };
+    }
+    return {};
+  }
+  if (p.includes("/share/")) {
+    return {
+      kind: "tax_invoice", currency: "AED", expiresAt: "2026-11-05T00:00:00.000Z",
+      document: { transactionNo: "SO-2026-0041", invoiceNumber: "INV-2026-0041", status: "APPROVED", date: "2026-10-06T00:00:00.000Z", lpono: "LPO-7", items: [{ itemCode: "RICE5", description: "Basmati Rice 5kg", qty: 10, rate: 200, vatPercent: 5, vatAmount: 10, lineTotal: 210 }, { itemCode: "OIL1", description: "Sunflower Oil 1L", qty: 24, rate: 360, vatPercent: 5, vatAmount: 18, lineTotal: 378 }], charges: [], pricing: { gross: 560, lineDiscount: 0, net: 560, lineVat: 28, chargesNet: 0, chargesVat: 0, headerDiscount: 0, roundOff: 0, grandTotal: 588 } },
+      party: { customerName: "Al Noor Trading", customerId: "C1", billingAddress: "Warehouse 4, Al Quoz, Dubai", trnNumber: "100123456700003", paymentTerms: "Net 30" },
+      company: { companyName: "Harbour Trading LLC", addressLine1: "Al Quoz, Dubai", phoneNumber: "04 123 4567", email: "accounts@harbour.ae", vatNumber: "100123456700003", logo: null },
+    };
+  }
   if (p.includes("/admin") || p.includes("profile") || p.includes("/me")) {
     return { name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [] };
   }
@@ -896,6 +952,18 @@ for (const vp of VIEWPORTS) {
           // not actually clipping and the element is the reason why.
           .slice(0, 5)
           .map((el) => `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} ${Math.round(el.getBoundingClientRect().width)}px`);
+        // When the pane scrolls sideways, say WHICH element first crosses its right edge: the outermost one
+        // whose parent still fits. A wide table inside its own scroller is not the culprit, and naming it
+        // sent a search the wrong way.
+        if (paneBleeds) {
+          const edge = pane.getBoundingClientRect().right + 4;
+          const crossing = [...pane.querySelectorAll("*")]
+            .filter((el) => el.getBoundingClientRect().right > edge && el.getBoundingClientRect().width > 0)
+            .filter((el) => !el.parentElement || el.parentElement === pane || el.parentElement.getBoundingClientRect().right <= edge)
+            .slice(0, 3)
+            .map((el) => `crossing ${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 4).join(".")} right=${Math.round(el.getBoundingClientRect().right)} (pane ${Math.round(edge - 4)})`);
+          wide.push(...crossing);
+        }
         // ---- defects a page can have without the pane overflowing at all ----
 
         const visible = (el) => {
@@ -997,6 +1065,15 @@ for (const vp of VIEWPORTS) {
             }
             await hit.click();
             await wait(step.settle ?? 1000);
+          }
+          // `reveal`: scroll the first element whose text matches into view, so the screenshot shows the part
+          // of a long page the step is about
+          if (step.reveal) {
+            await page.evaluate((t) => {
+              const el = [...document.querySelectorAll('label, legend, h2, h3, p, span')].find((e) => e.getBoundingClientRect().height > 0 && new RegExp(t, 'i').test((e.textContent || '').trim()));
+              el?.scrollIntoView({ block: 'start' });
+            }, step.reveal);
+            await wait(300);
           }
           const o = await measureDialog(page);
           await page.screenshot({ path: join(OUT, `${name}-${step.name}-${vp.name}.png`) });

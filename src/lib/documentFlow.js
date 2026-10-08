@@ -6,6 +6,7 @@
 import { clockText, statusLabel } from "./salesDocuments";
 import { formatDate, formatNumber } from "../utils/format";
 import { statusTone } from "./status";
+import { sendLine, sendStateOf } from "./sendState";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -105,8 +106,28 @@ export function dealSteps(c) {
   return steps.map((s) => ({ ...s, current: s === current && c.stage !== "invoiced" && c.stage !== "lost" && c.stage !== "lapsed" }));
 }
 
+// ---- sending the invoice ---------------------------------------------------------------------
+// A tax invoice should reach the customer within 14 days of the supply (UAE VAT Executive Regulation
+// Art. 67), so that is the window in which an unsent invoice is something to DO. Older invoices were sent
+// by hand before this existed, and flagging every one of them would bury what needs doing today.
+const SEND_WINDOW_DAYS = 14;
+const DAY_MS = 24 * 3600 * 1000;
+const isRecent = (date, now) => Boolean(date) && now - new Date(date).getTime() <= SEND_WINDOW_DAYS * DAY_MS;
+
+// The mark on a deal that has an invoice: how it went to the customer, named by the document. null when
+// there is nothing worth saying (not an invoice, or an old one that nobody sent through here).
+export function sendPill(c, now = Date.now()) {
+  const o = c.order;
+  if (!o || o.status !== "APPROVED") return null;
+  const state = sendStateOf(o.lastSend);
+  if (state === "NOT_SENT") return isRecent(o.date, now) ? { text: "Invoice not sent", tone: "warning" } : null;
+  const line = sendLine(o.lastSend);
+  const tone = { FAILED: "danger", OPENED: "success" }[state] || "info";
+  return { text: `Invoice ${line.text.charAt(0).toLowerCase()}${line.text.slice(1)}`, tone };
+}
+
 // The one thing to do about a deal, and where to do it. `waiting` means the move is the customer's.
-export function nextAction(c) {
+export function nextAction(c, now = Date.now()) {
   const q = c.quotation;
   const o = c.order;
   const notes = c.notes || [];
@@ -129,6 +150,10 @@ export function nextAction(c) {
       ? { label: "Approve the sales return", why: `${draft.transactionNo} is still a draft: approving it puts the undelivered goods back in stock and credits the customer`, to: "/sales-return" }
       : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about AED ${formatNumber(cs.valueShort, 2)} with VAT). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
   }
+  // an approved invoice that has not gone to the customer, while it still should
+  if (o && o.status === "APPROVED" && !o.lastSend && isRecent(o.date, now)) {
+    return { label: "Send the invoice", why: "The invoice has not gone to the customer yet.", to: orderTo(o) };
+  }
   if (o) {
     if (o.status === "APPROVED") return null;
     return c.mode === "delivery_first"
@@ -150,9 +175,9 @@ export function nextAction(c) {
 }
 
 // Where a deal sits in the list: needs someone, is in hand, or is finished.
-export function dealGroup(c) {
+export function dealGroup(c, now = Date.now()) {
   if (c.stage === "lost" || c.stage === "lapsed") return "done";
-  const next = nextAction(c);
+  const next = nextAction(c, now);
   if (next && !next.waiting) return "action";
   if (c.stage === "invoiced" && !next) return "done";
   return "progress";

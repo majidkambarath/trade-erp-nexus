@@ -38,7 +38,7 @@ describe("settings page", () => {
   it("shows only the tabs that do something, and none of the removed dummy sections", async () => {
     at();
     expect(await screen.findByRole("tab", { name: "Company", selected: true })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Business rules", "Invoice bank details", "Preferences", "Security"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
     for (const gone of [/Taxation/i, /Email Server/i, /Document Numbering/i, /Currency Settings/i, /Two-Factor/i, /Session Timeout/i]) {
       expect(screen.queryByText(gone)).toBeNull();
     }

@@ -38,8 +38,8 @@ export const SECTIONS = [
 export const normalizeTrn = (v) => String(v ?? "").replace(/[\s-]/g, "");
 export const isValidTrn = (v) => /^\d{15}$/.test(normalizeTrn(v));
 export const isValidSwift = (v) => /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(String(v ?? "").replace(/\s+/g, "").toUpperCase());
-const isEmail = (v) => /^\S+@\S+\.\S+$/.test(String(v).trim());
-const isPhone = (v) => /^\+?[\d\s()-]{7,20}$/.test(String(v).trim());
+export const isEmail = (v) => /^\S+@\S+\.\S+$/.test(String(v).trim());
+export const isPhone = (v) => /^\+?[\d\s()-]{7,20}$/.test(String(v).trim());
 const isWebsite = (v) => /^(https?:\/\/)?[^\s/$.?#]+\.[^\s]{2,}$/i.test(String(v).trim());
 const blank = (v) => !String(v ?? "").trim();
 export { isValidIban, normalizeIban };

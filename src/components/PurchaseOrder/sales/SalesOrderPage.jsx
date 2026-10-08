@@ -25,7 +25,6 @@ import {
   FileText,
   X,
   Save,
-  Send,
   Clock,
   CheckSquare,
   XCircle,
@@ -53,7 +52,9 @@ import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } fro
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
-import { downloadSheetsPdf, sheetMarkup } from "../shared/documentPdf";
+import { downloadSheetsPdf, sheetMarkup, sheetsPdfFile } from "../shared/documentPdf";
+import SendDialog from "../../send/SendDialog";
+import { summaryOfSend } from "../../send/shared";
 import { readAccent } from "../shared/invoiceModel";
 import { getBrand } from "../../../config/brands";
 
@@ -74,6 +75,7 @@ const SalesOrderManagement = () => {
   const [selectedSO, setSelectedSO] = useState(null);
   // The document whose audit trail is open, or null.
   const [auditSO, setAuditSO] = useState(null);
+  const [sendSO, setSendSO] = useState(null); // the order being sent to its customer
   const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
@@ -249,6 +251,8 @@ const formatDisplayTransactionNo = (t) => {
       // an opening balance invoice has no goods; an order the customer will not take the rest of takes no more deliveries
       isOpening: Boolean(t.isOpening),
       closedShort: t.closedShort?.at ? t.closedShort : null,
+      // how it last went to the customer (services/messaging), so the list can say so without a join
+      lastSend: t.lastSend || null,
       priority: t.priority || "Medium",
       // Map backend fields for LPO, Doc No, and Discount to UI fields
       refNo: t.lpono ?? t.refNo ?? "",
@@ -661,6 +665,20 @@ const formatDisplayTransactionNo = (t) => {
       console.error(error);
       addNotification(`Failed to generate PDF: ${error.message || "unknown error"}`, 'error');
     }
+  };
+
+  // The Send dialog for a row of the list: the same customer copy the Download draws, handed over as a file.
+  const sendFor = (so) => {
+    const customer = customers.find((c) => c._id === so.customerId) || {};
+    const doc = buildSalesDocument(so, customer, companyProfile, getBrand().currency);
+    return {
+      doc: {
+        kind: "tax_invoice", sourceType: "Transaction", id: so.id, number: doc.sheet.number.value, title: doc.sheet.title,
+        companyName: companyProfile.companyName, lastSend: so.lastSend,
+        party: { email: customer.email, phone: customer.phone, contacts: customer.contacts },
+      },
+      attachment: { label: "Customer copy", build: () => sheetsPdfFile([sheetMarkup(doc.sheet, { copy: "Customer copy", accent: readAccent() })], doc.fileName) },
+    };
   };
 
   const [askDelete, deleteDialog] = useDeleteConfirm();
@@ -1119,6 +1137,7 @@ const formatDisplayTransactionNo = (t) => {
                     onDownloadInternal={(so) => downloadInvoiceCopy(so, 'Internal Copy')}
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
                     onShowAudit={setAuditSO}
+                    onSendDocument={setSendSO}
                     onDeliveryNote={(so) => navigate(`/delivery-notes?order=${so.id}`)}
                   />
                 ) : (
@@ -1137,6 +1156,7 @@ const formatDisplayTransactionNo = (t) => {
                     onDownloadInternal={(so) => downloadInvoiceCopy(so, 'Internal Copy')}
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
                     onShowAudit={setAuditSO}
+                    onSendDocument={setSendSO}
                   />
                 )}
                 {filteredSOs.length > 0 && <Pagination />}
@@ -1175,6 +1195,15 @@ const formatDisplayTransactionNo = (t) => {
           </>
         )}
       </div>
+      {sendSO && (() => {
+        const { doc, attachment } = sendFor(sendSO);
+        return (
+          <SendDialog
+            doc={doc} attachment={attachment} notify={addNotification} onClose={() => setSendSO(null)}
+            onSent={(r) => setSalesOrders((rows) => rows.map((x) => (x.id === sendSO.id ? { ...x, lastSend: summaryOfSend(r.send) } : x)))}
+          />
+        );
+      })()}
       {auditSO && (
         <DocumentAuditTrail
           id={auditSO.id}

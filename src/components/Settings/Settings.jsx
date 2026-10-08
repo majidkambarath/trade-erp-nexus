@@ -9,6 +9,7 @@ import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import BusinessRules from "./BusinessRules";
+import SendingSettings from "./SendingSettings";
 import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
 
 // Settings holds what belongs to the company and to the signed-in user: the company profile and
@@ -21,6 +22,7 @@ const TABS = [
   { id: "company", label: "Company" },
   { id: "rules", label: "Business rules" },
   { id: "bank", label: "Invoice bank details" },
+  { id: "sending", label: "Sending" },
   { id: "preferences", label: "Preferences" },
   { id: "security", label: "Security" },
 ];
@@ -228,6 +230,10 @@ export default function SettingsModule() {
 
           <TabsContent value="rules">
             <BusinessRules notify={notify} companyDefaults={saved?.company} />
+          </TabsContent>
+
+          <TabsContent value="sending">
+            <SendingSettings notify={notify} />
           </TabsContent>
 
           <TabsContent value="bank" className="space-y-5">

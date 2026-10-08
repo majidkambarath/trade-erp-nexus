@@ -10,7 +10,9 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Send,
 } from "lucide-react";
+import { SentLine } from "../../send/shared";
 import { formatNumber, formatDate } from "../../../utils/format";
 
 const TableView = ({
@@ -32,11 +34,14 @@ const TableView = ({
   onDownloadCustomer,
   onShowAudit,
   onDeliveryNote,
+  onSendDocument,
 }) => {
   return (
     <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        {/* Tighter cells below lg: at tablet width (820px) the roomy cells made the table wider than its card and pushed
+            the Confirm and menu buttons of a draft off the right edge. */}
+        <table className="w-full [&_th]:px-2 [&_td]:px-2 lg:[&_th]:px-4 lg:[&_td]:px-4">
           <thead className="bg-secondary border-b border-border">
             <tr>
               <th className="px-4 py-4 text-left">
@@ -195,6 +200,7 @@ const TableView = ({
                       </span>
                     </div>
                     {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
+                    {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
                     <div className="flex space-x-1">
                       {so.invoiceGenerated && (
                         <div
@@ -217,6 +223,15 @@ const TableView = ({
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-center space-x-2">
+                    {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
+                      <button
+                        type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                        title="Send to the customer"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setSelectedSO(so);
@@ -224,6 +239,7 @@ const TableView = ({
                       }}
                       className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                       title="View Details"
+                      aria-label={`View ${so.displayTransactionNo || so.transactionNo}`}
                     >
                       <Eye className="w-4 h-4" />
                     </button>

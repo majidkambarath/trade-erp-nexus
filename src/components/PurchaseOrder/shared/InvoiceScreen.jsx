@@ -2,8 +2,12 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Download, History, Loader2, Printer, Send } from "lucide-react";
 import DocumentAuditTrail from "../../audit/AuditTrail";
+import { useToasts } from "../../accounting/kit";
+import SendDialog from "../../send/SendDialog";
+import SendHistory from "../../send/SendHistory";
+import { SendStatusPill, sendSentence, sendStateOf, summaryOfSend } from "../../send/shared";
 import { readAccent } from "./invoiceModel";
-import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup } from "./documentPdf";
+import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup, sheetsPdfFile } from "./documentPdf";
 import { cn } from "../../../lib/utils";
 import { statusClasses } from "../../../lib/status";
 
@@ -17,11 +21,19 @@ const COPIES = ["Customer copy", "Internal copy"];
 // A document that is not an invoice can hand the screen more, all optional: `copies` (the names of the
 // copies it prints), `actions` (its own buttons, ahead of the print ones), `banner` (what to know before
 // reading it) and `footer` (what happened to it). `status` may be any label.
-export default function InvoiceScreen({ sheet, fileName, status, statusLabel, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer }) {
+//
+// `send` is what lets the document go to a customer (components/send): a descriptor { kind, id, number,
+// title, companyName, party, notice, sourceType, lastSend }. A document that cannot be sent passes none and
+// shows no Send button at all, not a disabled one.
+export default function InvoiceScreen({ sheet, fileName, status, statusLabel, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer, send }) {
   const [copy, setCopy] = useState(copies[0]);
   const [auditOpen, setAuditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sendOpen, setSendOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sent, setSent] = useState(send?.lastSend || null); // how it last went to the customer
+  const { notify, toastNode } = useToasts();
   const accent = readAccent();
   const Sheet = sheetComponent(sheet);
 
@@ -40,6 +52,9 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
       setBusy(false);
     }
   };
+
+  // The customer copy as a file, drawn the same way the download draws it, for attaching to an email.
+  const attachment = send ? { label: copies[0], build: () => sheetsPdfFile([sheetMarkup(sheet, { copy: copies[0], accent })], fileName) } : null;
 
   // Ctrl/Cmd+P prints the document, not the whole app shell behind it.
   useEffect(() => {
@@ -69,6 +84,7 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
               {statusLabel ?? status}
             </span>
           )}
+          {send && sent && <SendStatusPill send={sent} />}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -86,6 +102,12 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
               </button>
             ))}
           </div>
+          {send && sent && (
+            <button type="button" onClick={() => setHistoryOpen(true)} className={button}>
+              <History className="h-4 w-4" aria-hidden="true" />
+              Send history
+            </button>
+          )}
           {auditId && (
             <button type="button" onClick={() => setAuditOpen(true)} className={button}>
               <History className="h-4 w-4" aria-hidden="true" />
@@ -103,17 +125,12 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
             Print
             <kbd className="ms-1 rounded border border-white/30 px-1 text-[11px] font-semibold opacity-80">Ctrl P</kbd>
           </button>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Emailing documents is coming soon"
-            className={button}
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-            Send
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">Coming soon</span>
-          </button>
+          {send && (
+            <button type="button" onClick={() => setSendOpen(true)} className={button}>
+              <Send className="h-4 w-4" aria-hidden="true" />
+              Send
+            </button>
+          )}
         </div>
       </header>
 
@@ -130,6 +147,12 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
         </p>
       )}
 
+      {send && sent && (
+        <p className={cn("rounded-lg border px-3 py-2 text-sm", sendStateOf(sent) === "FAILED" ? "border-status-danger/40 bg-status-danger-soft text-foreground" : "border-border bg-secondary/40 text-muted-foreground")}>
+          {sendSentence(sent)}
+        </p>
+      )}
+
       {banner}
 
       {/* the sheet is always white paper: it is what gets printed and filed, whatever the theme */}
@@ -142,6 +165,15 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
       {footer}
 
       {auditOpen && <DocumentAuditTrail id={auditId} onClose={() => setAuditOpen(false)} />}
+
+      {toastNode}
+      {sendOpen && (
+        <SendDialog
+          doc={send} attachment={attachment} notify={notify} onClose={() => setSendOpen(false)}
+          onSent={(r) => { setSent(summaryOfSend(r.send)); send.onSent?.(r); }}
+        />
+      )}
+      {historyOpen && <SendHistory sourceType={send.sourceType} sourceId={send.id} title={`${send.title} ${send.number}`} notify={notify} onClose={() => setHistoryOpen(false)} onChanged={(row) => row && setSent(summaryOfSend(row))} />}
     </div>
   );
 }

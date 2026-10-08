@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 
@@ -10,12 +10,18 @@ import { buildSalesDocument } from '../../shared/invoiceDocuments';
 // The Settings profile: an empty company unless a test overrides it.
 vi.mock('../../shared/useCompanyProfile', () => ({ useCompanyProfile: vi.fn(() => ({ companyName: '', vatNumber: '' })) }));
 
+// The send service: the dialog reads the setup, and sending itself is not what is tested here.
+vi.mock('../../../../lib/sendDocumentsApi', () => ({
+  sendSettings: { get: vi.fn(async () => ({ enabled: true, shareEnabled: true, attachPdf: true, shareLinkDays: 30, defaultNote: '' })) },
+  documentSends: { send: vi.fn(), handoff: vi.fn(), history: vi.fn(), retry: vi.fn(), withdraw: vi.fn() },
+}));
+
 // Mock the PDF libraries used on Download PDF
 vi.mock('html2canvas', () => ({ default: vi.fn(async () => ({ width: 800, height: 1200, toDataURL: vi.fn(() => 'data:image/png;base64,FAKE') })) }));
 const pdfInstances = [];
 vi.mock('jspdf', () => ({
   jsPDF: vi.fn().mockImplementation(() => {
-    const doc = { addImage: vi.fn(), addPage: vi.fn(), save: vi.fn() };
+    const doc = { addImage: vi.fn(), addPage: vi.fn(), save: vi.fn(), output: vi.fn(() => new Blob(['%PDF-1.4'], { type: 'application/pdf' })), getNumberOfPages: vi.fn(() => 1) };
     pdfInstances.push(doc);
     return doc;
   }),
@@ -104,11 +110,26 @@ describe('SaleInvoiceView', () => {
     expect(screen.getByText('Tax invoice', { selector: 'div' })).toBeInTheDocument();
   });
 
-  it('keeps Send disabled until emailing exists, instead of faking a send', () => {
+  it('a draft order is not a tax invoice, so it shows no Send at all (not a disabled one)', () => {
     renderView(baseProps);
-    const send = screen.getByRole('button', { name: /send/i });
-    expect(send).toBeDisabled();
-    expect(screen.getByText('Coming soon')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull();
+    expect(screen.queryByText('Coming soon')).toBeNull();
+  });
+
+  it('an approved invoice has a real Send that opens the dialog with the customer address ready', async () => {
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED', id: 'so1' } });
+    const send = screen.getByRole('button', { name: /^send$/i });
+    expect(send).toBeEnabled();
+    fireEvent.click(send);
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Send tax invoice SO-1234');
+    expect(await within(dialog).findByText('a@b.com')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /send email/i })).toBeInTheDocument();
+  });
+
+  it('an opening balance invoice is not sent from here', () => {
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED', id: 'so1', isOpening: true } });
+    expect(screen.queryByRole('button', { name: /^send$/i })).toBeNull();
   });
 
   it('prints through a hidden frame, not a popup window', () => {
@@ -172,5 +193,8 @@ describe('buildSalesDocument', () => {
   it('flags a missing TRN only on an invoice', () => {
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(false);
+    // and the other way round: a company that HAS a TRN is not told it is missing (this flag once looked for a field
+    // the company object does not have, so every invoice carried the warning)
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '100123456700003' }, 'AED').missingTrn).toBe(false);
   });
 });

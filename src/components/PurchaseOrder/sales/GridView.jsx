@@ -12,7 +12,9 @@ import {
   User,
   History,
   Truck,
+  Send,
 } from "lucide-react";
+import { SentLine } from "../../send/shared";
 import { formatNumber, formatDate } from "../../../utils/format";
 
 const GridView = ({
@@ -31,6 +33,7 @@ const GridView = ({
   onDownloadCustomer,
   onShowAudit,
   onDeliveryNote,
+  onSendDocument,
 }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -64,6 +67,7 @@ const GridView = ({
                   <span className="ml-1">{so.status}</span>
                 </div>
                 {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
+                {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
               </div>
             </div>
           </div>
@@ -140,6 +144,15 @@ const GridView = ({
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">Customer copy</span>
                 </button>
+                {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
+                  <button
+                    type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="text-sm">Send</span>
+                  </button>
+                )}
                 <button
                   onClick={() => onShowAudit && onShowAudit(so)}
                   className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"

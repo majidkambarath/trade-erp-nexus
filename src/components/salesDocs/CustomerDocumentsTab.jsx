@@ -6,7 +6,7 @@ import StatCard from "../ui/stat-card";
 import { ConfirmDialog, EmptyState, ErrorNote, Pill, Spinner, useAsync, useToasts } from "../accounting/kit";
 import { documentFlow, orderClose } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, clockText } from "../../lib/salesDocuments";
-import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
+import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, sendPill, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
 import { formatDate, formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Note, PillTabs } from "./parts";
@@ -84,6 +84,7 @@ function Deal({ deal, notify, reload }) {
           {deal.expiresInDays !== null && deal.expiresInDays !== undefined && (
             <Pill tone="warning">Offer expires {deal.expiresInDays === 0 ? "today" : `in ${deal.expiresInDays} day${deal.expiresInDays === 1 ? "" : "s"}`}</Pill>
           )}
+          {sendPill(deal) && <Pill tone={sendPill(deal).tone}>{sendPill(deal).text}</Pill>}
           {cs && <Pill tone="warning">Closed short</Pill>}
           <Pill tone={STAGE_TONE[deal.stage]}>{STAGE_LABEL[deal.stage]}</Pill>
           <span className="text-sm font-semibold tabular-nums text-foreground">{formatNumber(deal.amount, 2)} <span className="text-xs font-normal text-muted-foreground">AED</span></span>

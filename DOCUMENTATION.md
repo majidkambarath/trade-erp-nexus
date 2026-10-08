@@ -173,6 +173,8 @@ Defined in `src/router/index.jsx`.
     - `/expense-voucher` -> `components/FinancialModules/Expense/ExpenseVoucherManagement.jsx`
   - Reports:
     - `/vat-reports` -> `components/Reports/VATReportCreate.jsx`
+- Customer's document (public, outside `RequireSession` and `Layout`, its own Suspense):
+  - `/d/:token` -> `components/send/SharedDocument.jsx`
 - NotFound:
   - `*` -> `components/NotFound.jsx`
 
@@ -337,6 +339,28 @@ Finance → **Reconcile** (also a "Reconcile" link on each bank account of Cash 
 - Not built (shown nowhere as a control): bank rules, live bank feeds, PDF statements, CAMT.053, foreign-currency bank accounts, importing the acquirer's own settlement file.
 - Tests: `lib/__tests__/bankReconcile.test.js`, `statementFile.test.js`, `components/banking/__tests__/BankReconciliation.test.jsx`. `check:mobile` opens the page, its tabs and seven dialogs at three widths.
 
+### 7d. Sending a document to the customer (`components/send/`, public page `/d/:token`)
+An approved sales invoice has a **Send** button on its own screen, as an icon on its row in the sales order list (and in the card view), and as a next step on the customer's deal card ("Send the invoice"). A draft shows no Send at all, and neither do purchase documents. Stage 1 is the **tax invoice only**; quotations, delivery notes and the statement of account follow in Stage 2 and still only print or download.
+
+**The flow, as a person does it**
+1. **Send** opens one dialog with two channels, **Email** and **WhatsApp**. The **To** field is filled from the customer's email (then the primary contact) and shows each address as a chip; **Cc** is behind "Add cc"; the subject and message are written for the document and can be edited. A bad address is refused before anything is sent.
+2. **Email** attaches the customer copy as a PDF (drawn in the browser, "Customer copy · 1 page · 184 KB" shown) and adds a link to the same document online. A tick removes the PDF. A plain line says anyone with the link can open it and that it stops working after 30 days.
+3. **WhatsApp** reads the customer's phone (a UAE number like `050 111 2222` becomes `971501112222`), writes the message with the link and opens WhatsApp with it ready. A person presses send; the history says **Given on WhatsApp**, never "sent".
+4. If the server refuses (a wrong address, the service not set up, a duplicate within a minute), the reason is shown **inside the dialog**, which stays open with everything that was typed. A duplicate offers **Send anyway**.
+5. The invoice then reads **Emailed 8 Oct** (list, card, header), and **Opened by customer** once the customer's page has really loaded. **Send history** on the invoice shows every attempt with who sent it, to whom and when, and has **Withdraw link** for a wrong-address send.
+
+**The customer's page** (`/d/:token`, `SharedDocument.jsx`): the invoice on the white paper pane, Download PDF and Print, one footer line naming the sender. No sign-in, no menu, no cookies. A withdrawn or expired link says so in one plain sentence; a link that never existed says nothing about why. On a phone the A4 sheet is scaled to fit the screen.
+
+**Rules worth knowing**
+- **SMTP does not work on Render's free hosting**, which blocks mail ports; the screen says so beside the fields. Gmail and Microsoft 365 need an app password, not the normal one.
+- **Record only is not emailed.** While Settings -> Sending is on "Record only" (the default), the dialog warns "Test mode: nothing will be emailed", the confirmation says "recorded, but NOT emailed", and the list, header and history say **Recorded only**.
+- **Emailed is not received.** Without bounce notices the system only knows the email service accepted it, so the words are Emailed / Not delivered (the service refused it) / Given on WhatsApp, never Delivered.
+- The share page is built from a **frozen copy** taken at send time, so the page and the attachment cannot disagree and a later edit never changes what the customer was sent.
+- **Settings -> Sending** (sixth tab): on / off, the provider (`console` records only, `resend` really sends through Resend, `smtp` sends through the company's own mail server: server, port, username and a write-only password), the Resend key (write-only: shown as "Stored" with Replace), from name and address, reply-to, a readiness checklist and **Send a test email**. Only an admin can save it. Until it is set up, WhatsApp still works and email says so.
+- This is not an FTA e-invoice; the PDF and email do not satisfy the e-invoicing mandate.
+- Code: `lib/sendForms.js` (pure recipients / wording / phone rules), `lib/sendDocumentsApi.js` (multipart send; sets `Content-Type: multipart/form-data` or the PDF is dropped), `lib/shareApi.js` (bare `fetch`, never axios), `lib/sendState.js` (status words and pills), `PurchaseOrder/shared/documentPdf.jsx` (`sheetsPdfFile`). The server side is described in `foodERP/CLAUDE.md`, "Sending a document to the customer".
+- Tests: `lib/__tests__/{sendForms,sendDocumentsApi}.test.js`, `components/send/__tests__/{shared,SendDialog,SendHistory,SharedDocument}.test.jsx`, `components/Settings/__tests__/SendingSettings.test.jsx`. `check:mobile` opens the dialog, the history and the public page at three widths.
+
 ## 8. Inventory & Stock
 - InventoryManagement: `src/components/Inventory/InventoryManagement.jsx`
 - CategoryManagement: `src/components/Inventory/CategoryManagement.jsx`
@@ -373,7 +397,7 @@ VAT treatment of a line is its tax code's kind (`standard`, `zero_rated`, `exemp
 - **Theme**: `components/theme-provider.jsx` keeps a *preference* (`light | dark | system`) and exposes the resolved `theme` (`light | dark`), so `theme === "dark"` checks keep working. `index.css` sets `color-scheme` so native controls follow the theme.
 
 ### 12a. Settings, preferences, dates
-- `/settings` (`components/Settings/Settings.jsx`) has five tabs, kept in the URL (`?tab=`): **Company** (profile and logo), **Business rules** (`BusinessRules.jsx`: credit control, return rules, tax identity - the tax identity fills itself from the Company tab), **Invoice bank details** (printed on invoices; includes IBAN checksum and SWIFT), **Preferences** (theme, date format, time format - applied at once and remembered in this browser), **Security** (change password). Every control saves something; what is not built (language, notifications) is listed as "Coming soon". Tax codes, document numbering, fiscal years and posting accounts live in Accounting setup. Rules are in `lib/settingsForm.js`.
+- `/settings` (`components/Settings/Settings.jsx`) has six tabs, kept in the URL (`?tab=`): **Company** (profile and logo), **Business rules** (`BusinessRules.jsx`: credit control, return rules, tax identity - the tax identity fills itself from the Company tab), **Invoice bank details** (printed on invoices; includes IBAN checksum and SWIFT), **Preferences** (theme, date format, time format - applied at once and remembered in this browser), **Security** (change password), **Sending** (email and WhatsApp setup for sending documents to customers; see 7d). Every control saves something; what is not built (language, notifications) is listed as "Coming soon". Tax codes, document numbering, fiscal years and posting accounts live in Accounting setup. Rules are in `lib/settingsForm.js`.
 - **Date fields**: use `DateInput` (kit.jsx), never `<input type="date">`: it shows and accepts the date in the user's chosen format (typed, or from the calendar button) and still reports ISO `YYYY-MM-DD`. `min`/`max` guide the calendar only; the form explains a date outside the range.
 - **Dates**: format every date through `utils/format.js` - `formatDate`, `formatTime`, `formatDateTime` (`formatDateGB` is the same function). They follow the Date / Time format preference and show Dubai time. Never call `toLocaleDateString` directly. Native `<input type="date">` is drawn by the browser and cannot follow the preference.
 

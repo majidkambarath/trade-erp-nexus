@@ -46,7 +46,7 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   return {
     fileName: `${invoiced ? "Tax-invoice" : "Sales-order"}_${number}`,
     status: so.status,
-    missingTrn: invoiced && !company.trn,
+    missingTrn: invoiced && !company.vatNumber,
     sheet: sheetFor(so, {
       title: invoiced ? "Tax invoice" : "Sales order",
       numberLabel: invoiced ? "Invoice no." : "Order no.",

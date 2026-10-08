@@ -1,5 +1,4 @@
 import React from "react";
-import { Send } from "lucide-react";
 import PaymentInvoiceView from "../../FinancialModules/Payment/PaymentInvoiceView";
 
 const InvoiceView = ({
@@ -26,15 +25,6 @@ const InvoiceView = ({
     setActiveView("list");
   };
 
-  const handleSendToParty = () => {
-    const party = parties.find((p) => p._id === selectedInvoice.partyId);
-    alert(
-      `${
-        voucherType.charAt(0).toUpperCase() + voucherType.slice(1)
-      } Invoice sent to ${party?.customerName || party?.vendorName || "party"}!`
-    );
-  };
-
   const showToastMessage = (message) => {
     alert(message);
   };
@@ -56,15 +46,6 @@ const InvoiceView = ({
         onBack={handleBackClick}
         voucherType={voucherType}
         showToastMessage={showToastMessage}
-        additionalActions={
-            <button
-              onClick={handleSendToParty}
-              className="flex items-center space-x-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Send className="w-4 h-4" />
-            <span>Send to {voucherType === "sale" ? "Customer" : "Vendor"}</span>
-            </button>
-        }
       />
     </div>
   );

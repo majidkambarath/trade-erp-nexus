@@ -60,10 +60,15 @@ const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.j
 const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
 const QuotationsPage = lazy(() => import("../components/salesDocs/QuotationsPage.jsx"));
 const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNotesPage.jsx"));
+// The page a customer opens from an emailed link. Lazy, so no signed-in user pays for it, and outside both
+// the sign-in guard and the app shell, so it needs its own loading boundary (Layout owns the only other).
+const SharedDocument = lazy(() => import("../components/send/SharedDocument.jsx"));
+const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
 export default function AdminRouter() {
   return (
     <Routes>
       <Route path="/" element={<ERPLogin />} />
+      <Route path="/d/:token" element={<Suspense fallback={<SharedLoading />}><SharedDocument /></Suspense>} />
       <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />

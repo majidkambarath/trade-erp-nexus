@@ -15,7 +15,9 @@ import {
 // Read the real router so a page added without a navigation entry fails here.
 const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8");
-const NON_APP = new Set(["/", "*"]); // login and the 404 catch-all have no navigation
+// Login, the 404 catch-all and the page a customer opens from an emailed link (/d/:token, outside the
+// app shell and the session guard) have no navigation.
+const NON_APP = new Set(["/", "*", "/d/:token"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));

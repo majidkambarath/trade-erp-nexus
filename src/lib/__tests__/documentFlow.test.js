@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo } from "../documentFlow";
+import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo, sendPill } from "../documentFlow";
 
 const quote = (over = {}) => ({ _id: "q1", quotationNo: "QT-2026-0007", status: "SENT", expired: false, daysLeft: 12, validUntil: "2026-11-05T00:00:00.000Z", totalAmount: 210, ...over });
 const order = (over = {}) => ({ _id: "o1", transactionNo: "SO-2026-0031", status: "DRAFT", totalAmount: 210, outstandingAmount: 210, ...over });
@@ -247,5 +247,47 @@ describe("an order closed short", () => {
     expect(canReopenShort(deal({ order: order({ status: "APPROVED" }), closeShort: closed() }))).toBe(true);
     expect(canReopenShort(deal({ order: order({ status: "APPROVED" }), closeShort: closed({ returns: [{ _id: "r1", status: "DRAFT" }] }) }))).toBe(false);
     expect(canReopenShort(deal({ order: order() }))).toBe(false);
+  });
+});
+
+describe("sending the invoice", () => {
+  const NOW = new Date("2026-10-10T09:00:00Z").getTime();
+  const invoice = (over = {}) => deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-06T00:00:00.000Z", ...over }), notes: [note()], delivery: { started: true, complete: true, remaining: [] } });
+
+  it("a recent invoice that has not gone to the customer is the next thing to do", () => {
+    const c = invoice();
+    expect(nextAction(c, NOW)).toMatchObject({ label: "Send the invoice", why: "The invoice has not gone to the customer yet.", to: orderTo(c.order) });
+    expect(dealGroup({ ...c }, NOW)).toBe("action");
+  });
+
+  it("an invoice from before the 14-day window is not flagged: it was sent by hand, and history would bury today", () => {
+    expect(nextAction(invoice({ date: "2026-09-01T00:00:00.000Z" }), NOW)).toBeNull();
+    expect(sendPill(invoice({ date: "2026-09-01T00:00:00.000Z" }), NOW)).toBeNull();
+  });
+
+  it("once it has been sent there is nothing to do about it", () => {
+    const c = invoice({ lastSend: { status: "SENT", channel: "email", at: "2026-10-07T10:00:00Z", to: "ali@alnoor.ae" } });
+    expect(nextAction(c, NOW)).toBeNull();
+    expect(dealGroup(c, NOW)).toBe("done");
+  });
+
+  it("the mark names the document and the channel, and never says delivered", () => {
+    expect(sendPill(invoice(), NOW)).toEqual({ text: "Invoice not sent", tone: "warning" });
+    expect(sendPill(invoice({ lastSend: { status: "SENT", at: "2026-10-07T10:00:00Z" } }), NOW)).toMatchObject({ tone: "info" });
+    expect(sendPill(invoice({ lastSend: { status: "SENT", at: "2026-10-07T10:00:00Z" } }), NOW).text).toMatch(/^Invoice emailed /);
+    expect(sendPill(invoice({ lastSend: { status: "SENT", at: "2026-10-07T10:00:00Z", openedAt: "2026-10-08T08:00:00Z" } }), NOW)).toMatchObject({ tone: "success" });
+    expect(sendPill(invoice({ lastSend: { status: "SENT", at: "2026-10-07T10:00:00Z", openedAt: "2026-10-08T08:00:00Z" } }), NOW).text).toMatch(/^Invoice opened /);
+    expect(sendPill(invoice({ lastSend: { status: "FAILED", at: "2026-10-07T10:00:00Z", error: "x" } }), NOW)).toEqual({ text: "Invoice not delivered", tone: "danger" });
+    expect(sendPill(invoice({ lastSend: { status: "HANDED_OFF", channel: "whatsapp", at: "2026-10-07T10:00:00Z" } }), NOW).text).toMatch(/^Invoice given on WhatsApp /);
+  });
+
+  it("only an approved invoice has a mark: a draft order or an offer has none", () => {
+    expect(sendPill(deal({ order: order({ status: "DRAFT" }) }), NOW)).toBeNull();
+    expect(sendPill(deal({ quotation: quote() }), NOW)).toBeNull();
+  });
+
+  it("does not hide the other next steps: a part delivery still says deliver the rest", () => {
+    const c = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-06T00:00:00.000Z" }), notes: [note()], delivery: { started: true, complete: false, remaining: [{ description: "Rice", qty: 4 }] } });
+    expect(nextAction(c, NOW).label).toBe("Deliver the rest");
   });
 });

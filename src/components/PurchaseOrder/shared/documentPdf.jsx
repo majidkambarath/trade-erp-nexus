@@ -12,6 +12,12 @@ const A4_MM = { w: 210, h: 297 };
 // 210mm at 96dpi: the width the sheet is laid out at.
 const SHEET_PX = 794;
 
+// How sharply a copy is drawn. Download is the full page; email is a lighter one (about 120-220 KB a page
+// instead of about 400), because a PDF that goes in an email is posted from the sender's browser, often
+// over a phone connection, and some mail servers refuse a heavy attachment. Lowering only one of the two
+// wastes most of the saving, so both move.
+const RASTER = { download: { scale: 2, quality: 0.92 }, email: { scale: 1.5, quality: 0.82 } };
+
 // Which page a document is drawn on. Invoices, orders, returns and quotations share the priced sheet;
 // a delivery note and a pick list have their own (quantities, signatures), named by `layout`.
 export const sheetComponent = (sheet) => (sheet?.layout === "delivery" ? DeliverySheet : InvoiceSheet);
@@ -40,7 +46,7 @@ const loadFrame = (markup) =>
 
 // Adds one copy to the PDF. A sheet taller than an A4 page is cut into page-high slices rather
 // than shrunk until the text is unreadable.
-const addCopyPages = (pdf, canvas, startOnNewPage) => {
+const addCopyPages = (pdf, canvas, startOnNewPage, quality) => {
   const pxPerMm = canvas.width / A4_MM.w;
   // Rounded up so a sheet that is one A4 page does not leave a 1px sliver for a second page.
   const sliceH = Math.ceil(A4_MM.h * pxPerMm);
@@ -53,12 +59,13 @@ const addCopyPages = (pdf, canvas, startOnNewPage) => {
     part.getContext("2d").drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
     // JPEG, not PNG: jsPDF embeds a PNG that carries an alpha channel uncompressed, which made the
     // two-copy file 20 MB. JPEG at this quality keeps a text page small.
-    pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_MM.w, h / pxPerMm);
+    pdf.addImage(part.toDataURL("image/jpeg", quality), "JPEG", 0, 0, A4_MM.w, h / pxPerMm);
   }
 };
 
-// One PDF with one copy after another, each starting on a new page.
-export const downloadSheetsPdf = async (markups, fileName) => {
+// Every copy drawn into one PDF, one after another, each starting on a new page. Returned, not saved: the
+// two ends differ only in what they do with it.
+const renderSheetsPdf = async (markups, { scale, quality } = RASTER.download) => {
   const html2canvas = (await import("html2canvas")).default;
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF("p", "mm", "a4");
@@ -67,18 +74,32 @@ export const downloadSheetsPdf = async (markups, fileName) => {
     try {
       const node = frame.contentDocument.body.firstElementChild;
       const canvas = await html2canvas(node, {
-        scale: 2,
+        scale,
         useCORS: true,
         backgroundColor: "#ffffff",
         width: SHEET_PX,
         windowWidth: SHEET_PX,
       });
-      addCopyPages(pdf, canvas, i > 0);
+      addCopyPages(pdf, canvas, i > 0, quality);
     } finally {
       frame.remove();
     }
   }
+  return pdf;
+};
+
+export const downloadSheetsPdf = async (markups, fileName) => {
+  const pdf = await renderSheetsPdf(markups);
   pdf.save(`${fileName}.pdf`);
+};
+
+// The same page as the download, as a file, for attaching to an email. How many pages it came to is
+// on the result, because the dialog tells the person before they send.
+export const sheetsPdfFile = async (markups, fileName, options = RASTER.email) => {
+  const pdf = await renderSheetsPdf(markups, options);
+  const file = new File([pdf.output("blob")], `${fileName}.pdf`, { type: "application/pdf" });
+  file.pageCount = typeof pdf.getNumberOfPages === "function" ? pdf.getNumberOfPages() : 1;
+  return file;
 };
 
 // Prints one copy through the browser's print dialog. A frame is used rather than a popup window,
