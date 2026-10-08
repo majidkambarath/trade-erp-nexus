@@ -16,7 +16,7 @@ vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(()
 
 const action = (key, short, implies = [], label = `${short}.`) => ({ key, action: key.split(".")[1], short, label, read: key.endsWith(".view"), implies });
 const CATALOGUE = [
-  { key: "sales", label: "Sales", hint: "Quotations and orders", actions: [action("sales.view", "View"), action("sales.create", "Add and edit", ["sales.view", "lookups.view"]), action("sales.approve", "Approve", ["sales.view", "inventory.view", "lookups.view"])] },
+  { key: "sales", label: "Sales", hint: "Quotations and orders", actions: [action("sales.view", "View"), action("sales.create", "Add", ["sales.view", "lookups.view"]), action("sales.edit", "Edit", ["sales.view", "lookups.view"]), action("sales.approve", "Approve", ["sales.view", "inventory.view", "lookups.view"])] },
   { key: "finance", label: "Finance", hint: "Vouchers", actions: [action("finance.view", "View"), action("finance.approve", "Approve", ["finance.view", "lookups.view"])] },
   { key: "inventory", label: "Inventory", hint: "Items", actions: [action("inventory.view", "View")] },
   { key: "lookups", label: "Pick lists", hint: "", automatic: true, actions: [action("lookups.view", "Pick lists")] },
@@ -41,7 +41,7 @@ const baseStatus = (grants, rank = 80) => ({
   branches: [{ code: "main", name: "Head office", isHeadOffice: true }, { code: "shj", name: "Sharjah" }], branch: { code: "main", name: "Head office", canSwitch: true },
   me: { id: "u-admin", name: "Ada Admin", role: { key: "admin", name: "Administrator", rank }, grants },
 });
-const MANAGER_GRANTS = ["users.view", "users.manage", "sales.view", "sales.create", "sales.approve", "finance.view", "inventory.view", "lookups.view"];
+const MANAGER_GRANTS = ["users.view", "users.manage", "sales.view", "sales.create", "sales.edit", "sales.approve", "finance.view", "inventory.view", "lookups.view"];
 
 const renderPage = (url = "/users") =>
   render(
@@ -188,6 +188,18 @@ describe("the permission boxes", () => {
     expect(view).toBeEnabled();
   });
 
+  it("Add, Edit and Approve are separate boxes: each brings View and nothing else of the others", async () => {
+    const dialog = await newRole();
+    fireEvent.click(within(dialog).getByLabelText("Sales: Edit"));
+    expect(within(dialog).getByLabelText("Sales: View")).toBeChecked();
+    expect(within(dialog).getByLabelText("Sales: Add")).not.toBeChecked();
+    expect(within(dialog).getByLabelText("Sales: Approve")).not.toBeChecked();
+    fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: "Order corrector" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create role" }));
+    await waitFor(() => expect(api.createRole).toHaveBeenCalledTimes(1));
+    expect(api.createRole.mock.calls[0][0].permissions).toEqual(["sales.edit"]);
+  });
+
   it("will not let a person tick what they do not hold", async () => {
     const dialog = await newRole();
     expect(within(dialog).getByLabelText("Finance: Approve")).toBeDisabled(); // viewing finance is held, approving it is not
@@ -227,7 +239,8 @@ describe("the permission boxes", () => {
     const table = await screen.findByRole("table", { name: "Roles" });
     fireEvent.click(within(within(table).getByText("Sales supervisor").closest("tr")).getByRole("button", { name: /Change/ }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByLabelText("Sales: Add and edit")).toBeChecked();
+    expect(within(dialog).getByLabelText("Sales: Add")).toBeChecked();
+    expect(within(dialog).getByLabelText("Sales: Edit")).not.toBeChecked(); // adding does not bring editing: they are separate
     expect(within(dialog).getByLabelText("Sales: View")).toBeDisabled(); // implied, so locked
     fireEvent.click(within(dialog).getByLabelText("Sales: Approve"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Save role" }));
@@ -239,9 +252,9 @@ describe("the permission boxes", () => {
     const dialog = await newRole();
     const sales = within(dialog).getByText("Sales").closest("section");
     fireEvent.click(within(sales).getByRole("button", { name: "All" }));
-    for (const name of ["Sales: View", "Sales: Add and edit", "Sales: Approve"]) expect(within(dialog).getByLabelText(name)).toBeChecked();
+    for (const name of ["Sales: View", "Sales: Add", "Sales: Edit", "Sales: Approve"]) expect(within(dialog).getByLabelText(name)).toBeChecked();
     fireEvent.click(within(sales).getByRole("button", { name: "None" }));
-    for (const name of ["Sales: View", "Sales: Add and edit", "Sales: Approve"]) expect(within(dialog).getByLabelText(name)).not.toBeChecked();
+    for (const name of ["Sales: View", "Sales: Add", "Sales: Edit", "Sales: Approve"]) expect(within(dialog).getByLabelText(name)).not.toBeChecked();
     const finance = within(dialog).getByText("Finance").closest("section");
     fireEvent.click(within(finance).getByRole("button", { name: "All" }));
     expect(within(dialog).getByLabelText("Finance: View")).toBeChecked();

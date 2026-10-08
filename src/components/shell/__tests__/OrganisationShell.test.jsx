@@ -165,7 +165,7 @@ describe("working in a branch", () => {
 });
 
 describe("what the person's role may open", () => {
-  const SALES = { role: { key: "sales", name: "Sales executive", rank: 40 }, grants: ["sales.view", "sales.create", "sales.send", "inventory.view", "lookups.view", "reports.view"] };
+  const SALES = { role: { key: "sales", name: "Sales executive", rank: 40 }, grants: ["sales.view", "sales.create", "sales.edit", "sales.send", "inventory.view", "lookups.view", "reports.view"] };
 
   it("offers a sales executive their sales pages and no Finance", async () => {
     status = { ...base(), me: SALES };

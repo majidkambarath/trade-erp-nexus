@@ -7,7 +7,7 @@ import {
 // the shape the server sends (utils/permissions.js catalogue()): each action says what ticking it brings along
 const action = (key, short, implies = []) => ({ key, short, label: `${short}.`, implies });
 const catalogue = [
-  { key: "sales", label: "Sales", actions: [action("sales.view", "View"), action("sales.create", "Add and edit", ["sales.view", "lookups.view"]), action("sales.approve", "Approve", ["sales.view", "inventory.view", "lookups.view"]), action("sales.delete", "Delete", ["sales.view", "lookups.view"])] },
+  { key: "sales", label: "Sales", actions: [action("sales.view", "View"), action("sales.create", "Add", ["sales.view", "lookups.view"]), action("sales.edit", "Edit", ["sales.view", "lookups.view"]), action("sales.approve", "Approve", ["sales.view", "inventory.view", "lookups.view"]), action("sales.delete", "Delete", ["sales.view", "lookups.view"])] },
   { key: "inventory", label: "Inventory", actions: [action("inventory.view", "View"), action("inventory.adjust", "Adjust stock", ["inventory.view", "lookups.view"])] },
   { key: "lookups", label: "Pick lists", automatic: true, actions: [action("lookups.view", "Pick lists")] },
 ];

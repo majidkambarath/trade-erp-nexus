@@ -78,7 +78,7 @@ describe("findActive", () => {
 const grants = (...keys) => ({ me: { grants: keys } });
 const allKeys = [...new Set(allTabs.flatMap(({ tab }) => [].concat(tab.permission || [])))];
 const EVERYTHING = grants(...allKeys);
-const SALES = grants("sales.view", "sales.create", "sales.send", "inventory.view", "lookups.view", "reports.view");
+const SALES = grants("sales.view", "sales.create", "sales.edit", "sales.send", "inventory.view", "lookups.view", "reports.view");
 const STOREKEEPER = grants("inventory.view", "inventory.create", "inventory.adjust", "sales.view", "purchase.view", "reports.view", "lookups.view");
 
 describe("what a role may open", () => {

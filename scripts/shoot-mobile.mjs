@@ -35,8 +35,8 @@ const { MODULES } = await import("../src/config/navigation.js");
 const ALL_GRANTS = [...new Set([
   ...MODULES.flatMap((m) => m.tabs.flatMap((t) => [].concat(t.permission || []))),
   ...Object.entries({
-    sales: ["view", "create", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "approve", "delete"],
-    inventory: ["view", "create", "delete", "adjust"], finance: ["view", "create", "approve", "delete"], banking: ["view", "manage", "reconcile"],
+    sales: ["view", "create", "edit", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "edit", "approve", "delete"],
+    inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete"], banking: ["view", "manage", "reconcile"],
     accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
     audit: ["view"], lookups: ["view"],
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
@@ -337,10 +337,10 @@ function stubFor(pathname) {
     const mod = (key, label, hint, actions) => ({ key, label, hint, actions: actions.map(([a, s, i]) => act(`${key}.${a}`, s, i || [])) });
     const sv = (k) => [`${k}.view`, "lookups.view"];
     const catalogue = [
-      mod("sales", "Sales", "Quotations, orders, delivery notes, returns and customers", [["view", "View"], ["create", "Add and edit", sv("sales")], ["approve", "Approve", sv("sales")], ["delete", "Delete", sv("sales")], ["send", "Send to customers", sv("sales")], ["creditOverride", "Override credit limit", sv("sales")]]),
-      mod("purchase", "Purchase", "Purchase orders, returns and vendors", [["view", "View"], ["create", "Add and edit", sv("purchase")], ["approve", "Approve", sv("purchase")], ["delete", "Delete", sv("purchase")]]),
-      mod("inventory", "Inventory", "Items, batches and stock", [["view", "View"], ["create", "Add and edit", sv("inventory")], ["adjust", "Adjust stock", sv("inventory")], ["delete", "Delete", sv("inventory")]]),
-      mod("finance", "Finance", "Receipts, payments, journals and cheques", [["view", "View"], ["create", "Add and edit", sv("finance")], ["approve", "Approve", sv("finance")], ["delete", "Delete", sv("finance")]]),
+      mod("sales", "Sales", "Quotations, orders, delivery notes, returns and customers", [["view", "View"], ["create", "Add", sv("sales")], ["edit", "Edit", sv("sales")], ["approve", "Approve", sv("sales")], ["delete", "Delete", sv("sales")], ["send", "Send to customers", sv("sales")], ["creditOverride", "Override credit limit", sv("sales")]]),
+      mod("purchase", "Purchase", "Purchase orders, returns and vendors", [["view", "View"], ["create", "Add", sv("purchase")], ["edit", "Edit", sv("purchase")], ["approve", "Approve", sv("purchase")], ["delete", "Delete", sv("purchase")]]),
+      mod("inventory", "Inventory", "Items, batches and stock", [["view", "View"], ["create", "Add", sv("inventory")], ["edit", "Edit", sv("inventory")], ["adjust", "Adjust stock", sv("inventory")], ["delete", "Delete", sv("inventory")]]),
+      mod("finance", "Finance", "Receipts, payments, journals and cheques", [["view", "View"], ["create", "Add", sv("finance")], ["edit", "Edit", sv("finance")], ["approve", "Approve", sv("finance")], ["delete", "Delete", sv("finance")]]),
       mod("reports", "Reports", "Statements, VAT and financial reports", [["view", "View"], ["financial", "Financial reports", ["reports.view"]], ["vat", "File a VAT return", ["reports.view"]]]),
       mod("banking", "Banking", "Banks, cards, statements and reconciliation", [["view", "View"], ["manage", "Add and change", ["banking.view"]], ["reconcile", "Reconcile", ["banking.view"]]]),
       mod("accounts", "Accounts", "Chart of accounts, tax codes, numbering and the period lock", [["view", "View"], ["manage", "Add and change", ["accounts.view"]], ["close", "Close a period", ["accounts.view"]]]),

@@ -74,10 +74,17 @@ describe("what a role may do to a quotation or a delivery note", () => {
   const state = { edit: true, delete: true, send: true, accept: true, reject: true, convert: true, dispatch: false, deliver: true, cancel: true, invoice: true, revise: true };
 
   it("narrows what the document's state allows to what the role holds", () => {
-    const clerk = allowActions(state, me("sales.create", "sales.send", "sales.view"));
+    const clerk = allowActions(state, me("sales.create", "sales.edit", "sales.send", "sales.view"));
     expect(clerk).toMatchObject({ edit: true, send: true, revise: true, delete: false, accept: false, reject: false, convert: false, deliver: false, cancel: false, invoice: false });
-    const manager = allowActions(state, me("sales.create", "sales.send", "sales.approve", "sales.delete"));
+    const manager = allowActions(state, me("sales.create", "sales.edit", "sales.send", "sales.approve", "sales.delete"));
     expect(manager).toMatchObject({ edit: true, delete: true, accept: true, convert: true, deliver: true, invoice: true });
+  });
+
+  it("keeps Add and Edit apart: someone who may add but not change is offered a new version, never an edit", () => {
+    const adder = allowActions(state, me("sales.create", "sales.view"));
+    expect(adder).toMatchObject({ edit: false, revise: true });
+    const editor = allowActions(state, me("sales.edit", "sales.view"));
+    expect(editor).toMatchObject({ edit: true, revise: false });
   });
 
   it("never offers what the state itself does not allow, whatever the role holds", () => {
