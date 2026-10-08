@@ -15,7 +15,8 @@ import {
   Users,
   Warehouse,
 } from "lucide-react";
-import { tabInPlan } from "../lib/organisation";
+// (with its extension: the mobile sweep loads this file straight from node, which does not guess one)
+import { tabInPlan } from "../lib/organisation.js";
 
 // A tab may name a `feature` (the server's plan features, utils/plans.js): it is offered only when the organisation's
 // plan includes it. Role lists are carried over unchanged from the previous sidebar, per page.

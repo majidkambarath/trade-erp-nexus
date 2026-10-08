@@ -7,6 +7,7 @@ import { initials } from "./useSession";
 import BrandMark from "./BrandMark";
 import { PRODUCT_NAME } from "../../config/product";
 import { useInstall } from "./InstallApp";
+import BranchSwitcher from "./BranchSwitcher";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -108,6 +109,8 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
             </span>
           </>
         )}
+
+        <BranchSwitcher />
 
         <button
           type="button"

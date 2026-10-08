@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { BLOCKED_EVENT, featureOn } from "../../lib/organisation";
+import { BLOCKED_EVENT, branchLabel, featureOn, validBranchSelection } from "../../lib/organisation";
+import { getSelectedBranch, setSelectedBranch } from "../../axios/session";
 import { getOrganisationStatus } from "../../lib/organisationApi";
 
 // The signed-in organisation, loaded once for the shell: what its plan includes (so a screen the plan does not
@@ -10,7 +11,7 @@ import { getOrganisationStatus } from "../../lib/organisationApi";
 // plan does not include, and a missing status must never lock a working organisation out of its own screen.
 const Context = createContext(null);
 
-const NOTHING = { status: null, blocked: null, loading: false, refresh: () => {}, featureOn: () => true };
+const NOTHING = { status: null, blocked: null, loading: false, refresh: () => {}, featureOn: () => true, branch: null, branchKey: 0, selectBranch: () => {} };
 export const useOrganisation = () => useContext(Context) || NOTHING;
 
 const REFRESH_AFTER_MS = 60 * 1000;
@@ -26,6 +27,9 @@ export function OrganisationProvider({ children }) {
   const [status, setStatus] = useState(null);
   const [refused, setRefused] = useState(null); // a request was refused as blocked, before or without the status
   const [loading, setLoading] = useState(true);
+  // The branch a head-office user works in. Changing it re-keys the page (so every list is fetched again).
+  const [selected, setSelected] = useState(getSelectedBranch);
+  const [branchKey, setBranchKey] = useState(0);
   const lastLoad = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -33,6 +37,12 @@ export function OrganisationProvider({ children }) {
     try {
       const next = await getOrganisationStatus();
       setStatus(next);
+      // a remembered branch that is gone, switched off, or no longer the person's to choose is dropped
+      if (getSelectedBranch() && !validBranchSelection(next, getSelectedBranch())) {
+        setSelectedBranch(null);
+        setSelected(null);
+        setBranchKey((k) => k + 1);
+      }
       if (!next?.subscription?.blocked) setRefused(null);
     } catch {
       // keep whatever was known: an unreachable status is not a reason to hide or block anything
@@ -61,6 +71,16 @@ export function OrganisationProvider({ children }) {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
 
+  const selectBranch = useCallback(
+    (code) => {
+      setSelectedBranch(code || null);
+      setSelected(code || null);
+      setBranchKey((k) => k + 1);
+      refresh();
+    },
+    [refresh]
+  );
+
   const value = useMemo(
     () => ({
       status,
@@ -68,8 +88,11 @@ export function OrganisationProvider({ children }) {
       loading,
       refresh,
       featureOn: (key) => featureOn(status, key),
+      branch: { selected: validBranchSelection(status, selected), label: branchLabel(status, selected) },
+      branchKey,
+      selectBranch,
     }),
-    [status, refused, loading, refresh]
+    [status, refused, loading, refresh, selected, branchKey, selectBranch]
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

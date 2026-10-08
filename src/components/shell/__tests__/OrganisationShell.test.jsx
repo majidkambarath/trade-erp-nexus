@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "../../theme-provider";
 import Layout from "../../Layout";
 import { BLOCKED_EVENT } from "../../../lib/organisation";
+import { getSelectedBranch, setSelectedBranch } from "../../../axios/session";
 
 // The shell as an organisation sees it: its own name in the bar, only the screens its plan includes, a notice before
 // the subscription ends, and one page that says why when it has ended. What the status route answers is set per test.
@@ -41,6 +42,7 @@ const base = () => ({
 
 beforeEach(() => {
   sessionStorage.clear();
+  setSelectedBranch(null);
   status = base();
 });
 
@@ -119,5 +121,44 @@ describe("the organisation in the shell", () => {
     status = base(); // renewed
     fireEvent.click(screen.getByRole("button", { name: /Check again/ }));
     expect(await screen.findByText("the page itself")).toBeInTheDocument();
+  });
+});
+
+describe("working in a branch", () => {
+  const branches = [
+    { code: "main", name: "Head office", isHeadOffice: true },
+    { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false },
+  ];
+
+  it("shows nothing for an organisation with one branch", async () => {
+    status = { ...base(), branches: [branches[0]], branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } };
+    renderAt("/sales-order");
+    await screen.findByText("Acme Trading LLC");
+    expect(screen.queryByRole("button", { name: /Change branch/ })).toBeNull();
+  });
+
+  it("lets a head-office user choose a branch, remembers it for the tab and starts the page afresh", async () => {
+    status = { ...base(), branches, branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } };
+    renderAt("/sales-order");
+    const trigger = await screen.findByRole("button", { name: /Branch: All branches/ });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Sharjah Warehouse/ }));
+    expect(getSelectedBranch()).toBe("shj");
+    expect(await screen.findByRole("button", { name: /Branch: Sharjah Warehouse/ })).toBeInTheDocument();
+  });
+
+  it("names a branch user's own branch and offers no choice", async () => {
+    status = { ...base(), branches, branch: { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, canSwitch: false } };
+    renderAt("/sales-order");
+    expect(await screen.findByText("Sharjah Warehouse")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Change branch/ })).toBeNull();
+  });
+
+  it("forgets a remembered branch the person can no longer choose", async () => {
+    setSelectedBranch("gone");
+    status = { ...base(), branches, branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } };
+    renderAt("/sales-order");
+    await screen.findByRole("button", { name: /Branch: All branches/ });
+    await waitFor(() => expect(getSelectedBranch()).toBeNull());
   });
 });

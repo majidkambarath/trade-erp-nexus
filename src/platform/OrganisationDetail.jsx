@@ -52,7 +52,7 @@ export default function OrganisationDetail() {
   if (detail.error && !detail.data) {
     return (
       <>
-        <Link to="/platform" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Organisations</Link>
+        <Link to="/platform" className="mb-1 inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground lg:mb-3 lg:min-h-0"><ArrowLeft className="h-4 w-4" aria-hidden="true" />Organisations</Link>
         <ErrorNote error={{ message: consoleError(detail.error) }} onRetry={detail.reload} />
       </>
     );
@@ -78,7 +78,7 @@ export default function OrganisationDetail() {
 
   return (
     <>
-      <Link to="/platform" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link to="/platform" className="mb-1 inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground lg:mb-3 lg:min-h-0">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Organisations
       </Link>

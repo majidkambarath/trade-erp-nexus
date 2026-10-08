@@ -3,6 +3,8 @@ import {
   FEATURE_LABELS,
   blockedFrom,
   blockedPageText,
+  branchChoices,
+  branchLabel,
   featureLabel,
   featureOn,
   isBlockedError,
@@ -12,6 +14,7 @@ import {
   planRefusalMessage,
   subscriptionNotice,
   tabInPlan,
+  validBranchSelection,
 } from "../organisation";
 
 const refused = (status, errorCode, details, message = "No.") => ({ response: { status, data: { success: false, errorCode, message, details } } });
@@ -112,5 +115,45 @@ describe("the blocked page wording", () => {
     expect(expired.title).toBe("Your subscription has ended");
     expect(expired.lead).toBe("It ended on 10 Oct 2026.");
     expect(blockedPageText({ state: "expired" }).lead).toMatch(/until it is renewed/);
+  });
+});
+
+describe("working in a branch", () => {
+  const branches = [
+    { code: "main", name: "Head office", isHeadOffice: true },
+    { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false },
+  ];
+  const headOffice = { branches, branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } };
+  const branchUser = { branches, branch: { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, canSwitch: false } };
+
+  it("offers a head-office user every branch and all of them together", () => {
+    expect(branchChoices(headOffice)).toEqual([
+      { value: "", label: "All branches" },
+      { value: "main", label: "Head office" },
+      { value: "shj", label: "Sharjah Warehouse" },
+    ]);
+  });
+
+  it("offers nothing to anyone else, or in an organisation with one branch", () => {
+    expect(branchChoices(branchUser)).toEqual([]);
+    expect(branchChoices({ branches: [branches[0]], branch: { canSwitch: true } })).toEqual([]);
+    expect(branchChoices(null)).toEqual([]);
+  });
+
+  it("keeps a remembered choice only while it is still one the person can make", () => {
+    expect(validBranchSelection(headOffice, "shj")).toBe("shj");
+    expect(validBranchSelection(headOffice, "gone")).toBeNull();
+    expect(validBranchSelection(headOffice, "")).toBeNull();
+    expect(validBranchSelection(branchUser, "shj")).toBeNull(); // not theirs to choose
+    expect(validBranchSelection(null, "shj")).toBeNull();
+  });
+
+  it("says where the person is working, and says nothing for a single branch", () => {
+    expect(branchLabel(headOffice, null)).toBe("All branches");
+    expect(branchLabel(headOffice, "shj")).toBe("Sharjah Warehouse");
+    expect(branchLabel(headOffice, "gone")).toBe("All branches");
+    expect(branchLabel(branchUser, "main")).toBe("Sharjah Warehouse"); // a branch user is always in their own
+    expect(branchLabel({ branches: [branches[0]], branch: { name: "Head office" } }, null)).toBeNull();
+    expect(branchLabel(null, null)).toBeNull();
   });
 });

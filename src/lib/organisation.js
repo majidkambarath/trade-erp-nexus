@@ -66,6 +66,28 @@ export const FEATURE_LABELS = {
   multiBranch: "More than one branch",
 };
 
+// ---- branches
+
+/** The branches a head-office user may switch between: "All branches" first, then each. Empty when there is nothing to choose. */
+export function branchChoices(status) {
+  const branches = status?.branches || [];
+  if (!status?.branch?.canSwitch || branches.length < 2) return [];
+  return [{ value: "", label: "All branches" }, ...branches.map((b) => ({ value: b.code, label: b.isHeadOffice && !/head office/i.test(b.name) ? `${b.name} (head office)` : b.name }))];
+}
+
+/** A remembered branch is only kept while the person can still switch and the branch still exists and is active. */
+export const validBranchSelection = (status, selected) =>
+  selected && branchChoices(status).some((c) => c.value === selected) ? selected : null;
+
+/** What the top bar says about where the person is working; null for an organisation with a single branch. */
+export function branchLabel(status, selected) {
+  const branches = status?.branches || [];
+  if (branches.length < 2) return null;
+  if (!status.branch?.canSwitch) return status.branch?.name || null;
+  const chosen = validBranchSelection(status, selected);
+  return chosen ? branches.find((b) => b.code === chosen)?.name || chosen : "All branches";
+}
+
 // ---- the subscription
 
 const shortDate = (value) => {

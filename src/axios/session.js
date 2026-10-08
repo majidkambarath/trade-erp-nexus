@@ -19,6 +19,26 @@ export const setSession = ({ accessToken: token, admin: who }) => {
 export const clearSession = () => {
   accessToken = null;
   admin = null;
+  setSelectedBranch(null);
+};
+
+// The branch a head-office user has chosen to work in ("" or nothing = all branches). Kept for this tab only, and
+// sent with every request as X-Branch; the server honours it for head-office users alone and checks it every time.
+const BRANCH_KEY = "zarvia.branch";
+export const getSelectedBranch = () => {
+  try {
+    return sessionStorage.getItem(BRANCH_KEY) || null;
+  } catch {
+    return null;
+  }
+};
+export const setSelectedBranch = (code) => {
+  try {
+    if (code) sessionStorage.setItem(BRANCH_KEY, code);
+    else sessionStorage.removeItem(BRANCH_KEY);
+  } catch {
+    // storage unavailable: the choice lasts until the page is reloaded
+  }
 };
 
 // Tells the other tabs of this browser that the session ended, so none of them keeps working on it.

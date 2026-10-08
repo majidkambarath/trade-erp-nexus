@@ -34,7 +34,7 @@ function PageLoading() {
 const LayoutShell = () => {
   const { pathname } = useLocation();
   const { profile, role, logout } = useSession();
-  const { status, blocked, refresh, featureOn } = useOrganisation();
+  const { status, blocked, refresh, featureOn, branchKey } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // set by main.jsx when the service worker has a newer build waiting
@@ -179,7 +179,8 @@ const LayoutShell = () => {
         >
           {/* a page that breaks shows a message here; the rail and header stay usable, and
               moving to another page clears it */}
-          <PageErrorBoundary resetKey={pathname}>
+          {/* choosing another branch starts the page afresh, so every list is read again for that branch */}
+          <PageErrorBoundary key={branchKey} resetKey={pathname}>
             {outOfPlan ? (
               <NotInPlan feature={outOfPlan} />
             ) : (

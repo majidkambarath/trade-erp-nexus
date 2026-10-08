@@ -1,5 +1,5 @@
 import axios from "axios";
-import { clearSession, announceSignOut, getAccessToken, setSession } from "./session";
+import { clearSession, announceSignOut, getAccessToken, getSelectedBranch, setSession } from "./session";
 import { BLOCKED_EVENT, blockedFrom } from "../lib/organisation";
 
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
@@ -75,6 +75,8 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const branch = getSelectedBranch();
+    if (branch) config.headers["X-Branch"] = branch;
     return config;
   },
   (error) => Promise.reject(error)
