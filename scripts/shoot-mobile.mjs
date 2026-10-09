@@ -945,6 +945,40 @@ function stubFor(pathname) {
       ],
     };
   }
+  // the day book by day, and the day-end cash and bank report (the shapes are pinned by Reports/__tests__/DayReports.test.jsx)
+  if (p.includes("/reports/daily-summary")) {
+    const types = [["sales_order", "Sales invoice"], ["sales_return", "Sales return"], ["purchase_order", "Purchase invoice"], ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"]];
+    const day = (d, extra = {}) => ({ day: d, count: 14, unbalanced: 0, byType: Object.fromEntries(types.map(([t], i) => [t, { count: 2 + i, amount: 12345.5 + i * 1111 }])), ...extra });
+    return {
+      types: types.map(([voucherType, label]) => ({ voucherType, label })),
+      days: [day("2026-10-04"), day("2026-10-03", { unbalanced: 1 }), day("2026-10-02"), day("2026-10-01")],
+      totals: { count: 56, unbalanced: 1, byType: Object.fromEntries(types.map(([t], i) => [t, { count: 8 + i * 4, amount: 49382 + i * 4444 }])) },
+    };
+  }
+  if (p.includes("/reports/day-end/register")) {
+    const d = (day, c) => ({ day, cash: { in: 5200.5, out: 3100, closing: 120000 + c }, bank: { in: 40000, out: 12500.75, closing: 310000 + c }, closing: 430000 + 2 * c });
+    return {
+      from: "2026-09-21", to: "2026-10-04", opening: { cash: 118000, bank: 290000, all: 408000 },
+      days: [d("2026-10-01", 0), d("2026-10-02", 2100), d("2026-10-03", 4200), d("2026-10-04", 6300)],
+      closing: { cash: 126300, bank: 316300, all: 442600 },
+    };
+  }
+  if (p.includes("/reports/day-end")) {
+    const acct = (id, code, name, kind, o, r, pay) => ({ accountId: id, accountCode: code, accountName: name, kind, opening: o, receipts: r, payments: pay, closing: o + r - pay, vouchers: 6 });
+    const accounts = [acct("a1", "CASH0001", "Cash in Hand", "cash", 120000, 5200.5, 3100), acct("a2", "CASH0002", "Petty Cash", "cash", 2500, 0, 450), acct("a3", "BANK0001", "Emirates NBD Current Account", "bank", 290000, 40000, 12500.75)];
+    const sum = (list) => list.reduce((t, a) => ({ opening: t.opening + a.opening, receipts: t.receipts + a.receipts, payments: t.payments + a.payments, closing: t.closing + a.closing }), { opening: 0, receipts: 0, payments: 0, closing: 0 });
+    return {
+      date: "2026-10-04", accounts,
+      totals: { cash: sum(accounts.slice(0, 2)), bank: sum(accounts.slice(2)), all: sum(accounts) },
+      sources: [
+        { voucherType: "receipt", label: "Received from customers", inflow: 35200.5, outflow: 0, net: 35200.5, count: 9 },
+        { voucherType: "sales_order", label: "Sales settled at once", inflow: 10000, outflow: 0, net: 10000, count: 3 },
+        { voucherType: "payment", label: "Paid to vendors", inflow: 0, outflow: 14050.75, net: -14050.75, count: 4 },
+        { voucherType: "expense", label: "Expenses paid", inflow: 0, outflow: 1500, net: -1500, count: 2 },
+      ],
+      moneyIn: 45200.5, moneyOut: 15550.75, movedBetweenAccounts: 2000, hadActivity: true, closingPerLedger: 442600, reconciles: true,
+    };
+  }
   if (p.includes("/stock-reports/sales-analysis")) {
     return {
       from: "2026-10-01", to: "2026-10-04", groupBy: "item", direction: "sales",

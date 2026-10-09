@@ -133,7 +133,7 @@ export const MODULES = [
     tabs: [
       { label: "Statements", to: "/financial-statements", permission: "reports.financial", keywords: ["trial balance", "profit and loss", "p&l", "gross profit", "cash flow", "balance sheet", "financial statements"] },
       { label: "IFRS", to: "/ifrs-statements", permission: "reports.financial", feature: "ifrsStatements", keywords: ["ifrs statements", "statement of financial position", "profit or loss", "changes in equity", "cash flows", "notes", "comparative", "ias 1", "ias 7"] },
-      { label: "Ledger", to: "/ledger-reports", permission: "reports.financial", keywords: ["general ledger", "day book", "journals register", "cash book", "bank book", "gl"] },
+      { label: "Ledger", to: "/ledger-reports", permission: "reports.financial", keywords: ["general ledger", "day book", "daily summary", "daily voucher summary", "day end", "day-end cash", "cash position", "journals register", "cash book", "bank book", "gl"] },
       { label: "Balances", to: "/party-balances", permission: ["reports.financial", "finance.view"], keywords: ["customer balances", "vendor balances", "receivables", "payables", "credit exposure", "credit limit", "outstanding"] },
       { label: "Ageing", to: "/ageing", permission: "reports.view", keywords: ["aged receivables", "aged payables", "overdue", "outstanding"] },
       { label: "Account statement", to: "/statement", permission: ["reports.view", "finance.view"], keywords: ["statement of account", "customer statement", "vendor statement"] },

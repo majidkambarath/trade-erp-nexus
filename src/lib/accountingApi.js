@@ -68,9 +68,14 @@ export const accounting = {
   generalLedger: (params) => api.get("/accounting/reports/general-ledger", params),
   profitLossDetail: (params) => api.get("/accounting/reports/profit-loss", params),
   dayBook: (params) => api.get("/accounting/reports/day-book", params),
+  // the day book by day: how many vouchers of each kind, and what they came to
+  dailySummary: (params) => api.get("/accounting/reports/daily-summary", params),
   voucherImpact: (id) => api.get(`/accounting/reports/voucher/${id}`),
   cashBook: (params) => api.get("/accounting/reports/cash-book", params),
   cashFlow: (params) => api.get("/accounting/reports/cash-flow", params),
+  // the cash and bank position at the end of one day (?date=), and day by day over a range (?from=&to=)
+  dayEnd: (params) => api.get("/accounting/reports/day-end", params),
+  dayEndRegister: (params) => api.get("/accounting/reports/day-end/register", params),
   partyBalances: (params) => api.get("/accounting/reports/party-balances", params),
   returnable: (id, params) => api.get(`/accounting/returnable/${id}`, params),
   auditLog: (params) => api.get("/accounting/audit-log", params),

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
 import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
+import { DailySummary, DayEnd } from "./DayReports";
 
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
@@ -18,7 +19,7 @@ const VOUCHER_TYPES = [
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
 ];
 const TYPE_OPTIONS = VOUCHER_TYPES.map(([value, label]) => ({ value, label }));
-const TAB_IDS = ["gl", "daybook", "journals", "cash"];
+const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend"];
 
 // Reports read from the general ledger: every account, every voucher, the journals, and cash and bank.
 export default function LedgerReports() {
@@ -27,19 +28,23 @@ export default function LedgerReports() {
   const [range, setRange] = useState({ from: yearStart(), to: todayInput() });
   const [ledgerFor, setLedgerFor] = useState(null);
   const openLedger = (a) => setLedgerFor({ _id: a.accountId || a._id, accountCode: a.accountCode, accountName: a.accountName });
+  // one day's vouchers in the day book (from the daily summary, or from a day's cash and bank report)
+  const openDay = (day) => { setRange({ from: day, to: day }); setParams({ tab: "daybook" }, { replace: true }); };
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Ledger reports" description="General ledger, day book, journals, and cash and bank, straight from the books." />
-      <DateRange value={range} onChange={setRange} />
+      <PageHeader title="Ledger reports" description="General ledger, day book, daily voucher summary, journals, cash and bank, and the day-end cash position, straight from the books." />
+      <DateRange value={range} onChange={setRange} asAt={tab === "dayend"} label={tab === "dayend" ? "Day" : undefined} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList>
-          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger>
+          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="daily">Daily summary</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger><TabsTrigger value="dayend">Day end</TabsTrigger>
         </TabsList></div>
         <TabsContent value="gl">{tab === "gl" && <GeneralLedger range={range} onLedger={openLedger} />}</TabsContent>
         <TabsContent value="daybook">{tab === "daybook" && <DayBook range={range} />}</TabsContent>
+        <TabsContent value="daily">{tab === "daily" && <DailySummary range={range} onDay={openDay} />}</TabsContent>
         <TabsContent value="journals">{tab === "journals" && <Journals range={range} />}</TabsContent>
         <TabsContent value="cash">{tab === "cash" && <CashAndBankBook range={range} onLedger={openLedger} />}</TabsContent>
+        <TabsContent value="dayend">{tab === "dayend" && <DayEnd range={range} onRange={setRange} onLedger={openLedger} onOpenDay={openDay} />}</TabsContent>
       </Tabs>
       {ledgerFor && <LedgerModal account={ledgerFor} onClose={() => setLedgerFor(null)} />}
     </div>
