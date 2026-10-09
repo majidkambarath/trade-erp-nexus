@@ -94,7 +94,7 @@ const GridView = ({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Total</p>
-                <p className="text-lg font-extrabold text-foreground">{CURRENCY} {formatNumber(so.totalAmount)}</p>
+                <p className="text-lg font-extrabold text-foreground whitespace-nowrap">{CURRENCY} {formatNumber(so.totalAmount)}</p>
               </div>
             </div>
 

@@ -91,21 +91,21 @@ const DEEP = {
     { name: "send-row", clicks: ["^View all orders", "^Send (SO|[0-9])"], settle: 1600 },
     { name: "history", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
     // the audit trail, from the button on a card
-    { name: "audit", clicks: ["^View all orders", "^Audit trail$"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all orders", "^Audit trail$"], settle: 1600 },
   ],
   // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
   "purchase-orders": [
     { name: "list", page: true, clicks: ["^View all purchase orders"], settle: 1200 },
-    { name: "document", page: true, clicks: ["^View all purchase orders", "^View( [0-9]|$)"], settle: 1600 },
-    { name: "audit", clicks: ["^View all purchase orders", "^Audit trail$"], settle: 1600 },
+    { name: "document", cards: true, page: true, clicks: ["^View all purchase orders", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all purchase orders", "^Audit trail$"], settle: 1600 },
   ],
   "sales-returns": [
     { name: "list", page: true, clicks: ["^View all sales returns"], settle: 1200 },
-    { name: "audit", clicks: ["^View all sales returns", "^Audit trail$"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all sales returns", "^Audit trail$"], settle: 1600 },
   ],
   "purchase-returns": [
     { name: "list", page: true, clicks: ["^View all purchase returns"], settle: 1200 },
-    { name: "audit", clicks: ["^View all purchase returns", "^Audit trail$"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all purchase returns", "^Audit trail$"], settle: 1600 },
   ],
   // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
   "finance-reconcile": [
@@ -121,6 +121,10 @@ const DEEP = {
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 DEEP["sales-order"] = DEEP["sales-orders"]; // a single-page run (check:mobile -- /sales-order)
+DEEP["quotations"] = DEEP["sales-quotations"]; // check:mobile -- /quotations
+DEEP["purchase-order"] = DEEP["purchase-orders"]; // ... and likewise for the other three order modules
+DEEP["sales-return"] = DEEP["sales-returns"];
+DEEP["purchase-return"] = DEEP["purchase-returns"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
@@ -268,7 +272,7 @@ const SENDS = {
   6: { sendId: "s6", channel: "whatsapp", status: "HANDED_OFF", at: "2026-10-06T10:32:00.000Z", to: "971501112222", openedAt: null, error: null },
 };
 const doc = (i) => ({
-  _id: `d${i}`, id: `d${i}`, transactionNo: `SO-2026-004${i}`, date: "2026-10-0" + ((i % 9) + 1),
+  _id: `d${i}`, id: `d${i}`, partyId: `p${i}`, transactionNo: `SO-2026-004${i}`, date: "2026-10-0" + ((i % 9) + 1),
   deliveryDate: "2026-10-1" + ((i % 9) + 1), customerName: `Al Noor Trading ${i}`,
   vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "APPROVED", "DRAFT"][i % 3], lastSend: SENDS[i] || null,
   totalAmount: 12480.5 * i,
@@ -1268,6 +1272,8 @@ for (const vp of VIEWPORTS) {
       // opens another. A page list alone never reaches them, so the drill-downs are spelled
       // out - the audit trail's posting table was unreadable on a phone for exactly that long.
       for (const step of DEEP[name] || []) {
+        // a step marked `cards` is about the card layout (a phone): from md up the list is a table, where these buttons are in a row menu
+        if (step.cards && vp.width >= 768) continue;
         try {
           problems.length = 0;
           for (const label of step.clicks) {
@@ -1297,7 +1303,13 @@ for (const vp of VIEWPORTS) {
             }, step.reveal);
             await wait(300);
           }
-          const o = await measureDialog(page);
+          let o = await measureDialog(page);
+          // A slow lazy chunk is not a blank page: if nothing is there yet, give it a moment and look once more. A page that
+          // really is blank is still blank, so this removes a false alarm without hiding the real thing.
+          if ((!step.page && !o.opened) || o.text < 40) {
+            await wait(2500);
+            o = await measureDialog(page);
+          }
           await page.screenshot({ path: join(OUT, `${name}-${step.name}-${vp.name}.png`) });
           const deepErrs = [...new Set(problems)];
           // "No dialog" and "an empty one" both have to fail loudly: a blank screenshot that

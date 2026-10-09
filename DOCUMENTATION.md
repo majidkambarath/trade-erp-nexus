@@ -577,13 +577,19 @@ copy asks for a sign-in on each launch. Moving them is a security decision, not 
 | Command | What it does |
 | --- | --- |
 | `npm run audit:mobile` | static scan of every screen for the patterns that cannot work at 390px |
-| `npm run check:mobile` | renders every route in `navigation.js` at 390 / 820 / 1440 against a stub API, screenshots it, and fails on horizontal overflow or a blank page |
+| `npm run check:mobile` | renders every route in `navigation.js` at 390 / 820 / 1440 against a stub API, screenshots it, and fails on horizontal overflow, a blank page, a crash, or a **cut-off control** (see below) |
 | `npm run check:pwa` | builds, serves, and checks the manifest, icons, worker registration and that no API response was cached |
 
 `check:mobile` writes to `.shots/` (gitignored) and drives its page list from `navigation.js`,
 so a new screen is checked without anyone remembering to add it. Its stub API answers from
 `scripts/shoot-mobile.mjs`; a page that comes back blank there usually means the stub's shape
 has drifted from the server's, not that the page is broken. Since the error boundary, such a page no longer goes blank: it shows the error screen and logs `Page crashed:`, which the sweep reports as `THREW` and fails on - so a crash cannot read as a pass. Write a stub's shape from the screen's own test fixture.
+
+**Cut-off controls (`findCutOff` in the sweep).** A card is `overflow-hidden`, so a row of buttons wider than it is not scrolled to - it is gone - and the page itself still fits, so the overflow check never saw it: on a phone the order cards' Send, Audit trail, Edit, Confirm and Delete sat up to 337px outside the card and could not be tapped. `findCutOff` runs on every page, tab panel and dialog and fails the sweep on any button, link, field or heading that sits partly or wholly outside the nearest ancestor that clips sideways (an ancestor that scrolls is fine: what is outside can be reached). The rule for a card, and for any row of actions inside a clipping box, is `flex flex-wrap gap-2`; the document number is `whitespace-nowrap`; a line's quantity and price are `shrink-0 whitespace-nowrap` so the NAME is what gives way. `PurchaseOrder/shared/__tests__/gridCardCases.jsx` pins those causes for all four order modules (jsdom has no layout). Steps marked `cards: true` in the sweep (the order modules' audit trails) run only below md, where the list is cards; from md up it is a table and the same buttons are in a row menu.
+
+**Files plain Node loads.** `config/navigation.js` is read by the sweep under plain Node, so it, `lib/organisation.js` and `lib/permissions.js` must stay loadable there: relative imports with the `.js` extension, nothing only the bundler resolves. `utils/format.js` is not Node-loadable (extensionless imports, the brand config), which is why the subscription wording that needs the date formatter lives in `lib/subscriptionText.js`, not in `lib/organisation.js`. `config/__tests__/nodeLoadable.test.js` loads the three files in a real Node process, because every other test here goes through Vite and would stay green while the sweep broke.
+
+**Tab strips.** `ui/tabs.jsx` `TabsList` is `justify-start`, not centred: a centred row that overflows spills to both sides and its first tabs cannot be scrolled to (on a phone, Settings -> Company and Branches were unreachable).
 
 ## 18. Considerations & Future Improvements
 - Role-based access: Sidebar role is hardcoded; integrate with backend auth to control access and visibility.

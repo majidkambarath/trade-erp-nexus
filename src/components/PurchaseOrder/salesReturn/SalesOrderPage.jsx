@@ -193,7 +193,7 @@ const SalesReturnOrderManagement = () => {
           return {
             id: transaction._id,
             transactionNo: transaction.transactionNo,
-            customerId: transaction.partyId._id || transaction.partyId,
+            customerId: transaction.partyId?._id || transaction.partyId,
             customerName: transaction.partyName || "Unknown Customer",
             date: transaction.date,
             deliveryDate: transaction.deliveryDate,
@@ -831,7 +831,7 @@ const SalesReturnOrderManagement = () => {
       <div className="relative bg-card border-b border-border">
         <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <ShoppingCart className="w-8 h-8 text-blue-600" />
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">

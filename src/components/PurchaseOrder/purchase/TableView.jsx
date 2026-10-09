@@ -50,7 +50,7 @@ const TableView = ({
   return (
     <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full [&_th]:px-2 [&_td]:px-2 lg:[&_th]:px-4 lg:[&_td]:px-4">
           <thead>
             <tr className="bg-secondary border-b border-border">
               <th className="px-4 py-4 text-left">

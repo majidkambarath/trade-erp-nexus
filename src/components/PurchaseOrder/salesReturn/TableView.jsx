@@ -36,7 +36,7 @@ const TableView = ({
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full [&_th]:px-2 [&_td]:px-2 lg:[&_th]:px-4 lg:[&_td]:px-4">
           <thead className="bg-slate-50/80 border-b border-slate-200">
             <tr>
               <th className="px-4 py-4 text-left">
