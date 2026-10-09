@@ -103,7 +103,7 @@ export const PRESETS = [
   { id: "all", label: "All" },
 ];
 
-/** The from / to a preset stands for, as YYYY-MM-DD in Dubai time ("" means unbounded). */
+/** The from / to a preset stands for, as YYYY-MM-DD in the organisation's time zone ("" means unbounded). */
 export function presetRange(id, today = todayInput()) {
   if (id === "month") return { from: `${today.slice(0, 8)}01`, to: today };
   if (id === "year") return { from: `${today.slice(0, 4)}-01-01`, to: today };

@@ -76,7 +76,7 @@ export function withCreditDays(form, kind, days) {
   return { ...form, creditDays: days, paymentTerms: ok ? daysToTerms(kind, n, form.paymentTerms) : form.paymentTerms };
 }
 
-// ---- document expiry (the same Dubai-calendar rules as the server) -----------------------------
+// ---- document expiry (the same calendar-day rules as the server: the organisation's own days) -----------------------------
 
 const DAY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const dayMs = (day) => {
@@ -91,7 +91,7 @@ const isRealDay = (day) => {
 };
 
 // "YYYY-MM-DD" for a date value from the form or the server ("2026-01-09" or "2026-01-09T00:00:00.000Z").
-// A server date at exactly UTC midnight is that day; any other moment is read on the Dubai calendar.
+// A server date at exactly UTC midnight is that day; any other moment is read on the organisation's calendar.
 export function toDay(value) {
   if (!value) return "";
   const text = String(value);
@@ -105,7 +105,7 @@ export function toDay(value) {
 
 export const DOC_STATUS = { VALID: "VALID", EXPIRING_SOON: "EXPIRING_SOON", EXPIRED: "EXPIRED", NO_EXPIRY: "NO_EXPIRY", INVALID_DATE: "INVALID_DATE" };
 
-// { status, daysLeft } for an expiry date. Today is the Dubai day unless given.
+// { status, daysLeft } for an expiry date. Today is the organisation's day unless given.
 export function documentStatus(expiry, { today = todayInput(), warningDays = DEFAULT_WARNING_DAYS } = {}) {
   if (expiry === null || expiry === undefined || String(expiry).trim() === "") return { status: DOC_STATUS.NO_EXPIRY, daysLeft: null };
   const day = toDay(expiry);

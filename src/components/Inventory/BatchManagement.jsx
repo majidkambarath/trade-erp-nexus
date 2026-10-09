@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { batches } from "../../lib/accountingApi";
-import { formatDateGB, formatNumber } from "../../utils/format";
+import { formatDateGB, formatNumber, CURRENCY } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
@@ -97,7 +97,7 @@ export function WriteOffModal({ batch, onClose, onDone }) {
     setBusy(true);
     try {
       const r = await batches.writeOff(batch._id, { qty: n, reason, note: note.trim() || undefined });
-      onDone(`${r.number}: ${qtyFmt(r.qty)} written off, cost AED ${formatNumber(r.cost, 2)}${r.posted ? "" : " (ledger posting is off; not booked)"}`);
+      onDone(`${r.number}: ${qtyFmt(r.qty)} written off, cost ${CURRENCY} ${formatNumber(r.cost, 2)}${r.posted ? "" : " (ledger posting is off; not booked)"}`);
     } catch (e) {
       setError(e);
       setBusy(false);

@@ -7,8 +7,10 @@ import {
   User,
   History,
 } from "lucide-react";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const GridView = ({
   paginatedSOs,
@@ -24,6 +26,8 @@ const GridView = ({
   deleteSO,
   onShowAudit,
 }) => {
+  // Confirm only for someone who may approve THIS return; a first approval awaiting its second is badged.
+  const { stateOf } = useApproval();
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {paginatedSOs.map((so) => (
@@ -32,8 +36,8 @@ const GridView = ({
           className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group hover:scale-105"
         >
           {/* Card Header */}
-          <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
-            <div className="flex justify-between items-start">
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-4 sm:px-6 border-b border-slate-200">
+            <div className="flex flex-wrap justify-between items-start gap-x-3 gap-y-2">
               <div className="flex items-center space-x-3">
                 <input
                   type="checkbox"
@@ -48,11 +52,11 @@ const GridView = ({
                   }}
                 />
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">{so.transactionNo}</h3>
+                  <h3 className="text-lg font-bold text-slate-800 whitespace-nowrap">{so.transactionNo}</h3>
                   <p className="text-sm text-slate-600">{so.customerName || "Unknown"}</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div
                   className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`}
                   title={`${so.priority} Priority`}
@@ -91,7 +95,7 @@ const GridView = ({
               <div>
                 <p className="text-xs text-slate-500 uppercase tracking-wide font-medium">Total</p>
                 <p className="text-lg font-bold text-emerald-600">
-                  AED {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
+                  {CURRENCY} {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
                 </p>
               </div>
             </div>
@@ -102,8 +106,8 @@ const GridView = ({
               <div className="space-y-1">
                 {so.items.slice(0, 2).map((item, index) => (
                   <div key={index} className="flex justify-between text-xs">
-                    <span className="text-slate-600 truncate">{item.description}</span>
-                    <span className="text-slate-800 font-medium ml-2">
+                    <span className="text-slate-600 truncate">{item.description || item.itemName || item.stockDetails?.itemName || "Item"}</span>
+                    <span className="text-slate-800 font-medium ml-2 shrink-0 whitespace-nowrap">
                       {item.qty} × {item.rate}
                     </span>
                   </div>
@@ -115,16 +119,17 @@ const GridView = ({
             </div>
 
             {/* Status Indicators */}
-            <div className="flex items-center space-x-4 mb-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
               <div className="flex items-center space-x-1 text-slate-500">
                 <User className="w-3 h-3" />
                 <span>{so.createdBy}</span>
               </div>
+              <AwaitingSecondBadge doc={so} state={stateOf(so)} />
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between">
-              <div className="flex space-x-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
                     setSelectedSO(so);
@@ -155,8 +160,8 @@ const GridView = ({
                 )}
               </div>
 
-              <div className="flex space-x-2">
-                {so.status === "DRAFT" && (
+              <div className="flex flex-wrap gap-2">
+                {so.status === "DRAFT" && stateOf(so).canApprove && (
                   <Can permission="sales.approve">
                     <button
                       onClick={() => confirmSO(so.id)}
@@ -167,8 +172,8 @@ const GridView = ({
                     </button>
                   </Can>
                 )}
-                {so.status === "DRAFT" && (
-                  <Can permission="sales.delete">
+                {(so.status === "DRAFT" || so.status === "APPROVED") && (
+                  <Can permission={deleteKey("sales", so.status === "APPROVED")}>
                     <button
                       onClick={() => deleteSO(so.id)}
                       className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"

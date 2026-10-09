@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Warehouse } from "lucide-react";
 import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCurrencyAED, formatDate, formatNumber, formatQty } from "@/utils/format";
+import { CURRENCY, formatCurrencyAED, formatDate, formatNumber, formatQty } from "@/utils/format";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -114,7 +114,7 @@ export default function InventoryTab({ state, theme }) {
       <Card data-anim="bento" className={cardClass}>
         <CardHeader>
           <CardTitle className="font-extrabold">Stock value trend</CardTitle>
-          <CardDescription>Month-end balance of the Inventory account · AED</CardDescription>
+          <CardDescription>Month-end balance of the Inventory account · {CURRENCY}</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartArea

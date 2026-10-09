@@ -3,6 +3,8 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, formatNumber } from "../../../utils/format";
 import { Button } from "../../ui/button";
+import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../kit";
 
 export const KINDS = {
@@ -25,16 +27,19 @@ const KIND_HELP = {
 export default function TaxCodes({ notify }) {
   const codes = useAsync(() => accounting.taxCodes(), []);
   const [modal, setModal] = useState(null);
+  // adding and editing a tax code is accounts.manage; looking at them is not
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   return (
     <Panel
       title="Tax codes" bodyClassName="p-0"
       description="Choose a tax code on each order line. A rate change takes effect on the date you set, without touching earlier documents."
-      actions={<Button size="sm" onClick={() => setModal({})}><Plus className="h-4 w-4" aria-hidden="true" />New tax code</Button>}
+      actions={<Can permission="accounts.manage"><Button size="sm" onClick={() => setModal({})}><Plus className="h-4 w-4" aria-hidden="true" />New tax code</Button></Can>}
     >
       {codes.loading && !codes.data && <Spinner />}
       {codes.error && <div className="p-5"><ErrorNote error={codes.error} onRetry={codes.reload} /></div>}
-      {codes.data?.length === 0 && <EmptyState title="No tax codes" text="Add a standard-rated code (5% in the UAE) to start." />}
+      {codes.data?.length === 0 && <EmptyState title="No tax codes" text={canManage ? "Add a standard-rated code (5% in the UAE) to start." : "No tax code has been set up yet. Ask your administrator to add one."} />}
       {codes.data?.length > 0 && (
         <DataTable
           caption="Tax codes"
@@ -46,7 +51,7 @@ export default function TaxCodes({ notify }) {
             { key: "rate", header: "Rate", align: "end", card: "amount", className: "tabular-nums", cell: (c) => `${formatNumber(c.ratePercent, 2)}%` },
             { key: "history", header: "Rate changes", card: "meta", className: "text-xs text-muted-foreground", cell: (c) => c.rateHistory?.length ? c.rateHistory.map((h) => `${formatNumber(h.ratePercent, 2)}% from ${formatDateGB(h.date)}`).join(" · ") : "—" },
             { key: "status", header: "Status", card: "badge", cell: (c) => c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
-            { key: "edit", header: <span className="sr-only">Edit</span>, align: "end", card: "actions", cell: (c) => <button type="button" onClick={() => setModal({ code: c })} aria-label={`Edit ${c.name}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+            ...(canManage ? [{ key: "edit", header: <span className="sr-only">Edit</span>, align: "end", card: "actions", cell: (c) => <button type="button" onClick={() => setModal({ code: c })} aria-label={`Edit ${c.name}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent"><Pencil className="h-4 w-4" aria-hidden="true" /></button> }] : []),
           ]}
         />
       )}

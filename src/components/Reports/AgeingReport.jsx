@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { downloadCSV, formatDateGB, formatNumber, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, TextInput, useAsync, DateInput } from "../accounting/kit";
@@ -47,10 +47,10 @@ export default function AgeingReport() {
 
       {data && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard title="Total outstanding" count={formatNumber(data.totals.total, 2)} subText="AED" tone="teal" />
-          <StatCard title="Overdue" count={formatNumber(data.overdue, 2)} subText={data.totals.total ? `${Math.round((data.overdue / data.totals.total) * 100)}% of the total` : "AED"} tone={data.overdue > 0 ? "warning" : "neutral"} />
-          <StatCard title="Not yet due" count={formatNumber(data.totals.current, 2)} subText="AED" tone="olive" />
-          <StatCard title="Over 90 days" count={formatNumber(data.totals.d90plus, 2)} subText="AED" tone={data.totals.d90plus > 0 ? "danger" : "neutral"} />
+          <StatCard title="Total outstanding" count={formatNumber(data.totals.total, 2)} subText={CURRENCY} tone="teal" />
+          <StatCard title="Overdue" count={formatNumber(data.overdue, 2)} subText={data.totals.total ? `${Math.round((data.overdue / data.totals.total) * 100)}% of the total` : CURRENCY} tone={data.overdue > 0 ? "warning" : "neutral"} />
+          <StatCard title="Not yet due" count={formatNumber(data.totals.current, 2)} subText={CURRENCY} tone="olive" />
+          <StatCard title="Over 90 days" count={formatNumber(data.totals.d90plus, 2)} subText={CURRENCY} tone={data.totals.d90plus > 0 ? "danger" : "neutral"} />
         </div>
       )}
 

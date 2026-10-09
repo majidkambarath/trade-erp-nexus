@@ -61,7 +61,7 @@ export const accounting = {
   saveSettings: (body) => api.put("/accounting/settings", body),
   ageing: (params) => api.get("/accounting/reports/ageing", params),
   statement: (params) => api.get("/accounting/reports/statement", params),
-  // Ledger reports: dates are YYYY-MM-DD (Dubai days).
+  // Ledger reports: dates are YYYY-MM-DD (the organisation's calendar days).
   generalLedger: (params) => api.get("/accounting/reports/general-ledger", params),
   profitLossDetail: (params) => api.get("/accounting/reports/profit-loss", params),
   dayBook: (params) => api.get("/accounting/reports/day-book", params),

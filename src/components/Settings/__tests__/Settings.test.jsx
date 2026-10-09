@@ -5,19 +5,20 @@ import { MemoryRouter } from "react-router-dom";
 
 const m = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
 vi.mock("../../../axios/axios", () => ({ default: { get: m.get, put: m.put } }));
+let orgStatus = null;
+vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
 vi.mock("../../../lib/accountingApi", () => ({ accounting: { settings: vi.fn().mockResolvedValue({ creditControl: { mode: "off", overdueBlockDays: 0 }, returnWindowDays: 0, requireReturnLink: false, profile: {} }), saveSettings: vi.fn() } }));
 
 import Settings from "../Settings";
+import { OrganisationProvider } from "../../shell/OrganisationContext";
 import { ThemeProvider } from "../../theme-provider";
 import { formatDate, getDateFormat, setDateFormat, setTimeFormat } from "../../../utils/format";
 
+// The organisation's letterhead (GET /company/profile): one copy for everyone, in the shape the screens read.
 const PROFILE = {
-  email: "admin@test.com",
-  companyInfo: {
-    companyName: "Harbour Trading", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates",
-    postalCode: "", phoneNumber: "", emailAddress: "accounts@harbourtrading.ae", website: "",
-    bankDetails: { bankName: "Emirates NBD", accountName: "Harbour Trading LLC", accountNumber: "0123456789", ibanNumber: "", currency: "AED" },
-  },
+  companyName: "Harbour Trading", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates",
+  postalCode: "", phoneNumber: "", emailAddress: "accounts@harbourtrading.ae", website: "", vatNumber: "100123456700003",
+  bankDetails: { bankName: "Emirates NBD", accountName: "Harbour Trading LLC", accountNumber: "0123456789", ibanNumber: "", currency: "AED" },
 };
 
 const at = (tab) => render(
@@ -38,7 +39,7 @@ describe("settings page", () => {
   it("shows only the tabs that do something, and none of the removed dummy sections", async () => {
     at();
     expect(await screen.findByRole("tab", { name: "Company", selected: true })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
     for (const gone of [/Taxation/i, /Email Server/i, /Document Numbering/i, /Currency Settings/i, /Two-Factor/i, /Session Timeout/i]) {
       expect(screen.queryByText(gone)).toBeNull();
     }
@@ -83,7 +84,7 @@ describe("settings page", () => {
     type(/SWIFT/, "ebilaead");
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(m.put).toHaveBeenCalledTimes(1));
-    expect(m.put.mock.calls[0][0]).toBe("/profile/me");
+    expect(m.put.mock.calls[0][0]).toBe("/company/profile");
     const info = sent();
     expect(info.companyName).toBe("Harbour Trading");
     expect(info.bankDetails).toMatchObject({ bankName: "Emirates NBD", ibanNumber: "AE070331234567890123456", swiftCode: "EBILAEAD", currency: "AED" });
@@ -153,6 +154,15 @@ describe("security", () => {
     expect(m.put).not.toHaveBeenCalled();
   });
 
+  it("holds a new password to the server's 8 characters, so a short one is refused here and not by a failed request", async () => {
+    await open();
+    expect(screen.getByText(/At least 8 characters/)).toBeInTheDocument();
+    fillAll("old-pass", "seven77", "seven77");
+    fireEvent.click(screen.getByRole("button", { name: "Update password" }));
+    expect(await screen.findByText("Use at least 8 characters")).toBeInTheDocument();
+    expect(m.put).not.toHaveBeenCalled();
+  });
+
   it("sends the confirmation too (the server requires it) and clears the form", async () => {
     await open();
     fillAll("old-pass", "Better-pass-1!", "Better-pass-1!");
@@ -176,5 +186,39 @@ describe("security", () => {
     expect(screen.getByLabelText(/^Current password/)).toHaveAttribute("type", "password");
     fireEvent.click(screen.getByLabelText("Show passwords"));
     expect(screen.getByLabelText(/^Current password/)).toHaveAttribute("type", "text");
+  });
+});
+
+describe("who may change the company profile", () => {
+  const atAs = (grants) => {
+    orgStatus = {
+      organisation: { legalName: "Harbour Trading" }, subscription: { state: "active", blocked: false }, features: {},
+      me: { id: "u1", name: "Someone", role: { key: "r", name: "A role", rank: 40 }, grants },
+    };
+    return render(
+      <ThemeProvider><MemoryRouter initialEntries={["/settings"]}><OrganisationProvider><Settings /></OrganisationProvider></MemoryRouter></ThemeProvider>
+    );
+  };
+
+  it("shows it to someone who may only look, read-only: the fields are off, there is no save bar, and it says why", async () => {
+    atAs(["settings.view"]);
+    const name = await screen.findByLabelText(/Company name/);
+    expect(name).toHaveValue("Harbour Trading");
+    expect(name).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent(/Only someone who may change settings can edit it/);
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    expect(m.put).not.toHaveBeenCalled();
+  });
+
+  it("lets someone who may change settings edit it and save it to the organisation's profile", async () => {
+    atAs(["settings.view", "settings.manage"]);
+    const name = await screen.findByLabelText(/Company name/);
+    expect(name).toBeEnabled();
+    expect(screen.queryByRole("note")).toBeNull();
+    fireEvent.change(name, { target: { value: "Harbour Trading LLC" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(m.put).toHaveBeenCalledTimes(1));
+    expect(m.put.mock.calls[0][0]).toBe("/company/profile");
+    expect(sent().companyName).toBe("Harbour Trading LLC");
   });
 });

@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, FolderPlus, Link2, Lock, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
+import { CURRENCY, drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
 import { banking } from "../../lib/bankingApi";
 import { isValidIban } from "../../lib/iban";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
+import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 import AttachmentPanel, { linkPending } from "./AttachmentPanel";
 import PartyForm from "../parties/PartyForm";
 import { partyMaster } from "../../lib/partyMasterApi";
@@ -50,6 +52,9 @@ function filterGroup(g, q, showInactive) {
 export default function ChartOfAccounts() {
   const { data: chart, loading, error, reload } = useAsync(() => accounting.chart(), []);
   const { notify, toastNode } = useToasts();
+  // Creating and editing groups and accounts, and restoring the default chart, is accounts.manage; looking is accounts.view.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [collapsed, setCollapsed] = useState({});
@@ -86,19 +91,19 @@ export default function ChartOfAccounts() {
       <PageHeader
         title="Chart of accounts"
         description="Every ledger account, grouped by what it is. Balances come from the same ledger as the Trial Balance. Account codes are assigned automatically from the group."
-        actions={
+        actions={canManage ? (
           <>
             <Button variant="ghost" onClick={restoreDefaults} disabled={restoring}><RotateCcw className="h-4 w-4" aria-hidden="true" />{restoring ? "Restoring…" : "Restore default accounts"}</Button>
             <Button variant="outline" onClick={() => setGroupModal({})}><FolderPlus className="h-4 w-4" aria-hidden="true" />New group</Button>
             <Button onClick={() => setAccountModal({})}><Plus className="h-4 w-4" aria-hidden="true" />New account</Button>
           </>
-        }
+        ) : undefined}
       />
 
       {chart && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
           {chart.categories.map((c) => (
-            <StatCard key={c.category} title={CATEGORY_LABEL[c.category]} count={balanceText(c.net)} tone={CATEGORY_TONE[c.category]} subText={`${NORMAL_SIDE[c.category]} normally · AED`} />
+            <StatCard key={c.category} title={CATEGORY_LABEL[c.category]} count={balanceText(c.net)} tone={CATEGORY_TONE[c.category]} subText={`${NORMAL_SIDE[c.category]} normally · ${CURRENCY}`} />
           ))}
         </div>
       )}
@@ -126,7 +131,9 @@ export default function ChartOfAccounts() {
         {loading && !chart && <Spinner label="Loading the chart of accounts" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
         {chart && chart.counts.accounts === 0 && chart.counts.groups === 0 && (
-          <EmptyState title="No accounts yet" text="Start from the default chart (assets, liabilities, equity, income and expenses), or create your own first group." action={<div className="flex gap-2"><Button onClick={restoreDefaults} disabled={restoring}>Create the default chart</Button><Button variant="outline" onClick={() => setGroupModal({})}>Create a group</Button></div>} />
+          canManage
+            ? <EmptyState title="No accounts yet" text="Start from the default chart (assets, liabilities, equity, income and expenses), or create your own first group." action={<div className="flex gap-2"><Button onClick={restoreDefaults} disabled={restoring}>Create the default chart</Button><Button variant="outline" onClick={() => setGroupModal({})}>Create a group</Button></div>} />
+            : <EmptyState title="No accounts yet" text="The chart of accounts has not been set up. Ask your administrator to create it." />
         )}
 
         {chart?.categories?.map((cat) => {
@@ -190,8 +197,10 @@ function GroupRows({ group, depth, collapsed, toggle, forceOpen, onAddAccount, o
         <span className="min-w-0 truncate text-sm font-semibold text-foreground">{group.name}</span>
         <span className="hidden shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground sm:inline">{group.prefix}</span>
         <span className="ms-auto flex shrink-0 items-center gap-1">
-          <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
-          <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <Can permission="accounts.manage">
+            <button type="button" onClick={() => onAddAccount(group._id)} aria-label={`Add account to ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Plus className="h-3.5 w-3.5" aria-hidden="true" /></button>
+            <button type="button" onClick={() => onEditGroup(group)} aria-label={`Edit group ${group.name}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          </Can>
           <Balance net={group.net} className="shrink-0 text-end text-sm font-semibold text-foreground sm:w-36" />
         </span>
       </div>
@@ -233,7 +242,9 @@ function AccountRow({ account, depth, onEdit, onLedger }) {
       <Balance net={account.net} className="shrink-0 text-end text-foreground sm:w-36" />
       <span className="flex shrink-0 items-center gap-1">
         <button type="button" onClick={onLedger} aria-label={`Ledger of ${account.accountName}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-3.5 w-3.5" aria-hidden="true" /></button>
-        <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        <Can permission="accounts.manage">
+          <button type="button" onClick={onEdit} aria-label={`Edit ${account.accountName}`} className="grid h-10 w-10 place-items-center lg:h-7 lg:w-7 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+        </Can>
       </span>
     </div>
   );
@@ -420,7 +431,7 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
         {!editing && (
           <fieldset className="grid gap-4 rounded-xl border border-border p-4 sm:col-span-2 sm:grid-cols-3">
             <legend className="px-1 text-sm font-medium text-foreground">Opening balance <span className="font-normal text-muted-foreground">(optional)</span></legend>
-            <Field label="Amount (AED)" error={errors.openingBalance}>
+            <Field label={`Amount (${CURRENCY})`} error={errors.openingBalance}>
               <TextInput inputMode="decimal" type="number" min="0" step="0.01" value={form.openingBalance} onChange={set("openingBalance")} placeholder="0.00" />
             </Field>
             <Field label="Side">

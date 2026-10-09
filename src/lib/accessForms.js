@@ -4,6 +4,8 @@
 // action's `implies`, and everything here reads that. Ticking "Approve" therefore locks "View" because the server says
 // approving needs seeing, and a rule changed on the server changes the editor with no edit here.
 
+import { limitSummary } from "./approvals";
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /** The ranks a custom role may take, in words. A role may only sit below the person making it (and below the owner). */
@@ -123,13 +125,27 @@ export function minimal(catalogue, keys) {
 /** The ticks a role starts the editor with. A custom role remembers what was ticked; a built-in one is reduced to its smallest set. */
 export const ticksOf = (catalogue, role) => (role?.named ? new Set(role.named) : minimal(catalogue, role?.permissions || []));
 
-export const emptyRole = () => ({ name: "", key: "", description: "", rank: 40 });
+export const emptyRole = () => ({ name: "", key: "", description: "", rank: 40, approvalLimit: "" });
 
-export const roleFrom = (role) => ({ name: role.name, key: role.key, description: role.description || "", rank: role.rank });
+// The limit is kept in the form as the text typed ("" for none); a stored number is shown as it is.
+const limitText = (limit) => (limit === null || limit === undefined || limit === "" ? "" : String(limit));
 
-/** { field: message } for a role the server would refuse. `canGrant` is what the person holds. */
-export function validateRole(form, named, { isNew, myRank, canGrant = () => true }) {
+export const roleFrom = (role) => ({ name: role.name, key: role.key, description: role.description || "", rank: role.rank, approvalLimit: limitText(role.approvalLimit) });
+
+/** Does this set of permissions include approving something? (Any "<module>.approve".) */
+export const holdsApprove = (keys) => [...(keys || [])].some((k) => String(k).endsWith(".approve"));
+
+/** What was typed for an approval limit -> a number, null for empty (no limit), NaN for something that is not an amount. */
+export function parseLimit(text) {
+  const t = String(text ?? "").replace(/,/g, "").trim();
+  if (t === "") return null;
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+}
+
+/** { field: message } for a role the server would refuse. `canGrant` is what the person holds. `approves`: the role holds an Approve (a limit means nothing otherwise). */
+export function validateRole(form, named, { isNew, myRank, canGrant = () => true, approves = true }) {
   const errors = {};
+  if (approves && Number.isNaN(parseLimit(form.approvalLimit))) errors.approvalLimit = "Enter an amount of 0 or more, or leave it empty for no limit";
   if (String(form.name || "").trim().length < 2) errors.name = "Give the role a name";
   if (isNew && !/^[a-z][a-z0-9_]{1,29}$/.test(form.key || "")) errors.key = "The key is 2 to 30 lower-case letters, digits or underscores";
   const rank = Number(form.rank);
@@ -140,18 +156,37 @@ export function validateRole(form, named, { isNew, myRank, canGrant = () => true
   return errors;
 }
 
-/** The body for a new or changed role. */
-export const rolePayload = (form, named, { isNew }) => ({
-  ...(isNew ? { key: form.key } : {}),
-  name: form.name.trim(),
-  description: form.description.trim(),
-  rank: Number(form.rank),
-  permissions: [...named],
-});
+/**
+ * The body for a new or changed role. The approval limit is a number, or null for none (empty); a role that approves nothing
+ * has none to keep, so it is sent as null (`approves: false`).
+ */
+export const rolePayload = (form, named, { isNew, approves = true }) => {
+  const limit = approves ? parseLimit(form.approvalLimit) : null;
+  return {
+    ...(isNew ? { key: form.key } : {}),
+    name: form.name.trim(),
+    description: form.description.trim(),
+    rank: Number(form.rank),
+    permissions: [...named],
+    approvalLimit: Number.isNaN(limit) ? null : limit,
+  };
+};
 
-/** "9 permissions in 4 areas" for a list row. */
+/**
+ * "9 permissions in 4 areas" for a list row. A role that approves says how much: "... · Approval: Up to 5,000.00 AED" or
+ * "... · Approval: No limit".
+ */
 export function summarise(role) {
   const keys = role.permissions || [];
   const areas = new Set(keys.map((k) => k.split(".")[0]).filter((m) => m !== "lookups"));
-  return `${keys.length} permission${keys.length === 1 ? "" : "s"} in ${areas.size} area${areas.size === 1 ? "" : "s"}`;
+  const base = `${keys.length} permission${keys.length === 1 ? "" : "s"} in ${areas.size} area${areas.size === 1 ? "" : "s"}`;
+  return holdsApprove(keys) ? `${base} · Approval: ${limitSummary(role.approvalLimit)}` : base;
 }
+
+// ---- what the server answers when it refuses a role
+
+/** The server's own sentence for a refusal, else the error's. (An axios error's `message` is only "Request failed with status code 400".) */
+export const serverMessage = (error) => error?.response?.data?.message || error?.message || "";
+
+/** The field the server says a refusal is about (`details.field`, e.g. "approvalLimit"), or null. */
+export const serverField = (error) => error?.response?.data?.details?.field || null;

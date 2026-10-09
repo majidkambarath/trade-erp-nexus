@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert } from "lucide-react";
 import { Button } from "../../ui/button";
 import { DateInput, ErrorNote, Field, Panel, Spinner, TextInput, Textarea, useAsync } from "../../accounting/kit";
 import { ActionModal } from "../../salesDocs/parts";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { reconcile } from "../../../lib/bankReconcileApi";
 import { readiness } from "../../../lib/bankReconcile";
 import { formatNumber, todayInput } from "../../../utils/format";
@@ -26,6 +27,9 @@ export default function FinishPanel({ account, version, onFinished, onViewStatem
   const [balance, setBalance] = useState("");
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
+  // Finishing locks matched lines: banking.reconcile. The proof itself is a read (banking.view) and stays for everyone.
+  const { canAny } = useOrganisation();
+  const canReconcile = canAny("banking.reconcile");
   const touched = React.useRef({ asOf: false, balance: false });
 
   // start from the latest import: its last day and its closing balance
@@ -50,7 +54,7 @@ export default function FinishPanel({ account, version, onFinished, onViewStatem
   );
 
   return (
-    <Panel title="Finish and prove" description="The date and closing balance printed on the bank statement.">
+    <Panel title={canReconcile ? "Finish and prove" : "Proof"} description="The date and closing balance printed on the bank statement.">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
           <Field label="Statement date"><DateInput value={asOf} max={todayInput()} onChange={(e) => { touched.current.asOf = true; setAsOf(e.target.value); }} /></Field>
@@ -65,17 +69,17 @@ export default function FinishPanel({ account, version, onFinished, onViewStatem
           <>
             <p aria-live="polite" className={status.ready ? "flex items-start gap-2 text-sm text-status-success" : "flex items-start gap-2 text-sm text-status-warning"}>
               {status.ready ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
-              <span>{status.text}</span>
+              <span>{!canReconcile && status.ready ? "The two sides agree." : status.text}</span>
             </p>
             {p.blockers.length > 1 && (
               <ul className="list-disc space-y-1 ps-5 text-xs text-muted-foreground">{p.blockers.slice(1).map((b) => <li key={b.code}>{b.message}</li>)}</ul>
             )}
             {p.openingDifference !== 0 && p.openingDifference !== undefined && (
-              <p className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-xs">The account's starting balance was out by {formatNumber(Math.abs(p.openingDifference), 2)}. Fix it in "Set up" or this will not add up.</p>
+              <p className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-xs">The account's starting balance was out by {formatNumber(Math.abs(p.openingDifference), 2)}. {canReconcile ? 'Fix it in "Set up" or this will not add up.' : "Until it is put right in Set up, this will not add up."}</p>
             )}
             <ProofTable proof={p} showItems={false} />
             <div className="flex flex-wrap gap-2">
-              <Button disabled={!p.canFinish} onClick={() => setOpen(true)}>Finish reconciliation</Button>
+              {canReconcile && <Button disabled={!p.canFinish} onClick={() => setOpen(true)}>Finish reconciliation</Button>}
               <Button variant="outline" onClick={() => onViewStatement(p)}>See the full statement</Button>
             </div>
           </>
@@ -83,7 +87,7 @@ export default function FinishPanel({ account, version, onFinished, onViewStatem
         {!p && !proof.loading && <p className="text-sm text-muted-foreground">Enter the statement's date and closing balance to see whether the books agree.</p>}
       </div>
 
-      {open && (
+      {open && canReconcile && (
         <ActionModal
           title="Finish this reconciliation?" confirmLabel="Finish and lock" busy={busy} problem={problem} onClose={() => setOpen(false)} onConfirm={go}
           description={`${account.accountName} as of ${day}, statement balance ${formatNumber(Number(bal), 2)}. The lines matched up to this date are locked: their vouchers cannot be edited, deleted or bounced unless you reopen this reconciliation.`}

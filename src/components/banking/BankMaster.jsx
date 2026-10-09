@@ -3,6 +3,7 @@ import { Pencil, Plus, Search } from "lucide-react";
 import { Button } from "../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
 import EntryGrid from "../finance/EntryGrid";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { banking } from "../../lib/bankingApi";
 
 // The banks the company deals with. A bank account itself is an account in the chart of accounts
@@ -13,6 +14,8 @@ const blank = () => ({ bankName: "", bankCode: "", swiftCode: "", country: "AE",
 export default function BankMaster() {
   const { data, loading, error, reload } = useAsync(() => banking.banks(), []);
   const { notify, toastNode } = useToasts();
+  const { canAny } = useOrganisation();
+  const canManage = canAny("banking.manage"); // adding and editing banks: the server asks the same
   const [editing, setEditing] = useState(null);
   const [q, setQ] = useState("");
   const rows = useMemo(() => (data || []).filter((b) => !q || `${b.bankName} ${b.bankCode} ${b.city} ${b.swiftCode}`.toLowerCase().includes(q.toLowerCase())), [data, q]);
@@ -21,8 +24,8 @@ export default function BankMaster() {
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Banks"
-        description="The banks you and your customers use. Add a bank here, then give a bank account in the chart of accounts its bank and IBAN."
-        actions={<Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New bank</Button>}
+        description={canManage ? "The banks you and your customers use. Add a bank here, then give a bank account in the chart of accounts its bank and IBAN." : "The banks you and your customers use."}
+        actions={canManage && <Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New bank</Button>}
       />
       <div className="relative mb-4 max-w-sm print:hidden">
         <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
@@ -31,7 +34,7 @@ export default function BankMaster() {
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading banks" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data && rows.length === 0 && <EmptyState title={q ? "No bank matches" : "No banks yet"} text={q ? "Try another name or code." : "Add the first one with New bank."} />}
+        {data && rows.length === 0 && <EmptyState title={q ? "No bank matches" : "No banks yet"} text={q ? "Try another name or code." : canManage ? "Add the first one with New bank." : "None have been added yet."} />}
         {rows.length > 0 && (
           <DataTable
             caption="Banks"
@@ -44,7 +47,8 @@ export default function BankMaster() {
               { key: "city", header: "City", card: "title", className: "text-muted-foreground", cell: (b) => [b.city, b.country].filter(Boolean).join(", ") },
               { key: "branches", header: "Branches", align: "end", card: "meta", className: "tabular-nums", cell: (b) => `${b.branches?.length || 0} branches` },
               { key: "status", header: "Status", card: "badge", cell: (b) => b.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (b) => <button type="button" aria-label={`Edit ${b.bankName}`} onClick={() => setEditing(b)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+              // no edit column at all for someone who may only look (DataTable drops a false entry)
+              canManage && { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (b) => <button type="button" aria-label={`Edit ${b.bankName}`} onClick={() => setEditing(b)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
             ]}
           />
         )}

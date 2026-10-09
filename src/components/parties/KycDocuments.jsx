@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
+import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { partyMaster } from "../../lib/partyMasterApi";
@@ -94,6 +96,9 @@ function DocumentTypes() {
   const [editing, setEditing] = useState(null);
   const [removing, setRemoving] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Adding, changing and deleting a document type is accounts.manage; the list is there for anyone who may look.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   async function remove() {
     setBusy(true);
@@ -114,7 +119,7 @@ function DocumentTypes() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-2xl text-sm text-muted-foreground">These are offered on the customer and vendor forms. A type can say that its documents expire and how many characters the number has.</p>
-        <Button onClick={() => setEditing(blankType())}><Plus className="h-4 w-4" aria-hidden="true" />New document type</Button>
+        <Can permission="accounts.manage"><Button onClick={() => setEditing(blankType())}><Plus className="h-4 w-4" aria-hidden="true" />New document type</Button></Can>
       </div>
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading document types" />}
@@ -132,7 +137,7 @@ function DocumentTypes() {
               { key: "expires", header: "Expires", cell: (t) => t.requiresExpiry ? "Yes, needs an expiry date" : "No" },
                 { key: "length", header: "Number length", card: "meta", className: "tabular-nums text-muted-foreground", cell: (t) => lengthText(t) },
                 { key: "status", header: "Status", card: "badge", cell: (t) => t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Switched off</Pill> },
-                { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => (<><button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...blankType(), ...t, minLength: t.minLength ?? "", maxLength: t.maxLength ?? "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>{!t.isSystem && <button type="button" aria-label={`Delete ${t.name}`} onClick={() => setRemoving(t)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}</>) },
+                ...(canManage ? [{ key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => (<><button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...blankType(), ...t, minLength: t.minLength ?? "", maxLength: t.maxLength ?? "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button>{!t.isSystem && <button type="button" aria-label={`Delete ${t.name}`} onClick={() => setRemoving(t)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-status-danger-soft hover:text-status-danger"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}</>) }] : []),
               ]}
             />
           </div>

@@ -2,6 +2,7 @@
 // appears on the paper (VAT rates, the breakdown, empty fields) are tested without rendering.
 
 import { amountInWords, decimalAdd, decimalRound } from "../../../utils/format";
+import { orgCurrency } from "../../../utils/orgLocale";
 
 const num = (v) => parseFloat(v) || 0;
 
@@ -91,9 +92,19 @@ export const bankRows = (p = {}) =>
     ["Branch", p.branch],
   ]);
 
-// Main and fractional units for the amount in words. Unknown currencies keep their code.
-const SUBUNITS = { AED: ["Dirhams", "Fils"], USD: ["Dollars", "Cents"], EUR: ["Euros", "Cents"] };
-export const totalInWords = (total, currency = "AED") => {
+// Main and fractional units for the amount in words, looked up by currency code. A currency with no
+// entry keeps its code as the main unit (and "Cents" as the fraction), so nothing crashes or goes blank.
+const SUBUNITS = {
+  AED: ["Dirhams", "Fils"],
+  USD: ["Dollars", "Cents"],
+  EUR: ["Euros", "Cents"],
+  GBP: ["Pounds", "Pence"],
+  INR: ["Rupees", "Paise"],
+  SAR: ["Riyals", "Halalas"],
+  QAR: ["Riyals", "Dirhams"],
+};
+// The default currency is the organisation's own, read when the function is called (not at import).
+export const totalInWords = (total, currency = orgCurrency()) => {
   const [main, sub] = SUBUNITS[currency] || [currency, "Cents"];
   return amountInWords(total, main, sub);
 };

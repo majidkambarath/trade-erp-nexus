@@ -129,7 +129,7 @@ export const unexplained = (difference, extraCommission, vat) => (cents(differen
 
 // Could this payment be what these sales are worth less commission and VAT? Mirrors the server
 // (CardSettlementService.limits), which is the one that refuses; this says so before the button.
-//   the bank kept more than booked: at most 10% of the sales' net (never less than AED 5.00)
+//   the bank kept more than booked: at most 10% of the sales' net (never less than 5.00 in the organisation's currency)
 //   the bank paid more than booked: at most the commission that was booked (50 fils of rounding)
 export function settlementCheck({ expected, fees, received }) {
   const e = cents(expected);

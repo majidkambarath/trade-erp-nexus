@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo, sendPill } from "../documentFlow";
+import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 
 const quote = (over = {}) => ({ _id: "q1", quotationNo: "QT-2026-0007", status: "SENT", expired: false, daysLeft: 12, validUntil: "2026-11-05T00:00:00.000Z", totalAmount: 210, ...over });
 const order = (over = {}) => ({ _id: "o1", transactionNo: "SO-2026-0031", status: "DRAFT", totalAmount: 210, outstandingAmount: 210, ...over });
@@ -17,6 +18,19 @@ describe("steps of a deal", () => {
     expect(step(c, "delivery").docs[0].to).toBe("/delivery-notes?open=n1");
     expect(step(c, "invoice").docs[0]).toMatchObject({ no: "SO-2026-0031", status: "Invoiced", meta: "AED 100.00 outstanding" });
     expect(dealSteps(c).some((s) => s.current)).toBe(false);
+  });
+
+  it("amounts are written in the organisation's currency, read when the step is built", () => {
+    const c = deal({ stage: "invoiced", order: order({ status: "APPROVED", outstandingAmount: 100 }), notes: [note({ status: "DISPATCHED" })] });
+    try {
+      setOrgLocale({ currency: "GBP" });
+      expect(step(c, "invoice").docs[0].meta).toBe("GBP 100.00 outstanding");
+      expect(step(c, "order").docs[0].meta).toBe("GBP 210.00");
+      expect(step(c, "delivery").docs[0].meta).toBe("GBP 105.00");
+    } finally {
+      resetOrgLocale();
+    }
+    expect(step(c, "invoice").docs[0].meta).toBe("AED 100.00 outstanding");
   });
 
   it("an invoice that has been paid says so", () => {
@@ -289,5 +303,45 @@ describe("sending the invoice", () => {
   it("does not hide the other next steps: a part delivery still says deliver the rest", () => {
     const c = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-06T00:00:00.000Z" }), notes: [note()], delivery: { started: true, complete: false, remaining: [{ description: "Rice", qty: 4 }] } });
     expect(nextAction(c, NOW).label).toBe("Deliver the rest");
+  });
+});
+
+describe("sending the invoice, for a person who may not send (sales.send)", () => {
+  const NOW = new Date("2026-10-10T09:00:00Z").getTime();
+  const NO_SEND = { canSend: false };
+  const invoice = (over = {}) => deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-06T00:00:00.000Z", ...over }), notes: [note()], delivery: { started: true, complete: true, remaining: [] } });
+
+  it("is not offered 'Send the invoice' as the next step, and the deal is not in 'needs action'", () => {
+    const c = invoice();
+    expect(nextAction(c, NOW, NO_SEND)).toBeNull();
+    expect(dealGroup(c, NOW, NO_SEND)).toBe("done");
+    // the same deal for someone who may send, and when nothing is said about it (unknown grants hide nothing)
+    expect(nextAction(c, NOW, { canSend: true }).label).toBe("Send the invoice");
+    expect(nextAction(c, NOW, {}).label).toBe("Send the invoice");
+    expect(nextAction(c, NOW).label).toBe("Send the invoice");
+  });
+
+  it("does not get the 'Invoice not sent' nudge, but still sees what has happened to a sent invoice", () => {
+    expect(sendPill(invoice(), NOW, NO_SEND)).toBeNull();
+    expect(sendPill(invoice(), NOW, { canSend: true })).toEqual({ text: "Invoice not sent", tone: "warning" });
+    expect(sendPill(invoice({ lastSend: { status: "SENT", at: "2026-10-07T10:00:00Z" } }), NOW, NO_SEND).text).toMatch(/^Invoice emailed /);
+    expect(sendPill(invoice({ lastSend: { status: "FAILED", at: "2026-10-07T10:00:00Z", error: "x" } }), NOW, NO_SEND)).toEqual({ text: "Invoice not delivered", tone: "danger" });
+  });
+
+  it("counts and filters the deals by what they could do themselves", () => {
+    const unsent = invoice({ date: new Date(Date.now() - 24 * 3600 * 1000).toISOString() }); // flowCounts / filterDeals read the real clock, so the invoice is yesterday's
+    const toApprove = deal({ key: "o", stage: "ordered", order: order() });
+    const chains = [unsent, toApprove];
+    expect(flowCounts(chains)).toMatchObject({ action: 2, done: 0 });
+    expect(flowCounts(chains, NO_SEND)).toMatchObject({ action: 1, done: 1, all: 2 });
+    expect(filterDeals(chains, "action", NO_SEND)).toEqual([toApprove]);
+    expect(filterDeals(chains, "done", NO_SEND)).toEqual([unsent]);
+    expect(filterDeals(chains, "all", NO_SEND)).toHaveLength(2);
+  });
+
+  it("leaves every other next step alone", () => {
+    const c = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-06T00:00:00.000Z" }), notes: [note()], delivery: { started: true, complete: false, remaining: [{ description: "Rice", qty: 4 }] } });
+    expect(nextAction(c, NOW, NO_SEND).label).toBe("Deliver the rest");
+    expect(nextAction(deal({ order: order() }), NOW, NO_SEND).label).toBe("Approve the order");
   });
 });

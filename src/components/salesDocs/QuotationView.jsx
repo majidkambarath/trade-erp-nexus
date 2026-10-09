@@ -5,13 +5,13 @@ import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { DateInput, ErrorNote, Field, Panel, Spinner, Textarea, TextInput, useAsync } from "../accounting/kit";
 import { quotations } from "../../lib/salesDocumentsApi";
 import { expiresSoon, lineageOf, statusLabel, validityText } from "../../lib/salesDocuments";
-import { getBrand } from "../../config/brands";
 import { todayInput, formatDate } from "../../utils/format";
 import { buildQuotationDocument } from "./documents";
 import { ActionModal, ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { allowActions } from "../../lib/salesDocuments";
+import { orgCurrency } from "../../utils/orgLocale";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -21,7 +21,7 @@ const PRIMARY = "erp-btn-primary";
 export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onChanged, notify }) {
   const { me } = useOrganisation();
   const company = useCompanyProfile();
-  const currency = getBrand().currency;
+  const currency = orgCurrency();
   const { data: q, loading, error, reload } = useAsync(() => quotations.get(id), [id]);
   const activity = useAsync(() => quotations.activity(id), [id]);
   const [dialog, setDialog] = useState(null); // send | accept | reject | convert | delivery | revise | delete

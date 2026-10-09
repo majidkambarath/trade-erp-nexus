@@ -5,7 +5,9 @@ import { ErrorNote, Field, Modal, Select, TextInput, Textarea } from "../account
 import { cn } from "../../lib/utils";
 import { can } from "../../lib/permissions";
 import { access } from "../../lib/accessApi";
-import { effectiveOf, emptyRole, isLocked, keyFromName, rankChoices, roleFrom, rolePayload, ticksOf, toggle, toggleModule, validateRole } from "../../lib/accessForms";
+import { effectiveOf, emptyRole, holdsApprove, isLocked, keyFromName, rankChoices, roleFrom, rolePayload, serverField, serverMessage, ticksOf, toggle, toggleModule, validateRole } from "../../lib/accessForms";
+import { limitText } from "../../lib/approvals";
+import { orgCurrency } from "../../utils/orgLocale";
 
 // One role: its name, where it ranks, and for every part of the product exactly what it may do. The boxes are the
 // server's own catalogue (modules and their actions), so the editor never goes out of step with what the server enforces.
@@ -14,22 +16,34 @@ export default function RoleEditor({ catalogue, role, me, copyOf, onClose, onSav
   const isNew = !role;
   const readOnly = Boolean(role?.builtIn);
   const start = role || copyOf || null;
-  const [form, setForm] = useState(() => (role ? roleFrom(role) : copyOf ? { ...emptyRole(), name: `${copyOf.name} (copy)`, key: keyFromName(`${copyOf.name} copy`), description: copyOf.description || "", rank: Math.min(copyOf.rank, 75) } : emptyRole()));
+  const myRank = me?.role?.rank ?? 0;
+  const ranks = rankChoices(myRank);
+  // A new role starts at the usual rank where this person may give it, else at the highest rank they may give: a person
+  // of rank 40 must not be offered 40 (the server refuses a role at or above its creator's own).
+  const startRank = (wanted) => (ranks.find((r) => r.value <= wanted) || ranks[0])?.value ?? wanted;
+  const [form, setForm] = useState(() => (role ? roleFrom(role) : copyOf ? { ...emptyRole(), name: `${copyOf.name} (copy)`, key: keyFromName(`${copyOf.name} copy`), description: copyOf.description || "", rank: startRank(Math.min(copyOf.rank, 75)), approvalLimit: roleFrom(copyOf).approvalLimit } : { ...emptyRole(), rank: startRank(emptyRole().rank) }));
   const [named, setNamed] = useState(() => ticksOf(catalogue, start));
   const [keyTouched, setKeyTouched] = useState(Boolean(role));
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState(null);
 
-  const myRank = me?.role?.rank ?? 0;
   const canGrant = (key) => can(me, key);
   const effective = useMemo(() => effectiveOf(catalogue, named), [catalogue, named]);
-  const errors = useMemo(() => validateRole(form, named, { isNew, myRank, canGrant }), [form, named, isNew, myRank, me]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ranks = rankChoices(myRank);
-  // a role being edited keeps its own rank in the list even if it is not one of the standard steps
-  const rankOptions = ranks.some((r) => r.value === Number(form.rank)) ? ranks : [{ value: Number(form.rank), label: `Rank ${form.rank}` }, ...ranks];
+  // A limit means something only for a role that can approve; for any other it is not asked for (and is sent as none).
+  const approves = holdsApprove(effective);
+  // The person's own limit: a role they make cannot go above it, and cannot be left without one (the server enforces it and says so).
+  const myLimit = me?.role?.approvalLimit ?? null;
+  const errors = useMemo(() => validateRole(form, named, { isNew, myRank, canGrant, approves }), [form, named, isNew, myRank, me, approves]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a role being CHANGED keeps its own rank in the list even if it is not one of the standard steps; a new one never
+  // offers a rank the person may not give
+  const rankOptions = !isNew && !ranks.some((r) => r.value === Number(form.rank)) ? [{ value: Number(form.rank), label: `Rank ${form.rank}` }, ...ranks] : ranks;
   const setField = (name) => (e) => setForm((f) => ({ ...f, [name]: e.target.value }));
-  const show = (k) => (touched ? errors[k] : undefined);
+  // The server's refusal belongs under the field it names (`details.field`, e.g. the approval limit); anything else is a note below.
+  const refusedField = serverField(serverError);
+  const show = (k) => (touched ? errors[k] : undefined) || (refusedField === k ? serverMessage(serverError) : undefined);
+  // is the refused field on the screen? (if not, the refusal is a note below instead)
+  const fieldShown = (refusedField === "approvalLimit" && approves) || ["name", "rank"].includes(refusedField) || (refusedField === "key" && isNew);
 
   const onName = (e) => {
     const name = e.target.value;
@@ -42,7 +56,7 @@ export default function RoleEditor({ catalogue, role, me, copyOf, onClose, onSav
     setBusy(true);
     setServerError(null);
     try {
-      const body = rolePayload(form, named, { isNew });
+      const body = rolePayload(form, named, { isNew, approves });
       const saved = isNew ? await access.createRole(body) : await access.updateRole(role.key, body);
       onSaved(saved, isNew);
     } catch (error) {
@@ -152,8 +166,37 @@ export default function RoleEditor({ catalogue, role, me, copyOf, onClose, onSav
           </p>
         </div>
 
+        {approves && (
+          <section className="rounded-xl border border-border p-4" aria-label="Approval">
+            <Field
+              label={`Approval limit (${orgCurrency()})`}
+              hint={
+                readOnly
+                  ? undefined
+                  : `The largest document someone in this role may approve. Leave empty for no limit.${myLimit !== null ? ` Your own limit is ${limitText(myLimit)}: a role you make cannot go above it, or have none.` : ""}`
+              }
+              error={show("approvalLimit")}
+            >
+              {readOnly ? (
+                <TextInput value={form.approvalLimit === "" ? "No limit" : limitText(form.approvalLimit)} disabled readOnly />
+              ) : (
+                <TextInput
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="No limit"
+                  value={form.approvalLimit}
+                  onChange={(e) => {
+                    if (refusedField === "approvalLimit") setServerError(null);
+                    setField("approvalLimit")(e);
+                  }}
+                />
+              )}
+            </Field>
+          </section>
+        )}
+
         {show("permissions") && <ErrorNote error={{ message: errors.permissions }} />}
-        {serverError && <ErrorNote error={serverError} />}
+        {serverError && !fieldShown && <ErrorNote error={{ message: serverMessage(serverError) }} />}
       </div>
     </Modal>
   );

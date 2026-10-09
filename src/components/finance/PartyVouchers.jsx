@@ -13,15 +13,16 @@ import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLab
 import { CURRENCY, formatDate, formatDateGB } from "../../utils/format";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
-// with the direction turned round.
+// with the direction turned round. `amountLabel` carries no currency: the form adds the one in use
+// when it renders (the organisation's base currency, or the foreign currency chosen).
 const CONFIG = {
   receipt: {
-    voucherType: "receipt", title: "Receipt vouchers", one: "receipt", noun: "Customer", amountLabel: "Amount received (AED)",
+    voucherType: "receipt", title: "Receipt vouchers", one: "receipt", noun: "Customer", amountLabel: "Amount received",
     description: "Money received from customers, set against their invoices or kept on account.",
     partyPath: "/customers/customers", nameKey: "customerName", idKey: "customerId", partyField: "customerId", docType: "sales_order",
   },
   payment: {
-    voucherType: "payment", title: "Payment vouchers", one: "payment", noun: "Vendor", amountLabel: "Amount paid (AED)",
+    voucherType: "payment", title: "Payment vouchers", one: "payment", noun: "Vendor", amountLabel: "Amount paid",
     description: "Money paid to vendors, set against their invoices or kept as an advance.",
     partyPath: "/vendors/vendors", nameKey: "vendorName", idKey: "vendorId", partyField: "vendorId", docType: "purchase_order",
   },
@@ -62,14 +63,14 @@ function PartyVouchers({ direction }) {
               { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs", cell: (v) => <><span className="font-medium">{modeLabel(v.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground md:inline md:ms-1">{describePayment(v)}</span></> },
               { key: "invoices", header: "Invoices", align: "end", card: "hidden", className: "tabular-nums", cell: (v) => <>{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</> },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => <>{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</> },
-              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "view", header: <span className="sr-only">Actions</span>, align: "end", card: "hidden", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
             ]}
           />
         </ListBody>
       </Panel>
       {form && <PartyVoucherForm cfg={cfg} direction={direction} onClose={() => setForm(false)} onSaved={(msg) => { setForm(false); notify(msg); list.reload(); }} />}
-      {viewing && <VoucherView id={viewing} title={cfg.one[0].toUpperCase() + cfg.one.slice(1) + " voucher"} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} deleted and reversed`); list.reload(); }} />}
+      {viewing && <VoucherView id={viewing} onChanged={list.reload}title={cfg.one[0].toUpperCase() + cfg.one.slice(1) + " voucher"} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} deleted and reversed`); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -113,10 +114,10 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
   const party = (parties.data || []).find((p) => p._id === partyId);
   const open = invoices.data || [];
 
-  // Foreign currency. The ledger, the invoices and the allocation below stay in AED: a foreign
-  // amount is converted once, at the exchange rate shown, and `total` is that AED value.
+  // Foreign currency. The ledger, the invoices and the allocation below stay in the base currency: a foreign
+  // amount is converted once, at the exchange rate shown, and `total` is that base-currency value.
   const currencyList = useAsync(() => currencies.list().catch(() => []), []);
-  const [currency, setCurrency] = useState(""); // "" = AED
+  const [currency, setCurrency] = useState(""); // "" = the base currency
   const [rateTyped, setRateTyped] = useState(null); // null: not typed, follow the rate on file
   const [reason, setReason] = useState("");
   const currencyOpts = useMemo(() => currencyOptions(currencyList.data), [currencyList.data]);
@@ -214,7 +215,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
               <SearchSelect value={currency || baseCode} onChange={changeCurrency} options={currencyOpts} placeholder="Currency" noOptionsText="No currency matches" />
             </Field>
           )}
-          <Field label={currency ? cfg.amountLabel.replace("(AED)", `(${currency})`) : cfg.amountLabel} required error={errors.amount}>
+          <Field label={`${cfg.amountLabel.replace(/\s*\([A-Za-z]{3}\)\s*$/, "")} (${currency || baseCode})`} required error={errors.amount}>
             <TextInput inputMode="decimal" className="text-end tabular-nums" value={amount} onChange={(e) => changeAmount(e.target.value)} placeholder={(0).toFixed(currency ? decimals : 2)} />
           </Field>
           <Field label="Date" required><DateInput value={date} onChange={(e) => changeDate(e.target.value)} /></Field>

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { CalendarClock } from "lucide-react";
 import { Button } from "../../ui/button";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { EmptyState, Panel, Pill } from "../kit";
 import { cn } from "../../../lib/utils";
 
@@ -9,6 +10,15 @@ import { cn } from "../../../lib/utils";
 
 // The steps need the go-live date: every opening entry is dated that day.
 export function NeedsDate({ onGo }) {
+  // Choosing the date is accounts.manage; someone who may only look is told it is not set, with nothing to press.
+  const { canAny } = useOrganisation();
+  if (!canAny("accounts.manage")) {
+    return (
+      <Panel>
+        <EmptyState title="The go-live date has not been set" text="Opening balances are entered once an administrator has chosen the go-live date." />
+      </Panel>
+    );
+  }
   return (
     <Panel>
       <EmptyState

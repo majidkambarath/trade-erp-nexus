@@ -11,7 +11,7 @@ import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
 import { emptyNoteLine, money, noteTotals, notePreview, toCents, validateNote } from "../../lib/voucherForms";
 import { cn } from "../../lib/utils";
-import { formatDateGB, formatNumber } from "../../utils/format";
+import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 
 // Debit and credit notes. The party is debited by a debit note and credited by a credit note; the
 // lines on the other side say what it was for (a price difference, damaged goods, a charge).
@@ -68,14 +68,14 @@ export default function DebitCreditNotes() {
               { key: "against", header: "Against", card: "meta", className: "whitespace-nowrap font-mono text-xs text-muted-foreground", cell: (v) => v.referenceInvoiceNo || "On account" },
               { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
-              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
             ]}
           />
         </ListBody>
       </Panel>
       {form && <NoteForm initialType={type} onClose={() => setForm(false)} onSaved={(msg, savedType) => { setForm(false); notify(msg); if (savedType !== type) setParams({ type: savedType }, { replace: true }); else list.reload(); }} />}
-      {viewing && <VoucherView id={viewing} title={TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Note deleted and reversed"); list.reload(); }} />}
+      {viewing && <VoucherView id={viewing} onChanged={list.reload}title={TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Note deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -193,7 +193,7 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
             <>
               <tr><td colSpan={4} className="px-3 py-2 text-end font-medium">Amount</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.net)}</td><td /></tr>
               <tr><td colSpan={4} className="px-3 py-2 text-end font-medium">VAT</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.vat)}</td><td /></tr>
-              <tr><td colSpan={4} className="px-3 py-2 text-end">Note total (AED)</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.total)}</td><td /></tr>
+              <tr><td colSpan={4} className="px-3 py-2 text-end">Note total ({CURRENCY})</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.total)}</td><td /></tr>
             </>
           }
         />

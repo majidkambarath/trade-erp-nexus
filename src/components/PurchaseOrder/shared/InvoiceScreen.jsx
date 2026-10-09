@@ -5,6 +5,7 @@ import DocumentAuditTrail from "../../audit/AuditTrail";
 import { useToasts } from "../../accounting/kit";
 import SendDialog from "../../send/SendDialog";
 import SendHistory from "../../send/SendHistory";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { SendStatusPill, sendSentence, sendStateOf, summaryOfSend } from "../../send/shared";
 import { readAccent } from "./invoiceModel";
 import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup, sheetsPdfFile } from "./documentPdf";
@@ -34,6 +35,8 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sent, setSent] = useState(send?.lastSend || null); // how it last went to the customer
   const { notify, toastNode } = useToasts();
+  const { canAny } = useOrganisation();
+  const maySend = canAny("sales.send"); // the history of what was sent stays for whoever can see the document; sending is the action
   const accent = readAccent();
   const Sheet = sheetComponent(sheet);
 
@@ -125,7 +128,7 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
             Print
             <kbd className="ms-1 rounded border border-white/30 px-1 text-[11px] font-semibold opacity-80">Ctrl P</kbd>
           </button>
-          {send && (
+          {send && maySend && (
             <button type="button" onClick={() => setSendOpen(true)} className={button}>
               <Send className="h-4 w-4" aria-hidden="true" />
               Send

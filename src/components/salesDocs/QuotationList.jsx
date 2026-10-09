@@ -6,7 +6,7 @@ import { ConfirmDialog, DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pil
 import { quotations } from "../../lib/salesDocumentsApi";
 import { QUOTATION_TABS, expiresSoon, statusLabel, validityText } from "../../lib/salesDocuments";
 import { statusTone } from "../../lib/status";
-import { formatDate, formatNumber } from "../../utils/format";
+import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { PillTabs } from "./parts";
 import { useDebounced } from "./hooks";
 import { cn } from "../../lib/utils";
@@ -62,7 +62,7 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard title="Out with customers" count={formatNumber(s.byStatus.SENT?.value || 0, 2)} subText={`${s.byStatus.SENT?.count || 0} offer${(s.byStatus.SENT?.count || 0) === 1 ? "" : "s"} still valid`} tone="teal" />
           <StatCard title="Accepted, not ordered" count={formatNumber(s.byStatus.ACCEPTED?.value || 0, 2)} subText={`${s.byStatus.ACCEPTED?.count || 0} waiting to be converted`} tone="plum" onClick={() => { setStatus("ACCEPTED"); setPage(1); }} />
-          <StatCard title="Expiring within 7 days" count={String(s.expiringSoon?.count || 0)} subText={s.expiringSoon?.count ? `${formatNumber(s.expiringSoon.value, 2)} AED at stake` : "nothing about to lapse"} tone={s.expiringSoon?.count ? "warning" : "neutral"} />
+          <StatCard title="Expiring within 7 days" count={String(s.expiringSoon?.count || 0)} subText={s.expiringSoon?.count ? `${formatNumber(s.expiringSoon.value, 2)} ${CURRENCY} at stake` : "nothing about to lapse"} tone={s.expiringSoon?.count ? "warning" : "neutral"} />
           <StatCard title="Offers won" count={s.winRate === null || s.winRate === undefined ? "-" : `${s.winRate}%`} subText="of the offers with an answer" tone="olive" />
         </div>
       )}

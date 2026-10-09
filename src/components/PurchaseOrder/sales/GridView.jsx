@@ -15,8 +15,10 @@ import {
   Send,
 } from "lucide-react";
 import { SentLine } from "../../send/shared";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const GridView = ({
   paginatedSOs,
@@ -36,13 +38,15 @@ const GridView = ({
   onDeliveryNote,
   onSendDocument,
 }) => {
+  // Confirm only for someone who may approve THIS order; a first approval awaiting its second is badged (see TableView).
+  const { stateOf } = useApproval();
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {paginatedSOs.map((so) => (
         <div key={so.id} className="bg-card rounded-xl border border-border shadow-card hover:shadow-elevated transition-all duration-300 overflow-hidden group">
           {/* Card Header */}
-          <div className="bg-secondary px-6 py-4 border-b border-border">
-            <div className="flex justify-between items-start">
+          <div className="bg-secondary px-4 py-4 sm:px-6 border-b border-border">
+            <div className="flex flex-wrap justify-between items-start gap-x-3 gap-y-2">
               <div className="flex items-center space-x-3">
                 <input
                   type="checkbox"
@@ -57,11 +61,11 @@ const GridView = ({
                   }}
                 />
                 <div>
-                  <h3 className="text-lg font-extrabold text-foreground">{so.transactionNo}</h3>
+                  <h3 className="text-lg font-extrabold text-foreground whitespace-nowrap">{so.transactionNo}</h3>
                   <p className="text-sm text-muted-foreground">{so.customerName}</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${getPriorityColor(so.priority)}`} title={`${so.priority} Priority`}></div>
                 <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(so.status)}`}>
                   {getStatusIcon(so.status)}
@@ -90,7 +94,7 @@ const GridView = ({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Total</p>
-                <p className="text-lg font-extrabold text-foreground">AED {formatNumber(so.totalAmount)}</p>
+                <p className="text-lg font-extrabold text-foreground">{CURRENCY} {formatNumber(so.totalAmount)}</p>
               </div>
             </div>
 
@@ -100,8 +104,8 @@ const GridView = ({
               <div className="space-y-1">
                 {so.items.slice(0, 2).map((item, index) => (
                   <div key={index} className="flex justify-between text-xs">
-                    <span className="text-muted-foreground truncate">{item.description}</span>
-                    <span className="text-foreground font-medium ml-2">{item.qty} × {item.rate}</span>
+                    <span className="text-muted-foreground truncate">{item.description || item.itemName || item.stockDetails?.itemName || "Item"}</span>
+                    <span className="text-foreground font-medium ml-2 shrink-0 whitespace-nowrap">{item.qty} × {item.rate}</span>
                   </div>
                 ))}
                 {so.items.length > 2 && (
@@ -111,16 +115,17 @@ const GridView = ({
             </div>
 
             {/* Status Indicators */}
-            <div className="flex items-center space-x-4 mb-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
               <div className="flex items-center space-x-1 text-muted-foreground">
                 <User className="w-3 h-3" />
                 <span>{so.createdBy}</span>
               </div>
+              <AwaitingSecondBadge doc={so} state={stateOf(so)} />
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between">
-              <div className="flex space-x-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
                     setSelectedSO(so);
@@ -146,13 +151,15 @@ const GridView = ({
                   <span className="text-sm">Customer copy</span>
                 </button>
                 {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
-                  <button
-                    type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span className="text-sm">Send</span>
-                  </button>
+                  <Can permission="sales.send">
+                    <button
+                      type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="text-sm">Send</span>
+                    </button>
+                  </Can>
                 )}
                 <button
                   onClick={() => onShowAudit && onShowAudit(so)}
@@ -183,8 +190,8 @@ const GridView = ({
                 )}
               </div>
 
-              <div className="flex space-x-2">
-                {so.status === "DRAFT" && (
+              <div className="flex flex-wrap gap-2">
+                {so.status === "DRAFT" && stateOf(so).canApprove && (
                   <Can permission="sales.approve">
                     <button
                       onClick={() => confirmSO(so.id)}
@@ -195,8 +202,8 @@ const GridView = ({
                     </button>
                   </Can>
                 )}
-                {so.status === "DRAFT" && (
-                  <Can permission="sales.delete">
+                {(so.status === "DRAFT" || so.status === "APPROVED") && (
+                  <Can permission={deleteKey("sales", so.status === "APPROVED")}>
                     <button
                       onClick={() => deleteSO(so.id)}
                       className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"

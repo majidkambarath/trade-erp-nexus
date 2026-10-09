@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -155,10 +155,10 @@ function ProfitLoss({ range, onLedger }) {
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard title="Revenue" count={money(d.revenue.total)} tone="olive" subText="AED" />
+              <StatCard title="Revenue" count={money(d.revenue.total)} tone="olive" subText={CURRENCY} />
               <StatCard title="Gross profit" count={money(d.grossProfit)} tone="teal" subText={d.grossMargin == null ? "No revenue yet" : `${formatNumber(d.grossMargin, 1)}% margin`} />
-              <StatCard title="Operating expenses" count={money(d.operatingExpenses.total)} tone="rose" subText="AED" />
-              <StatCard title={d.netProfit >= 0 ? "Net profit" : "Net loss"} count={money(Math.abs(d.netProfit))} tone={d.netProfit >= 0 ? "teal" : "danger"} subText="AED" />
+              <StatCard title="Operating expenses" count={money(d.operatingExpenses.total)} tone="rose" subText={CURRENCY} />
+              <StatCard title={d.netProfit >= 0 ? "Net profit" : "Net loss"} count={money(Math.abs(d.netProfit))} tone={d.netProfit >= 0 ? "teal" : "danger"} subText={CURRENCY} />
             </div>
             <Panel bodyClassName="p-0" title="Profit and loss" description="Revenue less the direct cost of what was sold is the gross profit; other income and operating expenses take it to the net profit."
               actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
@@ -194,10 +194,10 @@ function CashFlow({ range }) {
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard title="Opening cash and bank" count={money(d.opening)} tone="neutral" subText="AED" />
-              <StatCard title="Money in" count={money(d.totalIn)} tone="olive" subText="AED" />
-              <StatCard title="Money out" count={money(d.totalOut)} tone="rose" subText="AED" />
-              <StatCard title="Closing cash and bank" count={money(d.closing)} tone="teal" subText="AED" />
+              <StatCard title="Opening cash and bank" count={money(d.opening)} tone="neutral" subText={CURRENCY} />
+              <StatCard title="Money in" count={money(d.totalIn)} tone="olive" subText={CURRENCY} />
+              <StatCard title="Money out" count={money(d.totalOut)} tone="rose" subText={CURRENCY} />
+              <StatCard title="Closing cash and bank" count={money(d.closing)} tone="teal" subText={CURRENCY} />
             </div>
             <Panel bodyClassName="p-0" title="Cash flow"
               actions={<><Pill tone={d.reconciles ? "success" : "danger"}>{d.reconciles ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{d.reconciles ? "Agrees with the cash and bank ledgers" : `Differs from the ledgers by ${money(Math.abs(d.closing - d.closingPerLedger))}`}</Pill><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button></>}>

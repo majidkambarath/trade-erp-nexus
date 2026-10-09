@@ -36,6 +36,19 @@ export const ACCOUNT_TYPES = [
   { value: "viewer", label: "Viewer" },
 ];
 
+// The roles a person can be given in the console: the organisation's own list (the ready-made ones and the ones it made
+// for itself, switched-on ones only), or the five original account types while that list has not arrived. A role the
+// person already holds stays in the list even if it has since been switched off, so the box shows what they hold.
+export function roleOptions(roles, current) {
+  const list = Array.isArray(roles) && roles.length ? roles : ACCOUNT_TYPES.map((t) => ({ key: t.value, name: t.label, builtIn: true, isActive: true }));
+  const offered = list.filter((r) => r.isActive !== false || r.key === current).map((r) => ({ value: r.key, label: r.builtIn === false ? `${r.name} (custom)` : r.name }));
+  if (current && !offered.some((o) => o.value === current)) offered.push({ value: current, label: current });
+  return offered;
+}
+
+/** The role a person holds, in words: the server names it; an older answer without one falls back to the account type. */
+export const roleLabel = (user) => user?.role?.name || ACCOUNT_TYPES.find((t) => t.value === (user?.role?.key || user?.type))?.label || user?.role?.key || user?.type || "";
+
 export const emptyOrganisation = () => ({
   legalName: "",
   code: "",

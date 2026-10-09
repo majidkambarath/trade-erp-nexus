@@ -5,6 +5,7 @@
 
 import { clockText, statusLabel } from "./salesDocuments";
 import { formatDate, formatNumber } from "../utils/format";
+import { orgCurrency } from "../utils/orgLocale";
 import { statusTone } from "./status";
 import { sendLine, sendStateOf } from "./sendState";
 
@@ -27,15 +28,15 @@ const quoteDoc = (q) => {
 };
 const orderDoc = (o, status) => ({
   kind: "order", no: o.transactionNo, status: status || (o.status === "APPROVED" ? "Approved" : "Draft"), tone: o.status === "APPROVED" ? "success" : "neutral",
-  to: orderTo(o), meta: `AED ${formatNumber(o.totalAmount, 2)}`,
+  to: orderTo(o), meta: `${orgCurrency()} ${formatNumber(o.totalAmount, 2)}`,
 });
 const noteDoc = (n) => ({
   kind: "note", no: n.deliveryNoteNo, status: statusLabel(n.status), tone: statusTone(n.status), to: noteTo(n),
-  meta: n.status === "DELIVERED" ? `delivered ${formatDate(n.deliveredAt)}` : `AED ${formatNumber(n.totalAmount, 2)}`,
+  meta: n.status === "DELIVERED" ? `delivered ${formatDate(n.deliveredAt)}` : `${orgCurrency()} ${formatNumber(n.totalAmount, 2)}`,
 });
 const invoiceDoc = (o) => {
   const owed = Number(o.outstandingAmount) || 0;
-  return { kind: "invoice", no: o.transactionNo, status: "Invoiced", tone: "success", to: orderTo(o), meta: owed > 0.004 ? `AED ${formatNumber(owed, 2)} outstanding` : "paid" };
+  return { kind: "invoice", no: o.transactionNo, status: "Invoiced", tone: "success", to: orderTo(o), meta: owed > 0.004 ? `${orgCurrency()} ${formatNumber(owed, 2)} outstanding` : "paid" };
 };
 
 const delivered = (n) => n.status === "DELIVERED";
@@ -116,18 +117,23 @@ const isRecent = (date, now) => Boolean(date) && now - new Date(date).getTime() 
 
 // The mark on a deal that has an invoice: how it went to the customer, named by the document. null when
 // there is nothing worth saying (not an invoice, or an old one that nobody sent through here).
-export function sendPill(c, now = Date.now()) {
+//
+// `opts.canSend` is whether the person may send documents (sales.send). The rules stay pure: the screen
+// passes the answer in. "Invoice not sent" is a nudge to send, so it is left out for someone who cannot;
+// what HAS happened to the invoice (emailed, opened, not delivered) is information and always shows.
+export function sendPill(c, now = Date.now(), opts = {}) {
   const o = c.order;
   if (!o || o.status !== "APPROVED") return null;
   const state = sendStateOf(o.lastSend);
-  if (state === "NOT_SENT") return isRecent(o.date, now) ? { text: "Invoice not sent", tone: "warning" } : null;
+  if (state === "NOT_SENT") return opts.canSend !== false && isRecent(o.date, now) ? { text: "Invoice not sent", tone: "warning" } : null;
   const line = sendLine(o.lastSend);
   const tone = { FAILED: "danger", OPENED: "success" }[state] || "info";
   return { text: `Invoice ${line.text.charAt(0).toLowerCase()}${line.text.slice(1)}`, tone };
 }
 
 // The one thing to do about a deal, and where to do it. `waiting` means the move is the customer's.
-export function nextAction(c, now = Date.now()) {
+// `opts.canSend: false` (a person without sales.send) leaves out "Send the invoice", which they could not do.
+export function nextAction(c, now = Date.now(), opts = {}) {
   const q = c.quotation;
   const o = c.order;
   const notes = c.notes || [];
@@ -148,10 +154,10 @@ export function nextAction(c, now = Date.now()) {
     const draft = (cs.returns || []).find((r) => r.status === "DRAFT");
     return draft
       ? { label: "Approve the sales return", why: `${draft.transactionNo} is still a draft: approving it puts the undelivered goods back in stock and credits the customer`, to: "/sales-return" }
-      : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about AED ${formatNumber(cs.valueShort, 2)} with VAT). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
+      : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about ${orgCurrency()} ${formatNumber(cs.valueShort, 2)} with VAT). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
   }
   // an approved invoice that has not gone to the customer, while it still should
-  if (o && o.status === "APPROVED" && !o.lastSend && isRecent(o.date, now)) {
+  if (opts.canSend !== false && o && o.status === "APPROVED" && !o.lastSend && isRecent(o.date, now)) {
     return { label: "Send the invoice", why: "The invoice has not gone to the customer yet.", to: orderTo(o) };
   }
   if (o) {
@@ -175,9 +181,9 @@ export function nextAction(c, now = Date.now()) {
 }
 
 // Where a deal sits in the list: needs someone, is in hand, or is finished.
-export function dealGroup(c, now = Date.now()) {
+export function dealGroup(c, now = Date.now(), opts = {}) {
   if (c.stage === "lost" || c.stage === "lapsed") return "done";
-  const next = nextAction(c, now);
+  const next = nextAction(c, now, opts);
   if (next && !next.waiting) return "action";
   if (c.stage === "invoiced" && !next) return "done";
   return "progress";
@@ -185,13 +191,13 @@ export function dealGroup(c, now = Date.now()) {
 
 export const FLOW_FILTERS = [["action", "Needs action"], ["progress", "In progress"], ["done", "Done"], ["all", "All"]];
 
-export function flowCounts(chains) {
+export function flowCounts(chains, opts = {}) {
   const counts = { action: 0, progress: 0, done: 0, all: chains.length };
-  for (const c of chains) counts[dealGroup(c)] += 1;
+  for (const c of chains) counts[dealGroup(c, Date.now(), opts)] += 1;
   return counts;
 }
 
-export const filterDeals = (chains, filter) => (filter === "all" ? chains : chains.filter((c) => dealGroup(c) === filter));
+export const filterDeals = (chains, filter, opts = {}) => (filter === "all" ? chains : chains.filter((c) => dealGroup(c, Date.now(), opts) === filter));
 
 // Open on what needs doing when there is something, otherwise on everything.
 export const defaultFilter = (counts) => (counts.action > 0 ? "action" : "all");

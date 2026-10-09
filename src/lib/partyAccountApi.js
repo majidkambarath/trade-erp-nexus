@@ -1,4 +1,5 @@
 import { api } from "./accountingApi";
+import { dayStart, endOfDay as orgEndOfDay } from "../utils/orgLocale";
 
 // Everything the customer and vendor account pages (and the Receivables / Payables lists) read.
 // `kind` is "customer" or "vendor"; every call returns the response's `data` directly and fails
@@ -23,12 +24,12 @@ const KINDS = {
 };
 const config = (kind) => KINDS[kind] || KINDS.customer;
 
-// A date picker gives "2026-10-04". The server reads a bare date as midnight UTC, which is four
-// o'clock in Dubai: an entry posted on the chosen last day would fall out of the range. So the
-// range is sent as the whole Dubai day (UTC+4, no daylight saving).
-const DUBAI = "+04:00";
-export const startOfDay = (ymd) => (ymd ? new Date(`${ymd}T00:00:00.000${DUBAI}`).toISOString() : undefined);
-export const endOfDay = (ymd) => (ymd ? new Date(`${ymd}T23:59:59.999${DUBAI}`).toISOString() : undefined);
+// A date picker gives "2026-10-04". The server reads a bare date as midnight UTC, which is some hours into the day on the
+// organisation's clock: an entry posted on the chosen last day would fall out of the range. So the range is sent as the
+// whole day on the organisation's wall clock (its own zone, daylight saving included).
+export const startOfDay = (ymd) => (ymd ? dayStart(ymd).toISOString() : undefined);
+export const endOfDayInstant = (ymd) => (ymd ? orgEndOfDay(ymd).toISOString() : undefined);
+export { endOfDayInstant as endOfDay };
 
 export const partyAccountApi = {
   // The customer or vendor record: contact person, phone, email, TRN, terms, addresses, credit limit.
@@ -55,7 +56,7 @@ export const partyAccountApi = {
 
   // Dated statement with a server-side running balance: { opening, rows, closing, totals, source }.
   statement: ({ kind, partyId, from, to }) =>
-    api.get("/accounting/reports/statement", { partyId, partyType: config(kind).partyType, from: startOfDay(from), to: endOfDay(to) }),
+    api.get("/accounting/reports/statement", { partyId, partyType: config(kind).partyType, from: startOfDay(from), to: endOfDayInstant(to) }),
 
   // Unpaid invoices of every party with their ageing buckets; the page picks its party's row.
   ageing: (kind) => api.get("/accounting/reports/ageing", { type: config(kind).ageingType }),

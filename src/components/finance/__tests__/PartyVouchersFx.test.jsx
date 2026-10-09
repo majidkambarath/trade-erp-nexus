@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 const m = vi.hoisted(() => ({ create: vi.fn(), list: vi.fn(), get: vi.fn(), options: vi.fn(), cheques: vi.fn(), axiosGet: vi.fn(), curList: vi.fn(), curRate: vi.fn() }));
@@ -14,6 +14,7 @@ vi.mock("../../../lib/currencyApi", () => ({ currencies: { list: m.curList, rate
 import { PartyVoucherForm, ReceiptVouchers } from "../PartyVouchers";
 import ChequeRegister from "../../banking/ChequeRegister";
 import { convertToBaseCents } from "../../../lib/currencyForms";
+import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
 
 const box = (name) => screen.getByRole("combobox", { name });
 const choose = async (name, text) => {
@@ -50,6 +51,8 @@ beforeEach(() => {
   m.axiosGet.mockImplementation((url) => Promise.resolve({ data: { data: url === "/customers/customers" ? [{ _id: "c1", customerName: "Al Noor", customerId: "CUST001" }] : INVOICES } }));
 });
 
+afterEach(() => resetOrgLocale());
+
 const form = async ({ party = true } = {}) => {
   const onSaved = vi.fn();
   render(<PartyVoucherForm cfg={CFG} direction="receipt" onClose={() => {}} onSaved={onSaved} />);
@@ -74,6 +77,21 @@ describe("choosing a currency", () => {
     await form({ party: false });
     expect(screen.queryByRole("combobox", { name: "Currency" })).toBeNull();
     expect(screen.getByLabelText(/^Amount received \(AED\)/)).toBeInTheDocument();
+  });
+
+  it("names the organisation's own base currency in the amount label, not a fixed one", async () => {
+    setOrgLocale({ currency: "GBP" });
+    m.curList.mockResolvedValue([{ code: "GBP", name: "Pound Sterling", symbol: "£", decimals: 2, isBase: true, isActive: true, latestRate: 1 }]);
+    await form({ party: false });
+    expect(screen.getByLabelText(/^Amount received \(GBP\)/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/\(AED\)/)).toBeNull();
+  });
+
+  it("falls back to the organisation's currency while the currency list says nothing", async () => {
+    setOrgLocale({ currency: "GBP" });
+    m.curList.mockResolvedValue([]);
+    await form({ party: false });
+    expect(screen.getByLabelText(/^Amount received \(GBP\)/)).toBeInTheDocument();
   });
 
   it("offers AED first, then only active currencies that have a rate", async () => {

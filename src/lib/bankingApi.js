@@ -47,6 +47,9 @@ export const vouchers = {
   create: (body) => axiosInstance.post("/vouchers/vouchers", body).then((r) => r.data?.data).catch(fail),
   update: (id, body) => axiosInstance.put(`/vouchers/vouchers/${id}`, { ...body, forceUpdate: true }).then((r) => r.data?.data).catch(fail),
   remove: (id) => axiosInstance.delete(`/vouchers/vouchers/${id}`).then((r) => r.data).catch(fail),
+  // Approve (or reject) a voucher that is waiting. Above the organisation's second-approver amount an approve only records the
+  // first approval and answers { approval: { awaitingSecond: true } }, leaving the voucher pending (lib/approvals wasFirstApproval).
+  approve: (id, action = "approve") => axiosInstance.patch(`/vouchers/vouchers/${id}/approve`, { action }).then((r) => r.data?.data).catch(fail),
   // Everything the voucher did: its ledger entries, the invoices it settled, its cheque and the
   // activity log behind it.
   audit: (id) => axiosInstance.get(`/vouchers/vouchers/${id}/audit`).then((r) => r.data?.data).catch(fail),

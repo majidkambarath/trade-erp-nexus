@@ -15,6 +15,7 @@ import {
   decimalSum,
   decimalRound,
   weightedVatPercent,
+  CURRENCY,
 } from "../../../utils/format";
 
 const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
@@ -138,7 +139,7 @@ const VendorSelect = ({ vendors, value, onChange, onInvoiceSelect }) => {
 
   const invoiceOptions = invoices.map((invoice) => ({
     value: invoice._id,
-    label: `${invoice.transactionNo} - AED ${invoice.totalAmount}`,
+    label: `${invoice.transactionNo} - ${CURRENCY} ${invoice.totalAmount}`,
     invoice,
   }));
 

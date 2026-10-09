@@ -4,6 +4,7 @@ import { CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
 import { StatCard } from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { Balance, DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "./kit";
 import AccountsStep from "./openingBalances/AccountsStep";
 import PartiesStep from "./openingBalances/PartiesStep";
@@ -81,6 +82,9 @@ function GoLiveStep({ summary, notify, onSaved, next }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
   const [warnings, setWarnings] = useState(null);
+  // Setting the go-live date is accounts.manage. Someone who may only look is shown the date, with nothing to change.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   async function save() {
     setBusy(true);
@@ -103,14 +107,21 @@ function GoLiveStep({ summary, notify, onSaved, next }) {
       <Panel title="Go-live date" description="The day the new books start. Opening balances are entered as they stood on that day and every entry is dated that day.">
         <div className="space-y-4">
           <ErrorNote error={problem} />
-          <div className="flex flex-wrap items-end gap-3">
-            <Field label="Go-live date" required className="w-56" hint={locked ? "Fixed while opening entries exist." : undefined}>
-              <DateInput value={date} onChange={(e) => setDate(e.target.value)} disabled={locked || busy} />
-            </Field>
-            <Button onClick={save} disabled={busy || locked || !date || date === current}>{busy ? "Saving…" : current ? "Change date" : "Set go-live date"}</Button>
-            {current && <Button variant="outline" onClick={next}>Continue to accounts</Button>}
-          </div>
-          {locked && (
+          {canManage ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Go-live date" required className="w-56" hint={locked ? "Fixed while opening entries exist." : undefined}>
+                <DateInput value={date} onChange={(e) => setDate(e.target.value)} disabled={locked || busy} />
+              </Field>
+              <Button onClick={save} disabled={busy || locked || !date || date === current}>{busy ? "Saving…" : current ? "Change date" : "Set go-live date"}</Button>
+              {current && <Button variant="outline" onClick={next}>Continue to accounts</Button>}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-foreground">{current ? <>The go-live date is <span className="font-semibold">{formatDate(current)}</span>.</> : "The go-live date has not been set yet. An administrator sets it."}</p>
+              {current && <Button variant="outline" onClick={next}>Continue to accounts</Button>}
+            </div>
+          )}
+          {canManage && locked && (
             <Note tone="info">
               Opening entries are already posted, dated {formatDate(current)}. To move the date, reverse the entries on the Accounts, Customers, Vendors and Stock steps first.
             </Note>

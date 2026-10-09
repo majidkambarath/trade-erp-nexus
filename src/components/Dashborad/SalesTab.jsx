@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCurrencyAED, formatNumber } from "@/utils/format";
+import { CURRENCY, formatCurrencyAED, formatNumber } from "@/utils/format";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -59,7 +59,7 @@ export default function SalesTab({ state, period }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-8")}>
           <CardHeader>
             <CardTitle className="font-extrabold">Sales vs Purchase</CardTitle>
-            <CardDescription>Monthly AED · last 8 months</CardDescription>
+            <CardDescription>Monthly {CURRENCY} · last 8 months</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={state} empty={!monthly.some((m) => m.sales || m.purchases)} emptyText="No sales or purchases posted in the last 8 months" height={300}>
@@ -129,7 +129,7 @@ export default function SalesTab({ state, period }) {
           <CardHeader>
             <CardTitle className="font-extrabold">Sales by customer</CardTitle>
             <CardDescription>
-              Top 5 by net revenue this {word} · AED · <Link to="/party-balances?tab=customers" className="underline underline-offset-2">balances</Link>
+              Top 5 by net revenue this {word} · {CURRENCY} · <Link to="/party-balances?tab=customers" className="underline underline-offset-2">balances</Link>
             </CardDescription>
           </CardHeader>
           <CardContent>

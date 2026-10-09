@@ -3,6 +3,8 @@ import { ArrowLeft, Calendar, Hash, Plus, Save, Trash2, User } from "lucide-reac
 import Select from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { applyAfterSave } from "../../lib/processTransaction";
+import { FIRST_APPROVAL_MESSAGE } from "../../lib/approvals";
+import { useOrganisation } from "../shell/OrganisationContext";
 import axiosInstance from "../../axios/axios";
 import LineItemsGrid from "./LineItemsGrid";
 import QuickCreateDialog from "./QuickCreateDialog";
@@ -10,7 +12,7 @@ import { QUICK_CREATE, MEASURE_TYPES } from "./quickCreate";
 import { buildPayload, recalcRow, rowFromReturnLine } from "./variants";
 import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
-import { formatNumber } from "../../utils/format";
+import { formatNumber, CURRENCY } from "../../utils/format";
 import { availabilityWarning } from "../../lib/salesDocuments";
 import { cn } from "../../lib/utils";
 
@@ -120,6 +122,7 @@ export default function OrderForm({
   activeView = "create",
 }) {
   const uid = useId();
+  const { me } = useOrganisation();
   const fid = (k) => `${uid}-${k}`;
   const editing = activeView === "edit";
   const partyKind = V.partyType === "Vendor" ? "vendor" : "customer";
@@ -385,6 +388,11 @@ export default function OrderForm({
       if (afterSave) {
         const r = await applyAfterSave(res.data.data._id, afterSave);
         if (r.done) doc.status = r.status;
+        else if (r.awaitingSecond) {
+          // Above the organisation's second-approver amount only the first approval was recorded: the document is still a draft
+          doc.approvals = [...(doc.approvals || []), { by: me?.id, name: me?.name, at: new Date().toISOString(), step: 1 }];
+          notify?.(FIRST_APPROVAL_MESSAGE, "info");
+        }
         else notify?.(`${V.noun} saved, but not ${afterSave === "approve" ? "approved" : "rejected"} - it was left as a draft${r.message ? `: ${r.message}` : ""}`, r.cancelled ? "info" : "error");
       }
       if (!selected && files.length && V.attachments !== false) {
@@ -670,7 +678,7 @@ export default function OrderForm({
               )}
 
               {V.discount && (
-                <Field id={fid("discount")} label="Discount (AED)">
+                <Field id={fid("discount")} label={`Discount (${CURRENCY})`}>
                   <input id={fid("discount")} name="discount" type="number" min="0" step="any" inputMode="decimal" value={formData.discount ?? ""} onChange={(e) => setHeader("discount", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />
                 </Field>
               )}
@@ -751,7 +759,7 @@ export default function OrderForm({
                   <div className="flex justify-between"><dt className="text-muted-foreground">Discount</dt><dd>−{formatNumber(discount)}</dd></div>
                 )}
                 <div className="flex items-baseline justify-between border-t border-border pt-3">
-                  <dt className="font-semibold text-foreground">Total (AED)</dt>
+                  <dt className="font-semibold text-foreground">{`Total (${CURRENCY})`}</dt>
                   <dd className="text-xl font-extrabold text-foreground">{formatNumber(grandTotal)}</dd>
                 </div>
               </dl>
@@ -812,7 +820,7 @@ export default function OrderForm({
               <Field id={fid(`chargeDesc${i}`)} label={i === 0 ? "Description" : <span className="sr-only">Description</span>}>
                 <input id={fid(`chargeDesc${i}`)} type="text" value={c.description || ""} onChange={(e) => changeCharge(i, "description", e.target.value)} placeholder="e.g. Freight" className={fieldCls(false)} />
               </Field>
-              <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? "Amount (AED)" : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
+              <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? `Amount (${CURRENCY})` : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
                 <input id={fid(`chargeAmt${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} className={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
               </Field>
               <Field id={fid(`chargeVat${i}`)} label={i === 0 ? "VAT %" : <span className="sr-only">VAT %</span>}>

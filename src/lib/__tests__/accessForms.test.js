@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveOf, emptyPerson, emptyRole, impliedOf, isLocked, keyFromName, mayChange, minimal, newPersonPayload, personChanges, personFrom,
-  rankChoices, rolePayload, rolesToGive, summarise, ticksOf, toggle, toggleModule, validatePerson, validateRole,
+  holdsApprove, parseLimit, rankChoices, roleFrom, rolePayload, rolesToGive, serverField, serverMessage, summarise, ticksOf, toggle, toggleModule, validatePerson, validateRole,
 } from "../accessForms";
 
 // the shape the server sends (utils/permissions.js catalogue()): each action says what ticking it brings along
@@ -103,7 +103,7 @@ describe("a role", () => {
   });
 
   it("builds the body the server expects, and a new role names its key", () => {
-    expect(rolePayload({ ...ok, name: " Sales supervisor ", description: " Approves " }, new Set(["sales.approve"]), { isNew: true })).toEqual({ key: "sales_supervisor", name: "Sales supervisor", description: "Approves", rank: 55, permissions: ["sales.approve"] });
+    expect(rolePayload({ ...ok, name: " Sales supervisor ", description: " Approves " }, new Set(["sales.approve"]), { isNew: true })).toEqual({ key: "sales_supervisor", name: "Sales supervisor", description: "Approves", rank: 55, permissions: ["sales.approve"], approvalLimit: null });
     expect(rolePayload(ok, new Set(), { isNew: false })).not.toHaveProperty("key");
   });
 
@@ -158,5 +158,71 @@ describe("a person", () => {
     expect(mayChange(80, 60)).toBe(true);
     expect(mayChange(80, 80)).toBe(false);
     expect(mayChange(100, 100)).toBe(true);
+  });
+});
+
+describe("a role's approval limit", () => {
+  const base = { ...emptyRole(), name: "Sales supervisor", key: "sales_supervisor", rank: 55 };
+  const named = new Set(["sales.approve"]);
+
+  it("is read from what was typed: empty is no limit, an amount is a number, anything else is not an amount", () => {
+    expect(parseLimit("")).toBeNull();
+    expect(parseLimit("   ")).toBeNull();
+    expect(parseLimit(undefined)).toBeNull();
+    expect(parseLimit("5000")).toBe(5000);
+    expect(parseLimit(" 1,250.50 ")).toBe(1250.5);
+    expect(parseLimit("0")).toBe(0);
+    for (const bad of ["lots", "-5", "5 000", "1e3", "5."]) expect(Number.isNaN(parseLimit(bad))).toBe(true);
+  });
+
+  it("starts empty on a new role, and shows a stored limit as text", () => {
+    expect(emptyRole().approvalLimit).toBe("");
+    expect(roleFrom({ name: "A", key: "a", rank: 50, approvalLimit: 5000 }).approvalLimit).toBe("5000");
+    expect(roleFrom({ name: "A", key: "a", rank: 50, approvalLimit: null }).approvalLimit).toBe("");
+    expect(roleFrom({ name: "A", key: "a", rank: 50 }).approvalLimit).toBe("");
+    expect(roleFrom({ name: "A", key: "a", rank: 50, approvalLimit: 0 }).approvalLimit).toBe("0");
+  });
+
+  it("is sent as a number, or as null when empty", () => {
+    expect(rolePayload({ ...base, approvalLimit: "5000" }, named, { isNew: true }).approvalLimit).toBe(5000);
+    expect(rolePayload({ ...base, approvalLimit: "" }, named, { isNew: true }).approvalLimit).toBeNull();
+    expect(rolePayload({ ...base, approvalLimit: "0" }, named, { isNew: false }).approvalLimit).toBe(0);
+  });
+
+  it("is sent as null for a role that approves nothing, whatever the box held", () => {
+    expect(rolePayload({ ...base, approvalLimit: "5000" }, new Set(["sales.view"]), { isNew: true, approves: false }).approvalLimit).toBeNull();
+  });
+
+  it("is refused before it is sent only when it is not an amount (the cap on it is the server's to judge)", () => {
+    const v = (approvalLimit, opts = {}) => validateRole({ ...base, approvalLimit }, named, { isNew: true, myRank: 80, canGrant: () => true, ...opts });
+    expect(v("").approvalLimit).toBeUndefined();
+    expect(v("5000").approvalLimit).toBeUndefined();
+    expect(v("lots").approvalLimit).toMatch(/amount of 0 or more/);
+    expect(v("-5").approvalLimit).toMatch(/amount of 0 or more/);
+    expect(v("lots", { approves: false }).approvalLimit).toBeUndefined(); // not asked for, so not checked
+  });
+
+  it("knows a role that approves from its permissions", () => {
+    expect(holdsApprove(["sales.view", "sales.approve"])).toBe(true);
+    expect(holdsApprove(new Set(["finance.approve"]))).toBe(true);
+    expect(holdsApprove(["sales.view", "sales.create"])).toBe(false);
+    expect(holdsApprove(undefined)).toBe(false);
+  });
+
+  it("a role list row says what an approving role may approve, and says nothing about one that does not", () => {
+    expect(summarise({ permissions: ["sales.view", "sales.approve"], approvalLimit: 5000 })).toBe("2 permissions in 1 area · Approval: Up to 5,000.00 AED");
+    expect(summarise({ permissions: ["sales.view", "sales.approve"], approvalLimit: null })).toBe("2 permissions in 1 area · Approval: No limit");
+    expect(summarise({ permissions: ["sales.view", "sales.approve"] })).toBe("2 permissions in 1 area · Approval: No limit"); // a built-in role has none
+    expect(summarise({ permissions: ["sales.view"], approvalLimit: 5000 })).toBe("1 permission in 1 area");
+  });
+
+  it("reads the server's refusal: its sentence, and the field it names", () => {
+    const refusal = { message: "Request failed with status code 400", response: { data: { message: "A limit cannot be above your own (1000)", errorCode: "ROLE_INVALID", details: { field: "approvalLimit" } } } };
+    expect(serverMessage(refusal)).toBe("A limit cannot be above your own (1000)");
+    expect(serverField(refusal)).toBe("approvalLimit");
+    expect(serverMessage(new Error("Network Error"))).toBe("Network Error");
+    expect(serverField(new Error("Network Error"))).toBeNull();
+    expect(serverField(null)).toBeNull();
+    expect(serverMessage(undefined)).toBe("");
   });
 });

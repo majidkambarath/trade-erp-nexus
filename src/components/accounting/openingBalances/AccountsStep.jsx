@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "../../ui/button";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import EntryGrid from "../../finance/EntryGrid";
 import { Balance, ConfirmDialog, EmptyState, ErrorNote, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync } from "../kit";
 import { openingBalances } from "../../../lib/openingBalanceApi";
@@ -24,6 +25,9 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
   const [confirm, setConfirm] = useState(null); // { kind: "post" } | { kind: "reverse", voucher }
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
+  // Entering and reversing opening balances is accounts.manage; the entered figures are there for anyone who may look.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   const options = useMemo(() => (data.data?.available || []).map(accountOption), [data.data]);
   const totals = useMemo(() => accountTotals(rows), [rows]);
@@ -84,65 +88,70 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
 
   return (
     <div className="space-y-5">
-      <Panel
-        title="Account balances"
-        description={`Enter each account's balance as at ${formatDate(goLive)}, as a debit or a credit. Customer and vendor accounts come from their open invoices, and the Inventory account from the opening stock.`}
-        actions={<Button onClick={review} disabled={busy || !totals.count}>Post account balances</Button>}
-      >
-        {data.loading && !data.data && <Spinner label="Loading accounts" />}
-        <ErrorNote error={data.error || problem} />
-        {data.data && (
-          <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
-            <EntryGrid
-              ref={grid} ariaLabel="Account balances" rows={rows} rowErrors={errors} minRows={1} addLabel="Add account"
-              columns={[
-                { key: "account", label: "Account", className: "min-w-72 w-[55%]" },
-                { key: "debit", label: "Debit", align: "end", className: "w-40" },
-                { key: "credit", label: "Credit", align: "end", className: "w-40" },
-              ]}
-              onAdd={() => setRows((rs) => [...rs, emptyAccountRow()])}
-              onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}
-              renderCell={(row, i, col) => {
-                if (col.key === "account") {
+      {/* the entry panel carries these for someone who can enter; a reader gets them here */}
+      {!canManage && data.loading && !data.data && <Spinner label="Loading accounts" />}
+      {!canManage && <ErrorNote error={data.error} />}
+      {canManage && (
+        <Panel
+          title="Account balances"
+          description={`Enter each account's balance as at ${formatDate(goLive)}, as a debit or a credit. Customer and vendor accounts come from their open invoices, and the Inventory account from the opening stock.`}
+          actions={<Button onClick={review} disabled={busy || !totals.count}>Post account balances</Button>}
+        >
+          {data.loading && !data.data && <Spinner label="Loading accounts" />}
+          <ErrorNote error={data.error || problem} />
+          {data.data && (
+            <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
+              <EntryGrid
+                ref={grid} ariaLabel="Account balances" rows={rows} rowErrors={errors} minRows={1} addLabel="Add account"
+                columns={[
+                  { key: "account", label: "Account", className: "min-w-72 w-[55%]" },
+                  { key: "debit", label: "Debit", align: "end", className: "w-40" },
+                  { key: "credit", label: "Credit", align: "end", className: "w-40" },
+                ]}
+                onAdd={() => setRows((rs) => [...rs, emptyAccountRow()])}
+                onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}
+                renderCell={(row, i, col) => {
+                  if (col.key === "account") {
+                    return (
+                      <SearchSelect
+                        aria-label={`Account, row ${i + 1}`} value={row.accountId} options={options}
+                        onChange={(v) => { patch(i, { accountId: v }); setTimeout(() => grid.current?.focusCell(i, row.credit && !row.debit ? "credit" : "debit"), 0); }}
+                        placeholder="Search account…" noOptionsText="No account matches" invalid={Boolean(errors[i] && !row.accountId)}
+                      />
+                    );
+                  }
                   return (
-                    <SearchSelect
-                      aria-label={`Account, row ${i + 1}`} value={row.accountId} options={options}
-                      onChange={(v) => { patch(i, { accountId: v }); setTimeout(() => grid.current?.focusCell(i, row.credit && !row.debit ? "credit" : "debit"), 0); }}
-                      placeholder="Search account…" noOptionsText="No account matches" invalid={Boolean(errors[i] && !row.accountId)}
+                    <TextInput
+                      aria-label={`${col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
+                      value={row[col.key]} onChange={(e) => setAmount(i, col.key, e.target.value)} onBlur={() => tidy(i, col.key)}
                     />
                   );
+                }}
+                footer={
+                  <>
+                    <FooterRow span={2} label="Entered" cells={[money(totals.debit), money(totals.credit)]} />
+                    <FooterRow
+                      span={2}
+                      label={<>Balancing line to <span className="font-semibold">{equityName}</span>{eq.side && <span className="ms-1 text-muted-foreground">({eq.side})</span>}</>}
+                      cells={[eq.side === "debit" ? money(eq.amount) : "", eq.side === "credit" ? money(eq.amount) : ""]}
+                    />
+                    <FooterRow span={2} strong label="Voucher total" cells={[money(Math.max(totals.debit, totals.credit)), money(Math.max(totals.debit, totals.credit))]} />
+                  </>
                 }
-                return (
-                  <TextInput
-                    aria-label={`${col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
-                    value={row[col.key]} onChange={(e) => setAmount(i, col.key, e.target.value)} onBlur={() => tidy(i, col.key)}
-                  />
-                );
-              }}
-              footer={
-                <>
-                  <FooterRow span={2} label="Entered" cells={[money(totals.debit), money(totals.credit)]} />
-                  <FooterRow
-                    span={2}
-                    label={<>Balancing line to <span className="font-semibold">{equityName}</span>{eq.side && <span className="ms-1 text-muted-foreground">({eq.side})</span>}</>}
-                    cells={[eq.side === "debit" ? money(eq.amount) : "", eq.side === "credit" ? money(eq.amount) : ""]}
-                  />
-                  <FooterRow span={2} strong label="Voucher total" cells={[money(Math.max(totals.debit, totals.credit)), money(Math.max(totals.debit, totals.credit))]} />
-                </>
-              }
-            />
-            {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
-            <p className="text-xs text-muted-foreground">Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts.</p>
-            {eq.amount > 0 && (
-              <Note tone="info" aria-live="polite">
-                The difference of <span className="font-semibold">{money(eq.amount)}</span> will be posted to {equityName} as a {eq.side}, so the voucher balances.
-              </Note>
-            )}
-          </div>
-        )}
-      </Panel>
+              />
+              {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
+              <p className="text-xs text-muted-foreground">Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts.</p>
+              {eq.amount > 0 && (
+                <Note tone="info" aria-live="polite">
+                  The difference of <span className="font-semibold">{money(eq.amount)}</span> will be posted to {equityName} as a {eq.side}, so the voucher balances.
+                </Note>
+              )}
+            </div>
+          )}
+        </Panel>
+      )}
 
-      <Panel title="Already entered" description="These accounts have an opening balance and are not offered again. Reverse the voucher below to correct them." bodyClassName="p-0">
+      <Panel title="Already entered" description={canManage ? "These accounts have an opening balance and are not offered again. Reverse the voucher below to correct them." : "These accounts have an opening balance."} bodyClassName="p-0">
         {data.data && entered.length === 0 && <EmptyState title="Nothing entered yet" text="Accounts you post appear here with their amounts." />}
         {entered.length > 0 && (
           <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -174,7 +183,7 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
           <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="px-5 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Accounts</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">To equity</th><th className="px-3 py-2 text-start">Status</th><th className="px-5 py-2 text-end"><span className="sr-only">Action</span></th></tr>
+                <tr><th className="px-5 py-2 text-start">Voucher</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Accounts</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">To equity</th><th className="px-3 py-2 text-start">Status</th>{canManage && <th className="px-5 py-2 text-end"><span className="sr-only">Action</span></th>}</tr>
               </thead>
               <tbody>
                 {vouchers.map((v) => (
@@ -186,11 +195,13 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
                     <td className="px-3 py-2.5 text-end tabular-nums">{fmt(v.totalCredit)}</td>
                     <td className="px-3 py-2.5 text-end"><Balance net={v.difference?.side === "debit" ? v.difference.amount : -(v.difference?.amount || 0)} /></td>
                     <td className="px-3 py-2.5"><StatusPill status={v.status} /></td>
-                    <td className="px-5 py-2.5 text-end">
-                      {v.status === "posted" && (
-                        <Button size="sm" variant="outline" onClick={() => setConfirm({ kind: "reverse", voucher: v })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reverse</Button>
-                      )}
-                    </td>
+                    {canManage && (
+                      <td className="px-5 py-2.5 text-end">
+                        {v.status === "posted" && (
+                          <Button size="sm" variant="outline" onClick={() => setConfirm({ kind: "reverse", voucher: v })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reverse</Button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

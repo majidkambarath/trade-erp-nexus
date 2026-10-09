@@ -150,7 +150,7 @@ export const MODULES = [
     label: "People",
     icon: Users,
     tabs: [
-      { label: "Staff", to: "/staff-records", permission: "users.view", keywords: ["employees"] },
+      { label: "Staff", to: "/staff-records", permission: "staff.view", keywords: ["employees", "hr"] },
       { label: "Users and roles", to: "/users", permission: "users.view", keywords: ["accounts", "permissions", "sign in", "roles", "access", "rbac", "who can", "add user", "password"] },
     ],
   },

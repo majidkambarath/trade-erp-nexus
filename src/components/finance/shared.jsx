@@ -7,13 +7,16 @@ import { banking, vouchers } from "../../lib/bankingApi";
 import { accountOption, describePayment, money, toCents } from "../../lib/voucherForms";
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
-import { formatDateGB } from "../../utils/format";
+import { CURRENCY, formatDateGB } from "../../utils/format";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { ApprovalBanner, useApproval } from "../shell/Approval";
+import { awaitingLabel, firstApproverName, FIRST_APPROVAL_MESSAGE, wasFirstApproval } from "../../lib/approvals";
+import { deleteKey } from "../../lib/permissions";
 
 // Pieces every finance voucher screen shares: the list with search, dates and paging; the
 // read-only view; and the account / bank lists the entry forms pick from.
 
-// Today as a Dubai calendar day (a UTC read gave yesterday between 00:00 and 04:00, which would
+// Today as a calendar day in the organisation's time zone (a UTC read gave yesterday for part of the day, which would
 // also have picked yesterday's exchange rate for a foreign-currency voucher).
 export { todayInput } from "../../utils/format";
 
@@ -25,8 +28,15 @@ const STATUS = {
   bounced: ["danger", "Bounced"],
   cancelled: ["neutral", "Cancelled"],
 };
-export function StatusPill({ status }) {
+// `doc` (the voucher) is optional: given it, a voucher that has had its first approval and waits for a second person says so
+// instead of "Pending".
+export function StatusPill({ status, doc }) {
+  const { stateOf } = useApproval();
   const [tone, label] = STATUS[status] || ["neutral", status || ""];
+  if (doc && stateOf(doc).awaitingSecond) {
+    const by = firstApproverName(doc);
+    return <span title={by ? `First approval by ${by}` : undefined}><Pill tone="warning">{awaitingLabel({ awaitingSecond: true })}</Pill></span>;
+  }
   return <Pill tone={tone}>{label}</Pill>;
 }
 
@@ -158,15 +168,41 @@ export function printVoucher(v, title, companyName = "") {
 
 // Read-only view of any voucher: header, who and how, the ledger entries it posted, and what
 // can be done to it.
-export function VoucherView({ id, title, onClose, onDeleted, canDelete: canDeleteProp, extra }) {
-  // Deleting (reversing) a posted voucher is the finance.delete permission, unless a caller says otherwise.
+export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelete: canDeleteProp, extra }) {
+  // Deleting (reversing) an approved voucher posts its ledger entries back: that is finance.deletePosted (which implies plain
+  // finance.delete), the same rule the server applies by the stored status. The button is offered only for an approved one, so
+  // it is the posted key; unless a caller says otherwise.
   const { can } = useOrganisation();
-  const canDelete = canDeleteProp ?? can("finance.delete");
-  const { data: v, loading, error } = useAsync(() => vouchers.get(id), [id]);
+  const { stateOf } = useApproval();
+  const canDelete = canDeleteProp ?? can(deleteKey("finance", true));
+  const { data: v, loading, error, reload } = useAsync(() => vouchers.get(id), [id]);
   const [audit, setAudit] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
+  const [note, setNote] = useState("");
+
+  // A voucher waiting for approval: Approve and Reject need finance.approve, and Approve is offered only to someone who may
+  // approve THIS voucher (not their own work when the organisation says so, nothing over their limit, not a second time). The
+  // line above the figures says why not. Above the second-approver amount an approve only records the first approval.
+  const waiting = v && ["pending", "draft"].includes(v.status);
+  const mayApprove = waiting && can("finance.approve") && stateOf(v).canApprove;
+  const mayReject = waiting && can("finance.approve");
+  async function decide(action) {
+    setBusy(true);
+    setProblem(null);
+    setNote("");
+    try {
+      const result = await vouchers.approve(id, action);
+      setNote(action === "reject" ? "Rejected." : wasFirstApproval(result) ? FIRST_APPROVAL_MESSAGE : "Approved and posted.");
+      await reload();
+      onChanged?.();
+    } catch (e) {
+      setProblem(e);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function remove() {
     setBusy(true);
@@ -193,17 +229,21 @@ export function VoucherView({ id, title, onClose, onDeleted, canDelete: canDelet
             <Button variant="outline" onClick={() => setAudit(true)}><History className="h-4 w-4" aria-hidden="true" />Audit trail</Button>
             <Button variant="outline" onClick={() => printVoucher(v, title)}><Printer className="h-4 w-4" aria-hidden="true" />Print</Button>
             {canDelete && v.status === "approved" && <Button variant="outline" onClick={() => setConfirm(true)}><Trash2 className="h-4 w-4" aria-hidden="true" />Delete (reverse)</Button>}
-            <Button onClick={onClose} data-autofocus>Close</Button>
+            {mayReject && <Button variant="outline" disabled={busy} onClick={() => decide("reject")}>Reject</Button>}
+            {mayApprove && <Button disabled={busy} onClick={() => decide("approve")}>Approve</Button>}
+            <Button variant={mayApprove ? "outline" : undefined} onClick={onClose} data-autofocus>Close</Button>
           </>
         )}
       >
         {loading && <Spinner label="Loading" />}
         <ErrorNote error={error || problem} />
+        {note && <p role="status" className="mb-3 rounded-lg border border-status-info/30 bg-status-info-soft px-3 py-2 text-sm text-foreground">{note}</p>}
         {v && (
           <div className="space-y-4">
+            <ApprovalBanner doc={v} permission="finance.approve" />
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <div><dt className="text-muted-foreground">Status</dt><dd><StatusPill status={v.status} /></dd></div>
-              <div><dt className="text-muted-foreground">Amount</dt><dd className="font-semibold tabular-nums">{money(toCents(v.totalAmount))} AED</dd></div>
+              <div><dt className="text-muted-foreground">Status</dt><dd><StatusPill status={v.status} doc={v} /></dd></div>
+              <div><dt className="text-muted-foreground">Amount</dt><dd className="font-semibold tabular-nums">{money(toCents(v.totalAmount))} {CURRENCY}</dd></div>
               {isForeign(v) && <div className="sm:col-span-2"><dt className="text-muted-foreground">Foreign currency</dt><dd className="tabular-nums"><span className="font-medium">{fxLine(v)}</span><span className="block text-xs text-muted-foreground">{fxProvenance(v)}</span></dd></div>}
               {v.paymentMode && <div className="sm:col-span-2"><dt className="text-muted-foreground">Paid by</dt><dd>{describePayment(v)}</dd></div>}
               {v.referenceInvoiceNo && <div><dt className="text-muted-foreground">Against invoice</dt><dd className="font-mono text-xs">{v.referenceInvoiceNo}</dd></div>}

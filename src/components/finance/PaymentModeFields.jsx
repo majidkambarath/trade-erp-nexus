@@ -3,7 +3,7 @@ import { Banknote, Building2, CreditCard, FileText, Landmark } from "lucide-reac
 import { cn } from "../../lib/utils";
 import { Field, SearchSelect, TextInput, DateInput } from "../accounting/kit";
 import { PAYMENT_MODES } from "../../lib/voucherForms";
-import { formatNumber } from "../../utils/format";
+import { CURRENCY, formatNumber } from "../../utils/format";
 
 const MODE_ICON = { cash: Banknote, bank: Landmark, transfer: Building2, cheque: FileText, card: CreditCard };
 
@@ -138,8 +138,8 @@ export default function PaymentModeFields({ value, onChange, direction, options,
             {card && (
               <p className="self-end pb-2 text-sm text-muted-foreground">
                 {isReceipt
-                  ? `Processor fee ${card.effectiveFeePercent}%${fee ? ` · ${formatNumber(fee, 2)} AED` : ""}${fee ? `, ${formatNumber(Number(amount) - fee, 2)} AED reaches the bank` : ""}`
-                  : card.kind === "credit" ? `${formatNumber(card.owed || 0, 2)} of ${formatNumber(card.creditLimit, 2)} AED used` : ""}
+                  ? `Processor fee ${card.effectiveFeePercent}%${fee ? ` · ${formatNumber(fee, 2)} ${CURRENCY}` : ""}${fee ? `, ${formatNumber(Number(amount) - fee, 2)} ${CURRENCY} reaches the bank` : ""}`
+                  : card.kind === "credit" ? `${formatNumber(card.owed || 0, 2)} of ${formatNumber(card.creditLimit, 2)} ${CURRENCY} used` : ""}
               </p>
             )}
           </>

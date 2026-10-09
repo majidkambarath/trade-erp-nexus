@@ -3,9 +3,15 @@ import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { formatDateGB, toInputDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
+import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../kit";
 
 export default function FiscalYears({ notify }) {
+  // Adding a year is accounts.manage; closing or reopening one is its own permission, accounts.close.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
+  const canClose = canAny("accounts.close");
   const years = useAsync(() => accounting.fiscalYears(), []);
   const series = useAsync(() => accounting.numberSeries(), []);
   const [modal, setModal] = useState(false);
@@ -33,11 +39,11 @@ export default function FiscalYears({ notify }) {
         title="Fiscal years"
         description="Nothing can be created, approved or deleted in a closed year. While no fiscal year is defined, posting is not restricted."
         bodyClassName="p-0"
-        actions={<Button size="sm" onClick={() => setModal(true)}><Plus className="h-4 w-4" aria-hidden="true" />New fiscal year</Button>}
+        actions={<Can permission="accounts.manage"><Button size="sm" onClick={() => setModal(true)}><Plus className="h-4 w-4" aria-hidden="true" />New fiscal year</Button></Can>}
       >
         {years.loading && !years.data && <Spinner />}
         {years.error && <div className="p-5"><ErrorNote error={years.error} onRetry={years.reload} /></div>}
-        {years.data?.length === 0 && <EmptyState title="No fiscal years" text="Add the current year to start controlling which periods are open." />}
+        {years.data?.length === 0 && <EmptyState title="No fiscal years" text={canManage ? "Add the current year to start controlling which periods are open." : "No fiscal year has been defined yet, so posting is not restricted by period."} />}
         {years.data?.length > 0 && (
           <DataTable
             caption="Fiscal years"
@@ -48,12 +54,13 @@ export default function FiscalYears({ notify }) {
               { key: "from", header: "From", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.startDate) },
               { key: "to", header: "To", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.endDate) },
               { key: "status", header: "Status", card: "badge", cell: (y) => (y.status === "closed" ? <Pill tone="danger"><Lock className="h-3 w-3" aria-hidden="true" />Closed</Pill> : <Pill tone="success">Open</Pill>) },
-              {
+              // closing and reopening a year need accounts.close; without it the column is not drawn at all
+              ...(canClose ? [{
                 key: "action", header: "Action", align: "end", card: "actions",
                 cell: (y) => (y.status === "closed"
                   ? <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "reopen" })}><LockOpen className="h-3.5 w-3.5" aria-hidden="true" />Reopen</Button>
                   : <Button size="sm" variant="outline" onClick={() => setConfirm({ year: y, action: "close" })}><Lock className="h-3.5 w-3.5" aria-hidden="true" />Close year</Button>),
-              },
+              }] : []),
             ]}
           />
         )}

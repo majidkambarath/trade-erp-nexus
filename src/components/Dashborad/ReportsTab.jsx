@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Percent, TrendingUp, Wallet } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatCurrencyAED, formatDate } from "@/utils/format";
+import { CURRENCY, formatCurrencyAED, formatDate } from "@/utils/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChartArea, Skeleton } from "./widgets";
@@ -68,7 +68,7 @@ export default function ReportsTab({ state }) {
       <Card data-anim="bento" className={cardClass}>
         <CardHeader>
           <CardTitle className="font-extrabold">Value growth</CardTitle>
-          <CardDescription>Gross profit trend · last 8 months · AED</CardDescription>
+          <CardDescription>Gross profit trend · last 8 months · {CURRENCY}</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartArea state={state} empty={!growth.some((m) => m.grossProfit)} emptyText="No gross profit posted in the last 8 months" height={280}>
@@ -119,7 +119,7 @@ export default function ReportsTab({ state }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader>
             <CardTitle className="font-extrabold">Receivables vs payables ageing</CardTitle>
-            <CardDescription>By days past due · AED</CardDescription>
+            <CardDescription>By days past due · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={state} empty={!ageing.some((b) => b.receivables || b.payables)} emptyText="Nothing owed to you or by you" height={260}>
@@ -141,7 +141,7 @@ export default function ReportsTab({ state }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader>
             <CardTitle className="font-extrabold">VAT snapshot</CardTitle>
-            <CardDescription>Output · input · net {vat?.position === "refundable" ? "refundable" : "payable"} · quarter so far · AED</CardDescription>
+            <CardDescription>Output · input · net {vat?.position === "refundable" ? "refundable" : "payable"} · quarter so far · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={state} empty={!vat?.hasActivity} emptyText="No VAT transactions this quarter" height={200}>

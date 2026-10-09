@@ -1,5 +1,6 @@
 import Swal from "sweetalert2";
 import axiosInstance from "../axios/axios";
+import { noticeFor, wasFirstApproval } from "./approvals";
 
 // Approve, reject or cancel an order. Approving a SALE can be held up by credit control:
 //   - "warn" mode answers 409 RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED with the reasons. The user is
@@ -52,10 +53,44 @@ export async function processTransaction(id, action, { confirm = askToOverride }
 // the caller reports it.
 export async function applyAfterSave(id, action, { confirm } = {}) {
   try {
-    await processTransaction(id, action, confirm ? { confirm } : undefined);
+    const response = await processTransaction(id, action, confirm ? { confirm } : undefined);
+    // Above the organisation's second-approver amount the first approval is only recorded: the document is still a draft
+    if (action === "approve" && wasFirstApproval(response)) return { done: false, awaitingSecond: true };
     return { done: true, status: action === "approve" ? "APPROVED" : "REJECTED" };
   } catch (err) {
     if (err.cancelled) return { done: false, cancelled: true };
     return { done: false, message: err.response?.data?.message || err.message };
   }
+}
+
+/**
+ * Approve several documents one by one and say what each came to, so a bulk approve can report honestly instead of stopping
+ * at the first refusal. Never throws.
+ *
+ *   ids      the documents asked for
+ *   docs     the list rows ({ id, status, totalAmount, createdBy, approvals }); a row not found is still tried (the server decides)
+ *   stateOf  (doc) => approvalState: a document the server would certainly refuse for this person (their own work, over their
+ *            limit, a second approval from the same person) is not sent, and is reported with the same words the server uses
+ *   me       the person, for the words of a limit refusal
+ *   approve  how one is approved (processTransaction, which also asks about a credit warning)
+ *
+ * -> [{ id, outcome: "approved" | "waiting" | "refused" | "cancelled", reason? }]
+ */
+export async function approveMany(ids, { docs = [], stateOf, me, approve = processTransaction } = {}) {
+  const results = [];
+  for (const id of ids) {
+    const doc = docs.find((d) => String(d.id ?? d._id) === String(id));
+    const state = doc && stateOf ? stateOf(doc) : null;
+    if (state && !state.canApprove) {
+      results.push({ id, outcome: "refused", reason: noticeFor(state, me) || "It is already decided" });
+      continue;
+    }
+    try {
+      const response = await approve(id, "approve");
+      results.push({ id, outcome: wasFirstApproval(response) ? "waiting" : "approved" });
+    } catch (err) {
+      results.push(err.cancelled ? { id, outcome: "cancelled" } : { id, outcome: "refused", reason: err.response?.data?.message || err.message });
+    }
+  }
+  return results;
 }

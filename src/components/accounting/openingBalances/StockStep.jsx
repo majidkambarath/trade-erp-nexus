@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "../../ui/button";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { StatCard } from "../../ui/stat-card";
 import EntryGrid from "../../finance/EntryGrid";
 import { ConfirmDialog, DateInput, EmptyState, ErrorNote, Panel, SearchSelect, Spinner, TextInput, useAsync } from "../kit";
@@ -29,6 +30,9 @@ export default function StockStep({ goLive, notify, onChanged, goToDate }) {
   const [confirm, setConfirm] = useState(null); // { kind: "post" } | { kind: "reverse", voucher }
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
+  // Entering and reversing opening stock is accounts.manage; the entered vouchers are there for anyone who may look.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   const items = useMemo(() => data.data?.items || [], [data.data]);
   const options = useMemo(
@@ -103,74 +107,79 @@ export default function StockStep({ goLive, notify, onChanged, goToDate }) {
         </div>
       )}
 
-      <Panel
-        title="Opening stock"
-        description={`Enter the quantity and the cost of each item as at ${formatDate(goLive)}. Add a row per batch; an item with several rows is costed at the weighted average of them.`}
-        actions={<Button onClick={review} disabled={busy || !totals.count}>Post opening stock</Button>}
-      >
-        {data.loading && !data.data && <Spinner label="Loading items" />}
-        <ErrorNote error={data.error || problem} />
-        {data.data && (
-          <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
-            <EntryGrid
-              ref={grid} ariaLabel="Opening stock" rows={rows} rowErrors={errors} minRows={1} addLabel="Add item"
-              columns={[
-                { key: "item", label: "Item", className: "min-w-64 w-[28%]" },
-                { key: "qty", label: "Quantity", align: "end", className: "w-32" },
-                { key: "unitCost", label: "Unit cost", align: "end", className: "w-32" },
-                { key: "batchNo", label: "Batch no.", className: "min-w-32" },
-                { key: "expiryDate", label: "Expiry date", className: "w-44" },
-                { key: "value", label: "Value", align: "end", className: "w-36" },
-              ]}
-              onAdd={() => setRows((rs) => [...rs, emptyStockRow()])}
-              onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}
-              renderCell={(row, i, col) => {
-                const item = itemOf(row);
-                switch (col.key) {
-                  case "item":
-                    return (
-                      <SearchSelect
-                        aria-label={`Item, row ${i + 1}`} value={row.itemId} options={options}
-                        onChange={(v) => { patch(i, { itemId: v }); setTimeout(() => grid.current?.focusCell(i, "qty"), 0); }}
-                        placeholder="Search item…" noOptionsText="No item matches" invalid={Boolean(errors[i] && !row.itemId)}
-                      />
-                    );
-                  case "qty":
-                    return <TextInput aria-label={`Quantity, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0" value={row.qty} onChange={(e) => setNumber(i, "qty", e.target.value, QTY)} />;
-                  case "unitCost":
-                    return <TextInput aria-label={`Unit cost, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00" value={row.unitCost} onChange={(e) => setNumber(i, "unitCost", e.target.value, COST)} />;
-                  case "batchNo":
-                    return <TextInput aria-label={`Batch no., row ${i + 1}`} value={row.batchNo} maxLength={60} placeholder={item?.batchTracked ? "Required" : "Optional"} onChange={(e) => patch(i, { batchNo: e.target.value })} />;
-                  case "expiryDate":
-                    return <DateInput aria-label={`Expiry date, row ${i + 1}`} value={row.expiryDate} placeholder={item?.batchTracked ? "Required" : "Optional"} onChange={(e) => patch(i, { expiryDate: e.target.value })} />;
-                  default:
-                    // computed, but focusable so Enter flows on to the next row
-                    return <TextInput aria-label={`Value, row ${i + 1}`} readOnly tabIndex={-1} className="border-transparent bg-transparent text-end tabular-nums" value={stockRowCents(row) ? money(stockRowCents(row)) : ""} placeholder="0.00" />;
-                }
-              }}
-              footer={<FooterRow span={5} strong label={`Total (${totals.count} ${totals.count === 1 ? "row" : "rows"}, ${totals.items} ${totals.items === 1 ? "item" : "items"})`} cells={[money(totals.cents)]} />}
-            />
-            {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
-            {warned.length > 0 && (
-              <Note tone="warning" role="status">
-                {warned.map(([i, w]) => <p key={i}>Row {Number(i) + 1}: {w}.</p>)}
-              </Note>
-            )}
-            {averages.some((a) => a.qty > 0) && (
-              <p className="text-xs text-muted-foreground" aria-live="polite">
-                Average cost after posting:{" "}
-                {averages.map((a) => `${a.itemName} ${formatQty(a.qty, 3)} at ${avgText(a.avg)}`).join(" · ")}
+      {/* the entry panel carries these for someone who can enter; a reader gets them here */}
+      {!canManage && data.loading && !data.data && <Spinner label="Loading items" />}
+      {!canManage && <ErrorNote error={data.error} />}
+      {canManage && (
+        <Panel
+          title="Opening stock"
+          description={`Enter the quantity and the cost of each item as at ${formatDate(goLive)}. Add a row per batch; an item with several rows is costed at the weighted average of them.`}
+          actions={<Button onClick={review} disabled={busy || !totals.count}>Post opening stock</Button>}
+        >
+          {data.loading && !data.data && <Spinner label="Loading items" />}
+          <ErrorNote error={data.error || problem} />
+          {data.data && (
+            <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
+              <EntryGrid
+                ref={grid} ariaLabel="Opening stock" rows={rows} rowErrors={errors} minRows={1} addLabel="Add item"
+                columns={[
+                  { key: "item", label: "Item", className: "min-w-64 w-[28%]" },
+                  { key: "qty", label: "Quantity", align: "end", className: "w-32" },
+                  { key: "unitCost", label: "Unit cost", align: "end", className: "w-32" },
+                  { key: "batchNo", label: "Batch no.", className: "min-w-32" },
+                  { key: "expiryDate", label: "Expiry date", className: "w-44" },
+                  { key: "value", label: "Value", align: "end", className: "w-36" },
+                ]}
+                onAdd={() => setRows((rs) => [...rs, emptyStockRow()])}
+                onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}
+                renderCell={(row, i, col) => {
+                  const item = itemOf(row);
+                  switch (col.key) {
+                    case "item":
+                      return (
+                        <SearchSelect
+                          aria-label={`Item, row ${i + 1}`} value={row.itemId} options={options}
+                          onChange={(v) => { patch(i, { itemId: v }); setTimeout(() => grid.current?.focusCell(i, "qty"), 0); }}
+                          placeholder="Search item…" noOptionsText="No item matches" invalid={Boolean(errors[i] && !row.itemId)}
+                        />
+                      );
+                    case "qty":
+                      return <TextInput aria-label={`Quantity, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0" value={row.qty} onChange={(e) => setNumber(i, "qty", e.target.value, QTY)} />;
+                    case "unitCost":
+                      return <TextInput aria-label={`Unit cost, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00" value={row.unitCost} onChange={(e) => setNumber(i, "unitCost", e.target.value, COST)} />;
+                    case "batchNo":
+                      return <TextInput aria-label={`Batch no., row ${i + 1}`} value={row.batchNo} maxLength={60} placeholder={item?.batchTracked ? "Required" : "Optional"} onChange={(e) => patch(i, { batchNo: e.target.value })} />;
+                    case "expiryDate":
+                      return <DateInput aria-label={`Expiry date, row ${i + 1}`} value={row.expiryDate} placeholder={item?.batchTracked ? "Required" : "Optional"} onChange={(e) => patch(i, { expiryDate: e.target.value })} />;
+                    default:
+                      // computed, but focusable so Enter flows on to the next row
+                      return <TextInput aria-label={`Value, row ${i + 1}`} readOnly tabIndex={-1} className="border-transparent bg-transparent text-end tabular-nums" value={stockRowCents(row) ? money(stockRowCents(row)) : ""} placeholder="0.00" />;
+                  }
+                }}
+                footer={<FooterRow span={5} strong label={`Total (${totals.count} ${totals.count === 1 ? "row" : "rows"}, ${totals.items} ${totals.items === 1 ? "item" : "items"})`} cells={[money(totals.cents)]} />}
+              />
+              {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
+              {warned.length > 0 && (
+                <Note tone="warning" role="status">
+                  {warned.map(([i, w]) => <p key={i}>Row {Number(i) + 1}: {w}.</p>)}
+                </Note>
+              )}
+              {averages.some((a) => a.qty > 0) && (
+                <p className="text-xs text-muted-foreground" aria-live="polite">
+                  Average cost after posting:{" "}
+                  {averages.map((a) => `${a.itemName} ${formatQty(a.qty, 3)} at ${avgText(a.avg)}`).join(" · ")}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts. Items that already have stock movements are not listed: use a stock adjustment for them.
+                The same item can be entered only once; a batch-tracked item needs its batch number and expiry date.
               </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts. Items that already have stock movements are not listed: use a stock adjustment for them.
-              The same item can be entered only once; a batch-tracked item needs its batch number and expiry date.
-            </p>
-          </div>
-        )}
-      </Panel>
+            </div>
+          )}
+        </Panel>
+      )}
 
-      <Panel title="Entered" description="Each submission is one voucher. It can be reversed only while no other movement exists for its items." bodyClassName="p-0">
+      <Panel title="Entered" description={canManage ? "Each submission is one voucher. It can be reversed only while no other movement exists for its items." : "Each submission is one voucher."} bodyClassName="p-0">
         {data.data && vouchers.length === 0 && <EmptyState title="Nothing entered yet" text="Opening stock you post appears here, with its batches." />}
         {vouchers.map((v) => (
           <section key={v._id} className="border-t border-border first:border-t-0">
@@ -181,7 +190,7 @@ export default function StockStep({ goLive, notify, onChanged, goToDate }) {
                 <StatusPill status={v.status} />
                 <span className="text-sm font-medium tabular-nums">{fmt(v.totalValue)}</span>
               </div>
-              {v.status === "posted" && (
+              {canManage && v.status === "posted" && (
                 v.canReverse
                   ? <Button size="sm" variant="outline" onClick={() => setConfirm({ kind: "reverse", voucher: v })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reverse</Button>
                   : <span className="text-xs text-muted-foreground">Cannot be reversed: {v.blockedBy.join(", ")} {v.blockedBy.length === 1 ? "has" : "have"} later stock movements</span>

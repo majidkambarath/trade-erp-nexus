@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { stockReports } from "../../lib/stockReportsApi";
-import { downloadCSV, formatDate, formatNumber, formatQty, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDate, formatNumber, formatQty, todayInput } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
@@ -227,12 +227,12 @@ function Reconciliation({ rec, label }) {
         {ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
         <div className="min-w-0">
           <p className="font-semibold">
-            {ok ? "Stock value agrees with the Inventory account" : `Stock value differs from the Inventory account by AED ${money(diff)}`}
+            {ok ? "Stock value agrees with the Inventory account" : `Stock value differs from the Inventory account by ${CURRENCY} ${money(diff)}`}
           </p>
           <p>
             {ok
-              ? `AED ${money(rec.stockValue)} ${label} in stock and in ${rec.account.name} (${rec.account.code || "ledger"}).`
-              : `Stock AED ${money(rec.stockValue)}, ${rec.account.name} AED ${money(rec.ledgerBalance)} ${label}. Stock is ${rec.difference > 0 ? "higher" : "lower"} than the ledger.`}
+              ? `${CURRENCY} ${money(rec.stockValue)} ${label} in stock and in ${rec.account.name} (${rec.account.code || "ledger"}).`
+              : `Stock ${CURRENCY} ${money(rec.stockValue)}, ${rec.account.name} ${CURRENCY} ${money(rec.ledgerBalance)} ${label}. Stock is ${rec.difference > 0 ? "higher" : "lower"} than the ledger.`}
           </p>
           {rec.warning && <p className="mt-1 font-medium">{rec.warning}</p>}
         </div>
@@ -314,13 +314,13 @@ function ValuationBody({ d }) {
         { key: "category", header: "Category", cell: (r) => r.categoryName, className: "text-muted-foreground" },
         { key: "qty", header: "Quantity", align: "end", cell: (r) => <>{qty(r.qty)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
         { key: "avg", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-        { key: "value", header: "Value (AED)", align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
+        { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ]
     : [
         { key: "category", header: "Category", cell: (r) => <span className="font-medium text-foreground">{r.categoryName}</span>, total: "Total" },
         { key: "items", header: "Items", align: "end", cell: (r) => whole(r.items), total: whole(d.totals.items) },
-        { key: "value", header: "Value (AED)", align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
+        { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ];
 
@@ -341,10 +341,10 @@ function ValuationBody({ d }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Stock value" count={money(d.totals.value)} subText={`AED as at ${formatDate(d.asOn)}`} tone="teal" />
+        <StatCard title="Stock value" count={money(d.totals.value)} subText={`${CURRENCY} as at ${formatDate(d.asOn)}`} tone="teal" />
         <StatCard title="Items in stock" count={whole(d.totals.items)} subText={attention ? `${whole(attention)} need a look` : "with stock on hand"} tone={attention ? "warning" : "neutral"} />
-        <StatCard title="Inventory account" count={rec?.available ? money(rec.ledgerBalance) : "–"} subText={rec?.available ? "AED per the ledger" : "Not set up"} tone="plum" />
-        <StatCard title="Difference" count={rec?.available ? money(rec.difference) : "–"} subText={rec?.available ? (rec.reconciles ? "Stock agrees with the ledger" : "AED, stock less ledger") : "Cannot compare"} tone={rec?.available && !rec.reconciles ? "warning" : "olive"} />
+        <StatCard title="Inventory account" count={rec?.available ? money(rec.ledgerBalance) : "–"} subText={rec?.available ? `${CURRENCY} per the ledger` : "Not set up"} tone="plum" />
+        <StatCard title="Difference" count={rec?.available ? money(rec.difference) : "–"} subText={rec?.available ? (rec.reconciles ? "Stock agrees with the ledger" : `${CURRENCY}, stock less ledger`) : "Cannot compare"} tone={rec?.available && !rec.reconciles ? "warning" : "olive"} />
       </Cards>
       <Reconciliation rec={rec} label="as at this date" />
       <ReportPanel title={byItem ? "Stock by item" : "Stock by category"} onCsv={exportCsv} csvDisabled={!d.rows.length}>
@@ -420,14 +420,14 @@ function MovementBody({ d, view }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Opening stock" count={money(t.opening.value)} subText={`AED on ${formatDate(d.from)}`} tone="neutral" />
-        <StatCard title="Purchases" count={money(t.purchases.value)} subText="AED received from vendors" tone="olive" />
-        <StatCard title="Cost of goods sold" count={money(t.sales.value)} subText="AED at average cost" tone="rose" />
-        <StatCard title="Closing stock" count={money(t.closing.value)} subText={`AED on ${formatDate(d.to)}`} tone="teal" />
+        <StatCard title="Opening stock" count={money(t.opening.value)} subText={`${CURRENCY} on ${formatDate(d.from)}`} tone="neutral" />
+        <StatCard title="Purchases" count={money(t.purchases.value)} subText={`${CURRENCY} received from vendors`} tone="olive" />
+        <StatCard title="Cost of goods sold" count={money(t.sales.value)} subText={`${CURRENCY} at average cost`} tone="rose" />
+        <StatCard title="Closing stock" count={money(t.closing.value)} subText={`${CURRENCY} on ${formatDate(d.to)}`} tone="teal" />
       </Cards>
       <Reconciliation rec={d.reconciliation} label={`on ${formatDate(d.to)}`} />
       <ReportPanel
-        title={isQty ? "Quantity movement" : "Value movement (AED)"}
+        title={isQty ? "Quantity movement" : `Value movement (${CURRENCY})`}
         description="Opening plus what came in, less what went out, is the closing figure. Outflows are shown as negatives."
         onCsv={exportCsv} csvDisabled={!d.rows.length}
       >
@@ -506,10 +506,10 @@ function LedgerBody({ d }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Opening" count={`${qty(d.opening.qty)}${unit}`} subText={`AED ${money(d.opening.value)}`} tone="neutral" />
-        <StatCard title="Received" count={qty(d.totals.qtyIn)} subText={`AED ${money(d.totals.valueIn)}`} tone="olive" />
-        <StatCard title="Issued" count={qty(d.totals.qtyOut)} subText={`AED ${money(d.totals.valueOut)}`} tone="rose" />
-        <StatCard title="Closing" count={`${qty(d.closing.qty)}${unit}`} subText={`AED ${money(d.closing.value)} at ${rate(d.closing.avgCost)} each`} tone="teal" />
+        <StatCard title="Opening" count={`${qty(d.opening.qty)}${unit}`} subText={`${CURRENCY} ${money(d.opening.value)}`} tone="neutral" />
+        <StatCard title="Received" count={qty(d.totals.qtyIn)} subText={`${CURRENCY} ${money(d.totals.valueIn)}`} tone="olive" />
+        <StatCard title="Issued" count={qty(d.totals.qtyOut)} subText={`${CURRENCY} ${money(d.totals.valueOut)}`} tone="rose" />
+        <StatCard title="Closing" count={`${qty(d.closing.qty)}${unit}`} subText={`${CURRENCY} ${money(d.closing.value)} at ${rate(d.closing.avgCost)} each`} tone="teal" />
       </Cards>
       <ReportPanel title={d.item.itemName} description={`${d.item.sku ? `${d.item.sku} · ` : ""}${d.item.categoryName}. Reversed documents are not listed: they cancel out.`} onCsv={exportCsv}>
         <ReportTable caption={`Stock ledger of ${d.item.itemName}`} columns={columns} rows={d.rows} rowKey={(r) => r.id} head={opening} />
@@ -592,16 +592,16 @@ function AnalysisBody({ d }) {
       <Cards>
         {sales ? (
           <>
-            <StatCard title="Net revenue" count={money(t.netRevenue)} subText="AED, VAT excluded, returns deducted" tone="olive" />
-            <StatCard title="Cost of goods sold" count={money(t.cogs)} subText="AED, actual cost of the stock sold" tone="rose" />
-            <StatCard title="Gross profit" count={money(t.grossProfit)} subText="AED" tone={t.grossProfit < 0 ? "danger" : "teal"} />
+            <StatCard title="Net revenue" count={money(t.netRevenue)} subText={`${CURRENCY}, VAT excluded, returns deducted`} tone="olive" />
+            <StatCard title="Cost of goods sold" count={money(t.cogs)} subText={`${CURRENCY}, actual cost of the stock sold`} tone="rose" />
+            <StatCard title="Gross profit" count={money(t.grossProfit)} subText={CURRENCY} tone={t.grossProfit < 0 ? "danger" : "teal"} />
             <StatCard title="Margin" count={pct(t.marginPct)} subText={`${whole(t.documents)} ${t.documents === 1 ? "document" : "documents"}`} tone={t.marginPct !== null && t.marginPct < 0 ? "danger" : "plum"} />
           </>
         ) : (
           <>
-            <StatCard title="Net purchases" count={money(t.netValue)} subText="AED, VAT excluded, returns deducted" tone="olive" />
-            <StatCard title="Returned to vendors" count={money(t.returned)} subText="AED" tone="rose" />
-            <StatCard title="Average price paid" count={t.avgPrice === null ? "–" : rate(t.avgPrice)} subText="AED per unit, all items" tone="teal" />
+            <StatCard title="Net purchases" count={money(t.netValue)} subText={`${CURRENCY}, VAT excluded, returns deducted`} tone="olive" />
+            <StatCard title="Returned to vendors" count={money(t.returned)} subText={CURRENCY} tone="rose" />
+            <StatCard title="Average price paid" count={t.avgPrice === null ? "–" : rate(t.avgPrice)} subText={`${CURRENCY} per unit, all items`} tone="teal" />
             <StatCard title="Vendors" count={whole(t.vendors)} subText={`${whole(t.documents)} ${t.documents === 1 ? "document" : "documents"}`} tone="plum" />
           </>
         )}
@@ -655,7 +655,7 @@ function ExpiryBody({ d }) {
     { key: "date", header: "Expiry date", cell: (r) => formatDate(r.expiryDate), className: "whitespace-nowrap" },
     { key: "days", header: "Time left", cell: (r) => dayPill(r) },
     { key: "cost", header: "Unit cost", align: "end", cell: (r) => rate(r.unitCost) },
-    { key: "value", header: "Value at cost (AED)", align: "end", cell: (r) => money(r.valueAtCost), total: money(t.value) },
+    { key: "value", header: `Value at cost (${CURRENCY})`, align: "end", cell: (r) => money(r.valueAtCost), total: money(t.value) },
     { key: "fefo", header: "Sell order", align: "end", cell: (r) => `#${r.fefoRank}`, className: "text-muted-foreground" },
   ];
 
@@ -673,10 +673,10 @@ function ExpiryBody({ d }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Expired, value at risk" count={money(t.expired.value)} subText={`AED in ${whole(t.expired.batches)} ${t.expired.batches === 1 ? "batch" : "batches"}`} tone={t.expired.value > 0 ? "danger" : "neutral"} />
-        <StatCard title={`Expiring within ${whole(d.withinDays)} days`} count={money(t.expiring.value)} subText={`AED in ${whole(t.expiring.batches)} ${t.expiring.batches === 1 ? "batch" : "batches"}`} tone={t.expiring.value > 0 ? "warning" : "neutral"} />
+        <StatCard title="Expired, value at risk" count={money(t.expired.value)} subText={`${CURRENCY} in ${whole(t.expired.batches)} ${t.expired.batches === 1 ? "batch" : "batches"}`} tone={t.expired.value > 0 ? "danger" : "neutral"} />
+        <StatCard title={`Expiring within ${whole(d.withinDays)} days`} count={money(t.expiring.value)} subText={`${CURRENCY} in ${whole(t.expiring.batches)} ${t.expiring.batches === 1 ? "batch" : "batches"}`} tone={t.expiring.value > 0 ? "warning" : "neutral"} />
         <StatCard title="Batches listed" count={whole(t.batches)} subText={`across ${whole(t.items)} ${t.items === 1 ? "item" : "items"}`} tone="neutral" />
-        <StatCard title="Total value at cost" count={money(t.value)} subText="AED, expired and expiring" tone="teal" />
+        <StatCard title="Total value at cost" count={money(t.value)} subText={`${CURRENCY}, expired and expiring`} tone="teal" />
       </Cards>
       <ReportPanel
         title="Batches by expiry"
@@ -722,7 +722,7 @@ function SlowBody({ d }) {
     { key: "category", header: "Category", cell: (r) => r.categoryName, className: "text-muted-foreground" },
     { key: "qty", header: "On hand", align: "end", cell: (r) => <>{qty(r.qty)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
     { key: "cost", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-    { key: "value", header: "Value (AED)", align: "end", cell: (r) => money(r.value), total: money(t.value) },
+    { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(t.value) },
     { key: "last", header: "Last sale", cell: (r) => (r.neverSold ? <Pill tone="warning">Never sold</Pill> : formatDate(r.lastSaleDate)), className: "whitespace-nowrap" },
     { key: "since", header: "Days idle", align: "end", cell: (r) => (r.daysSince === null ? "–" : whole(r.daysSince)), total: "" },
   ];
@@ -741,10 +741,10 @@ function SlowBody({ d }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Slow stock value" count={money(t.value)} subText={`AED, no sale in ${whole(d.days)} days`} tone={t.value > 0 ? "warning" : "neutral"} />
+        <StatCard title="Slow stock value" count={money(t.value)} subText={`${CURRENCY}, no sale in ${whole(d.days)} days`} tone={t.value > 0 ? "warning" : "neutral"} />
         <StatCard title="Items" count={whole(t.items)} subText="with stock and no recent sale" tone="neutral" />
         <StatCard title="Never sold" count={whole(t.neverSold)} subText="aged from their first receipt" tone="plum" />
-        <StatCard title="Share of stock value" count={pct(t.pctOfStockValue)} subText={`of AED ${money(t.stockValue)} in stock`} tone="teal" />
+        <StatCard title="Share of stock value" count={pct(t.pctOfStockValue)} subText={`of ${CURRENCY} ${money(t.stockValue)} in stock`} tone="teal" />
       </Cards>
       <ReportPanel title="Slow-moving stock" description="Largest value first. An item that has never sold counts from the day it was first received." onCsv={exportCsv} csvDisabled={!d.rows.length}>
         {d.rows.length === 0 ? (
@@ -784,7 +784,7 @@ function ReorderBody({ d }) {
     { key: "level", header: "Reorder level", align: "end", cell: (r) => qty(r.reorderLevel) },
     { key: "short", header: "Shortfall", align: "end", cell: (r) => qty(r.shortfall) },
     { key: "cost", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-    { key: "value", header: "Shortfall at cost (AED)", align: "end", cell: (r) => money(r.shortfallValue), total: money(t.shortfallValue) },
+    { key: "value", header: `Shortfall at cost (${CURRENCY})`, align: "end", cell: (r) => money(r.shortfallValue), total: money(t.shortfallValue) },
     { key: "vendor", header: "Usual vendor", cell: (r) => r.vendorName || "–", className: "text-muted-foreground" },
     { key: "status", header: "Status", cell: (r) => <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill> },
   ];
@@ -805,7 +805,7 @@ function ReorderBody({ d }) {
       <Cards>
         <StatCard title="Items to reorder" count={whole(t.items)} subText="at or below their reorder level" tone={t.items ? "warning" : "neutral"} />
         <StatCard title="Out of stock" count={whole(t.outOfStock)} subText="with a reorder level set" tone={t.outOfStock ? "danger" : "neutral"} />
-        <StatCard title="Shortfall at cost" count={money(t.shortfallValue)} subText="AED to get back to the level" tone="teal" />
+        <StatCard title="Shortfall at cost" count={money(t.shortfallValue)} subText={`${CURRENCY} to get back to the level`} tone="teal" />
       </Cards>
       <ReportPanel title="Items to reorder" description="Quantity on the item record against the reorder level set on it. Items without a level are not listed." onCsv={exportCsv} csvDisabled={!d.rows.length}>
         {d.rows.length === 0 ? (

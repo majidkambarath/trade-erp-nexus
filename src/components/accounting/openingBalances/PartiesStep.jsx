@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "../../ui/button";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { StatCard } from "../../ui/stat-card";
 import EntryGrid from "../../finance/EntryGrid";
 import { ConfirmDialog, DateInput, EmptyState, ErrorNote, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync } from "../kit";
@@ -39,6 +40,9 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
   const [confirm, setConfirm] = useState(null); // { kind: "post" } | { kind: "remove", row }
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
+  // Entering and removing opening invoices is accounts.manage; the entered ones are there for anyone who may look.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
 
   const parties = useMemo(() => (data.data?.available || []).map((p) => ({ value: p._id, label: p.name, hint: p.code, searchText: p.paymentTerms || "" })), [data.data]);
   const totals = useMemo(() => partyTotals(rows), [rows]);
@@ -105,66 +109,71 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
         </div>
       )}
 
-      <Panel
-        title={`${k.noun} open invoices`}
-        description={`Enter what each ${k.nounLower} ${k.owes} as at ${formatDate(goLive)}, invoice by invoice, so ageing and statements are right from day one. Leave the invoice number empty to enter one lump-sum balance for a ${k.nounLower}; it is kept as a single document, Opening balance.`}
-        actions={<Button onClick={review} disabled={busy || !totals.count}>Post opening invoices</Button>}
-      >
-        {data.loading && !data.data && <Spinner label={`Loading ${k.plural}`} />}
-        <ErrorNote error={data.error || problem} />
-        {data.data && (
-          <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
-            <EntryGrid
-              ref={grid} ariaLabel={`${k.noun} open invoices`} rows={rows} rowErrors={errors} minRows={1} addLabel="Add invoice"
-              columns={[
-                { key: "party", label: k.noun, className: "min-w-64 w-[32%]" },
-                { key: "reference", label: "Invoice no.", className: "min-w-36" },
-                { key: "date", label: "Invoice date", className: "w-44" },
-                { key: "dueDate", label: "Due date", className: "w-44" },
-                { key: "amount", label: "Amount", align: "end", className: "w-40" },
-              ]}
-              onAdd={() => setRows((rs) => [...rs, emptyPartyRow()])}
-              onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}
-              renderCell={(row, i, col) => {
-                if (col.key === "party") {
+      {/* the entry panel carries these for someone who can enter; a reader gets them here */}
+      {!canManage && data.loading && !data.data && <Spinner label={`Loading ${k.plural}`} />}
+      {!canManage && <ErrorNote error={data.error} />}
+      {canManage && (
+        <Panel
+          title={`${k.noun} open invoices`}
+          description={`Enter what each ${k.nounLower} ${k.owes} as at ${formatDate(goLive)}, invoice by invoice, so ageing and statements are right from day one. Leave the invoice number empty to enter one lump-sum balance for a ${k.nounLower}; it is kept as a single document, Opening balance.`}
+          actions={<Button onClick={review} disabled={busy || !totals.count}>Post opening invoices</Button>}
+        >
+          {data.loading && !data.data && <Spinner label={`Loading ${k.plural}`} />}
+          <ErrorNote error={data.error || problem} />
+          {data.data && (
+            <div className="space-y-3" onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); review(); } }}>
+              <EntryGrid
+                ref={grid} ariaLabel={`${k.noun} open invoices`} rows={rows} rowErrors={errors} minRows={1} addLabel="Add invoice"
+                columns={[
+                  { key: "party", label: k.noun, className: "min-w-64 w-[32%]" },
+                  { key: "reference", label: "Invoice no.", className: "min-w-36" },
+                  { key: "date", label: "Invoice date", className: "w-44" },
+                  { key: "dueDate", label: "Due date", className: "w-44" },
+                  { key: "amount", label: "Amount", align: "end", className: "w-40" },
+                ]}
+                onAdd={() => setRows((rs) => [...rs, emptyPartyRow()])}
+                onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}
+                renderCell={(row, i, col) => {
+                  if (col.key === "party") {
+                    return (
+                      <SearchSelect
+                        aria-label={`${k.noun}, row ${i + 1}`} value={row.partyId} options={parties}
+                        onChange={(v) => { patch(i, { partyId: v }); setTimeout(() => grid.current?.focusCell(i, "reference"), 0); }}
+                        placeholder={`Search ${k.nounLower}…`} noOptionsText={`No ${k.nounLower} matches`} invalid={Boolean(errors[i] && !row.partyId)}
+                      />
+                    );
+                  }
+                  if (col.key === "reference") {
+                    return <TextInput aria-label={`Invoice no., row ${i + 1}`} value={row.reference} maxLength={60} placeholder="Empty: lump sum" onChange={(e) => patch(i, { reference: e.target.value })} />;
+                  }
+                  if (col.key === "date" || col.key === "dueDate") {
+                    return (
+                      <DateInput
+                        aria-label={`${col.label}, row ${i + 1}`} value={row[col.key]} max={col.key === "date" ? goLive : undefined}
+                        placeholder={col.key === "date" ? "Go-live day" : "By terms"} onChange={(e) => patch(i, { [col.key]: e.target.value })}
+                      />
+                    );
+                  }
                   return (
-                    <SearchSelect
-                      aria-label={`${k.noun}, row ${i + 1}`} value={row.partyId} options={parties}
-                      onChange={(v) => { patch(i, { partyId: v }); setTimeout(() => grid.current?.focusCell(i, "reference"), 0); }}
-                      placeholder={`Search ${k.nounLower}…`} noOptionsText={`No ${k.nounLower} matches`} invalid={Boolean(errors[i] && !row.partyId)}
+                    <TextInput
+                      aria-label={`Amount, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
+                      value={row.amount} onChange={(e) => setAmount(i, e.target.value)} onBlur={() => tidy(i)}
                     />
                   );
-                }
-                if (col.key === "reference") {
-                  return <TextInput aria-label={`Invoice no., row ${i + 1}`} value={row.reference} maxLength={60} placeholder="Empty: lump sum" onChange={(e) => patch(i, { reference: e.target.value })} />;
-                }
-                if (col.key === "date" || col.key === "dueDate") {
-                  return (
-                    <DateInput
-                      aria-label={`${col.label}, row ${i + 1}`} value={row[col.key]} max={col.key === "date" ? goLive : undefined}
-                      placeholder={col.key === "date" ? "Go-live day" : "By terms"} onChange={(e) => patch(i, { [col.key]: e.target.value })}
-                    />
-                  );
-                }
-                return (
-                  <TextInput
-                    aria-label={`Amount, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
-                    value={row.amount} onChange={(e) => setAmount(i, e.target.value)} onBlur={() => tidy(i)}
-                  />
-                );
-              }}
-              footer={<FooterRow span={5} strong label={`Total (${totals.count} ${totals.count === 1 ? "invoice" : "invoices"})`} cells={[money(totals.cents)]} />}
-            />
-            {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
-            <p className="text-xs text-muted-foreground">
-              An empty due date follows the {k.nounLower}&apos;s payment terms. Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts.
-            </p>
-            <Note tone="info">{k.posting} No stock, VAT or e-invoice is created, and an opening invoice cannot be returned.</Note>
-          </div>
-        )}
-      </Panel>
+                }}
+                footer={<FooterRow span={5} strong label={`Total (${totals.count} ${totals.count === 1 ? "invoice" : "invoices"})`} cells={[money(totals.cents)]} />}
+              />
+              {errors._ && <p role="alert" className="text-sm font-medium text-status-danger">{errors._}</p>}
+              <p className="text-xs text-muted-foreground">
+                An empty due date follows the {k.nounLower}&apos;s payment terms. Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts.
+              </p>
+              <Note tone="info">{k.posting} No stock, VAT or e-invoice is created, and an opening invoice cannot be returned.</Note>
+            </div>
+          )}
+        </Panel>
+      )}
 
-      <Panel title="Entered" description={`Opening invoices already posted. One can be removed while nothing has been set against it.`} bodyClassName="p-0">
+      <Panel title="Entered" description={canManage ? "Opening invoices already posted. One can be removed while nothing has been set against it." : "Opening invoices already posted."} bodyClassName="p-0">
         {data.data && list.length === 0 && <EmptyState title="Nothing entered yet" text={k.empty} />}
         {list.length > 0 && (
           <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -189,7 +198,7 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
                     <td className="px-3 py-2.5 text-end font-medium tabular-nums">{fmt(r.outstanding)}</td>
                     <td className="px-5 py-2.5 text-end">
                       {r.canReverse
-                        ? <Button size="sm" variant="outline" aria-label={`Remove ${r.transactionNo}`} onClick={() => setConfirm({ kind: "remove", row: r })}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Remove</Button>
+                        ? canManage && <Button size="sm" variant="outline" aria-label={`Remove ${r.transactionNo}`} onClick={() => setConfirm({ kind: "remove", row: r })}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Remove</Button>
                         : <span className="text-xs text-muted-foreground">Settled in part</span>}
                     </td>
                   </tr>

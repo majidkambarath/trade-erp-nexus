@@ -1,6 +1,6 @@
 import React from "react";
 import { CalendarX2, LogOut, RefreshCw } from "lucide-react";
-import { blockedPageText } from "../../lib/organisation";
+import { blockedPageText } from "../../lib/subscriptionText";
 import { PRODUCT_NAME } from "../../config/product";
 
 // Shown instead of the whole app when the organisation's subscription has ended, or it has been suspended or

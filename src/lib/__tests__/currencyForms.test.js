@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  REGISTER_CSV_HEADERS, convertToBaseCents, currencyOptions, currencyState, decimalPlaces, deviationPercent, emptyFx, foreignForBase,
-  formatForeign, formatRate, fxLine, fxPayload, fxProvenance, hasForeignOptions, isForeign, rateCheck, registerCsvRows, typedAmount, typedRate,
+  convertToBaseCents, currencyOptions, currencyState, decimalPlaces, deviationPercent, emptyFx, foreignForBase,
+  formatForeign, formatRate, fxLine, fxPayload, fxProvenance, hasForeignOptions, isForeign, rateCheck, registerCsvHeaders, registerCsvRows, typedAmount, typedRate,
   validateCurrencyForm, validateForeign, validateRateForm, validateTolerance,
 } from "../currencyForms";
+import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
+
+afterEach(() => resetOrgLocale());
 
 const LIST = [
   { code: "USD", name: "US Dollar", symbol: "$", decimals: 2, isActive: true, latestRate: 3.6725 },
@@ -129,6 +132,11 @@ describe("showing a foreign voucher", () => {
     expect(fxLine(v)).toBe("USD 1,000.00 @ 3.6725 = AED 3,672.50");
     expect(isForeign(v)).toBe(true);
   });
+  it("names the base currency of the organisation in use, read when it is called", () => {
+    setOrgLocale({ currency: "GBP" });
+    expect(fxLine(v)).toBe("USD 1,000.00 @ 3.6725 = GBP 3,672.50");
+    expect(fxLine(v, "EUR")).toBe("USD 1,000.00 @ 3.6725 = EUR 3,672.50");
+  });
   it("keeps three decimals for dinars and four decimals on a rate at least", () => {
     expect(formatForeign(10.5, "KWD")).toBe("KWD 10.50");
     expect(formatForeign(10.125, "KWD")).toBe("KWD 10.125");
@@ -182,7 +190,13 @@ describe("the currencies page", () => {
 describe("the register's CSV", () => {
   it("has plain figures a spreadsheet can read", () => {
     const rows = [{ date: "2026-10-04T08:00:00Z", voucherNo: "RV-2026-0001", voucherType: "receipt", partyName: "Al Noor, Trading", currency: "USD", foreignAmount: 1000, exchangeRate: 3.6725, totalAmount: 3672.5, paymentMode: "cash", status: "approved" }];
-    expect(REGISTER_CSV_HEADERS).toHaveLength(10);
+    expect(registerCsvHeaders()).toHaveLength(10);
+    expect(registerCsvHeaders()[7]).toBe("AED amount");
     expect(registerCsvRows(rows, () => "Cash")).toEqual([["04/10/2026", "RV-2026-0001", "Receipt", "Al Noor, Trading", "USD", "1000.00", "3.6725", "3672.50", "Cash", "Posted"]]);
+  });
+  it("heads the base-currency column with the organisation's currency, not a fixed one", () => {
+    setOrgLocale({ currency: "GBP" });
+    expect(registerCsvHeaders()[7]).toBe("GBP amount");
+    expect(registerCsvHeaders("EUR")[7]).toBe("EUR amount");
   });
 });

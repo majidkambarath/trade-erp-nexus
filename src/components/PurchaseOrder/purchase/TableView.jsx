@@ -13,8 +13,10 @@ import {
   History,
 } from "lucide-react";
 
-import { formatDate } from "../../../utils/format";
+import { formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 const TableView = ({
   paginatedPOs,
   selectedPOs,
@@ -29,6 +31,8 @@ const TableView = ({
   deletePO,
   onShowAudit,
 }) => {
+  // Approve only for someone who may approve THIS order; a first approval awaiting its second is badged.
+  const { stateOf } = useApproval();
   const toggleSelect = (id) => {
     setSelectedPOs((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -142,18 +146,20 @@ const TableView = ({
                   {formatDate(po.date)}
                 </td>
                 <td className="px-4 py-4 font-semibold text-foreground">
-                  AED {po.totalAmount}
+                  {CURRENCY} {po.totalAmount}
                 </td>
                 <td className="px-4 py-4">
-                  
-                  <span
-                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                      po.status
-                    )}`}
-                  >
-                    {getStatusIcon(po.status)}
-                    {po.status}
-                  </span>
+                  <div className="flex flex-col items-start gap-1">
+                    <span
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                        po.status
+                      )}`}
+                    >
+                      {getStatusIcon(po.status)}
+                      {po.status}
+                    </span>
+                    <AwaitingSecondBadge doc={po} state={stateOf(po)} />
+                  </div>
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-center space-x-2">
@@ -180,7 +186,7 @@ const TableView = ({
                       </Can>
                     )}
 
-                    {po.status === "PENDING" && (
+                    {po.status === "PENDING" && stateOf(po).canApprove && (
                       <Can permission="purchase.approve">
                         <button
                           onClick={() => approvePO(po.id)}
@@ -210,8 +216,9 @@ const TableView = ({
                           <span>Duplicate</span>
                         </button>
                         {(po.status === "DRAFT" ||
-                          po.status === "REJECTED") && (
-                          <Can permission="purchase.delete">
+                          po.status === "REJECTED" ||
+                          po.status === "APPROVED") && (
+                          <Can permission={deleteKey("purchase", po.status === "APPROVED")}>
                             <button
                               onClick={() => deletePO(po.id)}
                               className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"

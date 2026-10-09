@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Ban, CheckCircle2, History, RotateCcw, Search } from "lucide-react";
 import { Button } from "../ui/button";
+import Can from "../shell/Can";
 import StatCard from "../ui/stat-card";
 import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
 import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
-import { formatDateGB, formatNumber } from "../../utils/format";
+import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
 
 // Every cheque received from a customer or issued to a vendor. A cheque waits here until it
@@ -80,14 +81,17 @@ export default function ChequeRegister() {
                 key: "actions", header: "Actions", align: "end", card: "actions", className: "whitespace-nowrap",
                 cell: (c) => (
                   <>
-                    {c.status === "pending" && (
-                      <>
-                        <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>
-                        <Button size="sm" variant="outline" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Bounced</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>
-                      </>
-                    )}
-                    {c.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Returned</Button>}
+                    {/* clearing, bouncing and cancelling a cheque post to the books: finance.approve, as on the server */}
+                    <Can permission="finance.approve">
+                      {c.status === "pending" && (
+                        <>
+                          <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>
+                          <Button size="sm" variant="outline" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Bounced</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>
+                        </>
+                      )}
+                      {c.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Returned</Button>}
+                    </Can>
                     <Button size="sm" variant="ghost" onClick={() => setAudit(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Audit trail</Button>
                   </>
                 ),
@@ -134,7 +138,7 @@ function ClearDialog({ cheque, onClose, onDone }) {
   return (
     <Modal
       size="sm" onClose={onClose} title={`Clear cheque ${cheque.chequeNo}`}
-      description={`${formatNumber(cheque.amount, 2)} AED moves ${cheque.direction === "receipt" ? "into" : "out of"} ${cheque.bankAccountName || "the bank account"}.`}
+      description={`${formatNumber(cheque.amount, 2)} ${CURRENCY} moves ${cheque.direction === "receipt" ? "into" : "out of"} ${cheque.bankAccountName || "the bank account"}.`}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={go} disabled={busy}>{busy ? "Clearing…" : "Clear cheque"}</Button></>}
     >
       <ErrorNote error={problem} />

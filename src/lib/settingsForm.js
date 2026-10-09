@@ -18,6 +18,24 @@ export function validateProfile(company, bank) {
   return errors;
 }
 
+// ---- approvals (Settings -> Business rules): who must approve what. Off until set.
+
+/** The form's starting values from GET /accounting/settings `approvals` (the amount is kept as the text typed; "" for none). */
+export const approvalsFrom = (approvals) => ({
+  separateApprover: approvals?.separateApprover === true,
+  secondApprovalAbove: approvals?.secondApprovalAbove === null || approvals?.secondApprovalAbove === undefined || approvals?.secondApprovalAbove === "" ? "" : String(approvals.secondApprovalAbove),
+});
+
+/**
+ * The body for PUT /accounting/settings, or the reason it cannot be sent. An empty amount switches the second approver off
+ * (null); anything else must be an amount of 0 or more.
+ */
+export function approvalsPayload(form) {
+  const text = String(form?.secondApprovalAbove ?? "").replace(/,/g, "").trim();
+  if (text !== "" && !/^\d+(\.\d+)?$/.test(text)) return { ok: false, error: "Enter an amount of 0 or more, or leave it empty" };
+  return { ok: true, body: { approvals: { separateApprover: form?.separateApprover === true, secondApprovalAbove: text === "" ? null : Number(text) } } };
+}
+
 export function passwordStrength(password) {
   let score = 0;
   if (password.length >= 6) score += 1;

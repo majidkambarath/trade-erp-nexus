@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Field, Select, Textarea, TextInput } from "../accounting/kit";
+import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
 import {
   CUSTOMER_STATUSES, SECTIONS, VAT_STATUSES, VENDOR_STATUSES,
@@ -158,7 +159,7 @@ function CreditSection({ kind, value, set, onChange, errors }) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       {kind === "customer" && (
-        <Field label="Credit limit (AED)" error={errors.creditLimit} hint="0 means no limit is set. Credit control, in Settings, compares the balance with it.">
+        <Field label={`Credit limit (${CURRENCY})`} error={errors.creditLimit} hint="0 means no limit is set. Credit control, in Settings, compares the balance with it.">
           <TextInput type="number" inputMode="decimal" min="0" step="0.01" value={value.creditLimit} onChange={(e) => set({ creditLimit: e.target.value })} placeholder="0.00" />
         </Field>
       )}

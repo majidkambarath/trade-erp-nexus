@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { Button } from "../../ui/button";
+import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { ConfirmDialog, ErrorNote, Panel, Pill, SearchSelect, Spinner, errorMessage, useAsync } from "../kit";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
@@ -72,6 +74,9 @@ function flatAccounts(chart) {
 // Which ledger account (or account group) each business event posts to. Posting code asks for a
 // key such as "vat-sales"; it never hard-codes an account, and an unmapped key fails loudly.
 export default function PostingAccounts({ notify }) {
+  // Changing the posting map, and switching ledger posting on or off, is accounts.manage; looking at it is accounts.view.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
   const cfg = useAsync(() => accounting.configuration(), []);
   const chart = useAsync(() => accounting.chart(), []);
   const [draft, setDraft] = useState({}); // configKey -> chosen id
@@ -88,6 +93,14 @@ export default function PostingAccounts({ notify }) {
   const rows = cfg.data.accountConfiguration;
   const mappable = rows.filter((r) => r.isActive && r.targetKind !== "none");
   const current = (r) => (r.targetKind === "group" ? r.targetGroup?._id : r.targetAccount?._id) || "";
+  // what a row points at, in words, for someone who may look at the map but not change it
+  const mappedTo = (r) => {
+    const id = current(r);
+    if (!id) return "";
+    return r.targetKind === "group"
+      ? r.targetGroup?.name || groups.find((g) => g._id === id)?.name || ""
+      : r.targetAccount?.accountName || accounts.find((a) => a._id === id)?.accountName || "";
+  };
   const value = (r) => draft[r.configKey] ?? current(r);
   const changed = (r) => draft[r.configKey] !== undefined && draft[r.configKey] !== current(r);
   const dirty = Object.keys(draft).filter((k) => draft[k] !== current(rows.find((r) => r.configKey === k)));
@@ -144,7 +157,7 @@ export default function PostingAccounts({ notify }) {
       <Panel
         title="Ledger posting"
         description="When on, approving an order books its accounting entries (receivable or payable, revenue or stock, VAT, cost of goods)."
-        actions={<Button variant={enabled ? "outline" : "default"} size="sm" onClick={() => setConfirm(enabled ? "off" : "on")} disabled={!enabled && unmapped.length > 0}>{enabled ? "Switch off" : "Switch on"}</Button>}
+        actions={<Can permission="accounts.manage"><Button variant={enabled ? "outline" : "default"} size="sm" onClick={() => setConfirm(enabled ? "off" : "on")} disabled={!enabled && unmapped.length > 0}>{enabled ? "Switch off" : "Switch on"}</Button></Can>}
       >
         <div className="flex flex-wrap items-center gap-3 text-sm">
           {enabled ? <Pill tone="success"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />On</Pill> : <Pill tone="warning">Off</Pill>}
@@ -156,7 +169,7 @@ export default function PostingAccounts({ notify }) {
         <div className="mt-3 h-1.5 w-full max-w-md overflow-hidden rounded-full bg-secondary" role="presentation">
           <div className={`h-full rounded-full transition-all ${unmapped.length ? "bg-status-warning" : "bg-status-success"}`} style={{ width: `${mappedPct}%` }} />
         </div>
-        {!enabled && unmapped.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Map every account below, save, then switch posting on.</p>}
+        {canManage && !enabled && unmapped.length > 0 && <p className="mt-3 text-xs text-muted-foreground">Map every account below, save, then switch posting on.</p>}
       </Panel>
 
       {sections.map((s) => {
@@ -176,16 +189,20 @@ export default function PostingAccounts({ notify }) {
                     <p className="text-sm font-medium text-foreground">{r.displayName}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{HINTS[r.configKey] || CATEGORY_LABEL[r.accountCategory] || ""}</p>
                   </div>
-                  <SearchSelect
-                    className="w-full" compact
-                    aria-label={`Account for ${r.displayName}`} value={value(r)}
-                    onChange={(v) => setDraft((d) => ({ ...d, [r.configKey]: v }))}
-                    placeholder={r.targetKind === "group" ? "Choose a group" : "Choose an account"}
-                    noOptionsText={r.targetKind === "group" ? "No group matches" : "No account matches"}
-                    options={r.targetKind === "group"
-                      ? groups.filter((g) => !r.accountCategory || g.category === r.accountCategory).map((g) => ({ value: g._id, label: g.name, depth: g.depth }))
-                      : accounts.filter((a) => !r.accountCategory || a.category === r.accountCategory).map((a) => ({ value: a._id, label: a.accountName, hint: a.accountCode, searchText: a.accountCode }))}
-                  />
+                  {canManage ? (
+                    <SearchSelect
+                      className="w-full" compact
+                      aria-label={`Account for ${r.displayName}`} value={value(r)}
+                      onChange={(v) => setDraft((d) => ({ ...d, [r.configKey]: v }))}
+                      placeholder={r.targetKind === "group" ? "Choose a group" : "Choose an account"}
+                      noOptionsText={r.targetKind === "group" ? "No group matches" : "No account matches"}
+                      options={r.targetKind === "group"
+                        ? groups.filter((g) => !r.accountCategory || g.category === r.accountCategory).map((g) => ({ value: g._id, label: g.name, depth: g.depth }))
+                        : accounts.filter((a) => !r.accountCategory || a.category === r.accountCategory).map((a) => ({ value: a._id, label: a.accountName, hint: a.accountCode, searchText: a.accountCode }))}
+                    />
+                  ) : (
+                    <p className="min-w-0 truncate text-sm text-foreground">{mappedTo(r) || <span className="text-muted-foreground">-</span>}</p>
+                  )}
                   <div className="text-sm">
                     {changed(r) ? <Pill tone="info">Unsaved</Pill>
                       : value(r) ? <span className="inline-flex items-center gap-1.5 text-status-success"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Mapped</span>
@@ -209,11 +226,13 @@ export default function PostingAccounts({ notify }) {
       })}
 
       <ErrorNote error={error} />
-      <div className="sticky bottom-3 flex items-center justify-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-elevated">
-        <span className="me-auto text-sm text-muted-foreground">{dirty.length ? `${dirty.length} unsaved change${dirty.length > 1 ? "s" : ""}` : "No unsaved changes"}</span>
-        <Button variant="outline" onClick={() => setDraft({})} disabled={!dirty.length || busy}>Discard</Button>
-        <Button onClick={save} disabled={!dirty.length || busy}>{busy ? "Saving…" : "Save mappings"}</Button>
-      </div>
+      {canManage && (
+        <div className="sticky bottom-3 flex items-center justify-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-elevated">
+          <span className="me-auto text-sm text-muted-foreground">{dirty.length ? `${dirty.length} unsaved change${dirty.length > 1 ? "s" : ""}` : "No unsaved changes"}</span>
+          <Button variant="outline" onClick={() => setDraft({})} disabled={!dirty.length || busy}>Discard</Button>
+          <Button onClick={save} disabled={!dirty.length || busy}>{busy ? "Saving…" : "Save mappings"}</Button>
+        </div>
+      )}
 
       {confirm && (
         <ConfirmDialog

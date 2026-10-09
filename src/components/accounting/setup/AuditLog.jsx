@@ -19,7 +19,7 @@ export default function AuditLog() {
   const apply = (e) => { e.preventDefault(); setPage(1); setApplied(filters); };
 
   return (
-    <Panel title="Audit log" description="Newest first. Dates are shown in Dubai time." bodyClassName="p-0">
+    <Panel title="Audit log" description="Newest first. Dates are shown in the organisation's time zone." bodyClassName="p-0">
       <form onSubmit={apply} className="flex flex-wrap items-end gap-3 border-b border-border px-5 py-4">
         <Field label="What"><TextInput value={filters.entity} onChange={set("entity")} placeholder="e.g. FiscalYear" className="w-44" /></Field>
         <Field label="Action"><TextInput value={filters.action} onChange={set("action")} placeholder="e.g. PERIOD_CLOSED" className="w-52" /></Field>

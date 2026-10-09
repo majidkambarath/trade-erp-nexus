@@ -5,8 +5,10 @@ import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Balance, DataTable, EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
+import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { banking } from "../../lib/bankingApi";
-import { drCr } from "../../utils/format";
+import { CURRENCY, drCr } from "../../utils/format";
 
 // Where the money is: every cash and bank account of the chart with its balance, the bank behind
 // it, and a way into its ledger.
@@ -15,6 +17,8 @@ export default function CashAndBank() {
   const { data, loading, error, reload } = useAsync(() => banking.options(), []);
   const cheques = useAsync(() => banking.cheques({ status: "pending", limit: 1 }), []);
   const [ledgerFor, setLedgerFor] = useState(null);
+  const { canAny } = useOrganisation();
+  const canAddAccount = canAny("accounts.manage"); // a new cash or bank account is a chart-of-accounts change
 
   const cash = data?.cashAccounts || [];
   const bank = data?.bankAccounts || [];
@@ -22,8 +26,8 @@ export default function CashAndBank() {
   const total = (rows) => { const { text, side } = drCr(sum(rows)); return side ? `${text} ${side}` : text; };
 
   const table = (rows, kind) => (
-    <Panel bodyClassName="p-0" title={kind === "bank" ? "Bank accounts" : "Cash accounts"} actions={<Link to="/chart-of-accounts" className="text-sm text-primary underline-offset-2 hover:underline">Add an account</Link>}>
-      {rows.length === 0 ? <EmptyState title={`No ${kind} accounts`} text="Add one in the chart of accounts." /> : (
+    <Panel bodyClassName="p-0" title={kind === "bank" ? "Bank accounts" : "Cash accounts"} actions={canAddAccount && <Link to="/chart-of-accounts" className="text-sm text-primary underline-offset-2 hover:underline">Add an account</Link>}>
+      {rows.length === 0 ? <EmptyState title={`No ${kind} accounts`} text={canAddAccount ? "Add one in the chart of accounts." : "None have been set up yet."} /> : (
         <DataTable
           caption="Accounts"
           rows={rows}
@@ -34,7 +38,7 @@ export default function CashAndBank() {
             kind === "bank" && { key: "bank", header: "Bank", card: "title", cell: (a) => a.bank?.bankName || <span className="text-muted-foreground">Not set</span> },
             kind === "bank" && { key: "number", header: "Number", card: "meta", className: "text-muted-foreground", cell: (a) => <>{a.bank?.accountNumberMasked}{a.bank?.iban && <span className="ms-1 font-mono text-xs">{a.bank.iban}</span>}</> },
             { key: "balance", header: "Balance", align: "end", card: "amount", className: "font-medium", cell: (a) => <Balance net={a.balance} /> },
-            { key: "ledger", header: <span className="sr-only">Ledger</span>, align: "end", card: "actions", cell: (a) => <>{kind === "bank" && <Link to={`/bank-reconciliation?account=${a._id}`} aria-label={`Reconcile ${a.accountName}`} className="me-2 text-sm text-primary underline-offset-2 hover:underline">Reconcile</Link>}<button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></> },
+            { key: "ledger", header: <span className="sr-only">Ledger</span>, align: "end", card: "actions", cell: (a) => <>{kind === "bank" && <Can permission="banking.view"><Link to={`/bank-reconciliation?account=${a._id}`} aria-label={`Reconcile ${a.accountName}`} className="me-2 text-sm text-primary underline-offset-2 hover:underline">Reconcile</Link></Can>}<button type="button" aria-label={`Ledger of ${a.accountName}`} onClick={() => setLedgerFor(a)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><BookOpen className="h-4 w-4" aria-hidden="true" /></button></> },
           ]}
         />
       )}
@@ -46,7 +50,7 @@ export default function CashAndBank() {
       <PageHeader
         title="Cash and bank"
         description="Every cash and bank account with its balance. Open an account's ledger for each posting and the running balance."
-        actions={<><Button variant="outline" asChild><Link to="/contra-voucher">Move money (contra)</Link></Button><Button variant="outline" asChild><Link to="/cheques">Cheque register</Link></Button></>}
+        actions={<><Can permission="finance.create"><Button variant="outline" asChild><Link to="/contra-voucher">Move money (contra)</Link></Button></Can><Can permission={["banking.view", "finance.view"]}><Button variant="outline" asChild><Link to="/cheques">Cheque register</Link></Button></Can></>}
       />
       {loading && !data && <Spinner label="Loading accounts" />}
       <ErrorNote error={error} onRetry={reload} />
@@ -55,8 +59,8 @@ export default function CashAndBank() {
           <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard title="Cash" count={total(cash)} subText={`${cash.length} account${cash.length === 1 ? "" : "s"}`} tone="olive" />
             <StatCard title="Bank" count={total(bank)} subText={`${bank.length} account${bank.length === 1 ? "" : "s"}`} tone="teal" />
-            <StatCard title="Cash and bank" count={total([...cash, ...bank])} subText="AED" tone="neutral" />
-            {cheques.data && <StatCard title="Cheques to collect" count={String(cheques.data.summary.receivable.count)} subText={`${drCr(cheques.data.summary.receivable.amount).text} AED not yet cleared`} tone="warning" />}
+            <StatCard title="Cash and bank" count={total([...cash, ...bank])} subText={CURRENCY} tone="neutral" />
+            {cheques.data && <StatCard title="Cheques to collect" count={String(cheques.data.summary.receivable.count)} subText={`${drCr(cheques.data.summary.receivable.amount).text} ${CURRENCY} not yet cleared`} tone="warning" />}
           </div>
           <div className="space-y-5">
             {table(cash, "cash")}

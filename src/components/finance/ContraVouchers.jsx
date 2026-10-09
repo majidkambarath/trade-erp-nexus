@@ -6,7 +6,7 @@ import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, Pill,
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
 import { money, toCents } from "../../lib/voucherForms";
-import { formatDateGB, formatNumber } from "../../utils/format";
+import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 
 // Contra vouchers: cash and bank moving between themselves - a deposit, a withdrawal, a transfer
 // between two banks.
@@ -38,14 +38,14 @@ export default function ContraVouchers() {
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
               { key: "transfer", header: "Transfer", card: "title", cell: (v) => leg(v, "creditAmount") ? <span className="inline-flex flex-wrap items-center gap-1.5">{leg(v, "creditAmount")}<ArrowRight className="h-3.5 w-3.5 text-muted-foreground" aria-label="to" />{leg(v, "debitAmount")}</span> : <span className="text-muted-foreground">{v.narration}</span> },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
-              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
       </Panel>
       {form && <ContraForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
-      {viewing && <VoucherView id={viewing} title="Contra voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Contra deleted and reversed"); list.reload(); }} />}
+      {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Contra voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Contra deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -64,7 +64,7 @@ export function ContraForm({ voucher, onClose, onSaved }) {
 
   const all = useMemo(() => [...(opts?.cashAccounts || []), ...(opts?.bankAccounts || [])], [opts]);
   const options = useMemo(
-    () => all.map((a) => ({ value: a._id, label: a.accountName, hint: `${formatNumber(a.balance || 0, 2)} AED`, searchText: `${a.accountCode} ${a.bank?.bankName || ""}` })),
+    () => all.map((a) => ({ value: a._id, label: a.accountName, hint: `${formatNumber(a.balance || 0, 2)} ${CURRENCY}`, searchText: `${a.accountCode} ${a.bank?.bankName || ""}` })),
     [all]
   );
   const set = (p) => setF((s) => ({ ...s, ...p }));
@@ -77,7 +77,7 @@ export function ContraForm({ voucher, onClose, onSaved }) {
     if (!f.toAccountId) e.toAccountId = "Choose where it goes";
     if (f.fromAccountId && f.fromAccountId === f.toAccountId) e.toAccountId = "The two accounts must be different";
     if (!(toCents(f.amount) > 0)) e.amount = "Enter the amount";
-    else if (isCash && from && toCents(f.amount) > toCents(from.balance)) e.amount = `Only ${formatNumber(from.balance, 2)} AED in ${from.accountName}`;
+    else if (isCash && from && toCents(f.amount) > toCents(from.balance)) e.amount = `Only ${formatNumber(from.balance, 2)} ${CURRENCY} in ${from.accountName}`;
     setErrors(e);
     if (Object.keys(e).length) return;
     setBusy(true);
@@ -106,7 +106,7 @@ export function ContraForm({ voucher, onClose, onSaved }) {
         <Field label="To" required error={errors.toAccountId} hint="Where it arrives.">
           <SearchSelect value={f.toAccountId} onChange={(v) => set({ toAccountId: v })} options={options.filter((o) => o.value !== f.fromAccountId)} placeholder="Search cash or bank…" invalid={Boolean(errors.toAccountId)} />
         </Field>
-        <Field label="Amount (AED)" required error={errors.amount}>
+        <Field label={`Amount (${CURRENCY})`} required error={errors.amount}>
           <TextInput inputMode="decimal" className="text-end tabular-nums" value={f.amount} onChange={(e) => /^\d*(\.\d{0,2})?$/.test(e.target.value.replace(/,/g, "")) && set({ amount: e.target.value.replace(/,/g, "") })} placeholder="0.00" />
         </Field>
         <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>

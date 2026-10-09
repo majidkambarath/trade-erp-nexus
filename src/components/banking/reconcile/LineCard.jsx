@@ -2,6 +2,7 @@ import React from "react";
 import { Ban, Check, CreditCard, FilePlus2, Lock, Search, Undo2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Pill } from "../../accounting/kit";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { CONFIDENCE, MATCH_KIND, isIn } from "../../../lib/bankReconcile";
 import { formatNumber } from "../../../utils/format";
 import { Amount, Day, EntryRow } from "./parts";
@@ -16,6 +17,11 @@ export default function LineCard({ line, onMatch, onFind, onPost, onCard, onIgno
   const s = line.suggestion;
   const [tone, label] = STATE[line.state] || STATE.open;
   const m = line.match;
+  // Match, find, post, card settlement, ignore, put back and unmatch are all banking.reconcile. A person who may only look sees
+  // the line, the suggestion and the match, and no row of buttons: the "locked" note is information, so it stays.
+  const { canAny } = useOrganisation();
+  const canReconcile = canAny("banking.reconcile");
+  const hasActions = canReconcile || line.state === "reconciled";
   return (
     <article aria-label={`Statement line: ${line.description || "no description"}`} className="rounded-xl border border-border bg-card p-4 shadow-card">
       <div className="flex items-start justify-between gap-3">
@@ -39,7 +45,7 @@ export default function LineCard({ line, onMatch, onFind, onPost, onCard, onIgno
             <span className="text-xs text-muted-foreground">{s.reasons.join(", ")}</span>
           </div>
           <div className="space-y-2">{s.entries.map((e) => <EntryRow key={e.id} entry={e} />)}</div>
-          {s.entries.some((e) => e.type === "cheque") && <p className="mt-2 text-xs text-muted-foreground">Matching clears this cheque on {line.day}: the bank has paid it.</p>}
+          {canReconcile && s.entries.some((e) => e.type === "cheque") && <p className="mt-2 text-xs text-muted-foreground">Matching clears this cheque on {line.day}: the bank has paid it.</p>}
         </div>
       )}
       {line.state === "open" && !s && <p className="mt-3 text-sm text-muted-foreground">Nothing in the books fits this line yet.</p>}
@@ -58,11 +64,11 @@ export default function LineCard({ line, onMatch, onFind, onPost, onCard, onIgno
 
       {line.state === "ignored" && <p className="mt-3 text-sm text-muted-foreground">Left out: {line.ignoredReason}</p>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {line.state === "open" && s && (
+      {hasActions && <div className="mt-3 flex flex-wrap items-center gap-2">
+        {canReconcile && line.state === "open" && s && (
           <Button size="sm" onClick={() => onMatch(line, s)}><Check className="h-3.5 w-3.5" aria-hidden="true" />{s.kind === "group" ? `Match all ${s.entries.length}` : "Match"}</Button>
         )}
-        {line.state === "open" && (
+        {canReconcile && line.state === "open" && (
           <>
             <Button size="sm" variant="outline" onClick={() => onFind(line)}><Search className="h-3.5 w-3.5" aria-hidden="true" />{s ? "Find another" : "Find in the books"}</Button>
             <Button size="sm" variant="outline" onClick={() => onPost(line)}><FilePlus2 className="h-3.5 w-3.5" aria-hidden="true" />Post an entry</Button>
@@ -70,10 +76,10 @@ export default function LineCard({ line, onMatch, onFind, onPost, onCard, onIgno
             <Button size="sm" variant="ghost" onClick={() => onIgnore(line)}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Ignore</Button>
           </>
         )}
-        {line.state === "matched" && <Button size="sm" variant="outline" onClick={() => onUnmatch(line)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Unmatch</Button>}
+        {canReconcile && line.state === "matched" && <Button size="sm" variant="outline" onClick={() => onUnmatch(line)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Unmatch</Button>}
         {line.state === "reconciled" && <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Lock className="h-3.5 w-3.5" aria-hidden="true" />Locked in a completed reconciliation</span>}
-        {line.state === "ignored" && !line.reconciliationId && <Button size="sm" variant="outline" onClick={() => onUnignore(line)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Put back</Button>}
-      </div>
+        {canReconcile && line.state === "ignored" && !line.reconciliationId && <Button size="sm" variant="outline" onClick={() => onUnignore(line)}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Put back</Button>}
+      </div>}
     </article>
   );
 }

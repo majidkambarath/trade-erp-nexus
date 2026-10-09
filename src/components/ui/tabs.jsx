@@ -20,7 +20,9 @@ function TabsList({ className, ...props }) {
         // max-w-full + scroll: a row of tabs that does not fit used to make the PAGE wider
         // than the screen, which scrolled every card's left edge out of view. The track
         // scrolls inside itself instead, and the page keeps its width.
-        "bg-secondary/80 text-muted-foreground inline-flex h-12 w-fit max-w-full items-center justify-center rounded-full p-1 border-0 lg:h-11",
+        // justify-start, not -center: a centred row that overflows spills to BOTH sides, which leaves the first tabs cut off
+        // and impossible to scroll to. The list is as wide as its tabs (w-fit), so nothing changes while they fit.
+        "bg-secondary/80 text-muted-foreground inline-flex h-12 w-fit max-w-full items-center justify-start rounded-full p-1 border-0 lg:h-11",
         "scrollbar-none overflow-x-auto overscroll-x-contain",
         className
       )}

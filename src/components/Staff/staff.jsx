@@ -40,13 +40,14 @@ import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
+import { useOrganisation } from "../shell/OrganisationContext";
 // Session management utilities
 const SessionManager = {
   storage: {},
 
   get: (key) => {
     try {
-      return this.storage[`staff_session_${key}`] || null;
+      return SessionManager.storage[`staff_session_${key}`] || null;
     } catch {
       return null;
     }
@@ -54,7 +55,7 @@ const SessionManager = {
 
   set: (key, value) => {
     try {
-      this.storage[`staff_session_${key}`] = value;
+      SessionManager.storage[`staff_session_${key}`] = value;
     } catch (error) {
       console.warn("Session storage failed:", error);
     }
@@ -62,20 +63,28 @@ const SessionManager = {
 
   remove: (key) => {
     try {
-      delete this.storage[`staff_session_${key}`];
+      delete SessionManager.storage[`staff_session_${key}`];
     } catch (error) {
       console.warn("Session removal failed:", error);
     }
   },
 
   clear: () => {
-    Object.keys(this.storage).forEach((key) => {
+    Object.keys(SessionManager.storage).forEach((key) => {
       if (key.startsWith("staff_session_")) {
-        delete this.storage[key];
+        delete SessionManager.storage[key];
       }
     });
   },
 };
+
+// What a draft of the add-staff form keeps: the text the person typed. Not the files (a file cannot be shown again without being
+// chosen again), and not the defaults a blank form starts with (the status "Active"): a form nobody has typed in is not a draft.
+// It lives in memory only (SessionManager.storage above), never in the browser's storage: it holds a person's ID number.
+const BLANK_FORM = { name: "", designation: "", contactNo: "", idNo: "", joiningDate: "", idProof: null, addressProof: null, status: "Active" };
+const DRAFT_FIELDS = ["name", "designation", "contactNo", "idNo", "joiningDate"];
+const hasDraftContent = (form) => DRAFT_FIELDS.some((k) => String(form?.[k] ?? "").trim() !== "");
+const draftOf = (form) => ({ ...Object.fromEntries(DRAFT_FIELDS.map((k) => [k, String(form?.[k] ?? "")])), status: form?.status || "Active" });
 
 const StaffManagement = () => {
   const [staff, setStaff] = useState([]);
@@ -124,6 +133,10 @@ const StaffManagement = () => {
   const searchInputRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const navigate = useNavigate();
+  // The employee files are their own permission (staff.view to read, staff.manage to add, change or delete), apart from
+  // the people who sign in. The server refuses the rest; this only decides what to offer.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("staff.manage");
 
   const designations = [
     "Manager",
@@ -173,19 +186,8 @@ const StaffManagement = () => {
   }, [fetchStaff]);
 
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData({
-        ...savedFormData,
-        contactNo: savedFormData.contactNo?.trim() || "",
-        idNo: savedFormData.idNo?.trim() || "",
-      });
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-    }
 
     if (savedFilters) {
       setFilterStatus(savedFilters.status || "");
@@ -198,13 +200,10 @@ const StaffManagement = () => {
   }, []);
 
   useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
+    // Only a NEW staff member is drafted: an edit starts from a saved record, and must never become the draft of an add.
+    if (showModal && !editStaffId && hasDraftContent(formData)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", {
-          ...formData,
-          contactNo: formData.contactNo.trim(),
-          idNo: formData.idNo.trim(),
-        });
+        SessionManager.set("formData", draftOf(formData));
         SessionManager.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
@@ -216,7 +215,7 @@ const StaffManagement = () => {
         clearTimeout(autoSaveInterval.current);
       }
     };
-  }, [formData, showModal]);
+  }, [formData, showModal, editStaffId]);
 
   useEffect(() => {
     SessionManager.set("searchTerm", searchTerm);
@@ -432,7 +431,19 @@ const StaffManagement = () => {
   }, []);
 
   const openAddModal = useCallback(() => {
-    resetForm();
+    // A draft kept from before - the person left the page part-way through adding someone - is picked up again. Closing the
+    // form, or starting to edit someone, discards it, so anything else starts blank.
+    const kept = SessionManager.get("formData");
+    if (hasDraftContent(kept)) {
+      setEditStaffId(null);
+      setFormData({ ...BLANK_FORM, ...kept, idProof: null, addressProof: null });
+      setFilePreviews({ idProof: null, addressProof: null });
+      setErrors({});
+      setIsDraftSaved(true);
+      setLastSaveTime(SessionManager.get("lastSaveTime"));
+    } else {
+      resetForm();
+    }
     setShowModal(true);
     setTimeout(() => {
       const modal = document.querySelector(".modal-container");
@@ -544,15 +555,19 @@ const StaffManagement = () => {
       <p className="text-gray-600 text-center mb-8 max-w-md">
         {searchTerm || filterStatus || filterDesignation
           ? "No staff match your current filters. Try adjusting your search criteria."
-          : "Start building your team by adding your first staff member."}
+          : canManage
+            ? "Start building your team by adding your first staff member."
+            : "No staff records have been added yet."}
       </p>
-      <button
-        onClick={openAddModal}
-        className="erp-btn-primary"
-      >
-        <Plus size={20} />
-        Add First Staff Member
-      </button>
+      {canManage && (
+        <button
+          onClick={openAddModal}
+          className="erp-btn-primary"
+        >
+          <Plus size={20} />
+          Add First Staff Member
+        </button>
+      )}
     </div>
   );
 
@@ -655,13 +670,15 @@ const StaffManagement = () => {
                 Manage your team members and their professional details
               </p>
             </div>
-            <button
-              onClick={openAddModal}
-              className="erp-btn-primary"
-            >
-              <Plus size={18} />
-              Add Staff Member
-            </button>
+            {canManage && (
+              <button
+                onClick={openAddModal}
+                className="erp-btn-primary"
+              >
+                <Plus size={18} />
+                Add Staff Member
+              </button>
+            )}
           </div>
 
           <div className="mt-6 space-y-4">
@@ -772,7 +789,7 @@ const StaffManagement = () => {
                     </div>
                   ),
                 },
-                {
+                ...(canManage ? [{
                   key: "actions", header: "Actions", card: "actions",
                   cell: (m) => (
                     <div className="flex items-center space-x-3">
@@ -784,7 +801,7 @@ const StaffManagement = () => {
                       </button>
                     </div>
                   ),
-                },
+                }] : []),
               ]}
             />
           </div>

@@ -4,12 +4,12 @@ import { Download } from "lucide-react";
 import { Button } from "../ui/button";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, Panel, Pill, Spinner, useAsync } from "./kit";
 import { currencies } from "../../lib/currencyApi";
-import { REGISTER_CSV_HEADERS, REGISTER_TYPES, formatForeign, formatRate, registerCsvRows, typeLabel } from "../../lib/currencyForms";
+import { REGISTER_TYPES, formatForeign, formatRate, registerCsvHeaders, registerCsvRows, typeLabel } from "../../lib/currencyForms";
 import { describePayment, modeLabel } from "../../lib/voucherForms";
 import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 
 // Receipts from customers and payments to vendors made in a foreign currency, with the rate each
-// was made at and what it came to in the base currency (AED). Totals are per currency and
+// was made at and what it came to in the base currency. Totals are per currency and
 // direction: money received and money paid are never added together.
 
 const STATUS = { approved: ["success", "Posted"], cancelled: ["neutral", "Cancelled"], bounced: ["danger", "Bounced"] };
@@ -29,7 +29,7 @@ export default function CurrencyRegister() {
   const base = (list.data || []).find((c) => c.isBase)?.code || CURRENCY;
 
   function exportCsv() {
-    downloadCSV(`currency-register-${filters.from || "start"}-${filters.to || "latest"}.csv`, REGISTER_CSV_HEADERS, registerCsvRows(rows, describePayment));
+    downloadCSV(`currency-register-${filters.from || "start"}-${filters.to || "latest"}.csv`, registerCsvHeaders(base), registerCsvRows(rows, describePayment));
   }
 
   return (
@@ -69,7 +69,7 @@ export default function CurrencyRegister() {
       {reg.data && (
         <div className="space-y-5">
           {totals.length > 0 && (
-            <Panel bodyClassName="p-0" title="Totals" description="Posted vouchers only. The average rate is the AED value divided by the foreign amount.">
+            <Panel bodyClassName="p-0" title="Totals" description={`Posted vouchers only. The average rate is the ${base} value divided by the foreign amount.`}>
               <div className="erp-scroll table-pin-first relative overflow-x-auto">
                 <table className="w-full text-sm">
                   <caption className="sr-only">Totals by currency and direction</caption>

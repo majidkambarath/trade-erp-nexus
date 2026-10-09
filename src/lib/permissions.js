@@ -43,3 +43,43 @@ export function notAllowedText(me, needed) {
     need: missing.length ? missing : null,
   };
 }
+
+// ---- deleting a trade document or a voucher ----------------------------------------------------------------------
+// The server decides by the STORED status (byDocumentDelete / byVoucherDelete): an approved document has moved stock and
+// posted to the ledger, and deleting it reverses all of that, so it is its own permission (`deletePosted`, which implies
+// plain `delete`). Anything not yet approved needs plain `delete`. A screen hides (never disables) the Delete it would be
+// refused, and uses these so the rule lives in one place.
+
+/** The permission a Delete needs: `<module>.deletePosted` for a posted (approved) document, else `<module>.delete`. */
+export const deleteKey = (module, posted) => `${module}.${posted ? "deletePosted" : "delete"}`;
+
+/** Is this trade document posted? Trade documents say APPROVED in capitals (a voucher's approved status is lower case). */
+export const isPostedDocument = (doc) => doc?.status === "APPROVED";
+
+/**
+ * A selection of documents someone asked to delete, split by what this person may delete. Approved ones are skipped when
+ * they lack deletePosted (never sent to the server). A selected id the list does not hold is not known to be approved and
+ * stays with the deletable ones: the server is the lock and answers for it.
+ *   -> { deletable: ids to send, skipped: ids left alone, posted: how many deletable ones are approved }
+ */
+export function planBulkDelete(ids, docs, mayDeletePosted) {
+  const byId = new Map((docs || []).map((d) => [d.id, d]));
+  const plan = { deletable: [], skipped: [], posted: 0 };
+  for (const id of ids || []) {
+    const posted = isPostedDocument(byId.get(id));
+    if (posted && !mayDeletePosted) plan.skipped.push(id);
+    else {
+      plan.deletable.push(id);
+      if (posted) plan.posted += 1;
+    }
+  }
+  return plan;
+}
+
+/** What to tell the person when approved documents were not deleted for them. */
+export const skippedPostedText = (n) =>
+  `${n} approved document${n === 1 ? " was" : "s were"} left alone: deleting an approved document needs the Delete approved permission.`;
+
+/** The warning for deleting approved documents: it undoes their postings. */
+export const postedDeleteText = (n) =>
+  `${n} of them ${n === 1 ? "is" : "are"} approved: deleting ${n === 1 ? "it" : "those"} REVERSES ${n === 1 ? "its" : "their"} stock and ledger postings.`;

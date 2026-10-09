@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import { documents } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { formatDate, formatDateTime, formatNumber, formatQty } from "../../utils/format";
+import { formatDate, formatDateTime, formatNumber, formatQty, CURRENCY } from "../../utils/format";
 
 // What one document did, and who did it. The financial effect comes first - the ledger entries it
 // posted and what else it moved - and the audit trail of actions is read underneath. Two entry
@@ -406,7 +406,7 @@ export default function DocumentAuditTrail({ id, documentNo, onClose }) {
             </div>
             <div>
               <dt className="text-muted-foreground">Total</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums">AED {amount(doc.totalAmount)}</dd>
+              <dd className="mt-0.5 font-semibold tabular-nums">{CURRENCY} {amount(doc.totalAmount)}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Paid</dt>
@@ -562,7 +562,7 @@ export function VoucherAuditTrail({ id, voucherNo, onClose }) {
             </div>
             <div>
               <dt className="text-muted-foreground">Amount</dt>
-              <dd className="mt-0.5 font-semibold tabular-nums">AED {amount(v.totalAmount)}</dd>
+              <dd className="mt-0.5 font-semibold tabular-nums">{CURRENCY} {amount(v.totalAmount)}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Paid by</dt>
@@ -575,7 +575,7 @@ export function VoucherAuditTrail({ id, voucherNo, onClose }) {
               <dt className="text-muted-foreground">On account</dt>
               <dd className="mt-0.5 tabular-nums">{amount(v.onAccountAmount)}</dd>
             </div>
-            {v.currency && v.currency !== "AED" && (
+            {v.currency && v.currency !== CURRENCY && (
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Foreign currency</dt>
                 <dd className="mt-0.5 tabular-nums">

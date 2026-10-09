@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Copy, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { Button } from "../ui/button";
@@ -8,6 +8,7 @@ import { formatDateTime } from "../../utils/format";
 import { access } from "../../lib/accessApi";
 import { can } from "../../lib/permissions";
 import { emptyPerson, mayChange, newPersonPayload, personChanges, personFrom, rolesToGive, summarise, validatePerson } from "../../lib/accessForms";
+import { blankRow, changed, payloadFromRows, rowsFromPerson, serverMessage, summaryOf, validateRows } from "../../lib/branchRoleForms";
 import { useOrganisation } from "../shell/OrganisationContext";
 import RoleEditor from "./RoleEditor";
 
@@ -16,12 +17,18 @@ const TABS = [
   { id: "roles", label: "Roles" },
 ];
 
-// Adding or changing a person: their name, the role they hold, the branch they work from. A person is only offered the roles
-// the one adding them may give (those below their own), and nobody changes their own role here.
+const BRANCH_ROLES_HELP =
+  "In these branches this person holds the role chosen here instead of their own. A person who belongs to another branch can work in a branch only if it is listed here. Someone with a role like this works in one branch at a time.";
+
+// Adding or changing a person: their name, the role they hold, the branch they work from, and any branch where they hold a
+// different role. A person is only offered the roles the one adding them may give (those below their own), and nobody changes
+// their own role (or their own branch roles) here.
 function PersonDialog({ person, roles, branches, me, onClose, onSaved }) {
   const isNew = !person;
   const self = person && String(person.id) === String(me?.id);
   const [form, setForm] = useState(() => (person ? personFrom(person) : emptyPerson()));
+  const [rows, setRows] = useState(() => rowsFromPerson(person));
+  const helpId = useId();
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -30,20 +37,44 @@ function PersonDialog({ person, roles, branches, me, onClose, onSaved }) {
     // someone's current role stays in the list even if it is one the editor could not give (it is just not changed)
     return person && !list.some((r) => r.key === person.role.key) ? [{ key: person.role.key, name: person.role.name || person.role.key }, ...list] : list;
   }, [roles, me, person]);
+  // the roles a branch row may name: the same ones the Role box offers (below the person's own rank), plus the one a row
+  // already holds, so an existing row always shows what it is
+  const grantable = useMemo(() => rolesToGive(roles, me?.role?.rank), [roles, me]);
+  const roleChoices = (current) => {
+    if (!current || grantable.some((r) => r.key === current)) return grantable;
+    const held = person?.branchRoles?.find((b) => b.role?.key === current)?.role;
+    const known = (roles || []).find((r) => r.key === current);
+    return [{ key: current, name: held?.name || known?.name || current }, ...grantable];
+  };
+  // the branches a row may name: the organisation's active branches (what the status lists for this person), plus any a row
+  // already holds, so one that has since been switched off still shows by its code and can be taken away
+  const branchOptions = useMemo(() => {
+    const list = branches?.length ? branches : [{ code: "main", name: "Head office" }];
+    const extra = rowsFromPerson(person).filter((r) => r.branchId && !list.some((b) => b.code === r.branchId)).map((r) => ({ code: r.branchId, name: r.branchId }));
+    return [...list, ...extra];
+  }, [branches, person]);
   const errors = validatePerson(form, { isNew });
   const show = (k) => (touched ? errors[k] : undefined);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const locked = Boolean(self);
+  // Nothing to choose in an organisation with one branch (unless the person already has rows, which must stay visible).
+  const showBranchRoles = branchOptions.length > 1 || rowsFromPerson(person).length > 0;
+  const rowErrors = locked || !showBranchRoles ? {} : validateRows(rows, { branches: branchOptions });
+  const setRow = (i, k) => (e) => setRows((list) => list.map((r, at) => (at === i ? { ...r, [k]: e.target.value } : r)));
 
   const save = async () => {
     setTouched(true);
-    if (Object.keys(errors).length || busy) return;
+    if (Object.keys(errors).length || Object.keys(rowErrors).length || busy) return;
+    // branch roles travel only when the section changed (and never from someone changing their own account)
+    const withBranchRoles = !locked && showBranchRoles && changed(rows, person);
     const changes = isNew ? null : personChanges(form, person);
+    if (!isNew && withBranchRoles) changes.branchRoles = payloadFromRows(rows);
     if (!isNew && Object.keys(changes).length === 0) return onClose();
+    const body = isNew ? { ...newPersonPayload(form), ...(withBranchRoles ? { branchRoles: payloadFromRows(rows) } : {}) } : changes;
     setBusy(true);
     setError(null);
     try {
-      const saved = isNew ? await access.createUser(newPersonPayload(form)) : await access.updateUser(person.id, changes);
+      const saved = isNew ? await access.createUser(body) : await access.updateUser(person.id, body);
       onSaved(saved, isNew);
     } catch (e) {
       setError(e);
@@ -80,6 +111,38 @@ function PersonDialog({ person, roles, branches, me, onClose, onSaved }) {
             {(branches?.length ? branches : [{ code: "main", name: "Head office" }]).map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
           </Select>
         </Field>
+        {showBranchRoles && (
+          <fieldset className="space-y-3 rounded-xl border border-border p-3 sm:p-4" aria-describedby={helpId}>
+            <legend className="px-1 text-sm font-medium text-foreground">Different role in a branch</legend>
+            <p id={helpId} className="text-xs text-muted-foreground">{BRANCH_ROLES_HELP}</p>
+            {rows.length === 0 && locked && <p className="text-sm text-muted-foreground">None.</p>}
+            {rows.map((row, i) => (
+              <div key={i} className="space-y-1">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <Select aria-label={`Row ${i + 1}: branch`} aria-invalid={touched && rowErrors[i] ? true : undefined} value={row.branchId} onChange={setRow(i, "branchId")} disabled={locked}>
+                    <option value="">Choose a branch</option>
+                    {branchOptions.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+                  </Select>
+                  <Select aria-label={`Row ${i + 1}: role`} aria-invalid={touched && rowErrors[i] ? true : undefined} value={row.role} onChange={setRow(i, "role")} disabled={locked}>
+                    <option value="">Choose a role</option>
+                    {roleChoices(row.role).map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
+                  </Select>
+                  {!locked && (
+                    <Button type="button" variant="ghost" size="icon" className="justify-self-end" aria-label={`Remove row ${i + 1}`} onClick={() => setRows((list) => list.filter((_, at) => at !== i))}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                </div>
+                {touched && rowErrors[i] && <p role="alert" className="text-xs font-medium text-status-danger">{rowErrors[i]}</p>}
+              </div>
+            ))}
+            {!locked && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setRows((list) => [...list, blankRow()])}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />Add a branch
+              </Button>
+            )}
+          </fieldset>
+        )}
         {!isNew && !locked && (
           <Field label="Access">
             <Select value={form.status} onChange={set("status")}>
@@ -88,7 +151,7 @@ function PersonDialog({ person, roles, branches, me, onClose, onSaved }) {
             </Select>
           </Field>
         )}
-        {error && <ErrorNote error={error} />}
+        {error && <ErrorNote error={{ message: serverMessage(error) }} />}
       </div>
     </Modal>
   );
@@ -109,7 +172,21 @@ function People({ users, roles, branches, me, notify, reload, canManage }) {
         </div>
       ),
     },
-    { key: "role", header: "Role", card: "title", cell: (u) => (u.role.name || u.role.key) + (u.role.active ? "" : " (switched off)") },
+    {
+      key: "role", header: "Role", card: "title",
+      cell: (u) => {
+        const own = (u.role.name || u.role.key) + (u.role.active ? "" : " (switched off)");
+        const elsewhere = summaryOf(u, branches); // "Viewer in Sharjah": the role they hold instead of their own in a branch
+        if (!elsewhere) return own;
+        // block spans, not divs or paragraphs: a card draws this cell inside a <p> that truncates to one line
+        return (
+          <span className="block min-w-0 whitespace-normal">
+            <span className="block">{own}</span>
+            <span className="block text-xs font-normal text-muted-foreground">{elsewhere}</span>
+          </span>
+        );
+      },
+    },
     { key: "branch", header: "Branch", card: "meta", cell: (u) => branches?.find((b) => b.code === u.branchId)?.name || u.branchId },
     { key: "last", header: "Last signed in", card: "meta", cell: (u) => (u.lastLogin ? formatDateTime(u.lastLogin) : "Never") },
     { key: "status", header: "Access", card: "badge", cell: (u) => <Pill tone={u.isActive && u.status === "active" ? "success" : "neutral"}>{u.isActive && u.status === "active" ? "Can sign in" : "Switched off"}</Pill> },
@@ -121,7 +198,7 @@ function People({ users, roles, branches, me, notify, reload, canManage }) {
         if (!allowed) return null;
         return (
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => setDialog(u)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Change</Button>
+            <Button size="sm" variant="outline" aria-label={`Change ${u.name}`} onClick={() => setDialog(u)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Change</Button>
           </div>
         );
       },

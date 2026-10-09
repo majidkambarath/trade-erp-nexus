@@ -46,6 +46,9 @@ const DEEP = {
   "people-users-and-roles": [
     { name: "add-person", clicks: ["Add a person"], settle: 900 },
     { name: "change-person", clicks: ["^Change"], settle: 900 },
+    // "Different role in a branch": two rows on a phone is the tallest the section gets; Imran Ali already holds one
+    { name: "add-person-branch-roles", clicks: ["Add a person", "Add a branch", "Add a branch"], settle: 900 },
+    { name: "change-person-branch-roles", clicks: ["^Change Imran"], settle: 900 },
     { name: "roles", page: true, clicks: ["^Roles$"], settle: 900 },
     { name: "new-role", clicks: ["^Roles$", "New role"], settle: 1100 },
     { name: "built-in-role", clicks: ["^Roles$", "^View$"], settle: 1100 },
@@ -56,7 +59,13 @@ const DEEP = {
   // A quotation and a delivery note are each a printed document with a row of actions above it, and
   // dialogs behind those. `page: true` means the step lands on a page, not a dialog.
   // The Sending tab with "your own mail server" chosen: five more fields and a warning, on a phone.
-  "settings-settings": [{ name: "smtp", page: true, clicks: ["^Sending$", "Your own mail server"], settle: 800, reveal: "^Mail server" }],
+  "settings-settings": [
+    { name: "smtp", page: true, clicks: ["^Sending$", "Your own mail server"], settle: 800, reveal: "^Mail server" },
+    // Branches: the list, then the add dialog (a form someone fills in on a phone).
+    { name: "branches", page: true, clicks: ["^Branches$"], settle: 1000 },
+    { name: "add-branch", clicks: ["^Branches$", "Add a branch"], settle: 900 },
+  ],
+
   "sales-quotations": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "convert", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
@@ -81,6 +90,22 @@ const DEEP = {
     { name: "send", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
     { name: "send-row", clicks: ["^View all orders", "^Send (SO|[0-9])"], settle: 1600 },
     { name: "history", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
+    // the audit trail, from the button on a card
+    { name: "audit", clicks: ["^View all orders", "^Audit trail$"], settle: 1600 },
+  ],
+  // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
+  "purchase-orders": [
+    { name: "list", page: true, clicks: ["^View all purchase orders"], settle: 1200 },
+    { name: "document", page: true, clicks: ["^View all purchase orders", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "audit", clicks: ["^View all purchase orders", "^Audit trail$"], settle: 1600 },
+  ],
+  "sales-returns": [
+    { name: "list", page: true, clicks: ["^View all sales returns"], settle: 1200 },
+    { name: "audit", clicks: ["^View all sales returns", "^Audit trail$"], settle: 1600 },
+  ],
+  "purchase-returns": [
+    { name: "list", page: true, clicks: ["^View all purchase returns"], settle: 1200 },
+    { name: "audit", clicks: ["^View all purchase returns", "^Audit trail$"], settle: 1600 },
   ],
   // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
   "finance-reconcile": [
@@ -121,9 +146,43 @@ async function findByText(page, label) {
   return null;
 }
 
+/**
+ * Controls and headings that sit partly or wholly OUTSIDE a box that clips them (overflow hidden / clip), so they can be neither
+ * reached nor read. The page itself fits, so the overflow checks never see this: a card with `overflow-hidden` holding a row of
+ * buttons wider than the card simply loses its last buttons. Runs in the page. `rootSel` is a selector, or "dialog" for the top one.
+ */
+function findCutOff(rootSel) {
+  const root = rootSel === "dialog" ? [...document.querySelectorAll('[role="dialog"]')].pop() : document.querySelector(rootSel);
+  if (!root) return [];
+  const out = [];
+  const nodes = root.querySelectorAll("a[href], button, [role='button'], [role='tab'], input:not([type='hidden']), select, textarea, h1, h2, h3");
+  for (const el of nodes) {
+    const r = el.getBoundingClientRect();
+    const st = getComputedStyle(el);
+    if (r.width <= 4 || r.height <= 4 || st.visibility === "hidden" || st.display === "none" || st.position === "fixed") continue;
+    if (el.closest("[data-print-preview], .sr-only, [aria-hidden='true']")) continue;
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ps = getComputedStyle(p);
+      if (ps.overflowX === "visible") continue;
+      if (ps.overflowX === "auto" || ps.overflowX === "scroll") break; // it scrolls: whatever is outside can be reached
+      const b = p.getBoundingClientRect();
+      if (b.width <= 0) break;
+      const cut = Math.round(Math.max(r.right - b.right, b.left - r.left, 0));
+      if (cut > 2) {
+        const what = (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || el.tagName).trim().replace(/\s+/g, " ").slice(0, 26);
+        const cls = String(p.className?.baseVal ?? p.className ?? "").split(" ").filter(Boolean).slice(0, 2).join(".");
+        out.push(`"${what}" ${cut}px outside ${p.tagName.toLowerCase()}.${cls}`);
+      }
+      break; // the nearest clipping box decides
+    }
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+
 /** Measure the topmost dialog the way a pane is measured. */
 async function measureDialog(page) {
-  return page.evaluate(() => {
+  const res = await page.evaluate(() => {
     const dlg = [...document.querySelectorAll('[role="dialog"]')].pop();
     const box = dlg || document.querySelector("main") || document.documentElement;
     const opened = Boolean(dlg);
@@ -160,6 +219,8 @@ async function measureDialog(page) {
     }
     return { opened, text, bleeds: worst.sw > worst.w + 4, sw: worst.sw, w: worst.w, what: worst.what, wide };
   });
+  res.cutOff = await page.evaluate(findCutOff, res.opened ? "dialog" : "main");
+  return res;
 }
 
 // Screens with no navigation entry of their own. The public document link is the only page a customer ever
@@ -210,7 +271,14 @@ const doc = (i) => ({
   _id: `d${i}`, id: `d${i}`, transactionNo: `SO-2026-004${i}`, date: "2026-10-0" + ((i % 9) + 1),
   deliveryDate: "2026-10-1" + ((i % 9) + 1), customerName: `Al Noor Trading ${i}`,
   vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "APPROVED", "DRAFT"][i % 3], lastSend: SENDS[i] || null,
-  totalAmount: 12480.5 * i, items: [{}, {}, {}], priority: "normal", createdBy: "Admin",
+  totalAmount: 12480.5 * i,
+  // real lines have names and prices; one is long on purpose, because that is what breaks a card
+  items: [
+    { description: "Basmati rice 5kg, long grain, premium export pack", qty: 6, rate: 20 },
+    { description: "Sunflower oil 1.8L", qty: 24, rate: 11.5 },
+    { description: "Sugar 50kg", qty: 2, rate: 118 },
+  ],
+  priority: "normal", createdBy: "Admin",
   invoiceGenerated: i % 2 === 0, type: "sales_order", pricing: {},
 });
 
@@ -325,8 +393,10 @@ function stubFor(pathname) {
       // Who is signed in and what the role holds. The sweep signs in as an administrator who holds every permission any page
       // asks for, so every page is still measured; the Users and roles screen needs a rank to offer anything.
       branches: [{ code: "main", name: "Head office", isHeadOffice: true }, { code: "shj", name: "Sharjah Warehouse" }],
-      branch: { code: "main", name: "Head office", canSwitch: true },
-      me: { id: "a1", name: "Super Admin", role: { key: "admin", name: "Administrator", rank: 80 }, grants: ALL_GRANTS },
+      branch: { code: "main", name: "Head office", canSwitch: true, canViewAll: true },
+      me: { id: "a1", name: "Super Admin", role: { key: "admin", name: "Administrator", rank: 80, approvalLimit: null }, grants: ALL_GRANTS, homeBranch: "main", branchRoles: [] },
+      // Who must approve what (Settings -> Business rules -> Approvals); off until the organisation sets it.
+      policy: { approvals: { separateApprover: false, secondApprovalAbove: null } },
     };
   }
 
@@ -349,7 +419,7 @@ function stubFor(pathname) {
       mod("audit", "Activity trail", "Who did what, and when", [["view", "View"]]),
       { key: "lookups", label: "Pick lists", hint: "", automatic: true, actions: [act("lookups.view", "Pick lists")] },
     ];
-    const role = (key, name, rank, permissions, over = {}) => ({ key, name, rank, description: "", builtIn: true, isActive: true, permissions, people: 0, ...over });
+    const role = (key, name, rank, permissions, over = {}) => ({ key, name, rank, description: "", approvalLimit: null, builtIn: true, isActive: true, permissions, people: 0, ...over });
     return {
       catalogue,
       roles: [
@@ -358,17 +428,35 @@ function stubFor(pathname) {
         role("manager", "Manager", 60, ["sales.view", "sales.approve", "purchase.view", "purchase.approve", "inventory.view", "lookups.view"], { people: 2 }),
         role("storekeeper", "Storekeeper", 40, ["inventory.view", "inventory.create", "inventory.adjust", "lookups.view"], { people: 1 }),
         role("viewer", "Viewer", 20, ["sales.view", "purchase.view", "inventory.view", "lookups.view"]),
-        role("supervisor", "Sales supervisor", 55, ["sales.view", "sales.create", "sales.approve", "lookups.view"], { builtIn: false, named: ["sales.create", "sales.approve"], description: "Approves what the sales team enters.", people: 1 }),
+        role("supervisor", "Sales supervisor", 55, ["sales.view", "sales.create", "sales.approve", "lookups.view"], { builtIn: false, named: ["sales.create", "sales.approve"], description: "Approves what the sales team enters.", approvalLimit: 5000, people: 1 }),
         role("night_shift", "Night shift", 30, ["inventory.view", "lookups.view"], { builtIn: false, named: ["inventory.view"], people: 0 }),
       ],
     };
   }
+  // The organisation's letterhead (/api/v1/company/profile): Settings -> Company and Invoice bank details, and every printed document.
+  if (p.endsWith("/company/profile")) {
+    return {
+      companyName: "Gulf Fresh Foods LLC", companyNameArabic: "", addressLine1: "Warehouse 7, Al Quoz Industrial Area 3", addressLine2: "", city: "Dubai", state: "Dubai",
+      country: "United Arab Emirates", postalCode: "", phoneNumber: "+971 4 555 0100", emailAddress: "accounts@gulffresh.example", website: "https://gulffresh.example",
+      vatNumber: "100999888700003", companyLogo: null,
+      bankDetails: { bankName: "Emirates NBD", accountName: "Gulf Fresh Foods LLC", accountNumber: "1234567890", ibanNumber: "AE070331234567890123456", swiftCode: "EBILAEAD", currency: "AED" }, branch: "",
+    };
+  }
+  // The organisation's own branches (/api/v1/branches), as Settings -> Branches reads them.
+  if (p.endsWith("/branches")) {
+    return [
+      { code: "main", name: "Head office", isHeadOffice: true, isActive: true, address: { city: "Dubai", line1: "Al Quoz" }, people: 4 },
+      { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, isActive: true, address: { city: "Sharjah", line1: "Industrial Area 3" }, phone: "06 555 0000", people: 2 },
+      { code: "ajm", name: "Ajman Depot", isHeadOffice: false, isActive: false, address: { city: "Ajman" }, people: 0 },
+    ];
+  }
   if (p.includes("/access/users")) {
-    const person = (i, name, key, roleName, rank, over = {}) => ({ id: `u${i}`, name, email: `user${i}@gulffresh.example`, role: { key, name: roleName, rank, builtIn: true, active: true }, branchId: i % 2 ? "main" : "shj", isActive: true, status: "active", lastLogin: "2026-10-06T08:00:00.000Z", ...over });
+    const person = (i, name, key, roleName, rank, over = {}) => ({ id: `u${i}`, name, email: `user${i}@gulffresh.example`, role: { key, name: roleName, rank, builtIn: true, active: true }, branchId: i % 2 ? "main" : "shj", branchRoles: [], isActive: true, status: "active", lastLogin: "2026-10-06T08:00:00.000Z", ...over });
     return [
       person(1, "Owner One", "super_admin", "Owner", 100),
       person(2, "Super Admin", "admin", "Administrator", 80, { id: "a1" }),
-      person(3, "Imran Ali", "manager", "Manager", 60),
+      // holds another role in a branch: the list says so under the role, and Change opens the dialog with a row
+      person(3, "Imran Ali", "manager", "Manager", 60, { branchRoles: [{ branchId: "shj", role: { key: "viewer", name: "Viewer", rank: 20, builtIn: true, active: true } }] }),
       person(4, "Sara Khan", "supervisor", "Sales supervisor", 55, { role: { key: "supervisor", name: "Sales supervisor", rank: 55, builtIn: false, active: true } }),
       person(5, "Lina Haddad", "viewer", "Viewer", 20, { isActive: false, status: "inactive" }),
     ];
@@ -835,7 +923,7 @@ function stubFor(pathname) {
     };
   }
   if (p.includes("/accounting/settings")) {
-    return { creditControl: { mode: "warn", overdueBlockDays: 30 }, returnWindowDays: 14, requireReturnLink: false, profile: { legalName: "Harbour Trading LLC", trn: "100123456700003" } };
+    return { creditControl: { mode: "warn", overdueBlockDays: 30 }, returnWindowDays: 14, requireReturnLink: false, approvals: { separateApprover: false, secondApprovalAbove: null }, profile: { legalName: "Harbour Trading LLC", trn: "100123456700003" } };
   }
   if (p.includes("general-ledger")) {
     return {
@@ -1147,6 +1235,7 @@ for (const vp of VIEWPORTS) {
           scrollWidth: document.documentElement.scrollWidth, wide, clipped, tiny,
         };
       });
+      const cutOff = await page.evaluate(findCutOff, "main");
       await page.screenshot({ path: file, fullPage: false });
       const bleeds = overflow.paneBleeds;
       // An empty <main> means the page rendered nothing at all.
@@ -1165,11 +1254,12 @@ for (const vp of VIEWPORTS) {
       const errs = [...new Set(problems)];
       results.push({
         page: name, vp: vp.name, bleeds, blank, widest: overflow.wide,
-        clipped: overflow.clipped, tiny: overflow.tiny, errors: errs,
+        clipped: overflow.clipped, cutOff, tiny: overflow.tiny, errors: errs,
       });
-      const flag = blank ? "BLANK " : bleeds ? "BLEEDS" : overflow.clipped.length ? "CLIP  " : "ok    ";
+      const flag = blank ? "BLANK " : bleeds ? "BLEEDS" : cutOff.length ? "CUT   " : overflow.clipped.length ? "CLIP  " : "ok    ";
       console.log(`${flag} ${vp.name.padEnd(8)} ${name.padEnd(18)} ${bleeds ? `pane ${overflow.paneScroll} > ${overflow.paneWidth}  ${overflow.wide.join(" | ")}` : ""}`);
       if (overflow.clipped.length) console.log(`         clipped: ${overflow.clipped.join(" | ")}`);
+      if (cutOff.length) console.log(`         cut off: ${cutOff.join(" | ")}`);
       // touch targets only matter where there is a thumb
       if (vp.isMobile && overflow.tiny.length) console.log(`         small taps: ${overflow.tiny.join(" | ")}`);
       for (const e of errs.slice(0, 3)) console.log(`         ${e}`);
@@ -1213,9 +1303,10 @@ for (const vp of VIEWPORTS) {
           // "No dialog" and "an empty one" both have to fail loudly: a blank screenshot that
           // reports ok is worse than no check at all.
           const broke = (!step.page && !o.opened) || o.text < 40;
-          results.push({ page: `${name}>${step.name}`, vp: vp.name, bleeds: o.bleeds, blank: broke, widest: o.wide, errors: deepErrs });
-          const flag = broke ? "BLANK " : o.bleeds ? "BLEEDS" : "ok    ";
+          results.push({ page: `${name}>${step.name}`, vp: vp.name, bleeds: o.bleeds, blank: broke, widest: o.wide, cutOff: o.cutOff, errors: deepErrs });
+          const flag = broke ? "BLANK " : o.bleeds ? "BLEEDS" : o.cutOff.length ? "CUT   " : "ok    ";
           console.log(`${flag} ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${broke ? `dialog=${o.opened} text=${o.text}` : o.bleeds ? `${o.what} ${o.sw} > ${o.w}  ${o.wide.join(" | ")}` : ""}`);
+          if (o.cutOff.length) console.log(`         cut off: ${o.cutOff.join(" | ")}`);
           for (const e of deepErrs.slice(0, 2)) console.log(`         ${e}`);
         } catch (err) {
           console.log(`SKIP   ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${err.message}`);
@@ -1248,10 +1339,12 @@ for (const vp of VIEWPORTS) {
               .map((el) => `${el.tagName.toLowerCase()}.${(el.className || "").toString().split(" ").slice(0, 3).join(".")} ${Math.round(el.getBoundingClientRect().width)}px`);
             return { bleeds: pane.scrollWidth > pane.clientWidth + 4, w: pane.clientWidth, sw: pane.scrollWidth, wide };
           });
+          const tabCut = await page.evaluate(findCutOff, "main");
           await page.screenshot({ path: join(OUT, `${name}-${slug}-${vp.name}.png`) });
           const tabErrs = [...new Set(problems)];
-          results.push({ page: `${name}:${slug}`, vp: vp.name, bleeds: o.bleeds, widest: o.wide, errors: tabErrs });
-          console.log(`${o.bleeds ? "BLEEDS" : "ok    "} ${vp.name.padEnd(8)} ${`${name}:${slug}`.padEnd(26)} ${o.bleeds ? `pane ${o.sw} > ${o.w}  ${o.wide.join(" | ")}` : ""}`);
+          results.push({ page: `${name}:${slug}`, vp: vp.name, bleeds: o.bleeds, widest: o.wide, cutOff: tabCut, errors: tabErrs });
+          console.log(`${o.bleeds ? "BLEEDS" : tabCut.length ? "CUT   " : "ok    "} ${vp.name.padEnd(8)} ${`${name}:${slug}`.padEnd(26)} ${o.bleeds ? `pane ${o.sw} > ${o.w}  ${o.wide.join(" | ")}` : ""}`);
+          if (tabCut.length) console.log(`         cut off: ${tabCut.join(" | ")}`);
           for (const e of tabErrs.slice(0, 2)) console.log(`         ${e}`);
         } catch {
           // a tab that cannot be clicked (disabled, or it navigated away) is not a layout fault
@@ -1272,6 +1365,6 @@ console.log(`\nShots in ${OUT}`);
 // panel hides the layout the sweep exists to check. The page error boundary catches it and shows "Something went
 // wrong on this page" instead of a blank window, so the crash arrives as a console error, not a page error.
 const threw = (r) => (r.errors || []).some((e) => /^pageerror/.test(e) || /^console: Page crashed:/.test(e));
-const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r));
+const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r) || (r.cutOff && r.cutOff.length));
 for (const r of broken.filter((x) => threw(x) && !x.bleeds && !x.blank)) console.log(`THREW  ${r.vp.padEnd(8)} ${r.page}  ${r.errors.find((e) => /^pageerror|^console: Page crashed:/.test(e))}`);
 await stop(broken.length ? 1 : 0);

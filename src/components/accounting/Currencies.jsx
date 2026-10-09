@@ -3,14 +3,16 @@ import { Link } from "react-router-dom";
 import { History, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
+import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync, useToasts, DateInput } from "./kit";
 import { currencies } from "../../lib/currencyApi";
 import { RATE_SOURCES, currencyState, formatRate, sourceLabel, typedRate, validateCurrencyForm, validateRateForm, validateTolerance } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDate, formatDateTime, todayInput } from "../../utils/format";
 
-// The currencies the company deals in and the exchange rate of each to the base currency (AED),
-// day by day. The ledger is always kept in AED: a receipt or payment in a foreign currency is
+// The currencies the company deals in and the exchange rate of each to the base currency (the organisation's own),
+// day by day. The ledger is always kept in the base currency: a receipt or payment in a foreign currency is
 // converted at the rate in force on its date, so a currency needs to be switched on AND to have a
 // rate before it can be chosen on a voucher.
 
@@ -18,6 +20,9 @@ export default function Currencies() {
   const list = useAsync(() => currencies.list(), []);
   const tolerance = useAsync(() => currencies.settings().catch(() => null), []);
   const { notify, toastNode } = useToasts();
+  // Adding a currency, switching one on or off, adding a rate and the rate tolerance are accounts.manage; looking is accounts.view.
+  const { canAny } = useOrganisation();
+  const canManage = canAny("accounts.manage");
   const [adding, setAdding] = useState(false);
   const [ratesFor, setRatesFor] = useState(null);
   const [busy, setBusy] = useState("");
@@ -51,7 +56,7 @@ export default function Currencies() {
         </div>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           <Button variant="outline" asChild><Link to="/currency-register">Currency register</Link></Button>
-          <Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" aria-hidden="true" />Add currency</Button>
+          <Can permission="accounts.manage"><Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" aria-hidden="true" />Add currency</Button></Can>
         </div>
       </div>
 
@@ -66,7 +71,7 @@ export default function Currencies() {
       <Panel bodyClassName="p-0">
         {list.loading && !list.data && <Spinner label="Loading currencies" />}
         {list.error && <div className="p-5"><ErrorNote error={list.error} onRetry={list.reload} /></div>}
-        {list.data && rows.length === 0 && <EmptyState title="No currencies yet" text="Add one with Add currency." />}
+        {list.data && rows.length === 0 && <EmptyState title="No currencies yet" text={canManage ? "Add one with Add currency." : "No currency has been set up yet."} />}
         {rows.length > 0 && (
           <div className="erp-scroll table-pin-first relative overflow-x-auto">
             <table className="w-full text-sm">
@@ -99,10 +104,12 @@ export default function Currencies() {
                       )}
                       <td className="px-3 py-2.5"><Pill tone={state.tone}>{state.label}</Pill></td>
                       <td className="px-3 py-2.5 text-center">
-                        {c.isBase ? <span className="text-xs text-muted-foreground">Always on</span> : <Switch checked={c.isActive} label={`Use ${c.code}`} disabled={busy === c.code} onChange={() => toggle(c)} />}
+                        {c.isBase ? <span className="text-xs text-muted-foreground">Always on</span> : canManage ? <Switch checked={c.isActive} label={`Use ${c.code}`} disabled={busy === c.code} onChange={() => toggle(c)} /> : <span className="text-xs text-muted-foreground">{c.isActive ? "On" : "Off"}</span>}
                       </td>
                       <td className="whitespace-nowrap px-5 py-2.5 text-end">
-                        {!c.isBase && <Button size="sm" variant="outline" aria-label={`Add rate for ${c.code}`} onClick={() => setRatesFor(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Add rate</Button>}
+                        {!c.isBase && (canManage
+                          ? <Button size="sm" variant="outline" aria-label={`Add rate for ${c.code}`} onClick={() => setRatesFor(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Add rate</Button>
+                          : <Button size="sm" variant="outline" aria-label={`Rate history for ${c.code}`} onClick={() => setRatesFor(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Rates</Button>)}
                       </td>
                     </tr>
                   );
@@ -113,10 +120,10 @@ export default function Currencies() {
         )}
       </Panel>
 
-      <ToleranceSetting current={tolerance.data?.fxTolerancePercent} loading={tolerance.loading} onSaved={(v) => { tolerance.setData(v); notify("Allowed difference saved"); }} onError={(m) => notify(m, "error")} />
+      <ToleranceSetting current={tolerance.data?.fxTolerancePercent} loading={tolerance.loading} canEdit={canManage} onSaved={(v) => { tolerance.setData(v); notify("Allowed difference saved"); }} onError={(m) => notify(m, "error")} />
 
       {adding && <AddCurrencyModal existing={rows} onClose={() => setAdding(false)} onSaved={(code) => { setAdding(false); notify(`${code} added`); list.reload(); }} />}
-      {ratesFor && <RatesModal currency={ratesFor} base={base} onClose={() => setRatesFor(null)} onChanged={(msg) => { notify(msg); list.reload(); }} />}
+      {ratesFor && <RatesModal currency={ratesFor} base={base} canAdd={canManage} onClose={() => setRatesFor(null)} onChanged={(msg) => { notify(msg); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -137,7 +144,7 @@ function Switch({ checked, onChange, label, disabled }) {
 }
 
 // How far a rate typed on a voucher may be from the rate on file before a reason is asked for.
-function ToleranceSetting({ current, loading, onSaved, onError }) {
+function ToleranceSetting({ current, loading, canEdit, onSaved, onError }) {
   const [value, setValue] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -145,6 +152,14 @@ function ToleranceSetting({ current, loading, onSaved, onError }) {
   if (current === undefined) return null; // the setting could not be read: say nothing rather than show a control that cannot work
   const shown = value ?? String(current);
   const changed = value !== null && Number(value) !== Number(current);
+  // someone who may not change it is told the figure, with nothing to type into
+  if (!canEdit) {
+    return (
+      <Panel className="mt-5" title="Rate tolerance" description="A rate typed on a voucher that is further from the rate on file than this needs a reason.">
+        <p className="text-sm text-foreground">Allowed difference: <span className="font-semibold tabular-nums">{current}%</span></p>
+      </Panel>
+    );
+  }
 
   async function save() {
     const problem = validateTolerance(shown);
@@ -220,7 +235,7 @@ function AddCurrencyModal({ existing, onClose, onSaved }) {
   );
 }
 
-function RatesModal({ currency, base, onClose, onChanged }) {
+function RatesModal({ currency, base, canAdd, onClose, onChanged }) {
   const { code } = currency;
   const history = useAsync(() => currencies.rates(code), [code]);
   const [form, setForm] = useState({ rate: "", effectiveDate: todayInput(), source: "manual", note: "" });
@@ -259,22 +274,24 @@ function RatesModal({ currency, base, onClose, onChanged }) {
       footer={<Button onClick={onClose} data-autofocus>Close</Button>}
     >
       <div className="space-y-5">
-        <form onSubmit={(e) => { e.preventDefault(); save(); }} aria-label={`New ${code} rate`} className="space-y-4">
-          <ErrorNote error={problem} />
-          <div className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr]">
-            <Field label={`Rate (${base} per 1 ${code})`} required error={errors.rate}>
-              <TextInput inputMode="decimal" className="text-end tabular-nums" placeholder="3.6725" value={form.rate} onChange={(e) => { const v = typedRate(e.target.value); if (v !== null) set({ rate: v }); }} data-autofocus />
-            </Field>
-            <Field label="Applies from" required error={errors.effectiveDate} hint={sameDay ? `A rate for this date exists (${formatRate(sameDay.rate)}). Saving replaces it; the old value stays in the audit log.` : undefined}>
-              <DateInput value={form.effectiveDate} onChange={(e) => set({ effectiveDate: e.target.value })} />
-            </Field>
-            <Field label="Source">
-              <Select value={form.source} onChange={(e) => set({ source: e.target.value })}>{RATE_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</Select>
-            </Field>
-          </div>
-          <Field label="Note"><TextInput value={form.note} maxLength={200} placeholder="Optional" onChange={(e) => set({ note: e.target.value })} /></Field>
-          <div className="flex justify-end"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save rate"}</Button></div>
-        </form>
+        {canAdd && (
+          <form onSubmit={(e) => { e.preventDefault(); save(); }} aria-label={`New ${code} rate`} className="space-y-4">
+            <ErrorNote error={problem} />
+            <div className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr]">
+              <Field label={`Rate (${base} per 1 ${code})`} required error={errors.rate}>
+                <TextInput inputMode="decimal" className="text-end tabular-nums" placeholder="3.6725" value={form.rate} onChange={(e) => { const v = typedRate(e.target.value); if (v !== null) set({ rate: v }); }} data-autofocus />
+              </Field>
+              <Field label="Applies from" required error={errors.effectiveDate} hint={sameDay ? `A rate for this date exists (${formatRate(sameDay.rate)}). Saving replaces it; the old value stays in the audit log.` : undefined}>
+                <DateInput value={form.effectiveDate} onChange={(e) => set({ effectiveDate: e.target.value })} />
+              </Field>
+              <Field label="Source">
+                <Select value={form.source} onChange={(e) => set({ source: e.target.value })}>{RATE_SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}</Select>
+              </Field>
+            </div>
+            <Field label="Note"><TextInput value={form.note} maxLength={200} placeholder="Optional" onChange={(e) => set({ note: e.target.value })} /></Field>
+            <div className="flex justify-end"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save rate"}</Button></div>
+          </form>
+        )}
 
         <section aria-label={`${code} rate history`}>
           <h3 className="mb-2 text-sm font-medium text-foreground">Rate history</h3>

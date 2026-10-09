@@ -72,7 +72,7 @@ const StockDetail = () => {
     fetchPurchaseLogs();
   }, [fetchStockItem, fetchPurchaseLogs]);
 
-  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
   const formatCurrency = useCallback(
     (amount, colorClass = "") => (
       <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>

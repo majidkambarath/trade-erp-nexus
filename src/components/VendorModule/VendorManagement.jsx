@@ -574,12 +574,16 @@ const VendorManagement = () => {
                   key: "actions", header: "Actions", card: "actions",
                   cell: (v) => (
                     <div className="flex items-center space-x-3">
-                      <button onClick={() => handleEdit(v)} className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50" title="Edit vendor">
-                        <Edit size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(v._id, v.vendorName)} className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50" title="Delete vendor">
-                        <Trash2 size={16} />
-                      </button>
+                      <Can permission="purchase.edit">
+                        <button onClick={() => handleEdit(v)} className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded hover:bg-blue-50" title="Edit vendor">
+                          <Edit size={16} />
+                        </button>
+                      </Can>
+                      <Can permission="purchase.delete">
+                        <button onClick={() => handleDelete(v._id, v.vendorName)} className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50" title="Delete vendor">
+                          <Trash2 size={16} />
+                        </button>
+                      </Can>
                     </div>
                   ),
                 },

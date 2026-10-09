@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Field, Spinner, Textarea, useAsync } from "../accounting/kit";
 import { orderClose } from "../../lib/salesDocumentsApi";
-import { formatNumber, formatQty } from "../../utils/format";
+import { formatNumber, formatQty, CURRENCY } from "../../utils/format";
 import { ActionModal, Note } from "./parts";
 
 // The customer took part of an order and will never take the rest. The server says what closing would do
@@ -53,13 +53,13 @@ export default function CloseShortDialog({ orderId, orderNo, busy, problem, onCl
           {p.mode === "trim" ? (
             <Note>
               {orderNo} is not invoiced yet. It will be cut down to what was delivered, so the invoice charges only for those goods:
-              {" "}the total goes from AED {formatNumber(p.order.totalAmount, 2)} to AED {formatNumber(p.newTotal, 2)}.
+              {" "}the total goes from {CURRENCY} {formatNumber(p.order.totalAmount, 2)} to {CURRENCY} {formatNumber(p.newTotal, 2)}.
               {" "}You can put the order back with Reopen until it is approved.
             </Note>
           ) : (
             <Note tone="warning">
               {orderNo} is already invoiced in full, and its stock and accounts are booked. Closing it changes none of that; it records that the
-              {" "}rest will not be delivered. Then raise a sales return for the items above (about AED {formatNumber(p.valueShort, 2)} with VAT), which
+              {" "}rest will not be delivered. Then raise a sales return for the items above (about {CURRENCY} {formatNumber(p.valueShort, 2)} with VAT), which
               {" "}puts them back in stock and credits the customer.
             </Note>
           )}

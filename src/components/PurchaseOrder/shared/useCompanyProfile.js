@@ -20,31 +20,23 @@ const EMPTY = {
   branch: "",
 };
 
-// The company as set in Settings. A field nobody has filled in stays empty and is left off the
-// printed page; the old sheets printed invented placeholders in its place.
+// The company as set in Settings: the ORGANISATION's one letterhead (GET /company/profile), the same for everyone who prints
+// a document, not a copy kept by each person. A field nobody has filled in stays empty and is left off the printed page; the
+// old sheets printed invented placeholders in its place.
 //
-// The TRN is the exception to "the profile": it is entered once, under Settings > Business rules > Tax
-// identity, and kept with the accounting settings (the same TRN the VAT return uses). The profile has no field
-// for it, so reading only the profile left every printed tax invoice without the seller's TRN and the screen
-// warning that it was missing. It is read from there, and the profile's own value, if an older record has
-// one, still wins.
+// The TRN comes with it as `vatNumber`: it is entered once, under Settings > Business rules > Tax identity (the same TRN the
+// VAT return uses), and the server hands it over here, so a printed tax invoice and the VAT return cannot disagree.
 export const useCompanyProfile = () => {
   const [profile, setProfile] = useState(EMPTY);
 
   useEffect(() => {
     if (!getAccessToken()) return undefined;
     let active = true;
-    // the TRN, from the accounting settings; a failure here must never blank the rest of the company
-    const taxIdentity = axiosInstance
-      .get("/accounting/settings")
-      .then(({ data }) => String(data?.data?.profile?.trn || ""))
-      .catch(() => "");
     axiosInstance
-      .get("/profile/me")
-      .then(async ({ data }) => {
-        const trn = await taxIdentity;
+      .get("/company/profile")
+      .then(({ data }) => {
         if (!active || !data?.success) return;
-        const c = data.data?.companyInfo || {};
+        const c = data.data || {};
         const bank = c.bankDetails || {};
         setProfile({
           companyName: c.companyName || "",
@@ -54,7 +46,7 @@ export const useCompanyProfile = () => {
           phoneNumber: c.phoneNumber || "",
           email: c.emailAddress || "",
           website: c.website || "",
-          vatNumber: c.vatNumber || trn,
+          vatNumber: c.vatNumber || "",
           logo: c.companyLogo?.url || null,
           bankName: bank.bankName || "",
           accountNumber: bank.accountNumber || "",

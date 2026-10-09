@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { passwordStrength, validateProfile } from "../settingsForm";
+import { approvalsFrom, approvalsPayload, passwordStrength, validateProfile } from "../settingsForm";
 
 const company = { companyName: "Harbour Trading", addressLine1: "Deira", addressLine2: "", city: "Dubai", state: "Dubai", country: "United Arab Emirates", postalCode: "", phoneNumber: "", emailAddress: "", website: "" };
 const bank = { bankName: "", accountName: "", accountNumber: "", ibanNumber: "", swiftCode: "", currency: "AED" };
@@ -31,5 +31,26 @@ describe("passwordStrength", () => {
     expect(passwordStrength("abcdefghij")).toBe(2);
     expect(passwordStrength("abcdefGHIJ")).toBe(3);
     expect(passwordStrength("abcdefGHI1!")).toBe(4);
+  });
+});
+
+describe("the approval rules form", () => {
+  it("starts from what the server stored, and an unset rule reads as off", () => {
+    expect(approvalsFrom({ separateApprover: true, secondApprovalAbove: 5000 })).toEqual({ separateApprover: true, secondApprovalAbove: "5000" });
+    expect(approvalsFrom({ separateApprover: false, secondApprovalAbove: null })).toEqual({ separateApprover: false, secondApprovalAbove: "" });
+    expect(approvalsFrom(undefined)).toEqual({ separateApprover: false, secondApprovalAbove: "" });
+    expect(approvalsFrom({ secondApprovalAbove: 0 }).secondApprovalAbove).toBe("0"); // 0 is a real amount: every document needs two
+  });
+
+  it("sends the amount as a number, and nothing as null (switched off)", () => {
+    expect(approvalsPayload({ separateApprover: true, secondApprovalAbove: "5000" })).toEqual({ ok: true, body: { approvals: { separateApprover: true, secondApprovalAbove: 5000 } } });
+    expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: " 1,250.50 " }).body.approvals.secondApprovalAbove).toBe(1250.5);
+    expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "" }).body.approvals.secondApprovalAbove).toBeNull();
+    expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "0" }).body.approvals.secondApprovalAbove).toBe(0);
+  });
+
+  it("refuses an amount that is not an amount, before anything is sent", () => {
+    for (const bad of ["plenty", "-5", "5 000", "1e3", "5.", "."]) expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: bad }).ok).toBe(false);
+    expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "plenty" }).error).toMatch(/amount of 0 or more/);
   });
 });

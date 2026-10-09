@@ -1,6 +1,6 @@
 import axios from "axios";
-import { clearSession, announceSignOut, getAccessToken, getSelectedBranch, setSession } from "./session";
-import { BLOCKED_EVENT, blockedFrom, isPermissionError } from "../lib/organisation";
+import { clearSession, announceSignOut, getAccessToken, getSelectedBranch, setSelectedBranch, setSession } from "./session";
+import { BLOCKED_EVENT, BRANCH_RESET_EVENT, blockedFrom, isBranchRefusal, isPermissionError } from "../lib/organisation";
 
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
 // environment variable) to point the app at another backend; with nothing set it is the local
@@ -94,6 +94,16 @@ axiosInstance.interceptors.response.use(
     // A role that does not allow an action is told in the server's own words, on every screen that shows error.message,
     // instead of "Request failed with status code 403".
     if (isPermissionError(error)) error.message = error.response.data.message || error.message;
+    // The branch this tab chose is no longer the person's to work in: every request names it and every request is refused,
+    // the one that would clear it included. Forget the choice so the next request works, and tell the shell. The refused
+    // request is NOT sent again without the header - a document would silently land in the home branch instead.
+    if (isBranchRefusal(error)) {
+      error.message = error.response.data.message || error.message;
+      if (error.config?.headers?.["X-Branch"] && getSelectedBranch()) {
+        setSelectedBranch(null);
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(BRANCH_RESET_EVENT));
+      }
+    }
     const original = error.config;
     const unauthorized = error.response?.status === 401;
     if (!unauthorized || !original || original._retry || AUTH_PATH.test(original.url || "")) {

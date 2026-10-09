@@ -10,6 +10,11 @@ export const BLOCKED_EVENT = "organisation-blocked";
 
 export const BLOCKING_CODES = ["ORGANISATION_EXPIRED", "ORGANISATION_SUSPENDED", "ORGANISATION_CLOSED"];
 
+// Fired on window when the branch this tab was working in is no longer one the person may work in (a role there was taken
+// away, or the branch was switched off); the shell listens and starts again from the branch the person belongs to.
+export const BRANCH_RESET_EVENT = "branch-reset";
+export const BRANCH_REFUSAL_CODES = ["BRANCH_NOT_ALLOWED", "BRANCH_NOT_FOUND", "BRANCH_INACTIVE"];
+
 const codeOf = (error) => error?.response?.data?.errorCode || null;
 const detailsOf = (error) => error?.response?.data?.details || {};
 
@@ -17,6 +22,8 @@ export const isBlockedError = (error) => error?.response?.status === 403 && BLOC
 export const isReadOnlyError = (error) => error?.response?.status === 403 && codeOf(error) === "ORGANISATION_READ_ONLY";
 export const isFeatureError = (error) => error?.response?.status === 403 && codeOf(error) === "FEATURE_NOT_IN_PLAN";
 export const isLimitError = (error) => error?.response?.status === 403 && codeOf(error) === "LIMIT_REACHED";
+/** The branch the request named is not one the person may work in. */
+export const isBranchRefusal = (error) => error?.response?.status === 403 && BRANCH_REFUSAL_CODES.includes(codeOf(error));
 /** The person's role does not allow what they asked for: the server's own refusal, which names what was needed. */
 export const isPermissionError = (error) => error?.response?.status === 403 && codeOf(error) === "PERMISSION_DENIED";
 
@@ -70,11 +77,22 @@ export const FEATURE_LABELS = {
 
 // ---- branches
 
-/** The branches a head-office user may switch between: "All branches" first, then each. Empty when there is nothing to choose. */
+/**
+ * May this person look at every branch together? Only an explicit `false` from the server says no (an older server sends
+ * nothing, and then the answer is the one it always was). Someone whose role differs by branch, and anyone who belongs to a
+ * branch other than head office, works in ONE branch at a time.
+ */
+export const canViewAllBranches = (status) => status?.branch?.canViewAll !== false;
+
+/** The branches a person may switch between: "All branches" first when they may look at all of them, then each of
+ * `status.branches` (the server lists only the ones they may use). Empty when there is nothing to choose. */
 export function branchChoices(status) {
   const branches = status?.branches || [];
   if (!status?.branch?.canSwitch || branches.length < 2) return [];
-  return [{ value: "", label: "All branches" }, ...branches.map((b) => ({ value: b.code, label: b.isHeadOffice && !/head office/i.test(b.name) ? `${b.name} (head office)` : b.name }))];
+  return [
+    ...(canViewAllBranches(status) ? [{ value: "", label: "All branches" }] : []),
+    ...branches.map((b) => ({ value: b.code, label: b.isHeadOffice && !/head office/i.test(b.name) ? `${b.name} (head office)` : b.name })),
+  ];
 }
 
 /** A remembered branch is only kept while the person can still switch and the branch still exists and is active. */
@@ -88,59 +106,16 @@ export function branchLabel(status, selected) {
   if (!status?.branch) return null;
   if (branches.length < 2 || !status.branch.canSwitch) return status.branch.name || null;
   const chosen = validBranchSelection(status, selected);
-  return chosen ? branches.find((b) => b.code === chosen)?.name || chosen : "All branches";
+  if (chosen) return branches.find((b) => b.code === chosen)?.name || chosen;
+  // nothing (valid) chosen: someone who may look at everything is looking at everything; anyone else is in the branch the
+  // server put them in, and the label names it rather than offering a view they do not have
+  return canViewAllBranches(status) ? "All branches" : status.branch.name || status.branch.code || null;
 }
 
-// ---- the subscription
-
-const shortDate = (value) => {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-};
-const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-/**
- * The notice to show above the work, or null when there is nothing to say. Said in the grace period, in the last
- * fortnight of a paid period, and for an organisation that is read-only; a blocked one never gets this far (it sees
- * the blocked page instead).
- *   tone: "info" | "warning" | "danger"
- */
-export function subscriptionNotice(subscription) {
-  if (!subscription || subscription.blocked) return null;
-  const { state } = subscription;
-  if (state === "grace") {
-    return {
-      tone: "warning",
-      title: "Your subscription has ended",
-      text: `It ended on ${shortDate(subscription.endsAt)}. You can keep working for ${plural(subscription.daysLeft ?? 0, "more day")} while it is renewed.`,
-    };
-  }
-  if (state === "expired") {
-    return {
-      tone: "danger",
-      title: "Your subscription has ended",
-      text: `It ended on ${shortDate(subscription.endsAt)}. You can look at your records, but nothing can be changed until it is renewed.`,
-    };
-  }
-  if (state === "active" && subscription.endsAt && subscription.daysLeft != null) {
-    // days left is the server's own count (a part-day counts as a day), so the notice and the headers agree
-    const left = subscription.daysLeft;
-    if (left >= 0 && left <= 14) {
-      return {
-        tone: left <= 3 ? "warning" : "info",
-        title: left === 0 ? "Your subscription ends today" : `Your subscription ends in ${plural(left, "day")}`,
-        text: `It runs to ${shortDate(subscription.endsAt)}. Ask your account manager to renew it so nothing is interrupted.`,
-      };
-    }
-  }
-  return null;
-}
-
-/** The title and wording of the page shown to a blocked organisation. */
-export function blockedPageText(blocked) {
-  const state = blocked?.state;
-  if (state === "suspended") return { title: "This account is suspended", lead: "Access has been paused." };
-  if (state === "closed") return { title: "This account is closed", lead: "This organisation is no longer active." };
-  return { title: "Your subscription has ended", lead: blocked?.endsAt ? `It ended on ${shortDate(blocked.endsAt)}.` : "Access has been paused until it is renewed." };
+/** The value of the branch choice that is in use: the one the person made, else the branch the server put them in when
+ * they cannot look at all of them, else "" (all branches). It is what the switcher ticks. */
+export function branchInUse(status, selected) {
+  const chosen = validBranchSelection(status, selected);
+  if (chosen) return chosen;
+  return canViewAllBranches(status) ? "" : status?.branch?.code || "";
 }

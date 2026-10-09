@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Download } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -80,9 +80,9 @@ function Parties({ type, asOn }) {
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard title={customer ? "Owed to us" : "We owe"} count={money(d.totals.owed)} tone="teal" subText="AED" />
-                <StatCard title={customer ? "Paid in advance" : "Advances to vendors"} count={money(d.totals.advances)} tone="plum" subText="AED" />
-                <StatCard title="Overdue" count={money(d.totals.overdue)} tone={d.totals.overdue > 0 ? "warning" : "neutral"} subText="AED" />
+                <StatCard title={customer ? "Owed to us" : "We owe"} count={money(d.totals.owed)} tone="teal" subText={CURRENCY} />
+                <StatCard title={customer ? "Paid in advance" : "Advances to vendors"} count={money(d.totals.advances)} tone="plum" subText={CURRENCY} />
+                <StatCard title="Overdue" count={money(d.totals.overdue)} tone={d.totals.overdue > 0 ? "warning" : "neutral"} subText={CURRENCY} />
                 {customer
                   ? <StatCard title="Over their limit" count={String(d.totals.overLimit)} subText={`${d.totals.nearLimit} more near it`} tone={d.totals.overLimit > 0 ? "danger" : "neutral"} />
                   : <StatCard title="Vendors" count={String(d.rows.length)} tone="neutral" />}

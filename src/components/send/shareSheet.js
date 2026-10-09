@@ -3,9 +3,10 @@
 // builders the signed-in screens and the PDF attachment use, so the page, the attachment and the print
 // cannot disagree about what the document says.
 import { buildSalesDocument } from "../PurchaseOrder/shared/invoiceDocuments";
+import { orgCurrency } from "../../utils/orgLocale";
 
 const BUILDERS = {
-  tax_invoice: (p) => buildSalesDocument(p.document, p.party || {}, p.company || {}, p.currency || "AED"),
+  tax_invoice: (p) => buildSalesDocument(p.document, p.party || {}, p.company || {}, p.currency || orgCurrency()),
 };
 
 // The copies a customer sees: only theirs. The internal copy is ours and never leaves.

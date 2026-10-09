@@ -4,6 +4,7 @@ import {
   positionDocument, printDocument, profitDocument, requestFor, signedText, warnings,
 } from "../ifrsStatements";
 import { CASH, EQUITY, NOTES, POSITION, PROFIT, withoutComparative } from "./ifrsFixtures";
+import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 
 const table = (doc, i = 0) => doc.blocks.filter((b) => b.type === "table")[i];
 const row = (doc, label, i = 0) => table(doc, i).rows.find((r) => r.label === label);
@@ -290,6 +291,19 @@ describe("CSV and print", () => {
     expect(html).toContain("155.00");
     expect(html).toContain("window.print()");
     expect(html).not.toContain("<Trading>");
+  });
+
+  it("states the amounts in the statement's currency, else the organisation's base currency, never a fixed one", () => {
+    expect(documentHtml(profitDocument(PROFIT), { currency: "EUR" })).toContain("Amounts in EUR");
+    const noCurrency = { ...withoutComparative(POSITION), currency: undefined };
+    try {
+      setOrgLocale({ currency: "SAR" });
+      expect(documentHtml(profitDocument(PROFIT))).toContain("Amounts in SAR");
+      expect(keyFigures("position", noCurrency)[0].sub).toBe("SAR");
+      expect(keyFigures("position", { ...noCurrency, currency: "EUR" })[0].sub).toBe("EUR");
+    } finally {
+      resetOrgLocale();
+    }
   });
 
   it("prints signed tables with their side", () => {

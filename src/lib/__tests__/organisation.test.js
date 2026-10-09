@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { setDateFormat } from "../../utils/format";
+import { setOrgLocale } from "../../utils/orgLocale";
 import {
   FEATURE_LABELS,
   blockedFrom,
-  blockedPageText,
   branchChoices,
+  branchInUse,
   branchLabel,
+  canViewAllBranches,
   featureLabel,
   featureOn,
   isBlockedError,
@@ -12,10 +15,10 @@ import {
   isLimitError,
   isReadOnlyError,
   planRefusalMessage,
-  subscriptionNotice,
   tabInPlan,
   validBranchSelection,
 } from "../organisation";
+import { blockedPageText, subscriptionNotice } from "../subscriptionText";
 
 const refused = (status, errorCode, details, message = "No.") => ({ response: { status, data: { success: false, errorCode, message, details } } });
 const E = (s) => `${s}T23:59:59.999Z`;
@@ -73,7 +76,50 @@ describe("what the plan includes", () => {
   });
 });
 
+// A subscription's last day is shown as the person chose to read dates, and it is the day the developer entered: the server keeps it as
+// 23:59:59.999 UTC of that day, which on the clock of an organisation east of UTC is already the next morning.
+describe("the date a subscription ends", () => {
+  const ends = { state: "expired", endsAt: E("2026-10-10") };
+  beforeEach(() => { setDateFormat("DD/MM/YYYY"); setOrgLocale({ timezone: "Asia/Dubai" }); });
+  afterEach(() => { setDateFormat("DD/MM/YYYY"); setOrgLocale({ timezone: "Asia/Dubai" }); });
+
+  it("follows the date format the person chose", () => {
+    expect(blockedPageText(ends).lead).toBe("It ended on 10/10/2026.");
+    setDateFormat("DD MMM YYYY");
+    expect(blockedPageText(ends).lead).toBe("It ended on 10 Oct 2026.");
+    setDateFormat("YYYY-MM-DD");
+    expect(blockedPageText(ends).lead).toBe("It ended on 2026-10-10.");
+    setDateFormat("MM/DD/YYYY");
+    expect(blockedPageText(ends).lead).toBe("It ended on 10/10/2026.");
+    setDateFormat("DD-MM-YYYY");
+    expect(blockedPageText({ state: "expired", endsAt: E("2026-03-04") }).lead).toBe("It ended on 04-03-2026.");
+  });
+
+  it("is the day it was entered, in any zone the product supports - never the next day", () => {
+    setDateFormat("YYYY-MM-DD");
+    for (const timezone of ["UTC", "Asia/Dubai", "Asia/Kolkata", "Asia/Kathmandu", "Europe/London", "Australia/Sydney", "Pacific/Auckland"]) {
+      setOrgLocale({ timezone });
+      expect(blockedPageText(ends).lead, timezone).toBe("It ended on 2026-10-10.");
+    }
+  });
+
+  it("is the same day in every notice that names it", () => {
+    setDateFormat("DD MMM YYYY");
+    const sub = (over) => ({ state: "active", blocked: false, canRead: true, canWrite: true, endsAt: E("2026-10-10"), daysLeft: 5, ...over });
+    expect(subscriptionNotice(sub({})).text).toMatch(/It runs to 10 Oct 2026\./);
+    expect(subscriptionNotice(sub({ state: "grace", daysLeft: 3 })).text).toMatch(/It ended on 10 Oct 2026\./);
+    expect(subscriptionNotice(sub({ state: "expired", canWrite: false })).text).toMatch(/It ended on 10 Oct 2026\./);
+  });
+
+  it("falls back to the plain sentence when the date cannot be read, rather than saying 'it ended on .'", () => {
+    expect(blockedPageText({ state: "expired", endsAt: "not a date" }).lead).toBe("Access has been paused until it is renewed.");
+    expect(blockedPageText({ state: "expired" }).lead).toBe("Access has been paused until it is renewed.");
+  });
+});
+
 describe("the subscription notice", () => {
+  beforeEach(() => setDateFormat("DD MMM YYYY"));
+  afterEach(() => setDateFormat("DD/MM/YYYY"));
   const sub = (over) => ({ state: "active", blocked: false, canRead: true, canWrite: true, endsAt: E("2026-10-10"), daysLeft: 30, ...over });
 
   it("says nothing while there is plenty of time, or no end date, or nothing is known", () => {
@@ -108,6 +154,8 @@ describe("the subscription notice", () => {
 });
 
 describe("the blocked page wording", () => {
+  beforeEach(() => setDateFormat("DD MMM YYYY"));
+  afterEach(() => setDateFormat("DD/MM/YYYY"));
   it("names the reason", () => {
     expect(blockedPageText({ state: "suspended" }).title).toBe("This account is suspended");
     expect(blockedPageText({ state: "closed" }).title).toBe("This account is closed");
@@ -155,5 +203,72 @@ describe("working in a branch", () => {
     expect(branchLabel(branchUser, "main")).toBe("Sharjah Warehouse"); // a branch user is always in their own
     expect(branchLabel({ branches: [branches[0]], branch: { name: "Head office", canSwitch: false } }, null)).toBe("Head office");
     expect(branchLabel(null, null)).toBeNull();
+  });
+});
+
+describe("working in one branch at a time (canViewAll: false)", () => {
+  const branches = [
+    { code: "main", name: "Head office", isHeadOffice: true },
+    { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false },
+    { code: "dxb", name: "Dubai Depot", isHeadOffice: false },
+  ];
+  // a head-office manager who is a viewer in Sharjah: the server lists every branch, and takes the all-branches view away
+  const byBranch = { branches, branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true, canViewAll: false } };
+  // a Sharjah clerk who was given Dubai: the server lists the two
+  const clerk = { branches: [branches[1], branches[2]], branch: { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, canSwitch: true, canViewAll: false } };
+  const older = { branches, branch: { code: "main", name: "Head office", isHeadOffice: true, canSwitch: true } }; // a server that does not say
+
+  it("only an explicit false takes the all-branches view away", () => {
+    expect(canViewAllBranches(byBranch)).toBe(false);
+    expect(canViewAllBranches({ ...older, branch: { ...older.branch, canViewAll: true } })).toBe(true);
+    expect(canViewAllBranches(older)).toBe(true); // an older server: as it has always been
+    expect(canViewAllBranches(null)).toBe(true);
+  });
+
+  it("offers every listed branch and no 'All branches'", () => {
+    expect(branchChoices(byBranch)).toEqual([
+      { value: "main", label: "Head office" },
+      { value: "shj", label: "Sharjah Warehouse" },
+      { value: "dxb", label: "Dubai Depot" },
+    ]);
+  });
+
+  it("offers a branch person exactly the branches the server lists", () => {
+    expect(branchChoices(clerk)).toEqual([
+      { value: "shj", label: "Sharjah Warehouse" },
+      { value: "dxb", label: "Dubai Depot" },
+    ]);
+  });
+
+  it("still offers All branches, first, when the server does not say (or says yes)", () => {
+    expect(branchChoices(older)[0]).toEqual({ value: "", label: "All branches" });
+    expect(branchChoices({ ...older, branch: { ...older.branch, canViewAll: true } })[0]).toEqual({ value: "", label: "All branches" });
+  });
+
+  it("drops a remembered all-branches view, and keeps a branch that is one of theirs", () => {
+    expect(validBranchSelection(byBranch, "all")).toBeNull();
+    expect(validBranchSelection(byBranch, "")).toBeNull();
+    expect(validBranchSelection(byBranch, "shj")).toBe("shj");
+    expect(validBranchSelection(clerk, "dxb")).toBe("dxb");
+    expect(validBranchSelection(clerk, "main")).toBeNull(); // not one they were given
+  });
+
+  it("names the branch in use instead of 'All branches'", () => {
+    expect(branchLabel(byBranch, null)).toBe("Head office");
+    expect(branchLabel(byBranch, "all")).toBe("Head office");
+    expect(branchLabel(byBranch, "shj")).toBe("Sharjah Warehouse");
+    expect(branchLabel(clerk, null)).toBe("Sharjah Warehouse");
+    expect(branchLabel(clerk, "dxb")).toBe("Dubai Depot");
+    expect(branchLabel(older, null)).toBe("All branches"); // unchanged for a server that does not say
+  });
+
+  it("says which choice is in use: theirs, else the branch the server put them in, else all", () => {
+    expect(branchInUse(byBranch, null)).toBe("main");
+    expect(branchInUse(byBranch, "shj")).toBe("shj");
+    expect(branchInUse(clerk, null)).toBe("shj");
+    expect(branchInUse(clerk, "dxb")).toBe("dxb");
+    expect(branchInUse(older, null)).toBe("");
+    expect(branchInUse(older, "shj")).toBe("shj");
+    expect(branchInUse(null, null)).toBe("");
   });
 });

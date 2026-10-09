@@ -9,8 +9,10 @@ import {
   FileText,
   CheckSquare as ConfirmIcon,
 } from "lucide-react";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const TableView = ({
   paginatedSOs,
@@ -29,6 +31,8 @@ const TableView = ({
   deleteSO,
   onShowAudit,
 }) => {
+  // Confirm only for someone who may approve THIS return; a first approval awaiting its second is badged.
+  const { stateOf } = useApproval();
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
@@ -165,6 +169,7 @@ const TableView = ({
                       {getStatusIcon(so.status)}
                       <span className="ml-1">{so.status.replace("_", " ")}</span>
                     </div>
+                    <AwaitingSecondBadge doc={so} state={stateOf(so)} />
                     <div className="flex space-x-1">
                       {so.invoiceGenerated && (
                         <div
@@ -178,7 +183,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      AED {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
+                      {CURRENCY} {formatNumber(Math.abs(parseFloat(so.totalAmount)))}
                     </p>
                     <p className="text-xs text-slate-500">{so.items.length} items</p>
                   </div>
@@ -206,7 +211,7 @@ const TableView = ({
                         </button>
                       </Can>
                     )}
-                    {so.status === "DRAFT" && (
+                    {so.status === "DRAFT" && stateOf(so).canApprove && (
                       <Can permission="sales.approve">
                         <button
                           onClick={() => confirmSO(so.id)}
@@ -231,8 +236,8 @@ const TableView = ({
                         <button className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
                           Duplicate
                         </button>
-                        {so.status === "DRAFT" && (
-                          <Can permission="sales.delete">
+                        {(so.status === "DRAFT" || so.status === "APPROVED") && (
+                          <Can permission={deleteKey("sales", so.status === "APPROVED")}>
                             <button
                               onClick={() => deleteSO(so.id)}
                               className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"

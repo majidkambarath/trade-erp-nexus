@@ -2,9 +2,10 @@ import React, { useMemo, useState } from "react";
 import { Pencil, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { banking } from "../../lib/bankingApi";
 import { cn } from "../../lib/utils";
-import { formatNumber } from "../../utils/format";
+import { CURRENCY, formatNumber } from "../../utils/format";
 
 // The cards the company transacts through.
 //   Merchant terminal  customers pay us by card; the processor settles into a bank account less its fee
@@ -28,15 +29,17 @@ const blank = () => ({
 export default function CardMaster() {
   const cards = useAsync(() => banking.cards(), []);
   const { notify, toastNode } = useToasts();
+  const { canAny } = useOrganisation();
+  const canManage = canAny("banking.manage"); // adding and editing cards: the server asks the same
   const [editing, setEditing] = useState(null);
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Cards" description="Merchant terminals that take customer cards, and the company's own credit, debit and prepaid cards." actions={<Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card</Button>} />
+      <PageHeader title="Cards" description="Merchant terminals that take customer cards, and the company's own credit, debit and prepaid cards." actions={canManage && <Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card</Button>} />
       <Panel bodyClassName="p-0">
         {cards.loading && !cards.data && <Spinner label="Loading cards" />}
         {cards.error && <div className="p-5"><ErrorNote error={cards.error} onRetry={cards.reload} /></div>}
-        {cards.data?.length === 0 && <EmptyState title="No cards yet" text="Add a merchant terminal to take card payments, or your company card to pay with." />}
+        {cards.data?.length === 0 && <EmptyState title="No cards yet" text={canManage ? "Add a merchant terminal to take card payments, or your company card to pay with." : "None have been set up yet."} />}
         {cards.data?.length > 0 && (
           <DataTable
             caption="Cards"
@@ -49,7 +52,8 @@ export default function CardMaster() {
               { key: "account", header: "Account", card: "meta", cell: (c) => <><span>{c.accountName}</span><span className="ms-1 font-mono text-xs text-muted-foreground">{c.accountCode}</span></> },
               { key: "limit", header: "Limit / fee", align: "end", card: "amount", className: "tabular-nums", cell: (c) => c.kind === "credit" ? <>{formatNumber(c.owed || 0, 2)} <span className="font-normal text-muted-foreground">of {formatNumber(c.creditLimit, 2)}</span></> : c.kind === "terminal" ? `${c.effectiveFeePercent}% fee` : "" },
               { key: "status", header: "Status", card: "meta", cell: (c) => c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (c) => <button type="button" aria-label={`Edit ${c.label}`} onClick={() => setEditing({ ...blank(), ...c, creditLimit: c.creditLimit ? String(c.creditLimit) : "", feePercent: c.feePercent ?? "", expiryMonth: c.expiryMonth ?? "", expiryYear: c.expiryYear ?? "", bankId: c.bankId || "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+              // no edit column at all for someone who may only look (DataTable drops a false entry)
+              canManage && { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (c) => <button type="button" aria-label={`Edit ${c.label}`} onClick={() => setEditing({ ...blank(), ...c, creditLimit: c.creditLimit ? String(c.creditLimit) : "", feePercent: c.feePercent ?? "", expiryMonth: c.expiryMonth ?? "", expiryYear: c.expiryYear ?? "", bankId: c.bankId || "" })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
             ]}
           />
         )}
@@ -140,7 +144,7 @@ export function CardForm({ card, onClose, onSaved }) {
           {isCompanyCard && <Field label="Card holder" required error={errors.holderName}><TextInput value={f.holderName} onChange={(e) => set({ holderName: e.target.value })} maxLength={150} /></Field>}
           {f.kind === "terminal" && <Field label="Terminal / merchant ID"><TextInput value={f.terminalId} onChange={(e) => set({ terminalId: e.target.value })} maxLength={40} /></Field>}
           {f.kind === "terminal" && <Field label="Processing fee (%)" error={errors.feePercent} hint="Leave empty to use the card type's fee."><TextInput inputMode="decimal" className="text-end tabular-nums" value={f.feePercent} onChange={(e) => set({ feePercent: e.target.value })} /></Field>}
-          {f.kind === "credit" && <Field label="Credit limit (AED)" required error={errors.creditLimit}><TextInput inputMode="decimal" className="text-end tabular-nums" value={f.creditLimit} onChange={(e) => set({ creditLimit: e.target.value })} /></Field>}
+          {f.kind === "credit" && <Field label={`Credit limit (${CURRENCY})`} required error={errors.creditLimit}><TextInput inputMode="decimal" className="text-end tabular-nums" value={f.creditLimit} onChange={(e) => set({ creditLimit: e.target.value })} /></Field>}
           {isCompanyCard && (
             <>
               <Field label="Last four digits" error={errors.last4}><TextInput inputMode="numeric" value={f.last4} onChange={(e) => set({ last4: e.target.value.replace(/\D/g, "").slice(0, 4) })} maxLength={4} placeholder="1234" /></Field>

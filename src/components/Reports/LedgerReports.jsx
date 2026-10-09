@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -287,8 +287,8 @@ function CashAndBankBook({ range, onLedger }) {
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard title="Cash" count={money(d.totals.cash.closing)} subText="closing, AED" tone="olive" />
-                <StatCard title="Bank" count={money(d.totals.bank.closing)} subText="closing, AED" tone="teal" />
+                <StatCard title="Cash" count={money(d.totals.cash.closing)} subText={`closing, ${CURRENCY}`} tone="olive" />
+                <StatCard title="Bank" count={money(d.totals.bank.closing)} subText={`closing, ${CURRENCY}`} tone="teal" />
                 <StatCard title="Money in" count={money(d.totals.all.receipts)} tone="plum" />
                 <StatCard title="Money out" count={money(d.totals.all.payments)} tone="rose" />
               </div>

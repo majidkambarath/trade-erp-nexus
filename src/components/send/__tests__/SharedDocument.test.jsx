@@ -6,6 +6,7 @@ import "@testing-library/jest-dom";
 
 import SharedDocument, { problemText } from "../SharedDocument";
 import { SHEET_DESIGN_WIDTH, buildFromShare, fitScale } from "../shareSheet";
+import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
 
 vi.mock("html2canvas", () => ({ default: vi.fn(async () => ({ width: 800, height: 1000, toDataURL: vi.fn(() => "data:image/png;base64,FAKE") })) }));
 const pdfs = [];
@@ -155,6 +156,18 @@ describe("the sheet is built from the frozen copy", () => {
     expect(built.sheet.totals.grandTotal).toBe(210);
     expect(built.sheet.company.nameEn).toBe("Harbour Trading LLC");
     expect(built.sheet.party.name).toBe("Al Noor Trading");
+  });
+
+  it("a snapshot that names no currency is drawn in the organisation's own", () => {
+    const { currency: _named, ...unnamed } = SNAPSHOT;
+    try {
+      setOrgLocale({ currency: "GBP" });
+      expect(buildFromShare(unnamed).sheet.currency).toBe("GBP");
+      expect(buildFromShare(SNAPSHOT).sheet.currency).toBe("AED");
+    } finally {
+      resetOrgLocale();
+    }
+    expect(buildFromShare(unnamed).sheet.currency).toBe("AED");
   });
 
   it("a kind it does not know is not drawn", () => {

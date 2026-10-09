@@ -42,7 +42,7 @@ export default function JournalVouchers() {
               { key: "narration", header: "Narration", card: "title", className: "max-w-md truncate text-muted-foreground", cell: (v) => v.narration },
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
-              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
           />
@@ -50,7 +50,7 @@ export default function JournalVouchers() {
       </Panel>
 
       {form && <JournalForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
-      {viewing && <VoucherView id={viewing} title="Journal voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Journal deleted and reversed"); list.reload(); }} />}
+      {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Journal voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Journal deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );

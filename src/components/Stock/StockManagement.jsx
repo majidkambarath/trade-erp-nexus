@@ -45,6 +45,7 @@ import StatCard from "../ui/stat-card";
 import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 const SessionManager = {
   storage: {},
   get: (key) => {
@@ -186,6 +187,7 @@ const FormSelect = ({
 };
 
 const StockManagement = () => {
+  const { can } = useOrganisation();
   const [stockItems, setStockItems] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -811,7 +813,7 @@ const StockManagement = () => {
     return { color: "text-green-600", label: "Valid" };
   }, []);
 
-  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
   const formatCurrency = useCallback(
     (amount, colorClass = "") => (
       <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
@@ -1293,12 +1295,16 @@ const StockManagement = () => {
                   key: "actions", header: "Actions", card: "actions",
                   cell: (item) => (
                     <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
-                      <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit item">
-                        <Edit size={16} />
-                      </button>
-                      <button onClick={() => showDeleteConfirmation(item)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete item">
-                        <Trash2 size={16} />
-                      </button>
+                      <Can permission="inventory.edit">
+                        <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit item">
+                          <Edit size={16} />
+                        </button>
+                      </Can>
+                      <Can permission="inventory.delete">
+                        <button onClick={() => showDeleteConfirmation(item)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete item">
+                          <Trash2 size={16} />
+                        </button>
+                      </Can>
                     </div>
                   ),
                 },
@@ -1601,12 +1607,17 @@ const StockManagement = () => {
                     onChange={handleChange}
                     placeholder="Enter current stock"
                     min="0"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                    // changing the quantity of an item that exists is a stock adjustment, which has its own permission
+                    disabled={Boolean(editItemId) && !can("inventory.adjust")}
+                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.currentStock
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
                     }`}
                   />
+                  {Boolean(editItemId) && !can("inventory.adjust") && (
+                    <p className="mt-1 text-xs text-gray-500">Changing the quantity on hand is a stock adjustment. Your role cannot make one.</p>
+                  )}
                   {errors.currentStock && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
                       <AlertCircle size={12} className="mr-1" />

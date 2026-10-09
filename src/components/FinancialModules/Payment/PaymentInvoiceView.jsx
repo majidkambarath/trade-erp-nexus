@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../../axios/axios";
 import { getAccessToken, getAdmin } from "../../../axios/session";
-import { todayInput, formatDate } from "../../../utils/format";
+import { todayInput, formatDate, CURRENCY } from "../../../utils/format";
 
 const PaymentInvoiceView = ({
   selectedPayment,
@@ -25,7 +25,7 @@ const PaymentInvoiceView = ({
     addressLine2: "",
     city: "",
     stateProvince: "",
-    country: "United Arab Emirates",
+    country: "",
     postalCode: "",
     phoneNumber: "",
     email: "",
@@ -35,7 +35,7 @@ const PaymentInvoiceView = ({
     accountNumber: "",
     accountName: "",
     ibanNumber: "",
-    currency: "AED",
+    currency: CURRENCY,
     vatNumber: "",
   });
 
@@ -50,27 +50,29 @@ const PaymentInvoiceView = ({
       }
 
       try {
-        const response = await axiosInstance.get("/profile/me");
+        // the company's one letterhead (GET /company/profile), the same for everyone, not the signed-in person's own copy
+        const response = await axiosInstance.get("/company/profile");
         if (response.data.success) {
-          const data = response.data.data;
+          const c = response.data.data || {};
+          const bank = c.bankDetails || {};
           setProfileData({
-            companyName: data.companyInfo?.companyName || "",
-            addressLine1: data.companyInfo?.addressLine1 || "",
-            addressLine2: data.companyInfo?.addressLine2 || "",
-            city: data.companyInfo?.city || "",
-            stateProvince: data.companyInfo?.state || "",
-            country: data.companyInfo?.country || "United Arab Emirates",
-            postalCode: data.companyInfo?.postalCode || "",
-            phoneNumber: data.companyInfo?.phoneNumber || "",
-            email: data.companyInfo?.emailAddress || data.email || "",
-            website: data.companyInfo?.website || "",
-            logo: data.companyInfo?.companyLogo?.url || null,
-            bankName: data.companyInfo?.bankDetails?.bankName || "",
-            accountNumber: data.companyInfo?.bankDetails?.accountNumber || "",
-            accountName: data.companyInfo?.bankDetails?.accountName || "",
-            ibanNumber: data.companyInfo?.bankDetails?.ibanNumber || "",
-            currency: data.companyInfo?.bankDetails?.currency || "AED",
-            vatNumber: data.companyInfo?.vatNumber || "",
+            companyName: c.companyName || "",
+            addressLine1: c.addressLine1 || "",
+            addressLine2: c.addressLine2 || "",
+            city: c.city || "",
+            stateProvince: c.state || "",
+            country: c.country || "",
+            postalCode: c.postalCode || "",
+            phoneNumber: c.phoneNumber || "",
+            email: c.emailAddress || "",
+            website: c.website || "",
+            logo: c.companyLogo?.url || null,
+            bankName: bank.bankName || "",
+            accountNumber: bank.accountNumber || "",
+            accountName: bank.accountName || "",
+            ibanNumber: bank.ibanNumber || "",
+            currency: bank.currency || CURRENCY,
+            vatNumber: c.vatNumber || "",
           });
         }
       } catch (error) {
@@ -407,34 +409,26 @@ const PaymentInvoiceView = ({
               <p style={{ margin: "2px 0" }}>
                 {profileData.city && profileData.country
                   ? `${profileData.city}, ${profileData.country}`
-                  : "Dubai, UAE"}
+                  : ""}
               </p>
-              <p style={{ margin: "2px 0" }}>
-                VAT Reg. No: {profileData.vatNumber || "10503303"}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                Email: {profileData.email || "finance@nhfo.com"}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                Phone: {profileData.phoneNumber || "+971 58 724 2111"}
-              </p>
-              <p style={{ margin: "2px 0" }}>
-                Web: {profileData.website || "www.nhfo.com"}
-              </p>
+              {/* what the company has not filled in is left off: nothing is invented, and no other company's details appear */}
+              {profileData.vatNumber && <p style={{ margin: "2px 0" }}>VAT Reg. No: {profileData.vatNumber}</p>}
+              {profileData.email && <p style={{ margin: "2px 0" }}>Email: {profileData.email}</p>}
+              {profileData.phoneNumber && <p style={{ margin: "2px 0" }}>Phone: {profileData.phoneNumber}</p>}
+              {profileData.website && <p style={{ margin: "2px 0" }}>Web: {profileData.website}</p>}
             </div>
             <div style={{ textAlign: "center" }}>
-              <img
-                src={
-                  profileData.logo ||
-                  "https://res.cloudinary.com/dmkdrwpfp/image/upload/v1755452581/erp_Uploads/NH%20foods_1755452579855.jpg"
-                }
-                alt="Company logo"
-                style={{
-                  width: "80px",
-                  height: "80px",
-                  objectFit: "contain",
-                }}
-              />
+              {profileData.logo && (
+                <img
+                  src={profileData.logo}
+                  alt="Company logo"
+                  style={{
+                    width: "80px",
+                    height: "80px",
+                    objectFit: "contain",
+                  }}
+                />
+              )}
             </div>
             <div style={{ textAlign: "right" }}>
               <p style={{ margin: "2px 0" }}>
@@ -1007,10 +1001,10 @@ const PaymentInvoiceView = ({
             <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
               <p style={{ margin: "2px 0" }}>
                 <strong>IBAN NO:</strong>{" "}
-                {profileData.ibanNumber || "AE410547283001"}
+                {profileData.ibanNumber || ""}
               </p>
               <p style={{ margin: "2px 0" }}>
-                <strong>CURRENCY:</strong> {profileData.currency || "AED"}
+                <strong>CURRENCY:</strong> {profileData.currency || CURRENCY}
               </p>
               <p style={{ margin: "2px 0" }}>
                 <strong>ACCOUNT NAME:</strong>{" "}

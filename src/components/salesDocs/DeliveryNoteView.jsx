@@ -5,7 +5,6 @@ import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { ConfirmDialog, ErrorNote, Panel, Spinner, useAsync } from "../accounting/kit";
 import { deliveryNotes } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, clockText, statusLabel } from "../../lib/salesDocuments";
-import { getBrand } from "../../config/brands";
 import { formatDate, formatQty } from "../../utils/format";
 import { buildDeliveryNoteDocument, buildPickListDocument } from "./documents";
 import { CancelDialog, DeliverDialog, DispatchDialog, InvoiceDialog } from "./DeliveryDialogs";
@@ -13,6 +12,7 @@ import { ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { allowActions } from "../../lib/salesDocuments";
+import { orgCurrency } from "../../utils/orgLocale";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -22,7 +22,7 @@ const PRIMARY = "erp-btn-primary";
 export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvoiced, notify }) {
   const { me } = useOrganisation();
   const company = useCompanyProfile();
-  const currency = getBrand().currency;
+  const currency = orgCurrency();
   const { data: dn, loading, error, reload } = useAsync(() => deliveryNotes.get(id), [id]);
   const activity = useAsync(() => deliveryNotes.activity(id), [id]);
   const [mode, setMode] = useState("note"); // note | pick

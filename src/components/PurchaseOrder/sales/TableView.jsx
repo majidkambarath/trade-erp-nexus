@@ -13,8 +13,10 @@ import {
   Send,
 } from "lucide-react";
 import { SentLine } from "../../send/shared";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const TableView = ({
   paginatedSOs,
@@ -37,6 +39,10 @@ const TableView = ({
   onDeliveryNote,
   onSendDocument,
 }) => {
+  // Approve is offered only to someone who may approve THIS order (not their own work when the organisation says so, nothing
+  // over their limit, not a second time); the order screen says why. A first approval above the second-approver amount is
+  // shown as "Awaiting second approval".
+  const { stateOf } = useApproval();
   return (
     <div className="bg-card rounded-xl shadow-card border border-border overflow-hidden">
       <div className="overflow-x-auto">
@@ -200,6 +206,7 @@ const TableView = ({
                         {so.status.replace("_", " ")}
                       </span>
                     </div>
+                    <AwaitingSecondBadge doc={so} state={stateOf(so)} />
                     {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
                     {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
                     <div className="flex space-x-1">
@@ -215,7 +222,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-foreground">
-                      AED {formatNumber(so.totalAmount)}
+                      {CURRENCY} {formatNumber(so.totalAmount)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {so.items.length} items
@@ -225,13 +232,15 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-center space-x-2">
                     {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
-                      <button
-                        type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
-                        className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
-                        title="Send to the customer"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
+                      <Can permission="sales.send">
+                        <button
+                          type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          title="Send to the customer"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </Can>
                     )}
                     <button
                       onClick={() => {
@@ -255,7 +264,7 @@ const TableView = ({
                         </button>
                       </Can>
                     )}
-                    {so.status === "DRAFT" && (
+                    {so.status === "DRAFT" && stateOf(so).canApprove && (
                       <Can permission="sales.approve">
                         <button
                           onClick={() => confirmSO(so.id)}
@@ -285,8 +294,8 @@ const TableView = ({
                         <button onClick={() => onDownloadCustomer && onDownloadCustomer(so)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary">
                           Customer copy
                         </button>
-                        {so.status === "DRAFT" && (
-                          <Can permission="sales.delete">
+                        {(so.status === "DRAFT" || so.status === "APPROVED") && (
+                          <Can permission={deleteKey("sales", so.status === "APPROVED")}>
                             <button
                               onClick={() => deleteSO(so.id)}
                               className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary"

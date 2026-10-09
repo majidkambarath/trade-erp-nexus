@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import { processTransaction } from "../../../lib/processTransaction";
+import { approveMany, processTransaction } from "../../../lib/processTransaction";
+import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
+import { useApproval } from "../../shell/Approval";
 import { VARIANTS } from "../../OrderEntry/variants";
 import { StatCard } from "../../ui/stat-card";
 import { loadFormForEdit } from "../../OrderEntry/editForm";
@@ -47,7 +49,7 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
 import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
@@ -55,7 +57,11 @@ import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
+import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
 const PurchaseReturnOrderManagement = () => {
+  const { canAny } = useOrganisation();
+  const { stateOf, me } = useApproval();
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
@@ -196,6 +202,8 @@ const PurchaseReturnOrderManagement = () => {
           terms: transaction.terms,
           notes: transaction.notes,
           createdBy: transaction.createdBy,
+          // who has approved it so far: a first of two shows as "Awaiting second approval"
+          approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
           createdAt: transaction.createdAt,
           grnGenerated: transaction.grnGenerated,
           invoiceGenerated: transaction.invoiceGenerated,
@@ -419,21 +427,28 @@ const PurchaseReturnOrderManagement = () => {
 
     try {
       if (action === "approve") {
-        for (const poId of selectedPOs) {
-          await processTransaction(poId, "approve");
-        }
-        addNotification(`${selectedPOs.length} orders approved successfully`, "success");
+        // Each return is judged on its own (its amount, who prepared it, who has approved it): say how each came out.
+        const outcome = summariseApprovals(await approveMany(selectedPOs, { docs: purchaseOrders, stateOf, me }));
+        addNotification(outcome.text, outcome.tone);
         fetchTransactions();
       } else if (action === "delete") {
+        // An approved document is deleted only by someone who holds purchase.deletePosted (the server decides the same way by the
+        // stored status): the others are left out of the request and told so.
+        const plan = planBulkDelete(selectedPOs, purchaseOrders, canAny("purchase.deletePosted"));
+        const left = plan.skipped.length ? skippedPostedText(plan.skipped.length) : "";
+        if (plan.deletable.length === 0) {
+          addNotification(left, "warning");
+          return;
+        }
         askDelete({
-          title: `Delete ${selectedPOs.length} purchase returns?`,
-          text: "Each return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          title: `Delete ${plan.deletable.length} purchase returns?`,
+          text: ["Each return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.", plan.posted ? postedDeleteText(plan.posted) : "", left].filter(Boolean).join(" "),
           onConfirm: async () => {
             try {
-              for (const poId of selectedPOs) {
+              for (const poId of plan.deletable) {
                 await axiosInstance.delete(`/transactions/transactions/${poId}`);
               }
-              addNotification(`${selectedPOs.length} orders deleted`, "success");
+              addNotification([`${plan.deletable.length} orders deleted`, left].filter(Boolean).join(". "), left ? "warning" : "success");
             } catch (error) {
               addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
             }
@@ -508,10 +523,10 @@ const PurchaseReturnOrderManagement = () => {
         />
         <StatCard
           title="Total Value"
-          count={`AED ${formatNumber(statistics.totalValue)}`}
+          count={`${CURRENCY} ${formatNumber(statistics.totalValue)}`}
           tone="olive"
           icon={<Banknote />}
-          subText={`Approved AED ${formatNumber(statistics.approvedValue)}`}
+          subText={`Approved ${CURRENCY} ${formatNumber(statistics.approvedValue)}`}
         />
         <StatCard
           title="This Month"
@@ -551,7 +566,7 @@ const PurchaseReturnOrderManagement = () => {
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-sm font-semibold tabular-nums text-foreground">
-                        AED {formatNumber(row.totalAmount)}
+                        {CURRENCY} {formatNumber(row.totalAmount)}
                       </span>
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
@@ -742,8 +757,10 @@ const PurchaseReturnOrderManagement = () => {
   // Approve PO
   const approvePO = async (id) => {
     try {
-      await processTransaction(id, "approve");
-      addNotification("Purchase Return Order approved successfully", "success");
+      const response = await processTransaction(id, "approve");
+      // Above the organisation's second-approver amount this only records the first approval: say so, not "approved"
+      if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
+      else addNotification("Purchase Return Order approved successfully", "success");
       fetchTransactions();
     } catch (error) {
       console.error("Approve PO Error:", error);
@@ -773,11 +790,26 @@ const PurchaseReturnOrderManagement = () => {
 
   const [askDelete, deleteDialog] = useDeleteConfirm();
 
+  // Is anything in the selection waiting for approval that this person may approve? (their own work, or one over their limit, is not offered)
+  const canBulkApprove = selectedPOs.some((id) => {
+    const po = purchaseOrders.find((d) => d.id === id);
+    return po && stateOf(po).canApprove;
+  });
+
+  // Does the selection hold anything this person may delete? (an approved one needs purchase.deletePosted)
+  const canBulkDelete = planBulkDelete(selectedPOs, purchaseOrders, canAny("purchase.deletePosted")).deletable.length > 0;
+
   // Delete PO
   const deletePO = (id) => {
+    // An approved return is reversed in stock and in the ledger: that is purchase.deletePosted, not plain Delete.
+    const posted = isPostedDocument(purchaseOrders.find((d) => d.id === id));
+    if (posted && !canAny("purchase.deletePosted")) {
+      addNotification(skippedPostedText(1), "warning");
+      return;
+    }
     askDelete({
       title: "Delete this purchase return?",
-      text: "The return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      text: posted ? "This return is approved: deleting it REVERSES its stock and ledger postings, then removes it. The deletion is written to the activity log." : "The return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
       onConfirm: async () => {
         try {
           await axiosInstance.delete(`/transactions/transactions/${id}`);
@@ -952,7 +984,7 @@ const PurchaseReturnOrderManagement = () => {
                 </button>
                 {selectedPOs.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <Can permission="purchase.approve">
+                    {canBulkApprove && <Can permission="purchase.approve">
                       <button
                         onClick={() => handleBulkAction("approve")}
                         className="flex items-center space-x-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
@@ -960,16 +992,18 @@ const PurchaseReturnOrderManagement = () => {
                         <CheckSquare className="w-4 h-4" />
                         <span>Approve Selected</span>
                       </button>
-                    </Can>
-                    <Can permission="purchase.delete">
-                      <button
-                        onClick={() => handleBulkAction("delete")}
-                        className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete Selected</span>
-                      </button>
-                    </Can>
+                    </Can>}
+                    {canBulkDelete && (
+                      <Can permission="purchase.delete">
+                        <button
+                          onClick={() => handleBulkAction("delete")}
+                          className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete Selected</span>
+                        </button>
+                      </Can>
+                    )}
                     <button
                       onClick={() => handleBulkAction("export")}
                       className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"

@@ -1,7 +1,7 @@
 import axiosInstance from "../axios/axios";
 
 // The home dashboard, one call per part so the first screen does not wait for the rest. Every figure
-// is worked out by the server from the same reports the other screens use, in AED. Every backend
+// is worked out by the server from the same reports the other screens use, in the organisation's base currency. Every backend
 // response is { success, data } (or { success:false, message, errorCode }), so callers get `data`
 // back directly and failures as an Error carrying the server's message and code.
 //

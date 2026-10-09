@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { LayoutDashboard, TrendingUp, Package, ShoppingCart, RefreshCw, MapPin, Plus } from "lucide-react";
 import { getBrand } from "@/config/brands";
+import { CURRENCY } from "@/utils/format";
+import { orgTimezone } from "@/utils/orgLocale";
 import { dashboard } from "@/lib/dashboardApi";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -20,14 +22,9 @@ import ReportsTab from "./ReportsTab";
 // there is nothing to show, the card says so in its own space. The Dashboard tab loads first; the
 // other tabs load when they are opened, and all of them follow the period chosen in the header card.
 
-const dubaiClock = new Intl.DateTimeFormat("en-AE", {
-  timeZone: "Asia/Dubai",
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+// the header's date and time, on the organisation's own clock
+const clockFormatter = (zone) =>
+  new Intl.DateTimeFormat("en-AE", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // Loads one part of the dashboard for a period once `enabled`, and again whenever the period
 // changes. A reply to an older request never replaces a newer one.
@@ -86,7 +83,7 @@ function Dashboard() {
     return () => ctx.revert();
   }, [theme, tab]);
 
-  const dubaiLabel = useMemo(() => dubaiClock.format(now), [now]);
+  const clockLabel = useMemo(() => clockFormatter(orgTimezone()).format(now), [now]);
 
   // The tab row scrolls on a phone, so the chosen tab is brought into view - otherwise
   // picking "Reports" leaves it half off the right edge.
@@ -122,7 +119,7 @@ function Dashboard() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {company?.name || getBrand().name} · AED · {dubaiLabel}
+              {company?.name || getBrand().name} · {CURRENCY} · {clockLabel}
             </p>
           </div>
 

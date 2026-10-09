@@ -3,8 +3,10 @@ import { Search, Wand2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { EmptyState, ErrorNote, Field, Spinner, TextInput, useAsync } from "../../accounting/kit";
 import { ActionModal, Note, PillTabs } from "../../salesDocs/parts";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { reconcile } from "../../../lib/bankReconcileApi";
 import { LINE_TABS } from "../../../lib/bankReconcile";
+import { deleteKey } from "../../../lib/permissions";
 import { errorMessage } from "../../accounting/kit";
 import LineCard from "./LineCard";
 import FindEntriesDialog from "./FindEntriesDialog";
@@ -34,6 +36,10 @@ export default function LinesView({ account, version, onChanged, notify, onImpor
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState(null); // { kind, line }
   const [busy, setBusy] = useState(false);
+  const { canAny } = useOrganisation();
+  // Everything below that writes (accept, match, post, settle, ignore, put back, unmatch, import, set up) is banking.reconcile on
+  // the server. Someone who only holds banking.view still gets the lines, the suggestions and the proof, with nothing to press.
+  const canReconcile = canAny("banking.reconcile");
   const term = useDebounced(q);
   const shownTab = tab ?? "todo";
   // The answer carries the tab it was fetched for, so a list is never shown under another tab's name
@@ -65,11 +71,15 @@ export default function LinesView({ account, version, onChanged, notify, onImpor
   if (!account.setUp) {
     return (
       <div className="rounded-xl border border-border bg-card p-6">
-        <EmptyState
-          title="Start with a bank statement"
-          text="Import the statement from your bank. You will say where it starts and the bank's balance the day before; after that each month is one file."
-          action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={onImport}>Import a statement</Button><Button variant="outline" onClick={onSetup}>Set up first</Button></div>}
-        />
+        {canReconcile ? (
+          <EmptyState
+            title="Start with a bank statement"
+            text="Import the statement from your bank. You will say where it starts and the bank's balance the day before; after that each month is one file."
+            action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={onImport}>Import a statement</Button><Button variant="outline" onClick={onSetup}>Set up first</Button></div>}
+          />
+        ) : (
+          <EmptyState title="Not reconciled yet" text="No statement has been imported for this account. Someone who can reconcile has to import the first one." />
+        )}
       </div>
     );
   }
@@ -86,7 +96,7 @@ export default function LinesView({ account, version, onChanged, notify, onImpor
           </div>
         </div>
 
-        {counts.suggested > 0 && shownTab !== "matched" && shownTab !== "ignored" && (
+        {canReconcile && counts.suggested > 0 && shownTab !== "matched" && shownTab !== "ignored" && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
             <p className="text-sm"><strong className="font-semibold">{counts.suggested}</strong> line{counts.suggested === 1 ? " has" : "s have"} a suggested match. Strong matches have the same amount, a close date and a reference in common.</p>
             <Button size="sm" variant="outline" disabled={busy} onClick={acceptAll}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Accept all strong matches</Button>
@@ -100,8 +110,8 @@ export default function LinesView({ account, version, onChanged, notify, onImpor
           <div className="rounded-xl border border-border bg-card p-6">
             <EmptyState
               title={shownTab === "todo" ? (counts.all ? "Nothing left to do" : "No lines yet") : "Nothing here"}
-              text={shownTab === "todo" ? (counts.all ? "Every line is matched, ignored or has a suggestion waiting." : "Import a statement to begin.") : "No lines fit this view."}
-              action={counts.all ? undefined : <Button onClick={onImport}>Import a statement</Button>}
+              text={shownTab === "todo" ? (counts.all ? "Every line is matched, ignored or has a suggestion waiting." : canReconcile ? "Import a statement to begin." : "No statement lines have been imported yet.") : "No lines fit this view."}
+              action={counts.all || !canReconcile ? undefined : <Button onClick={onImport}>Import a statement</Button>}
             />
           </div>
         )}
@@ -153,7 +163,10 @@ function IgnoreDialog({ line, onClose, onDone }) {
 }
 
 function UnmatchDialog({ line, onClose, onDone }) {
-  const posted = line.match?.createdVouchers?.length > 0;
+  // "Also delete the entries" reverses approved vouchers: the server asks for finance.deletePosted (the same right as deleting
+  // one by hand), so anyone without it is not offered the tick-box. Unmatching alone stays banking.reconcile.
+  const { canAny } = useOrganisation();
+  const offerDelete = line.match?.createdVouchers?.length > 0 && canAny(deleteKey("finance", true));
   const [remove, setRemove] = useState(false);
   const { busy, problem, go } = useAction(() => reconcile.unmatch(line.match._id, remove), onDone, "Unmatched");
   return (
@@ -161,7 +174,7 @@ function UnmatchDialog({ line, onClose, onDone }) {
       title="Unmatch this line?" confirmLabel="Unmatch" danger busy={busy} problem={problem} onClose={onClose} onConfirm={go}
       description={`${line.match?.lineCount > 1 ? `The ${line.match.lineCount} lines matched together all` : "The line"} go back to the to-do list.`}
     >
-      {posted && (
+      {offerDelete && (
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1 h-4 w-4" checked={remove} onChange={(e) => setRemove(e.target.checked)} />
           <span>Also delete the {line.match.createdVouchers.map((v) => v.voucherNo).join(", ")} posted for this match. Leave it unticked to keep the entry in the books and match it again.</span>

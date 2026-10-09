@@ -6,7 +6,7 @@ import { ConfirmDialog, DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pil
 import { deliveryNotes } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, DELIVERY_TABS, clockText, invoiceBlocker, invoiceText, statusLabel } from "../../lib/salesDocuments";
 import { statusTone } from "../../lib/status";
-import { formatDate, formatNumber } from "../../utils/format";
+import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { InvoiceDialog } from "./DeliveryDialogs";
 import { Note, PillTabs } from "./parts";
 import { useDebounced, useDocumentAction } from "./hooks";
@@ -85,7 +85,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
               <span className="text-sm">
                 <span className="font-semibold">{chosen.length} selected</span>
-                <span className="text-muted-foreground"> · {formatNumber(chosen.reduce((t, n) => t + n.totalAmount, 0), 2)} AED</span>
+                <span className="text-muted-foreground"> · {formatNumber(chosen.reduce((t, n) => t + n.totalAmount, 0), 2)} {CURRENCY}</span>
                 {invoiceBlocker(chosen) && <span className="ms-2 font-medium text-status-danger">{invoiceBlocker(chosen)}</span>}
               </span>
               <span className="flex gap-2">

@@ -14,11 +14,12 @@ import PageErrorBoundary from "./shell/PageErrorBoundary";
 import { useSession } from "./shell/useSession";
 import { OrganisationProvider, useOrganisation } from "./shell/OrganisationContext";
 import OrganisationBlocked from "./shell/OrganisationBlocked";
+import PasswordChangeRequired from "./shell/PasswordChangeRequired";
 import NotInPlan from "./shell/NotInPlan";
 import NotAllowed from "./shell/NotAllowed";
 import { tabAllowed } from "../lib/permissions";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
-import { subscriptionNotice } from "../lib/organisation";
+import { subscriptionNotice } from "../lib/subscriptionText";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
 // the workspace reads as a failure; this reads as a pause.
@@ -36,7 +37,7 @@ function PageLoading() {
 const LayoutShell = () => {
   const { pathname } = useLocation();
   const { profile, logout } = useSession();
-  const { status, blocked, refresh, featureOn, branchKey } = useOrganisation();
+  const { status, blocked, refresh, featureOn, branchKey, localeKey } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // set by main.jsx when the service worker has a newer build waiting
@@ -149,6 +150,8 @@ const LayoutShell = () => {
 
   // A subscription that has ended (or a suspended account) replaces the whole app with one page that says why.
   if (blocked) return <OrganisationBlocked blocked={blocked} onCheckAgain={refresh} onSignOut={logout} />;
+  // A password someone else set must be replaced by the person's own before anything else works (the server refuses it all).
+  if (status?.me?.mustChangePassword) return <PasswordChangeRequired name={status.me.name} onChanged={refresh} onSignOut={logout} />;
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
@@ -185,7 +188,7 @@ const LayoutShell = () => {
           {/* a page that breaks shows a message here; the rail and header stay usable, and
               moving to another page clears it */}
           {/* choosing another branch starts the page afresh, so every list is read again for that branch */}
-          <PageErrorBoundary key={branchKey} resetKey={pathname}>
+          <PageErrorBoundary key={`${branchKey}:${localeKey}`} resetKey={pathname}>
             {outOfPlan ? (
               <NotInPlan feature={outOfPlan} />
             ) : notAllowed ? (

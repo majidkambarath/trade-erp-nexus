@@ -1,18 +1,26 @@
 // Shared formatting and decimal-safe helpers for PO/Invoice modules
 
 import { getBrand } from '../config/brands';
+import { dayOf, orgCurrency, orgTimezone, subscribeOrgLocale } from './orgLocale';
 
-// Number grouping, currency and timezone come from the active brand pack
-// (src/config/brands.js), NEVER from the browser. The default pack uses en-GB, giving
+// Number grouping comes from the active brand pack (src/config/brands.js), NEVER from the browser.
+// The currency and the time zone are the signed-in ORGANISATION's (src/utils/orgLocale.js): the brand pack's until
+// the organisation's status has loaded, then its own base currency and zone. The default pack uses en-GB, giving
 // 1,234,567.50 in groups of three. A bare `value.toLocaleString()` with no locale
 // argument uses the browser's locale, so a user whose machine is set to en-IN would
 // see Indian lakh grouping (12,34,567.50) for the same invoice. Always format
-// through this module. The brand is read once at load: it is a per-deployment
-// setting, not a per-render one.
+// through this module. The brand's grouping is read once at load: it is a per-deployment setting.
 const brand = getBrand();
 export const LOCALE = brand.locale;
 export const CURRENCY_LOCALE = brand.currencyLocale;
-export const CURRENCY = brand.currency;
+// Live bindings: they change when the organisation's status loads, and an importer reads the current value each time it
+// renders (never copy one into a module-level constant).
+export let CURRENCY = orgCurrency();
+export let TIMEZONE = orgTimezone();
+subscribeOrgLocale(({ currency, timezone }) => {
+  CURRENCY = currency;
+  TIMEZONE = timezone;
+});
 
 // Format a number with fixed decimals using Intl for consistent grouping
 export const formatNumber = (value, decimals = 2, locale = LOCALE) => {
@@ -23,7 +31,7 @@ export const formatNumber = (value, decimals = 2, locale = LOCALE) => {
   }).format(n);
 };
 
-// Currency formatter for AED; returns "AED 1,234,567.50"
+// Currency formatter for the organisation's base currency (named for the one it began with); returns "AED 1,234,567.50"
 export const formatCurrencyAED = (value, locale = CURRENCY_LOCALE) => {
   const n = Number(value || 0);
   return new Intl.NumberFormat(locale, {
@@ -34,7 +42,7 @@ export const formatCurrencyAED = (value, locale = CURRENCY_LOCALE) => {
   }).format(n);
 };
 
-// Compact money for dashboard tiles: "AED 2.46M", "AED 195.0K".
+// Compact money for dashboard tiles: "AED 2.46M", "AED 195.0K" (in the organisation's currency).
 // One casing convention everywhere — K and M, never a mix of k/K.
 export const formatCurrencyCompact = (value) => {
   const n = Number(value || 0);
@@ -98,14 +106,20 @@ export const setTimeFormat = (id) => {
   writePref(TIME_KEY, id);
 };
 
-// Dubai-local calendar parts of a moment: every date the business sees is Dubai-local.
-const partsFormatter = new Intl.DateTimeFormat('en-GB', {
-  timeZone: brand.timezone,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const monthName = new Intl.DateTimeFormat('en-GB', { timeZone: brand.timezone, month: 'short' });
+// Calendar parts of a moment in the organisation's zone: every date the business sees is on its own calendar.
+const zoneFormatters = new Map();
+const zoneFormatterFor = () => {
+  const zone = orgTimezone();
+  let f = zoneFormatters.get(zone);
+  if (!f) {
+    f = {
+      parts: new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }),
+      month: new Intl.DateTimeFormat('en-GB', { timeZone: zone, month: 'short' }),
+    };
+    zoneFormatters.set(zone, f);
+  }
+  return f;
+};
 const toDate = (input) => {
   if (!input) return null;
   const d = input instanceof Date ? input : new Date(input);
@@ -117,12 +131,13 @@ const toDate = (input) => {
 export const formatDate = (input, pattern = dateFormat) => {
   const d = toDate(input);
   if (!d) return '';
-  const p = Object.fromEntries(partsFormatter.formatToParts(d).map((x) => [x.type, x.value]));
+  const { parts, month } = zoneFormatterFor();
+  const p = Object.fromEntries(parts.formatToParts(d).map((x) => [x.type, x.value]));
   switch (pattern) {
     case 'MM/DD/YYYY': return `${p.month}/${p.day}/${p.year}`;
     case 'YYYY-MM-DD': return `${p.year}-${p.month}-${p.day}`;
     case 'DD-MM-YYYY': return `${p.day}-${p.month}-${p.year}`;
-    case 'DD MMM YYYY': return `${p.day} ${monthName.format(d)} ${p.year}`;
+    case 'DD MMM YYYY': return `${p.day} ${month.format(d)} ${p.year}`;
     default: return `${p.day}/${p.month}/${p.year}`;
   }
 };
@@ -156,12 +171,12 @@ export const parseDate = (text, pattern = dateFormat) => {
 // Kept for the many callers written before the setting existed; it now follows the setting.
 export const formatDateGB = formatDate;
 
-// "13:30:05" or "1:30:05 pm", per the setting, in Dubai time.
+// "13:30:05" or "1:30:05 pm", per the setting, in the organisation's zone.
 export const formatTime = (input, pattern = timeFormat, seconds = true) => {
   const d = toDate(input);
   if (!d) return '';
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: brand.timezone,
+    timeZone: orgTimezone(),
     hour: '2-digit',
     minute: '2-digit',
     ...(seconds ? { second: '2-digit' } : {}),
@@ -175,25 +190,17 @@ export const formatDateTime = (input) => {
   return d ? `${formatDate(d)} ${formatTime(d, timeFormat, false)}` : '';
 };
 
-// The business operates in the UAE; every date the user sees or picks is Dubai-local.
-export const TIMEZONE = brand.timezone;
+// (Every date the user sees or picks is on the organisation's own calendar: TIMEZONE, above, is its zone.)
 
-const ymdFormatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: TIMEZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
-// YYYY-MM-DD in Asia/Dubai, for <input type="date"> values.
+// YYYY-MM-DD in the organisation's zone, for <input type="date"> values.
 //
 // Do NOT use `new Date().toISOString().split("T")[0]` for this: toISOString is UTC, so
-// between 00:00 and 04:00 Dubai time it yields *yesterday* and silently backdates
+// in a zone ahead of UTC the first hours of each day yield *yesterday* and silently backdate
 // vouchers.
 export const toInputDate = (dateInput = new Date()) => {
   const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
   if (Number.isNaN(d.getTime())) return '';
-  return ymdFormatter.format(d);
+  return dayOf(d);
 };
 
 export const todayInput = () => toInputDate(new Date());

@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   provision: vi.fn(),
   saveProfile: vi.fn(),
   users: vi.fn(),
+  roles: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),
   branches: vi.fn(),
@@ -98,6 +99,7 @@ beforeEach(() => {
   api.updateOrganisation.mockResolvedValue(detail());
   api.setStatus.mockResolvedValue(detail());
   api.users.mockResolvedValue([]);
+  api.roles.mockResolvedValue([]);
   api.branches.mockResolvedValue([]);
   api.audit.mockResolvedValue({ rows: [], total: 0 });
 });
@@ -292,6 +294,101 @@ describe("one organisation", () => {
     fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "operator" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(api.createUser).toHaveBeenCalledTimes(1));
-    expect(api.createUser).toHaveBeenCalledWith("acme", { name: "Clerk One", email: "clerk@acme.example", password: "clerk-password-1", type: "operator", branchId: "main" });
+    expect(api.createUser).toHaveBeenCalledWith("acme", { name: "Clerk One", email: "clerk@acme.example", password: "clerk-password-1", role: "operator", branchId: "main" });
+  });
+
+  describe("roles", () => {
+    const ROLES = [
+      { key: "super_admin", name: "Owner", rank: 100, builtIn: true, isActive: true, people: 1 },
+      { key: "accountant", name: "Accountant", rank: 50, builtIn: true, isActive: true, people: 0 },
+      { key: "storekeeper", name: "Storekeeper", rank: 40, builtIn: true, isActive: true, people: 1 },
+      { key: "yard_lead", name: "Yard lead", rank: 30, builtIn: false, isActive: true, people: 0 },
+      { key: "retired", name: "Retired role", rank: 30, builtIn: false, isActive: false, people: 0 },
+    ];
+    const PEOPLE = [
+      { _id: "u1", name: "Owen Owner", email: "owen@acme.example", type: "super_admin", role: { key: "super_admin", name: "Owner", rank: 100, active: true }, status: "active", isActive: true, branchId: "main" },
+      { _id: "u2", name: "Sami Store", email: "sami@acme.example", type: "viewer", role: { key: "storekeeper", name: "Storekeeper", rank: 40, active: true }, status: "active", isActive: true, branchId: "main" },
+    ];
+    beforeEach(() => {
+      signIn();
+      api.roles.mockResolvedValue(ROLES);
+      api.users.mockResolvedValue(PEOPLE);
+      api.branches.mockResolvedValue([{ code: "main", name: "Head office", isHeadOffice: true, isActive: true }]);
+      api.createUser.mockResolvedValue({ id: "9" });
+      api.updateUser.mockResolvedValue({ id: "u2" });
+    });
+    const openChange = async (name) => {
+      renderConsole("/platform/organisations/acme?tab=people");
+      const row = (await screen.findByText(name)).closest("tr, li, article, div[role='row']") || screen.getByText(name).parentElement;
+      fireEvent.click(within(row).getByRole("button", { name: "Change" }));
+      return screen.findByRole("dialog");
+    };
+
+    it("names each person's role in words, the organisation's own and the ready-made ones alike", async () => {
+      renderConsole("/platform/organisations/acme?tab=people");
+      await screen.findByText("Sami Store");
+      expect(screen.getAllByText("Storekeeper").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Owner").length).toBeGreaterThan(0);
+    });
+
+    it("offers the organisation's real roles in the box: ready-made, its own marked custom, and not one switched off", async () => {
+      renderConsole("/platform/organisations/acme?tab=people");
+      fireEvent.click(await screen.findByRole("button", { name: "Add a person" }));
+      const dialog = await screen.findByRole("dialog");
+      await waitFor(() => expect(within(dialog).getByRole("option", { name: "Accountant" })).toBeInTheDocument());
+      const labels = within(dialog).getAllByRole("option").map((o) => o.textContent);
+      expect(labels).toEqual(expect.arrayContaining(["Owner", "Accountant", "Storekeeper", "Yard lead (custom)"]));
+      expect(labels).not.toContain("Retired role (custom)");
+      expect(labels).not.toContain("Retired role");
+    });
+
+    it("gives a new person a ready-made role by its key", async () => {
+      renderConsole("/platform/organisations/acme?tab=people");
+      fireEvent.click(await screen.findByRole("button", { name: "Add a person" }));
+      const dialog = await screen.findByRole("dialog");
+      await waitFor(() => expect(within(dialog).getByRole("option", { name: "Accountant" })).toBeInTheDocument());
+      fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: "Amal Accounts" } });
+      fireEvent.change(within(dialog).getByLabelText(/^Email/), { target: { value: "amal@acme.example" } });
+      fireEvent.change(within(dialog).getByLabelText(/^Password/), { target: { value: "amal-password-1" } });
+      fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "yard_lead" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+      await waitFor(() => expect(api.createUser).toHaveBeenCalledTimes(1));
+      expect(api.createUser).toHaveBeenCalledWith("acme", { name: "Amal Accounts", email: "amal@acme.example", password: "amal-password-1", role: "yard_lead", branchId: "main" });
+    });
+
+    it("changes someone's role, and sends nothing about the role when only the name changed", async () => {
+      let dialog = await openChange("Sami Store");
+      expect(within(dialog).getByLabelText("Role")).toHaveValue("storekeeper");
+      fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: "Sami Stores" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(api.updateUser).toHaveBeenCalledTimes(1));
+      expect(api.updateUser).toHaveBeenLastCalledWith("acme", "u2", { name: "Sami Stores" });
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      dialog = await openChange("Sami Store");
+      fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "accountant" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(api.updateUser).toHaveBeenCalledTimes(2));
+      expect(api.updateUser).toHaveBeenLastCalledWith("acme", "u2", { name: "Sami Store", role: "accountant" });
+    });
+
+    it("keeps showing a role the person holds even after it was switched off, and still lets a name be saved", async () => {
+      api.users.mockResolvedValue([{ ...PEOPLE[1], role: { key: "retired", name: "Retired role", rank: 30, active: false }, type: "viewer" }]);
+      const dialog = await openChange("Sami Store");
+      expect(within(dialog).getByLabelText("Role")).toHaveValue("retired");
+      fireEvent.change(within(dialog).getByLabelText(/^Name/), { target: { value: "Sami S" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(api.updateUser).toHaveBeenCalledTimes(1));
+      expect(api.updateUser.mock.calls[0][2]).toEqual({ name: "Sami S" });
+    });
+
+    it("still works with the five original account types while the organisation's roles have not arrived", async () => {
+      api.roles.mockRejectedValue(new Error("down"));
+      renderConsole("/platform/organisations/acme?tab=people");
+      fireEvent.click(await screen.findByRole("button", { name: "Add a person" }));
+      const dialog = await screen.findByRole("dialog");
+      const labels = within(dialog).getAllByRole("option").map((o) => o.textContent);
+      expect(labels).toEqual(expect.arrayContaining(["Super administrator", "Administrator", "Manager", "Operator", "Viewer"]));
+    });
   });
 });

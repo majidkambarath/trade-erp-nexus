@@ -11,8 +11,10 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const TableView = ({
   paginatedPOs,
@@ -31,6 +33,8 @@ const TableView = ({
   deletePO,
   onShowAudit,
 }) => {
+  // Approve only for someone who may approve THIS return; a first approval awaiting its second is badged.
+  const { stateOf } = useApproval();
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
@@ -190,6 +194,7 @@ const TableView = ({
                         {po.status.replace("_", " ")}
                       </span>
                     </div>
+                    <AwaitingSecondBadge doc={po} state={stateOf(po)} />
                     <div className="flex space-x-1">
                       {po.grnGenerated && (
                         <div
@@ -209,7 +214,7 @@ const TableView = ({
                 <td className="px-4 py-4 text-right">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      AED {formatNumber(po.totalAmount)}
+                      {CURRENCY} {formatNumber(po.totalAmount)}
                     </p>
                     <p className="text-xs text-slate-500">
                       {po.items.length} items
@@ -239,7 +244,7 @@ const TableView = ({
                         </button>
                       </Can>
                     )}
-                    {po.status === "PENDING" && (
+                    {po.status === "PENDING" && stateOf(po).canApprove && (
                       <Can permission="purchase.approve">
                         <button
                           onClick={() => approvePO(po.id)}
@@ -265,8 +270,9 @@ const TableView = ({
                           Duplicate
                         </button>
                         {(po.status === "DRAFT" ||
-                          po.status === "REJECTED") && (
-                          <Can permission="purchase.delete">
+                          po.status === "REJECTED" ||
+                          po.status === "APPROVED") && (
+                          <Can permission={deleteKey("purchase", po.status === "APPROVED")}>
                             <button
                               onClick={() => deletePO(po.id)}
                               className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"

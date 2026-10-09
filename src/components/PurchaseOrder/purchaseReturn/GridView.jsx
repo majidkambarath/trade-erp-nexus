@@ -10,8 +10,10 @@ import {
   User,
   History,
 } from "lucide-react";
-import { formatNumber, formatDate } from "../../../utils/format";
+import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
+import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
+import { deleteKey } from "../../../lib/permissions";
 
 const GridView = ({
   paginatedPOs,
@@ -28,6 +30,9 @@ const GridView = ({
   deletePO,
   onShowAudit,
 }) => {
+  // Approve only for someone who may approve THIS return (Reject is not part of the approval rules and stays); a first
+  // approval awaiting its second is badged.
+  const { stateOf } = useApproval();
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {paginatedPOs.map((po) => (
@@ -35,8 +40,8 @@ const GridView = ({
           key={po.id}
           className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group hover:scale-105"
         >
-          <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200">
-            <div className="flex justify-between items-start">
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-4 sm:px-6 border-b border-slate-200">
+            <div className="flex flex-wrap justify-between items-start gap-x-3 gap-y-2">
               <div className="flex items-center space-x-3">
                 <input
                   type="checkbox"
@@ -53,13 +58,13 @@ const GridView = ({
                   }}
                 />
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">
+                  <h3 className="text-lg font-bold text-slate-800 whitespace-nowrap">
                     {po.transactionNo}
                   </h3>
                   <p className="text-sm text-slate-600">{po.vendorName}</p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <div
                   className={`w-2 h-2 rounded-full ${getPriorityColor(
                     po.priority
@@ -109,7 +114,7 @@ const GridView = ({
                   Total
                 </p>
                 <p className="text-lg font-bold text-emerald-600">
-                  AED {formatNumber(po.totalAmount)}
+                  {CURRENCY} {formatNumber(po.totalAmount)}
                 </p>
               </div>
             </div>
@@ -122,9 +127,9 @@ const GridView = ({
                 {po.items.slice(0, 2).map((item, index) => (
                   <div key={index} className="flex justify-between text-xs">
                     <span className="text-slate-600 truncate">
-                      {item.description}
+                      {item.description || item.itemName || item.stockDetails?.itemName || "Item"}
                     </span>
-                    <span className="text-slate-800 font-medium ml-2">
+                    <span className="text-slate-800 font-medium ml-2 shrink-0 whitespace-nowrap">
                       {item.qty} × {item.rate}
                     </span>
                   </div>
@@ -137,7 +142,7 @@ const GridView = ({
               </div>
             </div>
 
-            <div className="flex items-center space-x-4 mb-4 text-xs">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
               {po.grnGenerated && (
                 <div className="flex items-center space-x-1 text-emerald-600">
                   <CheckCircle className="w-3 h-3" />
@@ -154,10 +159,11 @@ const GridView = ({
                 <User className="w-3 h-3" />
                 <span>{po.createdBy}</span>
               </div>
+              <AwaitingSecondBadge doc={po} state={stateOf(po)} />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex space-x-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
                     setSelectedPO(po);
@@ -188,18 +194,20 @@ const GridView = ({
                 )}
               </div>
 
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap gap-2">
                 {po.status === "PENDING" && (
                   <>
-                    <Can permission="purchase.approve">
-                      <button
-                        onClick={() => approvePO(po.id)}
-                        className="flex items-center space-x-1 px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                        <span className="text-sm">Approve</span>
-                      </button>
-                    </Can>
+                    {stateOf(po).canApprove && (
+                      <Can permission="purchase.approve">
+                        <button
+                          onClick={() => approvePO(po.id)}
+                          className="flex items-center space-x-1 px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
+                        >
+                          <CheckSquare className="w-4 h-4" />
+                          <span className="text-sm">Approve</span>
+                        </button>
+                      </Can>
+                    )}
                     <Can permission="purchase.approve">
                       <button
                         onClick={() => rejectPO(po.id)}
@@ -211,8 +219,8 @@ const GridView = ({
                     </Can>
                   </>
                 )}
-                {(po.status === "DRAFT" || po.status === "REJECTED") && (
-                  <Can permission="purchase.delete">
+                {(po.status === "DRAFT" || po.status === "REJECTED" || po.status === "APPROVED") && (
+                  <Can permission={deleteKey("purchase", po.status === "APPROVED")}>
                     <button
                       onClick={() => deletePO(po.id)}
                       className="flex items-center space-x-1 px-3 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"

@@ -39,7 +39,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { formatCurrencyAED, formatCurrencyCompact, formatDate, formatNumber } from "@/utils/format";
+import { CURRENCY, formatCurrencyAED, formatCurrencyCompact, formatDate, formatNumber } from "@/utils/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -50,7 +50,7 @@ import { ago, dayLabel, gold, hourLabel, ink, monthLabel, monthYearLabel, mutedI
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const PERIOD_WORD = { week: "week", month: "month", quarter: "quarter", custom: "period" };
-const aedTip = (v, name) => [formatCurrencyAED(v), name];
+const moneyTip = (v, name) => [formatCurrencyAED(v), name];
 const sum = (rows, ...fields) => rows.reduce((t, r) => t + fields.reduce((u, f) => u + (Number(r[f]) || 0), 0), 0);
 
 const toneDot = { ok: "bg-status-success", warn: "bg-status-warning", danger: "bg-status-danger", muted: "bg-muted-foreground" };
@@ -478,7 +478,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Sales vs purchase vs profit</CardTitle>
-            <CardDescription>Last 8 months · AED</CardDescription>
+            <CardDescription>Last 8 months · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={!monthly.some((m) => m.sales || m.purchases || m.grossProfit)} emptyText="No sales or purchases posted in the last 8 months" height={280}>
@@ -507,7 +507,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Category sales</CardTitle>
-            <CardDescription>This month vs last month · AED</CardDescription>
+            <CardDescription>This month vs last month · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={categories.length === 0} emptyText="No category sales this month or last" height={280}>
@@ -516,7 +516,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} tickFormatter={compactAmount} />
                   <YAxis type="category" dataKey="name" width={84} tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip contentStyle={tip} formatter={aedTip} />
+                  <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
                   <Bar dataKey="previous" name="Last month" fill="#e7e5e4" radius={[0, 8, 8, 0]} barSize={12} />
                   <Bar dataKey="current" name="This month" fill="var(--chart-2)" radius={[0, 8, 8, 0]} barSize={12} />
@@ -531,7 +531,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Category performance by month</CardTitle>
-            <CardDescription>Last 3 months · AED</CardDescription>
+            <CardDescription>Last 3 months · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={categoryBars.length === 0} emptyText="No category sales in the last 3 months" height={240}>
@@ -540,7 +540,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="cat" tickLine={false} axisLine={false} fontSize={12} />
                   <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={compactAmount} />
-                  <Tooltip contentStyle={tip} formatter={aedTip} />
+                  <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
                   <Bar dataKey="m0" name={monthsOf[0] && monthYearLabel(monthsOf[0])} fill="#d6d3d1" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="m1" name={monthsOf[1] && monthYearLabel(monthsOf[1])} fill={ink} radius={[4, 4, 0, 0]} />
@@ -554,7 +554,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Cash inflow vs outflow</CardTitle>
-            <CardDescription>Cash and bank accounts · last 8 months · AED</CardDescription>
+            <CardDescription>Cash and bank accounts · last 8 months · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={!a || a.cashFlow.accounts === 0 || !cash.some((m) => m.inflow || m.outflow)} emptyText={a?.cashFlow?.accounts === 0 ? "No cash or bank account set up" : "No money in or out in the last 8 months"} height={240}>
@@ -573,7 +573,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} />
                   <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={compactAmount} />
-                  <Tooltip contentStyle={tip} formatter={aedTip} />
+                  <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
                   <Area type="monotone" dataKey="inflow" name="Money in" stroke={ink} fill="url(#inFill)" strokeWidth={2} />
                   <Area type="monotone" dataKey="outflow" name="Money out" stroke="var(--chart-2)" fill="url(#outFill)" strokeWidth={2} />
@@ -591,7 +591,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
           <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">Orders, ageing, customers and stock movement</h2>
           <p className="mt-1 text-sm text-muted-foreground">Worked out from your posted documents · pipeline · settlement · ageing · category radar</p>
         </div>
-        {range && <Badge className="w-fit rounded-full bg-brand-soft text-brand-on-soft hover:bg-brand-soft">{range} · AED</Badge>}
+        {range && <Badge className="w-fit rounded-full bg-brand-soft text-brand-on-soft hover:bg-brand-soft">{range} · {CURRENCY}</Badge>}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -690,7 +690,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Top customers</CardTitle>
-            <CardDescription>Net revenue this {word} · AED</CardDescription>
+            <CardDescription>Net revenue this {word} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={topCustomers.length === 0} emptyText={`No sales this ${word}`} height={280}>
@@ -712,7 +712,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-4")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Receivables vs payables ageing</CardTitle>
-            <CardDescription>By days past due · AED</CardDescription>
+            <CardDescription>By days past due · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={!a || !ageing.some((b) => b.receivables || b.payables)} emptyText="Nothing owed to you or by you" height={280}>
@@ -721,7 +721,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="bucket" tickLine={false} axisLine={false} fontSize={11} />
                   <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={compactAmount} />
-                  <Tooltip contentStyle={tip} formatter={aedTip} />
+                  <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
                   <Bar dataKey="receivables" name="Receivables" fill={ink} radius={[8, 8, 0, 0]} maxBarSize={22} />
                   <Bar dataKey="payables" name="Payables" fill={gold} radius={[8, 8, 0, 0]} maxBarSize={22} />
@@ -734,7 +734,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-3")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Top vendors</CardTitle>
-            <CardDescription>Purchases this {word} · AED · change</CardDescription>
+            <CardDescription>Purchases this {word} · {CURRENCY} · change</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-1">
             {!a && [0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}
@@ -760,7 +760,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Collections vs invoicing</CardTitle>
-            <CardDescription>Weekly, last 6 weeks · AED</CardDescription>
+            <CardDescription>Weekly, last 6 weeks · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={!collections.some((w) => w.receipts || w.invoiced)} emptyText="No receipts or invoices in the last 6 weeks" height={260}>
@@ -769,7 +769,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="week" tickLine={false} axisLine={false} fontSize={12} />
                   <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={compactAmount} />
-                  <Tooltip contentStyle={tip} formatter={aedTip} />
+                  <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
                   <Bar dataKey="receipts" name="Receipts" fill={ink} radius={[8, 8, 0, 0]} maxBarSize={28} />
                   <Line type="monotone" dataKey="invoiced" name="Invoiced" stroke={gold} strokeWidth={3} dot={{ r: 4, fill: gold, strokeWidth: 0 }} />
@@ -813,7 +813,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
       <Card data-anim="bento" className={cn("mt-4", cardClass)}>
         <CardHeader className="pb-1">
           <CardTitle className="text-base font-extrabold">Documents created by hour</CardTitle>
-          <CardDescription>Trade documents and vouchers by weekday · last 4 weeks · Dubai time</CardDescription>
+          <CardDescription>Trade documents and vouchers by weekday · last 4 weeks · organisation time zone</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartArea state={analytics} empty={hourly.length === 0} emptyText="No documents created in the last 4 weeks" height={260}>

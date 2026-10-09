@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import {
   bankRows,
   companyBlock,
@@ -9,6 +9,7 @@ import {
   vatBreakdown,
   withChargesVat,
 } from "../invoiceModel";
+import { resetOrgLocale, setOrgLocale } from "../../../../utils/orgLocale";
 
 describe("tint", () => {
   it("mixes the accent with white by the share given", () => {
@@ -97,5 +98,32 @@ describe("totalInWords", () => {
 
   it("uses the code for a currency it does not know", () => {
     expect(totalInWords(10, "XYZ")).toContain("XYZ");
+  });
+
+  describe("in the organisation's currency", () => {
+    afterEach(() => resetOrgLocale());
+
+    it("defaults to the organisation's currency, read when called", () => {
+      expect(totalInWords(5.5)).toBe("Five Dirhams and Fifty Fils Only");
+      setOrgLocale({ currency: "GBP" });
+      expect(totalInWords(5.5)).toBe("Five Pounds and Fifty Pence Only");
+      setOrgLocale({ currency: "INR" });
+      expect(totalInWords(5.5)).toBe("Five Rupees and Fifty Paise Only");
+    });
+
+    it("knows the Gulf riyals", () => {
+      expect(totalInWords(2.25, "SAR")).toBe("Two Riyals and Twenty Five Halalas Only");
+      expect(totalInWords(2.25, "QAR")).toBe("Two Riyals and Twenty Five Dirhams Only");
+    });
+
+    it("an explicit currency still wins over the organisation's", () => {
+      setOrgLocale({ currency: "GBP" });
+      expect(totalInWords(1, "USD")).toBe("One Dollars Only");
+    });
+
+    it("a currency with no entry does not crash and keeps its code", () => {
+      setOrgLocale({ currency: "JPY" });
+      expect(totalInWords(3)).toContain("JPY");
+    });
   });
 });

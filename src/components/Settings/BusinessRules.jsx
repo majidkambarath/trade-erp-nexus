@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { accounting } from "../../lib/accountingApi";
+import { approvalsFrom, approvalsPayload } from "../../lib/settingsForm";
+import { orgCurrency } from "../../utils/orgLocale";
 import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
 
 const MODES = [
@@ -22,6 +25,7 @@ export default function BusinessRules({ notify, companyDefaults }) {
     <Guarded permission="settings.manage" what="the business rules">
       <CreditControl settings={data} notify={notify} onSaved={reload} />
       <Returns settings={data} notify={notify} onSaved={reload} />
+      <Approvals settings={data} notify={notify} onSaved={reload} />
       <TaxIdentity settings={data} defaults={companyDefaults} notify={notify} onSaved={reload} />
     </Guarded>
   );
@@ -41,7 +45,8 @@ function useSection(save, notify, onSaved, message) {
         notify(message);
         onSaved();
       } catch (e) {
-        setError(e);
+        // the server's own sentence (an axios error's message is only "Request failed with status code 400")
+        setError(e?.response?.data?.message ? new Error(e.response.data.message) : e);
       } finally {
         setBusy(false);
       }
@@ -89,6 +94,35 @@ function Returns({ settings, notify, onSaved }) {
         <Field label="Accept returns within (days of the original invoice)" hint="0 means no time limit." className="max-w-xl"><TextInput type="number" min="0" step="1" value={window_} onChange={(e) => setWindow(e.target.value)} /></Field>
         <ErrorNote error={s.error} />
         <div><Button type="submit" disabled={s.busy}>{s.busy ? "Saving…" : "Save return rules"}</Button></div>
+      </form>
+    </Panel>
+  );
+}
+
+// Who must approve what. Both rules are off until set, so nothing changes for an organisation that does not want them. The
+// server enforces them on every approve (a document, a voucher, in bulk); the screens only decide what to offer.
+function Approvals({ settings, notify, onSaved }) {
+  const { refresh } = useOrganisation();
+  const [form, setForm] = useState(() => approvalsFrom(settings.approvals));
+  useEffect(() => setForm(approvalsFrom(settings.approvals)), [settings]);
+  const [fieldError, setFieldError] = useState(null);
+  const s = useSection(async () => {
+    const out = approvalsPayload(form);
+    if (!out.ok) { setFieldError(out.error); throw new Error("Check the amount"); }
+    setFieldError(null);
+    await accounting.saveSettings(out.body);
+    refresh(); // the shell learns the new rule at once, so the order screens follow it
+  }, notify, onSaved, "Approval rules saved");
+  return (
+    <Panel title="Approvals" description="Who may approve a document. Both rules are off until you turn them on. The person who approves also needs the Approve permission, and a role can have an approval limit of its own (Users and roles).">
+      <form onSubmit={s.submit} className="grid gap-4">
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={form.separateApprover} onChange={(e) => setForm((f) => ({ ...f, separateApprover: e.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]" />
+          <span><span className="font-medium">The person who prepared a document cannot approve it</span><span className="block text-xs text-muted-foreground">Applies to orders, returns and vouchers. Someone else has to give the approval.</span></span></label>
+        <Field label={`Ask for a second approver on documents above (${orgCurrency()})`} hint="Two different people must approve a document above this amount. Leave empty to ask for one approval always." error={fieldError} className="max-w-xl">
+          <TextInput inputMode="decimal" autoComplete="off" placeholder="No second approver" value={form.secondApprovalAbove} onChange={(e) => setForm((f) => ({ ...f, secondApprovalAbove: e.target.value }))} />
+        </Field>
+        {s.error && !fieldError && <ErrorNote error={s.error} />}
+        <div><Button type="submit" disabled={s.busy}>{s.busy ? "Saving…" : "Save approval rules"}</Button></div>
       </form>
     </Panel>
   );

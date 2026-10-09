@@ -551,8 +551,8 @@ const CategoryManagement = () => {
                   key: "actions", header: "Actions", align: "center", card: "actions",
                   cell: (category) => (
                     <div className="flex justify-center space-x-2">
-                      <button onClick={() => handleEdit(category)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="Edit Category"><Edit3 size={16} /></button>
-                      <button onClick={() => showDeleteConfirmation(category._id, category.name)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200" title="Delete Category"><Trash2 size={16} /></button>
+                      <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="Edit Category"><Edit3 size={16} /></button></Can>
+                      <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200" title="Delete Category"><Trash2 size={16} /></button></Can>
                     </div>
                   ),
                 },

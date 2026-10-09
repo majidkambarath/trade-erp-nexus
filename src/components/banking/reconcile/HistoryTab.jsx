@@ -3,6 +3,7 @@ import { Download, FileText, RotateCcw } from "lucide-react";
 import { Button } from "../../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, Textarea, useAsync } from "../../accounting/kit";
 import { ActionModal } from "../../salesDocs/parts";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { reconcile } from "../../../lib/bankReconcileApi";
 import { proofRows } from "../../../lib/bankReconcile";
 import { downloadCSV, formatDate, formatDateTime, formatNumber } from "../../../utils/format";
@@ -53,12 +54,15 @@ export default function HistoryTab({ account, version, notify, onChanged }) {
   const [reopen, setReopen] = useState(null);
   const rows = list.data || [];
   const latest = rows.find((r) => r.status === "completed");
+  // Reopening unlocks the lines a reconciliation holds: banking.reconcile. Reading the history and its statements is banking.view.
+  const { canAny } = useOrganisation();
+  const canReconcile = canAny("banking.reconcile");
 
   return (
     <Panel bodyClassName="p-0" title="Completed reconciliations" description="The statement each one was proved against is kept as it stood.">
       {list.loading && !list.data && <Spinner label="Loading" />}
       <ErrorNote error={list.error} onRetry={list.reload} />
-      {list.data && rows.length === 0 && <EmptyState title="Nothing completed yet" text="When a statement agrees with the books, finish it from the Statement lines tab and it is kept here." />}
+      {list.data && rows.length === 0 && <EmptyState title="Nothing completed yet" text={canReconcile ? "When a statement agrees with the books, finish it from the Statement lines tab and it is kept here." : "A reconciliation appears here once a statement has been proved against the books."} />}
       {rows.length > 0 && (
         <DataTable
           caption="Reconciliations"
@@ -75,7 +79,7 @@ export default function HistoryTab({ account, version, notify, onChanged }) {
               cell: (r) => (
                 <>
                   <Button size="sm" variant="outline" onClick={() => setView(r)}><FileText className="h-3.5 w-3.5" aria-hidden="true" />Statement</Button>
-                  {latest && r._id === latest._id && <Button size="sm" variant="ghost" onClick={() => setReopen(r)}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reopen</Button>}
+                  {canReconcile && latest && r._id === latest._id && <Button size="sm" variant="ghost" onClick={() => setReopen(r)}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reopen</Button>}
                 </>
               ),
             },

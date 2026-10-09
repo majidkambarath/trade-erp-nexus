@@ -5,7 +5,7 @@ import { ifrs } from "../../lib/ifrsApi";
 import {
   COMPARE_OPTIONS, TABS, buildDocument, documentCsv, fileSlug, formatAmount, isAsAtTab, isTab, keyFigures, printDocument, requestFor, warnings,
 } from "../../lib/ifrsStatements";
-import { downloadCSV, formatDate, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDate, todayInput } from "../../utils/format";
 import { getBrand } from "../../config/brands";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -94,7 +94,7 @@ function StatementTab({ tab, range, compare, detail }) {
     downloadCSV(`ifrs-${fileSlug(tab)}-${data.asAt || data.to}.csv`, headers, rows);
   };
   const print = () => {
-    if (!printDocument(doc, { company, trn: data.entity?.trn, currency: data.currency })) notify("Allow pop-ups for this site to print the statement.", "error");
+    if (!printDocument(doc, { company, trn: data.entity?.trn, currency: data.currency || CURRENCY })) notify("Allow pop-ups for this site to print the statement.", "error");
   };
   const figures = keyFigures(tab, data);
   const problems = warnings(tab, data);
@@ -117,7 +117,7 @@ function StatementTab({ tab, range, compare, detail }) {
       <Panel
         bodyClassName="p-0"
         title={doc.title}
-        description={`${company} · ${doc.period} · Amounts in ${data.currency || "AED"}`}
+        description={`${company} · ${doc.period} · Amounts in ${data.currency || CURRENCY}`}
         actions={
           <>
             <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>

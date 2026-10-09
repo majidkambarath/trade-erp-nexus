@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { banking } from "../../lib/bankingApi";
 
 // Visa, Mastercard, American Express... with the fee the card processor takes when a customer
@@ -12,15 +13,17 @@ const blank = () => ({ name: "", description: "", feePercent: "0", isActive: tru
 export default function CardTypeMaster() {
   const { data, loading, error, reload } = useAsync(() => banking.cardTypes(), []);
   const { notify, toastNode } = useToasts();
+  const { canAny } = useOrganisation();
+  const canManage = canAny("banking.manage"); // adding and editing card types: the server asks the same
   const [editing, setEditing] = useState(null);
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Card types" description="The kinds of card you accept or pay with, and the processing fee on each." actions={<Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card type</Button>} />
+      <PageHeader title="Card types" description="The kinds of card you accept or pay with, and the processing fee on each." actions={canManage && <Button onClick={() => setEditing(blank())}><Plus className="h-4 w-4" aria-hidden="true" />New card type</Button>} />
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading card types" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data?.length === 0 && <EmptyState title="No card types yet" text="Add Visa, Mastercard and the others you accept." />}
+        {data?.length === 0 && <EmptyState title="No card types yet" text={canManage ? "Add Visa, Mastercard and the others you accept." : "None have been added yet."} />}
         {data?.length > 0 && (
           <DataTable
             caption="Card types"
@@ -31,7 +34,8 @@ export default function CardTypeMaster() {
               { key: "description", header: "Description", card: "title", className: "text-muted-foreground", cell: (t) => t.description },
               { key: "fee", header: "Processing fee", align: "end", card: "amount", className: "tabular-nums", cell: (t) => `${t.feePercent}%` },
               { key: "status", header: "Status", card: "badge", cell: (t) => t.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...t, feePercent: String(t.feePercent) })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
+              // no edit column at all for someone who may only look (DataTable drops a false entry)
+              canManage && { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (t) => <button type="button" aria-label={`Edit ${t.name}`} onClick={() => setEditing({ ...t, feePercent: String(t.feePercent) })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button> },
             ]}
           />
         )}

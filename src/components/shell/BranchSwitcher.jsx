@@ -1,7 +1,7 @@
 import React from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronDown, MapPin } from "lucide-react";
-import { branchChoices } from "../../lib/organisation";
+import { branchChoices, branchInUse } from "../../lib/organisation";
 import { useOrganisation } from "./OrganisationContext";
 
 const item =
@@ -9,7 +9,11 @@ const item =
 
 // Where the person is working. An organisation with one branch shows nothing. A head-office user can switch between
 // every branch and each one (documents, ledger and reports then show that branch alone); anyone else sees their own
-// branch's name, because that is all they will ever be shown.
+// branch's name, because that is all they will ever be shown. A person who belongs to a branch but was given a role in
+// others is offered exactly those branches. Someone whose role differs by branch (`canViewAll` false in the status) is
+// never offered "All branches": they work in one branch at a time, and the switcher names the one in use. Choosing a
+// branch sends it as X-Branch and reads the status again (`selectBranch`), so the role and permissions of THAT branch
+// apply at once.
 export default function BranchSwitcher() {
   const { status, branch, selectBranch } = useOrganisation();
   if (!branch?.label) return null;
@@ -24,7 +28,7 @@ export default function BranchSwitcher() {
     );
   }
 
-  const current = branch.selected || "";
+  const current = branchInUse(status, branch.selected);
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger

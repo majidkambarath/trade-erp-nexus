@@ -2,7 +2,7 @@ import axiosInstance from "../axios/axios";
 
 // Thin wrappers over /stock-reports. Every backend response is { success, data } (or
 // { success:false, message, errorCode }), so callers get `data` back directly and failures as an
-// Error carrying the server's message and code. Dates are YYYY-MM-DD (Dubai days).
+// Error carrying the server's message and code. Dates are YYYY-MM-DD (the organisation's calendar days).
 
 export class StockReportError extends Error {
   constructor(message, { code, status } = {}) {

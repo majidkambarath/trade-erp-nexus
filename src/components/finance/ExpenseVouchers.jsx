@@ -9,7 +9,7 @@ import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingO
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
 import { describePayment, emptyPayment, money, paymentFromVoucher, paymentPayload, toCents, validatePayment } from "../../lib/voucherForms";
-import { formatDateGB } from "../../utils/format";
+import { CURRENCY, formatDateGB } from "../../utils/format";
 
 // Expense vouchers: an expense account of the chart, the VAT on it, and how it was paid - cash,
 // bank, transfer, cheque or card, like any other payment.
@@ -44,14 +44,14 @@ export default function ExpenseVouchers() {
               { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs truncate text-muted-foreground", cell: (v) => describePayment(v) },
               { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
-              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} /> },
+              { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
       </Panel>
       {form && <ExpenseForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
-      {viewing && <VoucherView id={viewing} title="Expense voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Expense deleted and reversed"); list.reload(); }} />}
+      {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Expense voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Expense deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -120,10 +120,10 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
           <Field label="Description" required error={errors.description} className="sm:col-span-2">
             <Textarea rows={2} value={f.description} onChange={(e) => set({ description: e.target.value })} maxLength={200} placeholder="e.g. Office rent - October" />
           </Field>
-          <Field label="Amount before VAT (AED)" required error={errors.amount}>
+          <Field label={`Amount before VAT (${CURRENCY})`} required error={errors.amount}>
             <TextInput inputMode="decimal" className="text-end tabular-nums" value={f.amount} onChange={(e) => /^\d*(\.\d{0,2})?$/.test(e.target.value.replace(/,/g, "")) && set({ amount: e.target.value.replace(/,/g, "") })} placeholder="0.00" />
           </Field>
-          <Field label="Tax code" hint={rate ? `${rate}% = ${money(vat)} AED, total ${money(total)} AED` : "Leave empty for no VAT."}>
+          <Field label="Tax code" hint={rate ? `${rate}% = ${money(vat)} ${CURRENCY}, total ${money(total)} ${CURRENCY}` : "Leave empty for no VAT."}>
             <SearchSelect value={f.taxCodeId} onChange={(v) => set({ taxCodeId: v })} options={taxOptions} clearable placeholder="No VAT" />
           </Field>
           <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>

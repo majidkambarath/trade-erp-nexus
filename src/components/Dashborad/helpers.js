@@ -1,4 +1,5 @@
 import { formatDate, formatNumber, toInputDate } from "@/utils/format";
+import { orgTimezone } from "@/utils/orgLocale";
 
 // What every tab of the home dashboard shares: chart colours, the tooltip, short labels for months
 // and days, relative times, the link of a voucher and the status rows.
@@ -60,12 +61,16 @@ export function compactAmount(value) {
 export const signed = (pct) => `${pct > 0 ? "+" : pct < 0 ? "-" : ""}${formatNumber(Math.abs(pct), 1)}%`;
 
 // "Today", "Yesterday", "3 days ago", "2 hours ago", "5 min ago". A moment at exactly midnight in
-// Dubai is a date typed without a time, so it is read by day rather than by hour.
-const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+// the organisation's zone is a date typed without a time, so it is read by day rather than by hour.
+const clocks = new Map();
+const clockFor = (zone) => {
+  if (!clocks.has(zone)) clocks.set(zone, new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }));
+  return clocks.get(zone);
+};
 export function ago(iso, now = new Date()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const dayOnly = clock.format(d) === "00:00";
+  const dayOnly = clockFor(orgTimezone()).format(d) === "00:00";
   const days = Math.round((new Date(`${toInputDate(now)}T00:00:00Z`) - new Date(`${toInputDate(d)}T00:00:00Z`)) / 86400000);
   if (days >= 30) return formatDate(d);
   if (dayOnly || days >= 2) return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;

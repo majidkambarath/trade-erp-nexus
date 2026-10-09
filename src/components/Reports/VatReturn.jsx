@@ -4,6 +4,8 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Download, Printer, TriangleAle
 import { vat } from "../../lib/accountingApi";
 import { downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
+import Can from "../shell/Can";
+import { useOrganisation } from "../shell/OrganisationContext";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ConfirmDialog, DateInput, EmptyState, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
@@ -100,7 +102,7 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
             )}
 
             <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`Amounts in AED. Supplies are reported under ${d.emirate} until customers carry their own emirate.`}
-              actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></>}>
+              actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Can permission="reports.vat"><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></Can></>}>
               <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -222,6 +224,8 @@ function Documents({ range, initialKind }) {
 // ---------------------------------------------------------------- saved returns
 
 function Saved({ notify }) {
+  const { canAny } = useOrganisation();
+  const mayPrepare = canAny("reports.vat"); // saving, finalising, filing and deleting a return; looking at one needs only reports.financial
   const state = useAsync(() => vat.returns(), []);
   const [view, setView] = useState(null);
   const [confirm, setConfirm] = useState(null); // { kind: finalize|anyway|delete, ret }
@@ -248,7 +252,7 @@ function Saved({ notify }) {
       {(rows) => (
         <>
           <Panel bodyClassName="p-0" title="Saved returns" description="A return keeps the figures it had when it was prepared, so a later change to a document does not restate it.">
-            {rows.length === 0 ? <EmptyState title="No saved returns" text="Open the Return tab, check the figures and choose Save as draft." /> : (
+            {rows.length === 0 ? <EmptyState title="No saved returns" text={mayPrepare ? "Open the Return tab, check the figures and choose Save as draft." : "No VAT return has been saved yet."} /> : (
               <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -266,9 +270,9 @@ function Saved({ notify }) {
                         <td className="px-5 py-2.5 text-end">
                           <span className="inline-flex gap-1.5">
                             <Button size="sm" variant="outline" onClick={() => setView(r)} aria-label={`View return ${r.periodFrom} to ${r.periodTo}`}>View</Button>
-                            {r.status === "DRAFT" && <Button size="sm" onClick={() => setConfirm({ kind: "finalize", ret: r })}>Finalise</Button>}
-                            {r.status === "FINALIZED" && <Button size="sm" onClick={() => setFiling({ ret: r, reference: "", filedOn: todayInput() })}>Mark filed</Button>}
-                            {r.status === "DRAFT" && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "delete", ret: r })}>Delete</Button>}
+                            {mayPrepare && r.status === "DRAFT" && <Button size="sm" onClick={() => setConfirm({ kind: "finalize", ret: r })}>Finalise</Button>}
+                            {mayPrepare && r.status === "FINALIZED" && <Button size="sm" onClick={() => setFiling({ ret: r, reference: "", filedOn: todayInput() })}>Mark filed</Button>}
+                            {mayPrepare && r.status === "DRAFT" && <Button size="sm" variant="ghost" onClick={() => setConfirm({ kind: "delete", ret: r })}>Delete</Button>}
                           </span>
                         </td>
                       </tr>

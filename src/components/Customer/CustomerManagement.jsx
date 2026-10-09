@@ -99,7 +99,7 @@ const CustomerManagement = () => {
   // Refs for enhanced UX
   const searchInputRef = useRef(null);
 
-  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
   const formatCurrency = useCallback(
     (amount, colorClass = "") => (
       <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
@@ -623,12 +623,16 @@ const CustomerManagement = () => {
                   key: "actions", header: "Actions", card: "actions",
                   cell: (c) => (
                     <div className="flex items-center space-x-3">
-                      <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
-                        <Edit size={16} />
-                      </button>
-                      <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
-                        <Trash2 size={16} />
-                      </button>
+                      <Can permission="sales.edit">
+                        <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
+                          <Edit size={16} />
+                        </button>
+                      </Can>
+                      <Can permission="sales.delete">
+                        <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
+                          <Trash2 size={16} />
+                        </button>
+                      </Can>
                     </div>
                   ),
                 },

@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { processTransaction } from "../../../lib/processTransaction";
+import { approveMany, processTransaction } from "../../../lib/processTransaction";
+import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
+import { useApproval } from "../../shell/Approval";
 import { VARIANTS } from "../../OrderEntry/variants";
 import { StatCard } from "../../ui/stat-card";
 import { loadFormForEdit } from "../../OrderEntry/editForm";
@@ -48,7 +50,7 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import SaleInvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
@@ -56,17 +58,21 @@ import { downloadSheetsPdf, sheetMarkup, sheetsPdfFile } from "../shared/documen
 import SendDialog from "../../send/SendDialog";
 import { summaryOfSend } from "../../send/shared";
 import { readAccent } from "../shared/invoiceModel";
-import { getBrand } from "../../../config/brands";
 
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
+import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
+import { orgCurrency } from "../../../utils/orgLocale";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
 
 const SalesOrderManagement = () => {
+  const { canAny } = useOrganisation();
+  const { stateOf, me } = useApproval();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState(() => (linkedSearch() ? "list" : "dashboard"));
   // The table is the right list for a pointer and the cards for a thumb, so the default
@@ -247,6 +253,8 @@ const formatDisplayTransactionNo = (t) => {
       terms: t.terms || "",
       notes: t.notes || "",
       createdBy: t.createdBy,
+      // who has approved it so far: a first of two shows as "Awaiting second approval"
+      approvals: Array.isArray(t.approvals) ? t.approvals : [],
       createdAt: t.createdAt,
       invoiceGenerated: t.invoiceGenerated,
       // an opening balance invoice has no goods; an order the customer will not take the rest of takes no more deliveries
@@ -540,23 +548,28 @@ const formatDisplayTransactionNo = (t) => {
 
     try {
       if (action === "confirm") {
-        for (const soId of selectedSOs) {
-          await processTransaction(soId, "approve");
-        }
-        addNotification(
-          `${selectedSOs.length} orders approved successfully`,
-          "success"
-        );
+        // Each order is judged on its own (its amount, who prepared it, who has approved it), so the answer says how many were
+        // approved, how many wait for a second person and how many were refused - and why.
+        const outcome = summariseApprovals(await approveMany(selectedSOs, { docs: salesOrders, stateOf, me }));
+        addNotification(outcome.text, outcome.tone);
       } else if (action === "delete") {
+        // An approved document is deleted only by someone who holds sales.deletePosted (the server decides the same way by the
+        // stored status): the others are left out of the request and told so.
+        const plan = planBulkDelete(selectedSOs, salesOrders, canAny("sales.deletePosted"));
+        const left = plan.skipped.length ? skippedPostedText(plan.skipped.length) : "";
+        if (plan.deletable.length === 0) {
+          addNotification(left, "warning");
+          return;
+        }
         askDelete({
-          title: `Delete ${selectedSOs.length} sales orders?`,
-          text: "Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          title: `Delete ${plan.deletable.length} sales orders?`,
+          text: ["Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.", plan.posted ? postedDeleteText(plan.posted) : "", left].filter(Boolean).join(" "),
           onConfirm: async () => {
             try {
-              for (const soId of selectedSOs) {
+              for (const soId of plan.deletable) {
                 await axiosInstance.delete(`/transactions/transactions/${soId}`);
               }
-              addNotification(`${selectedSOs.length} orders deleted`, "success");
+              addNotification([`${plan.deletable.length} orders deleted`, left].filter(Boolean).join(". "), left ? "warning" : "success");
             } catch (error) {
               addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
             }
@@ -643,8 +656,10 @@ const formatDisplayTransactionNo = (t) => {
         });
       }
 
-      await processTransaction(id, "approve");
-      addNotification("Sales Order approved successfully", "success");
+      const response = await processTransaction(id, "approve");
+      // Above the organisation's second-approver amount this only records the first approval: say so, not "approved"
+      if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
+      else addNotification("Sales Order approved successfully", "success");
       fetchTransactions();
     } catch (error) {
       addNotification(
@@ -660,7 +675,7 @@ const formatDisplayTransactionNo = (t) => {
   const downloadInvoiceCopy = async (so, copyType) => {
     try {
       const customer = customers.find((c) => c._id === so.customerId) || {};
-      const doc = buildSalesDocument(so, customer, companyProfile, getBrand().currency);
+      const doc = buildSalesDocument(so, customer, companyProfile, orgCurrency());
       await downloadSheetsPdf([sheetMarkup(doc.sheet, { copy: copyType, accent: readAccent() })], doc.fileName);
     } catch (error) {
       console.error(error);
@@ -671,7 +686,7 @@ const formatDisplayTransactionNo = (t) => {
   // The Send dialog for a row of the list: the same customer copy the Download draws, handed over as a file.
   const sendFor = (so) => {
     const customer = customers.find((c) => c._id === so.customerId) || {};
-    const doc = buildSalesDocument(so, customer, companyProfile, getBrand().currency);
+    const doc = buildSalesDocument(so, customer, companyProfile, orgCurrency());
     return {
       doc: {
         kind: "tax_invoice", sourceType: "Transaction", id: so.id, number: doc.sheet.number.value, title: doc.sheet.title,
@@ -684,10 +699,25 @@ const formatDisplayTransactionNo = (t) => {
 
   const [askDelete, deleteDialog] = useDeleteConfirm();
 
+  // Is anything in the selection a draft this person may approve? (their own work, or one over their limit, is not offered)
+  const canBulkApprove = selectedSOs.some((id) => {
+    const so = salesOrders.find((d) => d.id === id);
+    return so?.status === "DRAFT" && stateOf(so).canApprove;
+  });
+
+  // Does the selection hold anything this person may delete? (an approved one needs sales.deletePosted)
+  const canBulkDelete = planBulkDelete(selectedSOs, salesOrders, canAny("sales.deletePosted")).deletable.length > 0;
+
   const deleteSO = (id) => {
+    // An approved order is reversed in stock and in the ledger: that is sales.deletePosted, not plain Delete.
+    const posted = isPostedDocument(salesOrders.find((d) => d.id === id));
+    if (posted && !canAny("sales.deletePosted")) {
+      addNotification(skippedPostedText(1), "warning");
+      return;
+    }
     askDelete({
       title: "Delete this sales order?",
-      text: "The order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      text: posted ? "This order is approved: deleting it REVERSES its stock and ledger postings, then removes it. The deletion is written to the activity log." : "The order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
       onConfirm: async () => {
         try {
           await axiosInstance.delete(`/transactions/transactions/${id}`);
@@ -739,10 +769,10 @@ const formatDisplayTransactionNo = (t) => {
         />
         <StatCard
           title="Total Value"
-          count={`AED ${formatNumber(statistics.totalValue)}`}
+          count={`${CURRENCY} ${formatNumber(statistics.totalValue)}`}
           tone="olive"
           icon={<Banknote />}
-          subText={`Invoiced AED ${formatNumber(statistics.invoicedValue)}`}
+          subText={`Invoiced ${CURRENCY} ${formatNumber(statistics.invoicedValue)}`}
         />
         <StatCard
           title="This Month"
@@ -784,7 +814,7 @@ const formatDisplayTransactionNo = (t) => {
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-sm font-semibold tabular-nums text-foreground">
-                        AED {formatNumber(so.totalAmount)}
+                        {CURRENCY} {formatNumber(so.totalAmount)}
                       </span>
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
@@ -1082,7 +1112,7 @@ const formatDisplayTransactionNo = (t) => {
                 </button>
                 {selectedSOs.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <Can permission="sales.approve">
+                    {canBulkApprove && <Can permission="sales.approve">
                       <button
                         onClick={() => handleBulkAction("confirm")}
                         className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
@@ -1090,16 +1120,18 @@ const formatDisplayTransactionNo = (t) => {
                         <CheckSquare className="w-4 h-4" />
                         <span>Approve</span>
                       </button>
-                    </Can>
-                    <Can permission="sales.delete">
-                      <button
-                        onClick={() => handleBulkAction("delete")}
-                        className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
-                      </button>
-                    </Can>
+                    </Can>}
+                    {canBulkDelete && (
+                      <Can permission="sales.delete">
+                        <button
+                          onClick={() => handleBulkAction("delete")}
+                          className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete</span>
+                        </button>
+                      </Can>
+                    )}
                     <button
                       onClick={() => handleBulkAction("export")}
                       className="flex items-center space-x-2 px-4 py-2 bg-card text-foreground rounded-lg hover:bg-accent transition-colors border border-input"

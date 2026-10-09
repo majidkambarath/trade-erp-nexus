@@ -615,12 +615,16 @@ import Can from "../shell/Can";
                       key: "actions", header: "Actions", card: "actions",
                       cell: (u) => (
                         <div className="flex items-center space-x-3">
-                          <button onClick={() => handleEdit(u, "unit")} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" aria-label={`Edit ${u.unitName}`}>
-                            <Edit size={16} />
-                          </button>
-                          <button onClick={() => showDeleteConfirmation(u._id, u.unitName, "unit")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label={`Delete ${u.unitName}`}>
-                            <Trash2 size={16} />
-                          </button>
+                          <Can permission="inventory.edit">
+                            <button onClick={() => handleEdit(u, "unit")} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" aria-label={`Edit ${u.unitName}`}>
+                              <Edit size={16} />
+                            </button>
+                          </Can>
+                          <Can permission="inventory.delete">
+                            <button onClick={() => showDeleteConfirmation(u._id, u.unitName, "unit")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label={`Delete ${u.unitName}`}>
+                              <Trash2 size={16} />
+                            </button>
+                          </Can>
                         </div>
                       ),
                     },
@@ -661,12 +665,16 @@ import Can from "../shell/Can";
                       key: "actions", header: "Actions", card: "actions",
                       cell: (c) => (
                         <div className="flex items-center space-x-3">
-                          <button onClick={() => handleEdit(c, "conversion")} className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-all duration-200" aria-label="Edit conversion">
-                            <Edit size={16} />
-                          </button>
-                          <button onClick={() => showDeleteConfirmation(c._id, `${c.fromUOM.unitName} to ${c.toUOM.unitName}`, "conversion")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label="Delete conversion">
-                            <Trash2 size={16} />
-                          </button>
+                          <Can permission="inventory.edit">
+                            <button onClick={() => handleEdit(c, "conversion")} className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-all duration-200" aria-label="Edit conversion">
+                              <Edit size={16} />
+                            </button>
+                          </Can>
+                          <Can permission="inventory.delete">
+                            <button onClick={() => showDeleteConfirmation(c._id, `${c.fromUOM.unitName} to ${c.toUOM.unitName}`, "conversion")} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" aria-label="Delete conversion">
+                              <Trash2 size={16} />
+                            </button>
+                          </Can>
                         </div>
                       ),
                     },

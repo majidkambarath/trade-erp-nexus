@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED} from "../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED, CURRENCY} from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
@@ -328,7 +328,7 @@ const InventoryManagement = () => {
     SessionManager.remove("lastSaveTime");
   }, []);
 
-  // Money is written the same way across the product: "AED 1,234.50" as text, never an icon.
+  // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
   const formatCurrency = useCallback(
     (amount, colorClass = "") => (
       <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
@@ -940,7 +940,7 @@ const InventoryManagement = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Unit Cost (AED)
+                    {`Unit Cost (${CURRENCY})`}
                   </label>
                   <input
                     type="number"

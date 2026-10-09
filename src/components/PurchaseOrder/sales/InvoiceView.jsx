@@ -1,9 +1,10 @@
 /* Sales order / tax invoice: the document is built in shared/invoiceDocuments, the page is shared. */
 import React, { useMemo } from "react";
 import InvoiceScreen from "../shared/InvoiceScreen";
+import { ApprovalBanner } from "../../shell/Approval";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
-import { getBrand } from "../../../config/brands";
+import { orgCurrency } from "../../../utils/orgLocale";
 
 // A stable stand-in while the party is not found (a new {} each render would rebuild the document).
 const NO_PARTY = {};
@@ -19,7 +20,7 @@ const SaleInvoiceView = ({
   const company = useCompanyProfile();
   const so = createdSO || selectedSO;
   const customer = (so && customers.find((c) => c._id === so.customerId)) || NO_PARTY;
-  const currency = getBrand().currency;
+  const currency = orgCurrency();
   const doc = useMemo(() => (so ? buildSalesDocument(so, customer, company, currency) : null), [so, customer, company, currency]);
 
   if (!doc) return null;
@@ -42,6 +43,7 @@ const SaleInvoiceView = ({
       missingTrn={doc.missingTrn}
       auditId={so.id || so._id}
       send={send}
+      banner={<ApprovalBanner doc={so} permission="sales.approve" />}
       onBack={() => {
         setSelectedSO(null);
         setCreatedSO(null);

@@ -50,6 +50,7 @@ export const platform = {
   saveProfile: async (code, body) => data(await client.put(`/organisations/${code}/profile`, body)),
 
   users: async (code) => data(await client.get(`/organisations/${code}/users`)),
+  roles: async (code) => data(await client.get(`/organisations/${code}/roles`)),
   createUser: async (code, body) => data(await client.post(`/organisations/${code}/users`, body)),
   updateUser: async (code, id, body) => data(await client.patch(`/organisations/${code}/users/${id}`, body)),
   branches: async (code) => data(await client.get(`/organisations/${code}/branches`)),

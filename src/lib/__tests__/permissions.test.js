@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { can, canAny, notAllowedText, roleName, tabAllowed } from "../permissions";
+import { can, canAny, deleteKey, isPostedDocument, notAllowedText, planBulkDelete, postedDeleteText, roleName, skippedPostedText, tabAllowed } from "../permissions";
 import { isPermissionError, planRefusalMessage } from "../organisation";
 import { allowActions } from "../salesDocuments";
 
@@ -95,5 +95,59 @@ describe("what a role may do to a quotation or a delivery note", () => {
     expect(allowActions(state, null).accept).toBe(true);
     expect(allowActions(state, null).dispatch).toBe(false);
     expect(allowActions(undefined, me("sales.view"))).toEqual({});
+  });
+});
+
+// Deleting an approved document reverses its stock and ledger postings, so the server makes it its own permission
+// (byDocumentDelete / byVoucherDelete: the STORED status decides). The screens mirror it with these.
+describe("deleteKey", () => {
+  it("asks for deletePosted on a posted document and for plain delete on anything else", () => {
+    expect(deleteKey("sales", true)).toBe("sales.deletePosted");
+    expect(deleteKey("sales", false)).toBe("sales.delete");
+    expect(deleteKey("purchase", true)).toBe("purchase.deletePosted");
+    expect(deleteKey("purchase", false)).toBe("purchase.delete");
+    expect(deleteKey("finance", true)).toBe("finance.deletePosted");
+    expect(deleteKey("finance")).toBe("finance.delete");
+  });
+
+  it("keys the rule to the stored status APPROVED, and to nothing else", () => {
+    expect(isPostedDocument({ status: "APPROVED" })).toBe(true);
+    for (const status of ["DRAFT", "REJECTED", "CANCELLED", "approved", undefined]) expect(isPostedDocument({ status })).toBe(false);
+    expect(isPostedDocument(undefined)).toBe(false);
+  });
+});
+
+describe("planBulkDelete", () => {
+  const docs = [
+    { id: "d1", status: "DRAFT" },
+    { id: "a1", status: "APPROVED" },
+    { id: "a2", status: "APPROVED" },
+    { id: "r1", status: "REJECTED" },
+  ];
+
+  it("leaves approved documents out for someone without deletePosted, and counts them", () => {
+    expect(planBulkDelete(["d1", "a1", "r1", "a2"], docs, false)).toEqual({ deletable: ["d1", "r1"], skipped: ["a1", "a2"], posted: 0 });
+  });
+
+  it("sends everything for someone who holds deletePosted, and counts the approved ones it will reverse", () => {
+    expect(planBulkDelete(["d1", "a1", "a2"], docs, true)).toEqual({ deletable: ["d1", "a1", "a2"], skipped: [], posted: 2 });
+  });
+
+  it("a selection of approved documents only leaves nothing to delete for someone without it", () => {
+    const plan = planBulkDelete(["a1", "a2"], docs, false);
+    expect(plan.deletable).toEqual([]);
+    expect(plan.skipped).toEqual(["a1", "a2"]);
+  });
+
+  it("keeps an id the list does not hold (its status is not known; the server answers for it) and copes with nothing", () => {
+    expect(planBulkDelete(["ghost"], docs, false).deletable).toEqual(["ghost"]);
+    expect(planBulkDelete(undefined, undefined, false)).toEqual({ deletable: [], skipped: [], posted: 0 });
+  });
+
+  it("says plainly how many were left alone and why, and what deleting an approved one does", () => {
+    expect(skippedPostedText(1)).toBe("1 approved document was left alone: deleting an approved document needs the Delete approved permission.");
+    expect(skippedPostedText(3)).toBe("3 approved documents were left alone: deleting an approved document needs the Delete approved permission.");
+    expect(postedDeleteText(1)).toMatch(/1 of them is approved: deleting it REVERSES its stock and ledger postings/);
+    expect(postedDeleteText(2)).toMatch(/2 of them are approved: deleting those REVERSES their stock and ledger postings/);
   });
 });

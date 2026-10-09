@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Button } from "../ui/button";
 import { ConfirmDialog, EmptyState, ErrorNote, Modal, Spinner, errorMessage, useAsync } from "../accounting/kit";
 import { documentSends } from "../../lib/sendDocumentsApi";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { formatDateTime } from "../../utils/format";
 import { NEXT_STEP, SendStatusPill, sendStateOf } from "./shared";
 
@@ -17,6 +18,8 @@ function linkState(share) {
 }
 
 export default function SendHistory({ sourceType, sourceId, title, notify, onClose, onChanged }) {
+  const { canAny } = useOrganisation();
+  const maySend = canAny("sales.send"); // the history is for whoever can see the document; trying again and withdrawing a link need sales.send
   const list = useAsync(() => documentSends.history(sourceType, sourceId), [sourceType, sourceId]);
   const [withdrawing, setWithdrawing] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -77,14 +80,16 @@ export default function SendHistory({ sourceType, sourceId, title, notify, onClo
                       {r.share.viewCount ? ` · opened ${r.share.viewCount} time${r.share.viewCount === 1 ? "" : "s"}, first ${formatDateTime(r.share.firstViewedAt)}` : ""}
                     </p>
                   )}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {r.status === "FAILED" && r.retryable && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => retry(r)}>Try again now</Button>
-                    )}
-                    {r.share && !link.withdrawn && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => setWithdrawing(r)}>Withdraw link</Button>
-                    )}
-                  </div>
+                  {maySend && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {r.status === "FAILED" && r.retryable && (
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => retry(r)}>Try again now</Button>
+                      )}
+                      {r.share && !link.withdrawn && (
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => setWithdrawing(r)}>Withdraw link</Button>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}

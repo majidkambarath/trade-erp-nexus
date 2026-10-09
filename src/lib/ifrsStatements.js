@@ -1,4 +1,5 @@
 import { formatDate, formatNumber } from "../utils/format";
+import { orgCurrency } from "../utils/orgLocale";
 
 // Pure rules for the IFRS statements screen: turning what the API returns into the rows of a
 // statement, the CSV, the printed page, the headline figures and the warnings. No rendering here,
@@ -10,7 +11,7 @@ import { formatDate, formatNumber } from "../utils/format";
 //         | { type: "text", title, text }
 //         | { type: "footnote", text }
 //   Row   = { kind: "heading" | "label" | "line" | "detail" | "subtotal" | "total", level, label, code?, values: [number|null] }
-// A table has one value per column; amounts are in AED, a negative is a deduction or an outflow.
+// A table has one value per column; amounts are in the statement's currency (the organisation's base currency), a negative is a deduction or an outflow.
 
 export const TABS = [
   { value: "position", label: "Financial position" },
@@ -341,7 +342,7 @@ export function keyFigures(tab, data) {
     title: f.title,
     value: f.p.amount,
     tone: f.tone || TONES[i % TONES.length],
-    sub: f.p.comparative === null || f.p.comparative === undefined ? "AED" : `Comparative ${formatAmount(f.p.comparative, { zero: "0.00" })}`,
+    sub: f.p.comparative === null || f.p.comparative === undefined ? (data.currency || orgCurrency()) : `Comparative ${formatAmount(f.p.comparative, { zero: "0.00" })}`,
   }));
 }
 
@@ -412,8 +413,9 @@ export function signedText(net) {
   return `${formatNumber(Math.abs(v), 2)}${v > 0 ? " Dr" : v < 0 ? " Cr" : ""}`;
 }
 
-// A plain printable page: company, statement, period, "AED", then the tables and notes.
-export function documentHtml(doc, { company = "", trn = "", currency = "AED" } = {}) {
+// A plain printable page: company, statement, period, the currency, then the tables and notes. The currency is the one the
+// statement came in (`data.currency`), else the organisation's base currency.
+export function documentHtml(doc, { company = "", trn = "", currency = orgCurrency() } = {}) {
   const blocks = doc.blocks
     .map((b) => {
       if (b.type === "table") return tableHtml(b);

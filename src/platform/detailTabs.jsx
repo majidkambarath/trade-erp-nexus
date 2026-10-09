@@ -4,7 +4,8 @@ import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill,
 import { formatDate, formatDateTime } from "../utils/format";
 import { consoleError, platform } from "./platformApi";
 import {
-  ACCOUNT_TYPES,
+  roleLabel,
+  roleOptions,
   featureChoice,
   featurePatch,
   featureResult,
@@ -298,11 +299,13 @@ export function CompanyTab({ detail, run, busy }) {
 
 // ------------------------------------------------------------------------------------------------------- people
 
-function PersonDialog({ code, branches, onClose, run, existing }) {
-  const [form, setForm] = useState({ name: existing?.name || "", email: existing?.email || "", password: "", type: existing?.type || "admin", branchId: existing?.branchId || "main" });
+function PersonDialog({ code, branches, roles, onClose, run, existing }) {
+  const held = existing ? existing.role?.key || existing.type : null;
+  const [form, setForm] = useState({ name: existing?.name || "", email: existing?.email || "", password: "", role: held || "admin", branchId: existing?.branchId || "main" });
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const save = async () => {
-    const body = existing ? { name: form.name, type: form.type, ...(form.password ? { password: form.password } : {}) } : form;
+    // a change of role is sent only when it IS a change: a name edit on someone whose role has since been switched off must still save
+    const body = existing ? { name: form.name, ...(form.role !== held ? { role: form.role } : {}), ...(form.password ? { password: form.password } : {}) } : form;
     const ok = await run(() => (existing ? platform.updateUser(code, existing._id, body) : platform.createUser(code, body)), existing ? "Account saved" : "Account created");
     if (ok) onClose();
   };
@@ -324,7 +327,7 @@ function PersonDialog({ code, branches, onClose, run, existing }) {
           <TextInput type="text" autoComplete="new-password" value={form.password} onChange={set("password")} />
         </Field>
         <Field label="Role">
-          <Select value={form.type} onChange={set("type")}>{ACCOUNT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</Select>
+          <Select value={form.role} onChange={set("role")}>{roleOptions(roles, held).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</Select>
         </Field>
         {!existing && (
           <Field label="Branch">
@@ -339,6 +342,7 @@ function PersonDialog({ code, branches, onClose, run, existing }) {
 export function PeopleTab({ detail, code, run, busy }) {
   const users = useAsync(() => platform.users(code), [code]);
   const branches = useAsync(() => platform.branches(code), [code]);
+  const roles = useAsync(() => platform.roles(code), [code]);
   const [dialog, setDialog] = useState(null);
   const rows = users.data || [];
   // after a change anywhere, read the list again
@@ -351,7 +355,7 @@ export function PeopleTab({ detail, code, run, busy }) {
   const columns = [
     { key: "name", header: "Name", card: "primary", cell: (u) => <span className="font-medium">{u.name}</span> },
     { key: "email", header: "Email", card: "title", cell: (u) => u.email },
-    { key: "type", header: "Role", card: "meta", cell: (u) => ACCOUNT_TYPES.find((t) => t.value === u.type)?.label || u.type },
+    { key: "role", header: "Role", card: "meta", cell: (u) => roleLabel(u) },
     { key: "last", header: "Last signed in", card: "meta", cell: (u) => (u.lastLogin ? formatDateTime(u.lastLogin) : "Never") },
     { key: "status", header: "Status", card: "badge", cell: (u) => <Pill tone={u.isActive && u.status === "active" ? "success" : "neutral"}>{u.isActive && u.status === "active" ? "Active" : "Switched off"}</Pill> },
     {
@@ -390,6 +394,7 @@ export function PeopleTab({ detail, code, run, busy }) {
         <PersonDialog
           code={code}
           branches={branches.data || [{ code: "main", name: "Head office" }]}
+          roles={roles.data}
           existing={dialog === "new" ? null : dialog}
           run={act}
           onClose={() => setDialog(null)}

@@ -1,7 +1,7 @@
 // Pure logic behind the currency screens and the foreign-currency part of the receipt / payment
 // forms, kept out of the components so it can be tested without rendering.
 //
-// A rate is "base units per 1 foreign unit" (USD 1 = AED 3.6725), at most six decimals. The AED
+// A rate is "base units per 1 foreign unit" (USD 1 = AED 3.6725), at most six decimals. The base-currency
 // equivalent of a foreign amount is the exact product rounded half-up to the cent. It is computed
 // on integers (BigInt), the same way the server does, so the figure on the form is the figure
 // that gets posted.
@@ -27,7 +27,7 @@ export function decimalPlaces(value) {
 
 const scaled = (value, dp) => BigInt(Math.round(Number(value) * 10 ** dp));
 
-// The AED value of a foreign amount, in whole cents. `decimals` are the foreign currency's own.
+// The base-currency value of a foreign amount, in whole cents. `decimals` are the foreign currency's own.
 export function convertToBaseCents(foreignAmount, rate, decimals = 2) {
   const f = Number(foreignAmount);
   const r = Number(rate);
@@ -37,7 +37,7 @@ export function convertToBaseCents(foreignAmount, rate, decimals = 2) {
   return Number((2n * num + den) / (2n * den));
 }
 
-// The smallest foreign amount (in the currency's own decimals) whose AED value is at least
+// The smallest foreign amount (in the currency's own decimals) whose base-currency value is at least
 // `baseCents`: what to raise the amount to when invoices are allocated more than it covers.
 export function foreignForBase(baseCents, rate, decimals = 2) {
   const r = Number(rate);
@@ -77,7 +77,7 @@ export function rateCheck({ rate, masterRate, tolerancePercent = 5, reason = "" 
 
 // ----------------------------------------------------------------------------- voucher forms
 
-// Form state for the foreign-currency part of a voucher. currency "" is the base currency (AED).
+// Form state for the foreign-currency part of a voucher. currency "" is the base currency (the organisation's own).
 export const emptyFx = () => ({ currency: "", foreignAmount: "", rate: "", reason: "" });
 
 // The currencies a voucher can be made in: the base currency first, then every active one that has
@@ -122,7 +122,7 @@ export const formatForeign = (amount, code) => `${code} ${formatNumber(amount, M
 // Rates show four decimals at least, six at most: 3.6725, 3.7000, 3.123456.
 export const formatRate = (rate) => formatNumber(rate, Math.min(Math.max(decimalPlaces(rate), 4), RATE_DECIMALS));
 
-// "USD 1,000.00 @ 3.6725 = AED 3,672.50"
+// "USD 1,000.00 @ 3.6725 = AED 3,672.50" (the base currency is the organisation's, read when called)
 export const fxLine = (v, base = CURRENCY) => (isForeign(v) ? `${formatForeign(v.foreignAmount, v.currency)} @ ${formatRate(v.exchangeRate)} = ${base} ${formatNumber(v.totalAmount, 2)}` : "");
 
 // Where the rate came from, for a voucher's detail view: "Rate of 04/10/2026 (Central Bank of the UAE)",
@@ -182,7 +182,8 @@ export const typeLabel = (type) => (type === "receipt" ? "Receipt" : type === "p
 export const statusLabel = (status) => ({ approved: "Posted", cancelled: "Cancelled", bounced: "Bounced" }[status] || status || "");
 
 // The CSV for the register's rows: figures plain (no thousands separators) so a spreadsheet reads them.
-export const REGISTER_CSV_HEADERS = ["Date", "Voucher", "Type", "Party", "Currency", "Foreign amount", "Rate", "AED amount", "Paid by", "Status"];
+// The headings are a function, not a constant: the base currency's name is read when the file is made.
+export const registerCsvHeaders = (base = CURRENCY) => ["Date", "Voucher", "Type", "Party", "Currency", "Foreign amount", "Rate", `${base} amount`, "Paid by", "Status"];
 export function registerCsvRows(rows, describePayment = () => "") {
   return rows.map((r) => [
     formatDate(r.date), r.voucherNo, typeLabel(r.voucherType), r.partyName || "", r.currency,

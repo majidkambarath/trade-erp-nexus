@@ -8,8 +8,12 @@ import { DATE_FORMATS, TIME_FORMATS, formatDate, formatTime, getDateFormat, getT
 import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { orgCurrency, orgTimezone } from "../../utils/orgLocale";
+import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
 import SendingSettings from "./SendingSettings";
+import BranchSettings from "./BranchSettings";
 import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
 
 // Settings holds what belongs to the company and to the signed-in user: the company profile and
@@ -20,6 +24,7 @@ import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinne
 
 const TABS = [
   { id: "company", label: "Company" },
+  { id: "branches", label: "Branches" },
   { id: "rules", label: "Business rules" },
   { id: "bank", label: "Invoice bank details" },
   { id: "sending", label: "Sending" },
@@ -37,47 +42,53 @@ const CURRENCIES = [
   { code: "GBP", name: "British Pound" }, { code: "SAR", name: "Saudi Riyal" }, { code: "INR", name: "Indian Rupee" },
 ];
 const COUNTRY_OPTIONS = COUNTRIES.map((c) => ({ value: c, label: c }));
-const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }));
+const currencyOptions = (own) => {
+  const list = CURRENCIES.some((c) => c.code === own) ? CURRENCIES : [{ code: own, name: "Base currency" }, ...CURRENCIES];
+  return list.map((c) => ({ value: c.code, label: `${c.code} - ${c.name}` }));
+};
 
 const EMPTY_COMPANY = {
   companyName: "", addressLine1: "", addressLine2: "", city: "", state: "", country: "United Arab Emirates",
   postalCode: "", phoneNumber: "", emailAddress: "", website: "",
 };
-const EMPTY_BANK = { bankName: "", accountName: "", accountNumber: "", ibanNumber: "", swiftCode: "", currency: "AED" };
-const BANK_FIELDS = Object.keys(EMPTY_BANK);
+const emptyBank = () => ({ bankName: "", accountName: "", accountNumber: "", ibanNumber: "", swiftCode: "", currency: orgCurrency() });
+const BANK_FIELDS = Object.keys(emptyBank());
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 const apiMessage = (e) => e?.response?.data?.message || e?.message || "Something went wrong";
 
-function fromProfile(profile) {
-  const info = profile?.companyInfo || {};
-  const bank = info.bankDetails || {};
+// What the server holds: the ORGANISATION's letterhead (GET /company/profile), one copy for everyone, not a copy per person.
+function fromProfile(info) {
+  const bank = info?.bankDetails || {};
   return {
     company: {
-      companyName: info.companyName || "", addressLine1: info.addressLine1 || "", addressLine2: info.addressLine2 || "",
-      city: info.city || "", state: info.state || "", country: info.country || "United Arab Emirates",
-      postalCode: info.postalCode || "", phoneNumber: info.phoneNumber || "",
-      emailAddress: info.emailAddress || profile?.email || "", website: info.website || "",
+      companyName: info?.companyName || "", addressLine1: info?.addressLine1 || "", addressLine2: info?.addressLine2 || "",
+      city: info?.city || "", state: info?.state || "", country: info?.country || "United Arab Emirates",
+      postalCode: info?.postalCode || "", phoneNumber: info?.phoneNumber || "",
+      emailAddress: info?.emailAddress || "", website: info?.website || "",
     },
     bank: {
       bankName: bank.bankName || "", accountName: bank.accountName || "", accountNumber: bank.accountNumber || "",
-      ibanNumber: bank.ibanNumber || "", swiftCode: bank.swiftCode || "", currency: bank.currency || "AED",
+      ibanNumber: bank.ibanNumber || "", swiftCode: bank.swiftCode || "", currency: bank.currency || orgCurrency(),
     },
-    logo: info.companyLogo?.url || null,
+    logo: info?.companyLogo?.url || null,
   };
 }
 
 export default function SettingsModule() {
   const [params, setParams] = useSearchParams();
   const { notify, toastNode } = useToasts();
+  const { can } = useOrganisation();
+  // The letterhead is the company's, not the person's: anyone reads it, only someone who may change settings edits it.
+  const canEdit = can("settings.manage");
   const active = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "company";
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [saved, setSaved] = useState(null); // what the server has: { company, bank, logo }
   const [company, setCompany] = useState(EMPTY_COMPANY);
-  const [bank, setBank] = useState(EMPTY_BANK);
+  const [bank, setBank] = useState(emptyBank);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
   const [errors, setErrors] = useState({});
@@ -87,7 +98,7 @@ export default function SettingsModule() {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await axiosInstance.get("/profile/me");
+      const res = await axiosInstance.get("/company/profile");
       const next = fromProfile(res.data.data);
       setSaved(next);
       setCompany(next.company);
@@ -150,7 +161,7 @@ export default function SettingsModule() {
         bankDetails: { ...bank, ibanNumber: normalizeIban(bank.ibanNumber), swiftCode: bank.swiftCode.trim().toUpperCase() },
       }));
       if (logoFile) form.append("companyLogo", logoFile);
-      await axiosInstance.put("/profile/me", form, { headers: { "Content-Type": "multipart/form-data" } });
+      await axiosInstance.put("/company/profile", form, { headers: { "Content-Type": "multipart/form-data" } });
       notify("Settings saved");
       await load();
     } catch (e) {
@@ -172,6 +183,8 @@ export default function SettingsModule() {
           <div className="overflow-x-auto"><TabsList>{TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList></div>
 
           <TabsContent value="company" className="space-y-5">
+            {!canEdit && <ReadOnlyNote />}
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-5 border-0 p-0">
             <Panel title="Company profile" description="Shown on invoices, statements and printed documents.">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Company name" required error={errors.companyName}>
@@ -226,6 +239,11 @@ export default function SettingsModule() {
                 </div>
               </div>
             </Panel>
+            </fieldset>
+          </TabsContent>
+
+          <TabsContent value="branches">
+            <BranchSettings notify={notify} />
           </TabsContent>
 
           <TabsContent value="rules">
@@ -237,6 +255,8 @@ export default function SettingsModule() {
           </TabsContent>
 
           <TabsContent value="bank" className="space-y-5">
+            {!canEdit && <ReadOnlyNote />}
+            <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-5 border-0 p-0">
             <Panel
               title="Bank details on invoices"
               description="Printed on sales invoices so customers know where to pay. The bank accounts you receive and pay through are kept in Banks and the Chart of accounts."
@@ -259,10 +279,11 @@ export default function SettingsModule() {
                   <TextInput value={bank.swiftCode} onChange={input(setBank, "swiftCode")} placeholder="EBILAEAD" className="font-mono uppercase" maxLength={11} />
                 </Field>
                 <Field label="Account currency">
-                  <SearchSelect value={bank.currency} onChange={setField(setBank, "currency")} options={CURRENCY_OPTIONS} placeholder="Choose a currency" />
+                  <SearchSelect value={bank.currency} onChange={setField(setBank, "currency")} options={currencyOptions(orgCurrency())} placeholder="Choose a currency" />
                 </Field>
               </div>
             </Panel>
+            </fieldset>
           </TabsContent>
 
           <TabsContent value="preferences" className="space-y-5">
@@ -273,7 +294,7 @@ export default function SettingsModule() {
             <PasswordPanel notify={notify} />
           </TabsContent>
 
-          {(active === "company" || active === "bank") && (
+          {canEdit && (active === "company" || active === "bank") && (
             <div className="sticky bottom-3 mt-5 flex items-center justify-end gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-elevated">
               <span className="me-auto text-sm text-muted-foreground">{dirty ? "You have unsaved changes" : "No unsaved changes"}</span>
               <Button variant="outline" onClick={discard} disabled={!dirty || saving}>Discard</Button>
@@ -284,6 +305,15 @@ export default function SettingsModule() {
       )}
       {toastNode}
     </div>
+  );
+}
+
+// What a person sees on the company's profile and bank details when they may not change them.
+function ReadOnlyNote() {
+  return (
+    <p role="note" className="rounded-xl border border-border bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
+      This is the company's profile, the same for everyone. Only someone who may change settings can edit it.
+    </p>
   );
 }
 
@@ -316,7 +346,7 @@ function PreferencesPanel() {
         </div>
       </Panel>
 
-      <Panel title="Dates and times" description="How dates and times read in lists, statements and printed documents. Dates follow Dubai time.">
+      <Panel title="Dates and times" description={`How dates and times read in lists, statements and printed documents. Dates follow your organisation's time zone, ${orgTimezone()}.`}>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Date format" hint={`Today reads ${formatDate(now, dateFormat)}`}>
             <Select value={dateFormat} onChange={(e) => { setDate(e.target.value); setDateFormat(e.target.value); }}>
@@ -356,11 +386,7 @@ function PasswordPanel({ notify }) {
 
   async function submit(e) {
     e.preventDefault();
-    const found = {};
-    if (!form.currentPassword) found.currentPassword = "Enter your current password";
-    if (form.newPassword.length < 6) found.newPassword = "Use at least 6 characters";
-    else if (form.newPassword === form.currentPassword) found.newPassword = "Choose a password you have not used here";
-    if (form.confirmPassword !== form.newPassword) found.confirmPassword = "The two passwords do not match";
+    const found = validatePasswordChange(form);
     setError(found);
     if (Object.keys(found).length) return;
     setBusy(true);
@@ -382,7 +408,7 @@ function PasswordPanel({ notify }) {
         <Field label="Current password" required error={error.currentPassword}>
           <TextInput type={type} value={form.currentPassword} onChange={set("currentPassword")} autoComplete="current-password" />
         </Field>
-        <Field label="New password" required error={error.newPassword} hint="At least 6 characters. Longer, with capitals, digits and symbols, is stronger.">
+        <Field label="New password" required error={error.newPassword} hint={passwordHint}>
           <TextInput type={type} value={form.newPassword} onChange={set("newPassword")} autoComplete="new-password" />
         </Field>
         {form.newPassword && (

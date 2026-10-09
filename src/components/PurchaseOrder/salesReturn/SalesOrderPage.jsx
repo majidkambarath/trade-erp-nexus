@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import { processTransaction } from "../../../lib/processTransaction";
+import { approveMany, processTransaction } from "../../../lib/processTransaction";
+import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
+import { useApproval } from "../../shell/Approval";
 import { VARIANTS } from "../../OrderEntry/variants";
 import { StatCard } from "../../ui/stat-card";
 import { loadFormForEdit } from "../../OrderEntry/editForm";
@@ -47,14 +49,18 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
 import DocumentAuditTrail from "../../audit/AuditTrail";
 import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 import Can from "../../shell/Can";
+import { useOrganisation } from "../../shell/OrganisationContext";
+import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
 const SalesReturnOrderManagement = () => {
+  const { canAny } = useOrganisation();
+  const { stateOf, me } = useApproval();
   const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
@@ -198,6 +204,8 @@ const SalesReturnOrderManagement = () => {
             terms: transaction.terms,
             notes: transaction.notes,
             createdBy: transaction.createdBy,
+            // who has approved it so far: a first of two shows as "Awaiting second approval"
+            approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
             createdAt: transaction.createdAt,
             invoiceGenerated: transaction.invoiceGenerated,
             priority: transaction.priority,
@@ -414,24 +422,28 @@ const SalesReturnOrderManagement = () => {
 
     try {
       if (action === "confirm") {
-        for (const soId of selectedSOs) {
-          await processTransaction(soId, "approve");
-        }
-        addNotification(
-          `${selectedSOs.length} return orders confirmed successfully`,
-          "success"
-        );
+        // Each return is judged on its own (its amount, who prepared it, who has approved it): say how each came out.
+        const outcome = summariseApprovals(await approveMany(selectedSOs, { docs: salesReturnOrders, stateOf, me }));
+        addNotification(outcome.text, outcome.tone);
         fetchTransactions();
       } else if (action === "delete") {
+        // An approved document is deleted only by someone who holds sales.deletePosted (the server decides the same way by the
+        // stored status): the others are left out of the request and told so.
+        const plan = planBulkDelete(selectedSOs, salesReturnOrders, canAny("sales.deletePosted"));
+        const left = plan.skipped.length ? skippedPostedText(plan.skipped.length) : "";
+        if (plan.deletable.length === 0) {
+          addNotification(left, "warning");
+          return;
+        }
         askDelete({
-          title: `Delete ${selectedSOs.length} sales returns?`,
-          text: "Each return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+          title: `Delete ${plan.deletable.length} sales returns?`,
+          text: ["Each return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.", plan.posted ? postedDeleteText(plan.posted) : "", left].filter(Boolean).join(" "),
           onConfirm: async () => {
             try {
-              for (const soId of selectedSOs) {
+              for (const soId of plan.deletable) {
                 await axiosInstance.delete(`/transactions/transactions/${soId}`);
               }
-              addNotification(`${selectedSOs.length} return orders deleted`, "success");
+              addNotification([`${plan.deletable.length} return orders deleted`, left].filter(Boolean).join(". "), left ? "warning" : "success");
             } catch (error) {
               addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
             }
@@ -509,10 +521,10 @@ const SalesReturnOrderManagement = () => {
         />
         <StatCard
           title="Total Value"
-          count={`AED ${formatNumber(statistics.totalValue)}`}
+          count={`${CURRENCY} ${formatNumber(statistics.totalValue)}`}
           tone="olive"
           icon={<Banknote />}
-          subText={`Credited AED ${formatNumber(statistics.invoicedValue)}`}
+          subText={`Credited ${CURRENCY} ${formatNumber(statistics.invoicedValue)}`}
         />
         <StatCard
           title="This Month"
@@ -552,7 +564,7 @@ const SalesReturnOrderManagement = () => {
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-sm font-semibold tabular-nums text-foreground">
-                        AED {formatNumber(row.totalAmount)}
+                        {CURRENCY} {formatNumber(row.totalAmount)}
                       </span>
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
@@ -762,8 +774,10 @@ const SalesReturnOrderManagement = () => {
     try {
       // The server's actions are approve / reject / cancel; it has no "confirm", so this used to
       // fail every time and a sales return could never put its stock back.
-      await processTransaction(id, "approve");
-      addNotification("Sales Return Order confirmed successfully", "success");
+      const response = await processTransaction(id, "approve");
+      // Above the organisation's second-approver amount this only records the first approval: say so, not "confirmed"
+      if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
+      else addNotification("Sales Return Order confirmed successfully", "success");
       fetchTransactions();
     } catch (error) {
       console.error("Confirm SO Error:", error);
@@ -777,11 +791,26 @@ const SalesReturnOrderManagement = () => {
 
   const [askDelete, deleteDialog] = useDeleteConfirm();
 
+  // Is anything in the selection a draft this person may approve? (their own work, or one over their limit, is not offered)
+  const canBulkApprove = selectedSOs.some((id) => {
+    const so = salesReturnOrders.find((d) => d.id === id);
+    return so?.status === "DRAFT" && stateOf(so).canApprove;
+  });
+
+  // Does the selection hold anything this person may delete? (an approved one needs sales.deletePosted)
+  const canBulkDelete = planBulkDelete(selectedSOs, salesReturnOrders, canAny("sales.deletePosted")).deletable.length > 0;
+
   // Delete sales return order
   const deleteSO = (id) => {
+    // An approved return is reversed in stock and in the ledger: that is sales.deletePosted, not plain Delete.
+    const posted = isPostedDocument(salesReturnOrders.find((d) => d.id === id));
+    if (posted && !canAny("sales.deletePosted")) {
+      addNotification(skippedPostedText(1), "warning");
+      return;
+    }
     askDelete({
       title: "Delete this sales return?",
-      text: "The return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
+      text: posted ? "This return is approved: deleting it REVERSES its stock and ledger postings, then removes it. The deletion is written to the activity log." : "The return is removed. An approved return is reversed in stock and in the ledger first. The deletion is written to the activity log.",
       onConfirm: async () => {
         try {
           await axiosInstance.delete(`/transactions/transactions/${id}`);
@@ -955,7 +984,7 @@ const SalesReturnOrderManagement = () => {
                 </button>
                 {selectedSOs.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <Can permission="sales.approve">
+                    {canBulkApprove && <Can permission="sales.approve">
                       <button
                         onClick={() => handleBulkAction("confirm")}
                         className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
@@ -963,16 +992,18 @@ const SalesReturnOrderManagement = () => {
                         <CheckSquare className="w-4 h-4" />
                         <span>Confirm Selected</span>
                       </button>
-                    </Can>
-                    <Can permission="sales.delete">
-                      <button
-                        onClick={() => handleBulkAction("delete")}
-                        className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete Selected</span>
-                      </button>
-                    </Can>
+                    </Can>}
+                    {canBulkDelete && (
+                      <Can permission="sales.delete">
+                        <button
+                          onClick={() => handleBulkAction("delete")}
+                          className="flex items-center space-x-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete Selected</span>
+                        </button>
+                      </Can>
+                    )}
                     <button
                       onClick={() => handleBulkAction("export")}
                       className="flex items-center space-x-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"

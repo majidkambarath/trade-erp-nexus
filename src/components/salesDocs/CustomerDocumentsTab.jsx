@@ -7,11 +7,12 @@ import { ConfirmDialog, EmptyState, ErrorNote, Pill, Spinner, useAsync, useToast
 import { documentFlow, orderClose } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, clockText } from "../../lib/salesDocuments";
 import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, sendPill, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
-import { formatDate, formatNumber } from "../../utils/format";
+import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Note, PillTabs } from "./parts";
 import CloseShortDialog from "./CloseShortDialog";
 import { useDocumentAction } from "./hooks";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 // One customer's deals, each as a stepper from the offer to the invoice, with the one thing to do next.
 // The server joins the documents (GET /document-flow/customer/:id); lib/documentFlow.js decides how a deal
@@ -58,12 +59,13 @@ function Step({ step }) {
   );
 }
 
-function Deal({ deal, notify, reload }) {
+function Deal({ deal, notify, reload, canSend }) {
   const [dialog, setDialog] = useState(null); // "close" | "reopen"
   const action = useDocumentAction({ notify, reload });
   const title = dealTitle(deal);
   const steps = dealSteps(deal);
-  const next = nextAction(deal);
+  const next = nextAction(deal, Date.now(), { canSend });
+  const pill = sendPill(deal, Date.now(), { canSend });
   const group = dealGroup(deal);
   const grid = steps.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
   const cs = deal.closeShort;
@@ -84,10 +86,10 @@ function Deal({ deal, notify, reload }) {
           {deal.expiresInDays !== null && deal.expiresInDays !== undefined && (
             <Pill tone="warning">Offer expires {deal.expiresInDays === 0 ? "today" : `in ${deal.expiresInDays} day${deal.expiresInDays === 1 ? "" : "s"}`}</Pill>
           )}
-          {sendPill(deal) && <Pill tone={sendPill(deal).tone}>{sendPill(deal).text}</Pill>}
+          {pill && <Pill tone={pill.tone}>{pill.text}</Pill>}
           {cs && <Pill tone="warning">Closed short</Pill>}
           <Pill tone={STAGE_TONE[deal.stage]}>{STAGE_LABEL[deal.stage]}</Pill>
-          <span className="text-sm font-semibold tabular-nums text-foreground">{formatNumber(deal.amount, 2)} <span className="text-xs font-normal text-muted-foreground">AED</span></span>
+          <span className="text-sm font-semibold tabular-nums text-foreground">{formatNumber(deal.amount, 2)} <span className="text-xs font-normal text-muted-foreground">{CURRENCY}</span></span>
         </div>
       </header>
       <ol className={cn("grid px-4 py-4 sm:px-5 md:gap-4", grid)} aria-label="Steps of this deal">
@@ -141,9 +143,11 @@ function Deal({ deal, notify, reload }) {
 export default function CustomerDocumentsTab({ customerId }) {
   const { data, loading, error, reload } = useAsync(() => documentFlow.customer(customerId), [customerId]);
   const { notify, toastNode } = useToasts();
+  const { canAny } = useOrganisation();
+  const canSend = canAny("sales.send"); // "Send the invoice" is only a next step for someone who may send
   const [filter, setFilter] = useState(null); // null until the person chooses: then the default decides
   const chains = useMemo(() => data?.chains || [], [data]);
-  const counts = useMemo(() => flowCounts(chains), [chains]);
+  const counts = useMemo(() => flowCounts(chains, { canSend }), [chains, canSend]);
 
   if (loading && !data) return <div className="py-10"><Spinner label="Loading documents" /></div>;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
@@ -151,7 +155,7 @@ export default function CustomerDocumentsTab({ customerId }) {
 
   const s = data.summary;
   const active = filter ?? defaultFilter(counts);
-  const shown = filterDeals(chains, active);
+  const shown = filterDeals(chains, active, { canSend });
   const amount = (x) => formatNumber(x.value, 2);
 
   return (
@@ -183,7 +187,7 @@ export default function CustomerDocumentsTab({ customerId }) {
               {active === "action" ? "Nothing needs doing for this customer." : "No deals here."}
             </p>
           ) : (
-            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} notify={notify} reload={reload} />)}</div>
+            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} notify={notify} reload={reload} canSend={canSend} />)}</div>
           )}
         </>
       )}
