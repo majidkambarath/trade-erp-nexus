@@ -59,6 +59,17 @@ export function DateRange({ value, onChange, asAt = false, presets = PRESETS }) 
   );
 }
 
+// A closed year's closing entry moves its income and expense to Retained Earnings. A report of that year leaves it out,
+// so the year still shows the profit it earned; this shows the books as they stand after it.
+export function ClosingEntriesToggle({ checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+      Include year-end closing entries
+    </label>
+  );
+}
+
 // Loading, error and data states for a useAsync result.
 export function Frame({ state, label = "Working out the figures", children }) {
   if (state.loading && !state.data) return <Spinner label={label} />;

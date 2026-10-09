@@ -145,6 +145,15 @@ describe("financial statements", () => {
     expect(await screen.findByRole("dialog", { name: /BANK0001/ })).toBeInTheDocument();
   });
 
+  it("trial balance: leaves the closing entry out unless asked", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    await screen.findByText("Debits equal credits");
+    expect(m.trialBalance).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: undefined }));
+    fireEvent.click(screen.getByLabelText("Include year-end closing entries"));
+    await waitFor(() => expect(m.trialBalance).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: true })));
+  });
+
   it("flags an out-of-balance ledger", async () => {
     m.trialBalance.mockResolvedValue({ ...TB, summary: { ...TB.summary, closingCredit: 350, isBalanced: false } });
     at(<FinancialStatements />);

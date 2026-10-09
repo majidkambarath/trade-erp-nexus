@@ -9,7 +9,7 @@ import { renderAs, statusFor } from "./asRole";
 
 const m = vi.hoisted(() => ({
   configuration: vi.fn(), chart: vi.fn(), saveMappings: vi.fn(), setPosting: vi.fn(),
-  fiscalYears: vi.fn(), createFiscalYear: vi.fn(), closeFiscalYear: vi.fn(), reopenFiscalYear: vi.fn(), numberSeries: vi.fn(),
+  fiscalYears: vi.fn(), createFiscalYear: vi.fn(), closeFiscalYear: vi.fn(), reopenFiscalYear: vi.fn(), yearEnd: vi.fn(), numberSeries: vi.fn(),
   taxCodes: vi.fn(), createTaxCode: vi.fn(), updateTaxCode: vi.fn(), auditLog: vi.fn(),
 }));
 let status;

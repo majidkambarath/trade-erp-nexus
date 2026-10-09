@@ -8,7 +8,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { DateRange, Frame, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
 
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
@@ -51,12 +51,14 @@ export default function LedgerReports() {
 function GeneralLedger({ range, onLedger }) {
   const [category, setCategory] = useState("");
   const [groupsOnly, setGroupsOnly] = useState(false);
-  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: category || undefined }), [range.from, range.to, category]);
+  const [closing, setClosing] = useState(false);
+  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: category || undefined, includeClosing: closing || undefined }), [range.from, range.to, category, closing]);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Category"><Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-52">{CATEGORIES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
         <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => setGroupsOnly(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
+        <ClosingEntriesToggle checked={closing} onChange={setClosing} />
       </div>
       <Frame state={state}>
         {(d) => {

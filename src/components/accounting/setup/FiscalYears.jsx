@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
+import { closedNote } from "../../../lib/yearEnd";
 import { formatDateGB, toInputDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
-import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../kit";
+import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../kit";
+import YearEndDialog from "./YearEndDialog";
 
 export default function FiscalYears({ notify }) {
   // Adding a year is accounts.manage; closing or reopening one is its own permission, accounts.close.
@@ -15,29 +17,13 @@ export default function FiscalYears({ notify }) {
   const years = useAsync(() => accounting.fiscalYears(), []);
   const series = useAsync(() => accounting.numberSeries(), []);
   const [modal, setModal] = useState(false);
-  const [confirm, setConfirm] = useState(null); // { year, action }
-  const [busy, setBusy] = useState(false);
-
-  async function change() {
-    setBusy(true);
-    try {
-      await (confirm.action === "close" ? accounting.closeFiscalYear(confirm.year._id) : accounting.reopenFiscalYear(confirm.year._id));
-      notify(`${confirm.year.code} ${confirm.action === "close" ? "closed" : "reopened"}`);
-      setConfirm(null);
-      years.reload();
-    } catch (e) {
-      setConfirm(null);
-      notify(errorMessage(e), "error");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [confirm, setConfirm] = useState(null); // { year, action }: the year-end dialog, which reads what closing would do first
 
   return (
     <div className="space-y-5">
       <Panel
         title="Fiscal years"
-        description="Nothing can be created, approved or deleted in a closed year. While no fiscal year is defined, posting is not restricted."
+        description="Closing a year moves its profit to Retained Earnings and locks it: nothing can be created, approved or deleted in a closed year. While no fiscal year is defined, posting is not restricted."
         bodyClassName="p-0"
         actions={<Can permission="accounts.manage"><Button size="sm" onClick={() => setModal(true)}><Plus className="h-4 w-4" aria-hidden="true" />New fiscal year</Button></Can>}
       >
@@ -54,6 +40,8 @@ export default function FiscalYears({ notify }) {
               { key: "from", header: "From", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.startDate) },
               { key: "to", header: "To", card: "meta", className: "whitespace-nowrap", cell: (y) => formatDateGB(y.endDate) },
               { key: "status", header: "Status", card: "badge", cell: (y) => (y.status === "closed" ? <Pill tone="danger"><Lock className="h-3 w-3" aria-hidden="true" />Closed</Pill> : <Pill tone="success">Open</Pill>) },
+              // no card hint: on a phone it is a labelled line that wraps (the sentence is the point), and an open year has none
+              { key: "closed", header: "How it was closed", label: "How it was closed", className: "max-w-xs text-muted-foreground", cell: (y) => closedNote(y) },
               // closing and reopening a year need accounts.close; without it the column is not drawn at all
               ...(canClose ? [{
                 key: "action", header: "Action", align: "end", card: "actions",
@@ -85,13 +73,9 @@ export default function FiscalYears({ notify }) {
 
       {modal && <YearModal onClose={() => setModal(false)} onSaved={(code) => { setModal(false); notify(`Fiscal year ${code} added`); years.reload(); }} />}
       {confirm && (
-        <ConfirmDialog
-          title={confirm.action === "close" ? `Close ${confirm.year.code}?` : `Reopen ${confirm.year.code}?`} busy={busy}
-          danger={confirm.action === "close"} confirmLabel={confirm.action === "close" ? "Close year" : "Reopen year"}
-          text={confirm.action === "close"
-            ? "No order or voucher dated in this year can be created, approved, edited, deleted or reversed until it is reopened. Costs of earlier sales are never restated."
-            : "Documents dated in this year can be changed again. The reopening is recorded in the audit log."}
-          onConfirm={change} onClose={() => setConfirm(null)}
+        <YearEndDialog
+          year={confirm.year} mode={confirm.action} onClose={() => setConfirm(null)}
+          onDone={(message) => { setConfirm(null); notify(message); years.reload(); }}
         />
       )}
     </div>

@@ -48,6 +48,17 @@ describe("general ledger", () => {
     expect(await screen.findByRole("dialog", { name: /CASH0001/ })).toBeInTheDocument();
   });
 
+  it("leaves a closed year's closing entry out, and shows the books after it when asked", async () => {
+    m.generalLedger.mockResolvedValue(GL);
+    at(<LedgerReports />);
+    await screen.findByText("Cash in Hand");
+    expect(m.generalLedger).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: undefined }));
+    fireEvent.click(screen.getByLabelText("Include year-end closing entries"));
+    await waitFor(() => expect(m.generalLedger).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: true })));
+    fireEvent.click(screen.getByLabelText("Include year-end closing entries"));
+    await waitFor(() => expect(m.generalLedger).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: undefined })));
+  });
+
   it("filters by category, can collapse to groups only, and exports", async () => {
     m.generalLedger.mockResolvedValue(GL);
     at(<LedgerReports />);

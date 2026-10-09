@@ -51,7 +51,10 @@ export const accounting = {
   setPosting: (enabled) => api.put("/accounting/account-configuration/posting", { enabled }),
   fiscalYears: () => api.get("/accounting/fiscal-years"),
   createFiscalYear: (body) => api.post("/accounting/fiscal-years", body),
-  closeFiscalYear: (id) => api.post(`/accounting/fiscal-years/${id}/close`),
+  // what closing (or reopening) a year would do and what stands in the way, then the closing itself; `acknowledge` is the
+  // list of warning codes the person ticked
+  yearEnd: (id) => api.get(`/accounting/fiscal-years/${id}/year-end`),
+  closeFiscalYear: (id, body) => api.post(`/accounting/fiscal-years/${id}/close`, body),
   reopenFiscalYear: (id) => api.post(`/accounting/fiscal-years/${id}/reopen`),
   numberSeries: () => api.get("/accounting/number-series"),
   taxCodes: () => api.get("/accounting/tax-codes"),

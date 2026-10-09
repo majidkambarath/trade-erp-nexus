@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const m = vi.hoisted(() => ({
   configuration: vi.fn(), chart: vi.fn(), saveMappings: vi.fn(), setPosting: vi.fn(),
-  fiscalYears: vi.fn(), createFiscalYear: vi.fn(), closeFiscalYear: vi.fn(), reopenFiscalYear: vi.fn(), numberSeries: vi.fn(),
+  fiscalYears: vi.fn(), createFiscalYear: vi.fn(), closeFiscalYear: vi.fn(), reopenFiscalYear: vi.fn(), yearEnd: vi.fn(), numberSeries: vi.fn(),
   taxCodes: vi.fn(), createTaxCode: vi.fn(), updateTaxCode: vi.fn(),
   settings: vi.fn(), saveSettings: vi.fn(), auditLog: vi.fn(),
 }));
@@ -92,15 +92,16 @@ describe("fiscal years", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
-  it("closing a year names the consequence and needs confirmation", async () => {
+  it("closing a year names the consequence and needs confirmation (the year-end dialog: YearEnd.test.jsx)", async () => {
     m.closeFiscalYear.mockResolvedValue({});
+    m.yearEnd.mockResolvedValue({ year: { _id: "y1", code: "2026", status: "open" }, currency: "AED", checks: [], blockers: [], warnings: [], canClose: true, reopen: { canReopen: false, blockers: [] }, figures: { accounts: 0, carriedForward: { balanced: true } }, branches: [], next: {}, willPost: false });
     at("/accounting-setup?tab=years");
     fireEvent.click(await screen.findByRole("button", { name: /Close year/ }));
     const dialog = await screen.findByRole("dialog", { name: "Close 2026?" });
     expect(within(dialog).getByText(/can be created, approved, edited, deleted or reversed/)).toBeInTheDocument();
     expect(m.closeFiscalYear).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Close year" }));
-    await waitFor(() => expect(m.closeFiscalYear).toHaveBeenCalledWith("y1"));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Close year" }));
+    await waitFor(() => expect(m.closeFiscalYear).toHaveBeenCalledWith("y1", { acknowledge: [] }));
     expect(await screen.findByText("2026 closed")).toBeInTheDocument();
   });
 

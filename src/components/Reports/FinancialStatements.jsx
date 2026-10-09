@@ -8,7 +8,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { DateRange, Frame, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
@@ -40,8 +40,11 @@ export default function FinancialStatements() {
 }
 
 function TrialBalance({ range, onLedger }) {
-  const state = useAsync(() => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999` }), [range.from, range.to]);
+  const [closing, setClosing] = useState(false);
+  const state = useAsync(() => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999`, includeClosing: closing || undefined }), [range.from, range.to, closing]);
   return (
+    <div className="space-y-4">
+    <ClosingEntriesToggle checked={closing} onChange={setClosing} />
     <Frame state={state}>
       {(d) => {
         const exportCsv = () => downloadCSV(`trial-balance-${range.to}.csv`,
@@ -87,6 +90,7 @@ function TrialBalance({ range, onLedger }) {
         );
       }}
     </Frame>
+    </div>
   );
 }
 

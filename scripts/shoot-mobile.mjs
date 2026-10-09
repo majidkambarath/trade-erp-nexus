@@ -53,6 +53,12 @@ const DEEP = {
     { name: "new-role", clicks: ["^Roles$", "New role"], settle: 1100 },
     { name: "built-in-role", clicks: ["^Roles$", "^View$"], settle: 1100 },
   ],
+  // Accounting setup, Fiscal years: closing a year is a long dialog (the checks, the figures, what the next year opens with),
+  // and reopening one is another. The stub returns a year with a blocker, a warning and two branches: the tallest it gets.
+  "accounts-setup": [
+    { name: "close-year", clicks: ["^Fiscal years$", "^Close year$"], settle: 1100 },
+    { name: "reopen-year", clicks: ["^Fiscal years$", "^Reopen$"], settle: 1100 },
+  ],
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
@@ -120,6 +126,7 @@ const DEEP = {
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
+DEEP["accounting-setup"] = DEEP["accounts-setup"]; // check:mobile -- /accounting-setup
 DEEP["sales-order"] = DEEP["sales-orders"]; // a single-page run (check:mobile -- /sales-order)
 DEEP["quotations"] = DEEP["sales-quotations"]; // check:mobile -- /quotations
 DEEP["purchase-order"] = DEEP["purchase-orders"]; // ... and likewise for the other three order modules
@@ -778,7 +785,39 @@ function stubFor(pathname) {
     };
   }
 
-  if (p.includes("fiscal-year")) return [{ _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" }];
+  // closing or reopening a fiscal year: what it would do (services/financial/yearEndService.js; the shape is pinned by YearEnd.test.jsx)
+  if (p.includes("/year-end")) {
+    const c = (code, level, title, detail = "") => ({ code, level, title, detail });
+    const closed = p.includes("fy0");
+    return {
+      year: { _id: closed ? "fy0" : "fy1", code: closed ? "2025" : "2026", status: closed ? "closed" : "open", startDay: closed ? "2025-01-01" : "2026-01-01", endDay: closed ? "2025-12-31" : "2026-12-31" },
+      currency: "AED",
+      checks: closed ? [] : [
+        c("ALL_BRANCHES", "ok", "Every branch is included"),
+        c("EARLIER_YEARS_CLOSED", "ok", "No earlier year is left open"),
+        c("UNFINISHED_DOCUMENTS", "blocker", "3 documents and 1 voucher dated in 2026 are not approved", "Approve, reject or delete them, or change their date. Once the year is closed they can no longer be approved."),
+        c("LEDGER_BALANCED", "ok", "Debits equal credits"),
+        c("RETAINED_EARNINGS", "ok", "The profit goes to Retained Earnings"),
+        c("YEAR_NOT_ENDED", "warning", "2026 runs until 31 Dec 2026", "Closing now locks the days that are left: nothing dated up to the end of the year can be posted until the year is reopened."),
+        c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled to 31 Dec 2026", "Emirates NBD Current (to 30 Sep 2026); Mashreq Business Account (never reconciled)"),
+        c("NEXT_YEAR_CREATED", "ok", "2027 will be created", "The balances close into it, so posting carries on without a gap."),
+      ],
+      blockers: closed ? [] : [c("UNFINISHED_DOCUMENTS", "blocker", "3 documents and 1 voucher dated in 2026 are not approved")],
+      warnings: closed ? [] : [c("YEAR_NOT_ENDED", "warning", "2026 runs until 31 Dec 2026"), c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled")],
+      canClose: false,
+      reopen: { canReopen: closed, blockers: [] },
+      figures: { income: 1234567.5, expenses: 987654.25, profit: 246913.25, accounts: 14, yearIncome: 1134567.5, yearExpenses: 887654.25, yearProfit: 246913.25, broughtForward: 100000, carriedForward: { assets: 5234567.8, liabilities: 1834567.4, equity: 3400000.4, balanced: true } },
+      branches: [{ branchId: "main", name: "Head office", profit: 300000 }, { branchId: "shj", name: "Sharjah branch", profit: -53086.75 }],
+      retained: { accountName: "Retained Earnings" },
+      next: { code: "2027", exists: false, startDay: "2027-01-01", endDay: "2027-12-31" },
+      willPost: true,
+      closing: closed ? { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026", nextYearCreated: false } : null,
+    };
+  }
+  if (p.includes("fiscal-year")) return [
+    { _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" },
+    { _id: "fy0", code: "2025", startDate: "2025-01-01", endDate: "2025-12-31", status: "closed", closing: { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026" } },
+  ];
   if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
   if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }];
   if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
