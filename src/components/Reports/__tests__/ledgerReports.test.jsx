@@ -132,6 +132,91 @@ describe("day book", () => {
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
     await waitFor(() => expect(m.dayBook).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })));
   });
+
+  describe("export", () => {
+    const BOOK_SIZE = 450;
+    const voucher = (i) => ({ voucherId: `v${i}`, date: "2026-10-04T08:00:00Z", voucherNo: `SO-2026-${String(i).padStart(4, "0")}`, voucherType: "sales_order", typeLabel: "Sales invoice", party: "Al Noor", narration: `n${i}`, amount: i, balanced: true });
+    const book = Array.from({ length: BOOK_SIZE }, (_, i) => voucher(i + 1));
+    const serve = ({ gate, failPage } = {}) => m.dayBook.mockImplementation(async ({ page = 1, limit = 50 }) => {
+      if (limit === 200) {
+        if (gate) await gate;
+        if (failPage === page) throw new Error("Server busy");
+      }
+      return { total: BOOK_SIZE, page, limit, byType: [{ voucherType: "sales_order", label: "Sales invoice", amount: 1000, count: BOOK_SIZE }], rows: book.slice((page - 1) * limit, page * limit) };
+    });
+    const exportCalls = () => m.dayBook.mock.calls.map(([p]) => p).filter((p) => p.limit === 200);
+
+    it("writes every voucher the filters select, not the 50 on screen, and says how many", async () => {
+      serve();
+      at(<LedgerReports />, "/?tab=daybook");
+      await screen.findByText("Page 1 of 9 · 450 vouchers");
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
+      const [name, heads, rows] = downloadCSV.mock.calls[0];
+      expect(name).toMatch(/^day-book-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(heads).toEqual(["Date", "Voucher", "Type", "Party", "Narration", "Amount"]);
+      expect(rows).toHaveLength(BOOK_SIZE);
+      expect(rows[0]).toEqual([expect.any(String), "SO-2026-0001", "Sales invoice", "Al Noor", "n1", 1]);
+      expect(rows.at(-1)[1]).toBe("SO-2026-0450");
+      expect(new Set(rows.map((r) => r[1])).size).toBe(BOOK_SIZE);
+      expect(exportCalls().map((p) => p.page)).toEqual([1, 2, 3]);
+      expect(await screen.findByText("Exported 450 vouchers")).toBeInTheDocument();
+    });
+
+    it("keeps the date range, type and search of the screen", async () => {
+      serve();
+      at(<LedgerReports />, "/?tab=daybook");
+      await screen.findByText("Page 1 of 9 · 450 vouchers");
+      fireEvent.change(screen.getByLabelText("Search"), { target: { value: "noor" } });
+      await waitFor(() => expect(m.dayBook).toHaveBeenLastCalledWith(expect.objectContaining({ search: "noor", limit: 50 })));
+      const picker = screen.getByLabelText("Voucher type");
+      fireEvent.change(picker, { target: { value: "rece" } });
+      fireEvent.keyDown(picker, { key: "Enter" });
+      await waitFor(() => expect(m.dayBook).toHaveBeenLastCalledWith(expect.objectContaining({ type: "receipt" })));
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
+      expect(exportCalls()[0]).toEqual(expect.objectContaining({ type: "receipt", search: "noor", from: expect.stringMatching(/^\d{4}-01-01$/), to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), page: 1, limit: 200 }));
+    });
+
+    it("is disabled while it reads, and says so", async () => {
+      let release;
+      serve({ gate: new Promise((r) => { release = r; }) });
+      at(<LedgerReports />, "/?tab=daybook");
+      await screen.findByText("Page 1 of 9 · 450 vouchers");
+      const button = screen.getByRole("button", { name: /CSV/ });
+      fireEvent.click(button);
+      await waitFor(() => expect(button).toBeDisabled());
+      expect(button).toHaveTextContent("Exporting");
+      fireEvent.click(button); // a second press while it works starts nothing
+      expect(downloadCSV).not.toHaveBeenCalled();
+      release();
+      await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(button).toBeEnabled());
+      expect(button).toHaveTextContent("CSV");
+      expect(exportCalls().filter((p) => p.page === 1)).toHaveLength(1);
+    });
+
+    it("writes no half file when a page fails, and says what happened", async () => {
+      serve({ failPage: 2 });
+      at(<LedgerReports />, "/?tab=daybook");
+      await screen.findByText("Page 1 of 9 · 450 vouchers");
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      expect(await screen.findByText("Server busy")).toBeInTheDocument();
+      expect(downloadCSV).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /CSV/ })).toBeEnabled();
+    });
+
+    it("exports the one page of a short book in one request", async () => {
+      m.dayBook.mockResolvedValue(DB());
+      at(<LedgerReports />, "/?tab=daybook");
+      await screen.findByText("SO-2026-0001");
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
+      expect(downloadCSV.mock.calls[0][2]).toHaveLength(2);
+      expect(await screen.findByText("Exported 2 vouchers")).toBeInTheDocument();
+      expect(exportCalls()).toHaveLength(1);
+    });
+  });
 });
 
 describe("journals", () => {
@@ -147,7 +232,32 @@ describe("journals", () => {
     expect(screen.getByText("Rent Expense")).toBeInTheDocument();
     expect(m.dayBook).toHaveBeenCalledWith(expect.objectContaining({ type: "journal", includeLines: true }));
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
     expect(downloadCSV.mock.calls[0][2]).toHaveLength(2);
+    expect(await screen.findByText("Exported 1 journal")).toBeInTheDocument();
+  });
+
+  it("exports every journal of the period with its lines, not the twenty on screen", async () => {
+    const journal = (i) => ({
+      voucherId: `j${i}`, date: "2026-10-04T08:00:00Z", voucherNo: `JV-2026-${String(i).padStart(4, "0")}`, voucherType: "journal", typeLabel: "Journal", narration: `Accrual ${i}`, amount: 10, balanced: true,
+      lines: [{ accountId: "r", accountCode: "OPEX0006", accountName: "Rent Expense", debit: 10, credit: 0 }, { accountId: "c", accountCode: "CASH0001", accountName: "Cash in Hand", debit: 0, credit: 10 }],
+    });
+    const all = Array.from({ length: 205 }, (_, i) => journal(i + 1));
+    m.dayBook.mockImplementation(async ({ page = 1, limit = 20 }) => ({ total: 205, page, limit, byType: [], rows: all.slice((page - 1) * limit, page * limit) }));
+    at(<LedgerReports />, "/?tab=journals");
+    expect(await screen.findByText("205 journals in this period")).toBeInTheDocument();
+    expect(screen.getAllByText(/^JV-2026-/)).toHaveLength(20);
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
+    const [name, heads, rows] = downloadCSV.mock.calls[0];
+    expect(name).toMatch(/^journals-/);
+    expect(heads).toEqual(["Date", "Voucher", "Narration", "Account code", "Account", "Debit", "Credit"]);
+    expect(rows).toHaveLength(410); // 205 journals, two lines each
+    expect(rows[409]).toEqual([expect.any(String), "JV-2026-0205", "Accrual 205", "CASH0001", "Cash in Hand", 0, 10]);
+    const exportCalls = m.dayBook.mock.calls.map(([p]) => p).filter((p) => p.limit === 200);
+    expect(exportCalls.map((p) => p.page)).toEqual([1, 2]);
+    expect(exportCalls.every((p) => p.type === "journal" && p.includeLines === true)).toBe(true);
+    expect(await screen.findByText("Exported 205 journals")).toBeInTheDocument();
   });
 });
 
@@ -166,6 +276,21 @@ describe("cash and bank book", () => {
     expect(within(screen.getByText("Cash in Hand").closest("tr")).getByText("3,590.00")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Show"), { target: { value: "bank" } });
     await waitFor(() => expect(m.cashBook).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "bank" })));
+  });
+
+  it("calls the two totals debits and credits, says they include transfers, and points to the cash flow for money in and out", async () => {
+    m.cashBook.mockResolvedValue(BOOK);
+    at(<LedgerReports />, "/?tab=cash");
+    await screen.findByText("ENBD Current");
+    const card = (title) => screen.getByRole("heading", { name: title, level: 3 }).closest(".shadow-card");
+    expect(card("Debits to cash and bank")).toHaveTextContent("6,100.00");
+    expect(card("Debits to cash and bank")).toHaveTextContent("including transfers between your accounts");
+    expect(card("Credits to cash and bank")).toHaveTextContent("1,510.00");
+    // they are no longer called money in / money out, which is what the cash flow means by them
+    expect(screen.queryByRole("heading", { name: "Money in", level: 3 })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Money out", level: 3 })).toBeNull();
+    expect(screen.getByText(/counts on both sides here/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cash flow tab" })).toHaveAttribute("href", "/financial-statements?tab=cash");
   });
 });
 
@@ -225,5 +350,78 @@ describe("party balances", () => {
     await waitFor(() => expect(m.partyBalances).toHaveBeenLastCalledWith(expect.objectContaining({ includeZero: true })));
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     expect(downloadCSV.mock.calls[0][2]).toHaveLength(3);
+  });
+
+  describe("advances and accounts on the other side", () => {
+    const card = (title) => screen.getByRole("heading", { name: title, level: 3 }).closest(".shadow-card");
+    // Al Noor paid 300 ahead (an advance); Big Buyer overpaid an invoice and is 80 in credit with nothing held on account; Cash Customer owes 40
+    const WITH_ADVANCES = {
+      type: "customer",
+      rows: [
+        { partyId: "c1", partyCode: "CUS001", partyName: "Al Noor Mart", paymentTerms: "Net 30", balance: -300, onAccount: 300, creditLimit: 500, available: 800, utilisation: 0, status: "ok", overdue: 0 },
+        { partyId: "c2", partyCode: "CUS002", partyName: "Big Buyer", paymentTerms: "Net 15", balance: -80, onAccount: 0, creditLimit: 500, available: 580, utilisation: 0, status: "ok", overdue: 0 },
+        { partyId: "c3", partyCode: "CUS003", partyName: "Cash Customer", paymentTerms: "", balance: 40, onAccount: 0, creditLimit: 0, available: null, utilisation: null, status: "no-limit", overdue: 0 },
+      ],
+      totals: { owed: 40, advances: 380, onAccount: 300, net: -340, overdue: 0, overLimit: 0, nearLimit: 0 },
+    };
+
+    it("labels the party's advance as paid in advance, and an account whose net is on the other side as in credit", async () => {
+      m.partyBalances.mockResolvedValue(WITH_ADVANCES);
+      at(<PartyBalances />);
+      await screen.findByText("Al Noor Mart");
+      expect(card("Paid in advance")).toHaveTextContent("300.00");
+      expect(card("Accounts in credit (returns or overpayments)")).toHaveTextContent("380.00");
+      expect(card("Owed to us")).toHaveTextContent("40.00");
+    });
+
+    it("draws an On account column when someone holds an advance, with a dash for the rest, and exports it", async () => {
+      m.partyBalances.mockResolvedValue(WITH_ADVANCES);
+      at(<PartyBalances />);
+      await screen.findByText("Al Noor Mart");
+      expect(screen.getByRole("columnheader", { name: "On account" })).toBeInTheDocument();
+      const heads = screen.getAllByRole("columnheader").map((h) => h.textContent);
+      expect(heads.indexOf("On account")).toBe(heads.indexOf("Balance") + 1);
+      const noor = within(screen.getByText("Al Noor Mart").closest("tr"));
+      // the balance keeps its meaning (the customer is in credit, which reads as Cr) and the advance has a column of its own
+      expect(noor.getAllByText("300.00")).toHaveLength(2);
+      expect(noor.getAllByText("Cr").length).toBeGreaterThan(0);
+      expect(within(screen.getByText("Big Buyer").closest("tr")).queryByText("0.00")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      const [, csvHeads, rows] = downloadCSV.mock.calls[0];
+      expect(csvHeads).toEqual(["ID", "Customer", "Terms", "Balance (Dr owes us)", "On account (paid in advance)", "Credit limit", "Used %", "Status", "Overdue"]);
+      expect(rows[0].slice(0, 5)).toEqual(["CUS001", "Al Noor Mart", "Net 30", -300, 300]);
+      expect(rows[0]).toHaveLength(csvHeads.length);
+    });
+
+    it("leaves the On account column out when nobody holds one", async () => {
+      m.partyBalances.mockResolvedValue({ ...CUSTOMERS, rows: CUSTOMERS.rows.map((r) => ({ ...r, onAccount: 0 })), totals: { ...CUSTOMERS.totals, onAccount: 0 } });
+      at(<PartyBalances />);
+      await screen.findByText("Al Noor Mart");
+      expect(screen.queryByRole("columnheader", { name: "On account" })).toBeNull();
+      expect(card("Paid in advance")).toHaveTextContent("0.00");
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      expect(downloadCSV.mock.calls[0][1]).toEqual(["ID", "Customer", "Terms", "Balance (Dr owes us)", "Credit limit", "Used %", "Status", "Overdue"]);
+    });
+
+    it("vendors: advances to vendors are what we hold with them on account, and vendors in debit the accounts on the other side", async () => {
+      m.partyBalances.mockResolvedValue({
+        type: "vendor",
+        rows: [
+          { partyId: "v1", partyCode: "VEN001", partyName: "Gulf Mills", paymentTerms: "Net 30", balance: 750, onAccount: 0, overdue: 0 },
+          { partyId: "v2", partyCode: "VEN002", partyName: "Delta Packaging", paymentTerms: "Net 30", balance: -230, onAccount: 230, overdue: 0 },
+          { partyId: "v3", partyCode: "VEN003", partyName: "Returns Ltd", paymentTerms: "", balance: -45, onAccount: 0, overdue: 0 },
+        ],
+        totals: { owed: 750, advances: 275, onAccount: 230, net: 475, overdue: 0 },
+      });
+      at(<PartyBalances />, "/?tab=vendors");
+      await screen.findByText("Gulf Mills");
+      expect(card("Advances to vendors")).toHaveTextContent("230.00");
+      expect(card("Vendors in debit")).toHaveTextContent("275.00");
+      expect(screen.queryByRole("heading", { name: "Paid in advance", level: 3 })).toBeNull();
+      expect(screen.getByRole("columnheader", { name: "On account" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+      expect(downloadCSV.mock.calls[0][1]).toEqual(["ID", "Vendor", "Terms", "Balance owed (Cr)", "On account (advance paid)", "Overdue"]);
+    });
   });
 });

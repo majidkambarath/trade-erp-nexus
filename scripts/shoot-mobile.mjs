@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import puppeteer from "puppeteer";
 // the same responses the screen tests use, so the sweep and the tests cannot drift apart
-import { POSITION, PROFIT, EQUITY, CASH, NOTES } from "../src/lib/__tests__/ifrsFixtures.js";
+import { POSITION_REGROUPED as POSITION, PROFIT_WITH_DISCOUNTS as PROFIT, EQUITY, CASH, NOTES_REGROUPED as NOTES } from "../src/lib/__tests__/ifrsFixtures.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = process.env.SHOT_DIR || join(ROOT, ".shots");
@@ -211,6 +211,32 @@ function findCutOff(rootSel) {
   return out;
 }
 
+/**
+ * A box that scrolls vertically only because something INVISIBLE hangs below its content. `overflow-x: auto` makes the other
+ * axis `auto` too, so a row's `absolute ... invisible` menu (opacity 0, still in layout) that reaches below the last row gave the
+ * table's card its own scroll area: a blank strip under the rows and a second scrollbar inside the page. The page fits, so no other
+ * check sees it. A box meant to scroll vertically has a height limit (`max-height`, or a height of its own), so only an auto-height
+ * box with a vertical overflow is reported. Runs in the page.
+ */
+function findGhostScroll(rootSel) {
+  const root = document.querySelector(rootSel);
+  if (!root) return [];
+  const out = [];
+  for (const el of root.querySelectorAll("*")) {
+    const st = getComputedStyle(el);
+    if (st.overflowY !== "auto" && st.overflowY !== "scroll") continue;
+    if (st.maxHeight !== "none" || el.clientHeight <= 0) continue;
+    const hidden = el.scrollHeight - el.clientHeight;
+    if (hidden <= 2) continue;
+    // an element whose height was set on purpose (a style) scrolls on purpose
+    if (el.style.height) continue;
+    const cls = String(el.className?.baseVal ?? el.className ?? "").split(" ").filter(Boolean).slice(0, 2).join(".");
+    out.push(`${hidden}px of nothing to scroll to in ${el.tagName.toLowerCase()}.${cls}`);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 /** Measure the topmost dialog the way a pane is measured. */
 async function measureDialog(page) {
   const res = await page.evaluate(() => {
@@ -251,6 +277,8 @@ async function measureDialog(page) {
     return { opened, text, bleeds: worst.sw > worst.w + 4, sw: worst.sw, w: worst.w, what: worst.what, wide };
   });
   res.cutOff = await page.evaluate(findCutOff, res.opened ? "dialog" : "main");
+  // a list's own box scrolling over nothing (an invisible menu hanging below its last row) shows only on a page, not in a dialog
+  if (!res.opened) res.cutOff.push(...(await page.evaluate(findGhostScroll, "main")));
   return res;
 }
 
@@ -788,13 +816,19 @@ function stubFor(pathname) {
         mix: n(batch, 4).map((b, i) => ({ name: b.itemName, value: 40000 - i * 6000 })),
         lowStock: n(batch, 3).map((b) => ({ ...b, currentStock: 4, reorderLevel: 20 })),
         batches: n(batch, 3), totals: { value: 480000, items: 128, lowStock: 3, expiring: 2 },
+        stockFlow: { from: "2026-10-01", to: "2026-10-31", opening: 410000, purchases: 260000, salesReturns: 6000, adjustments: -4000, purchaseReturns: 9000, sales: 168000, writeOffs: 15000, closing: 480000 },
       };
     }
     if (p.includes("/reports")) {
       return {
         currency: "AED", period, grossProfit: 464000, netProfit: 284000,
         vat: { from: "2026-10-01", to: "2026-10-31", outputVat: 64200, recoverableVat: 41000, net: 23200, position: "payable", hasActivity: true },
-        valueGrowth: months().map(({ month }, i) => ({ month, grossProfit: 30000 + i * 9000 })),
+        valueGrowth: months().map(({ month }, i) => ({ month, grossProfit: 30000 + i * 9000, netProfit: i === 2 ? -12000 : 8000 + i * 5000, revenue: 80000 + i * 9000 })),
+        profitFlow: { revenue: 1284000, directCosts: 820000, grossProfit: 464000, operatingExpenses: 196000, otherIncome: 16000, netProfit: 284000 },
+        expenses: {
+          total: 196000,
+          rows: [["Salaries", 82000], ["Rent", 36000], ["Utilities", 21000], ["Marketing", 18000], ["Transport", 15000], ["Other", 24000]].map(([name, amount], i) => ({ key: i === 5 ? "others" : "g" + i, name, amount, sharePct: Math.round((amount / 196000) * 1000) / 10 })),
+        },
         vouchers: [{ voucherType: "receipt", amount: 930000 }, { voucherType: "payment", amount: 520000 }, { voucherType: "journal", amount: 40000 }, { voucherType: "contra", amount: 120000 }, { voucherType: "expense", amount: 64000 }],
         ageing: AGEING,
       };
@@ -816,7 +850,18 @@ function stubFor(pathname) {
         ageing: AGEING,
         topVendors: [{ partyId: "v2", name: "Delta Foods", purchases: 100000, previous: 80000, changePct: 25 }, { partyId: "v1", name: "Gulf Mills", purchases: 50000, previous: 0, changePct: null }],
         collections: ["2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((weekStart, i) => ({ weekStart, receipts: i * 10000, invoiced: i * 20000 })),
-        treemap: [{ itemId: "RICE", name: "Rice", size: 640000 }, { itemId: "OIL", name: "Oil", size: 300000 }],
+        // long, real-looking names: the tile has to wrap and shorten them, never cut a word in half
+        treemap: [
+          ["Sunflower Oil - 1.5L x 6 Carton", 640000], ["Sunflower Oil - 18L Tin", 420000], ["Black Tea CTC - 400g x 24 Pack", 300000], ["Red Lentils Masoor - 25kg Bag", 260000],
+          ["Toor Dal - 25kg Bag", 210000], ["White Long Grain Basmati Rice - 5kg", 120000], ["Pure Ghee - 1kg Tin", 90000], ["Whole Wheat Atta - 10kg Bag", 70000],
+        ].map(([name, size], i) => ({ itemId: "SKU" + i, name, size })),
+        businessFlow: {
+          statement: { revenue: 1284000, directCosts: 820000, grossProfit: 464000, operatingExpenses: 196000, otherIncome: 16000, netProfit: 284000 },
+          previous: { revenue: 1140000, netProfit: 241000, revenueChangePct: 12.6 },
+          stages: { bought: 760000, stock: 480000, sold: 1284000, collected: 930000, owedByCustomers: 372000, owedToVendors: 210000 },
+          cycle: { from: "2026-07-14", to: "2026-10-10", days: 89, minDays: 14, enough: true, dso: 38.4, dpo: 24.1, dio: 52.7, cycleDays: 67, receivables: 372000, payables: 210000, stockValue: 480000, invoiced: 870000, purchased: 775000, cogs: 810000 },
+        },
+        categoryMargin: { averagePct: 18.4, rows: [{ key: "k1", name: "Oils & Fats", revenue: 1060000, marginPct: 24.6 }, { key: "k2", name: "Tea & Beverages", revenue: 300000, marginPct: 31.2 }, { key: "k3", name: "Pulses", revenue: 470000, marginPct: 12.9 }, { key: "k4", name: "Rice & Grains", revenue: 190000, marginPct: -3.5 }] },
         hourly: [{ hour: 8, mon: 1, tue: 0, wed: 2, thu: 0, fri: 0, weekend: 0 }, { hour: 10, mon: 0, tue: 0, wed: 0, thu: 3, fri: 0, weekend: 1 }],
       };
     }
@@ -1000,12 +1045,18 @@ function stubFor(pathname) {
   if (p.includes("/reports/profit-loss")) {
     const group = (id, name, total, code, account) => ({ groupId: id, name, total, accounts: [{ accountId: `${id}a`, accountCode: code, accountName: account, amount: total }] });
     return {
-      revenue: { groups: [group("g1", "Sales Income", 1284000, "SAL0001", "Sales Revenue")], total: 1284000 },
+      revenue: {
+        groups: [
+          group("g1", "Sales Income", 1284000, "SAL0001", "Sales Revenue"),
+          { ...group("sales-discounts", "Less: sales discounts and rebates", -12000, "DSC0001", "Sales Discount"), synthetic: true },
+        ],
+        total: 1272000,
+      },
       directCosts: { groups: [group("g2", "Cost of Goods Sold", 820000, "COGS0001", "Cost of Goods Sold")], total: 820000 },
-      grossProfit: 464000, grossMargin: 36.1,
+      grossProfit: 452000, grossMargin: 35.5,
       otherIncome: { groups: [], total: 0 },
       operatingExpenses: { groups: [group("g3", "Operating Expenses", 180000, "OPEX0001", "Rent")], total: 180000 },
-      netProfit: 284000,
+      netProfit: 272000,
     };
   }
   if (p.includes("/reports/day-book")) {
@@ -1131,8 +1182,9 @@ function stubFor(pathname) {
 
   if (p.includes("party-balances")) {
     return {
-      rows: n(party), parties: n(party),
-      totals: { owed: 342000, overdue: 48000, count: 6, advance: 12000 },
+      // one party holds an advance, so the On account column is drawn
+      rows: n(party).map((x, i) => ({ ...x, onAccount: i === 0 ? 12000 : 0 })), parties: n(party),
+      totals: { owed: 342000, overdue: 48000, count: 6, advance: 12000, advances: 4500, onAccount: 12000 },
     };
   }
 
@@ -1146,6 +1198,7 @@ function stubFor(pathname) {
       buckets,
       rows: n(party).map((x) => ({ ...x, buckets: amounts, total: 3750, paymentTerms: "30 days", invoices: [] })),
       totals: { current: 6000, d30: 12000, d60: 3000, d90: 0, d90p: 1500, total: 22500 },
+      reconciliation: { ledger: 21300, ageing: 22500, unapplied: -1200 },
     };
   }
 
@@ -1172,7 +1225,7 @@ function stubFor(pathname) {
     }
     const box = (id, label, amount = 0, vat = 0) => ({ box: id, label, amount, vat });
     return {
-      from: "2026-07-01", to: "2026-09-30", emirate: "Dubai", currency: "AED",
+      from: "2026-07-01", to: "2026-09-30", emirate: "Dubai", emirateAssumed: true, currency: "AED",
       boxes: [
         box("1a", "Standard-rated supplies in Abu Dhabi"), box("1b", "Standard-rated supplies in Dubai", 480000, 24000), box("1c", "Standard-rated supplies in Sharjah"),
         box("1d", "Standard-rated supplies in Ajman"), box("1e", "Standard-rated supplies in Umm Al Quwain"), box("1f", "Standard-rated supplies in Ras Al Khaimah"),
@@ -1441,7 +1494,30 @@ for (const vp of VIEWPORTS) {
           scrollWidth: document.documentElement.scrollWidth, wide, clipped, tiny,
         };
       });
-      const cutOff = await page.evaluate(findCutOff, "main");
+      const cutOff = [...(await page.evaluate(findCutOff, "main")), ...(await page.evaluate(findGhostScroll, "main"))];
+      // The shell is a fixed frame and only <main> scrolls. When the DOCUMENT can scroll as well, a person who reaches the end
+      // of a long list and keeps going (scroll chaining) slides the whole shell up: the bottom bar floats mid-window over an
+      // empty grey block. The usual cause is an absolutely positioned element deep in the page whose containing block is the
+      // window, not the shell, so the shell's overflow-hidden does not clip it and it makes the document taller.
+      const docScroll = await page.evaluate(() => {
+        // Only the app shell is a fixed frame. The sign-in page, the developer console and the customer's document page are
+        // ordinary pages that are meant to scroll as a whole.
+        const bar = document.querySelector("nav[aria-label='Modules']");
+        if (!bar) return [];
+        const root = document.scrollingElement || document.documentElement;
+        const spare = root.scrollHeight - window.innerHeight;
+        window.scrollTo(0, 1e6);
+        const moved = Math.round(window.scrollY);
+        const barBottom = Math.round(bar.getBoundingClientRect().bottom);
+        window.scrollTo(0, 0);
+        if (spare <= 1 && moved === 0) return [];
+        const culprits = [...document.querySelectorAll("body *")]
+          .filter((n) => getComputedStyle(n).position === "absolute" && (!n.offsetParent || n.offsetParent === document.body))
+          .filter((n) => n.getBoundingClientRect().bottom + window.scrollY > window.innerHeight + 1)
+          .slice(0, 4)
+          .map((n) => `${n.tagName.toLowerCase()}.${(n.className || "").toString().split(" ").slice(0, 3).join(".")} bottom=${Math.round(n.getBoundingClientRect().bottom + window.scrollY)}`);
+        return [`the document scrolls ${Math.max(spare, moved)}px past the window${barBottom < window.innerHeight - 1 ? ` (bottom bar ends at ${barBottom} of ${window.innerHeight})` : ""}`, ...culprits];
+      });
       await page.screenshot({ path: file, fullPage: false });
       const bleeds = overflow.paneBleeds;
       // An empty <main> means the page rendered nothing at all.
@@ -1460,10 +1536,11 @@ for (const vp of VIEWPORTS) {
       const errs = [...new Set(problems)];
       results.push({
         page: name, vp: vp.name, bleeds, blank, widest: overflow.wide,
-        clipped: overflow.clipped, cutOff, tiny: overflow.tiny, errors: errs,
+        clipped: overflow.clipped, cutOff, docScroll, tiny: overflow.tiny, errors: errs,
       });
-      const flag = blank ? "BLANK " : bleeds ? "BLEEDS" : cutOff.length ? "CUT   " : overflow.clipped.length ? "CLIP  " : "ok    ";
+      const flag = blank ? "BLANK " : bleeds ? "BLEEDS" : docScroll.length ? "DOCSCR" : cutOff.length ? "CUT   " : overflow.clipped.length ? "CLIP  " : "ok    ";
       console.log(`${flag} ${vp.name.padEnd(8)} ${name.padEnd(18)} ${bleeds ? `pane ${overflow.paneScroll} > ${overflow.paneWidth}  ${overflow.wide.join(" | ")}` : ""}`);
+      if (docScroll.length) console.log(`         ${docScroll.join(" | ")}`);
       if (overflow.clipped.length) console.log(`         clipped: ${overflow.clipped.join(" | ")}`);
       if (cutOff.length) console.log(`         cut off: ${cutOff.join(" | ")}`);
       // touch targets only matter where there is a thumb
@@ -1579,6 +1656,6 @@ console.log(`\nShots in ${OUT}`);
 // panel hides the layout the sweep exists to check. The page error boundary catches it and shows "Something went
 // wrong on this page" instead of a blank window, so the crash arrives as a console error, not a page error.
 const threw = (r) => (r.errors || []).some((e) => /^pageerror/.test(e) || /^console: Page crashed:/.test(e));
-const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r) || (r.cutOff && r.cutOff.length));
+const broken = results.filter((r) => r.bleeds || r.blank || r.error || threw(r) || (r.cutOff && r.cutOff.length) || (r.docScroll && r.docScroll.length));
 for (const r of broken.filter((x) => threw(x) && !x.bleeds && !x.blank)) console.log(`THREW  ${r.vp.padEnd(8)} ${r.page}  ${r.errors.find((e) => /^pageerror|^console: Page crashed:/.test(e))}`);
 await stop(broken.length ? 1 : 0);

@@ -44,6 +44,8 @@ function Parties({ type, asOn }) {
   const [search, setSearch] = useState("");
   const [focus, setFocus] = useState("");
   const state = useAsync(() => accounting.partyBalances({ type, asOn, includeZero: includeZero || undefined }), [type, asOn, includeZero]);
+  // a party's advance (what it holds with us, or we with it, on account) is its own column, drawn only when someone has one
+  const hasOnAccount = (state.data?.rows || []).some((r) => Math.abs(r.onAccount || 0) >= 0.005);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -75,17 +77,30 @@ function Parties({ type, asOn }) {
       <Frame state={state}>
         {(d) => {
           const exportCsv = () => downloadCSV(`${customer ? "customer" : "vendor"}-balances-${asOn}.csv`,
-            customer ? ["ID", "Customer", "Terms", "Balance (Dr owes us)", "Credit limit", "Used %", "Status", "Overdue"] : ["ID", "Vendor", "Terms", "Balance owed (Cr)", "Overdue"],
-            rows.map((r) => (customer ? [r.partyCode, r.partyName, r.paymentTerms, r.balance, r.creditLimit, r.utilisation ?? "", STATUS[r.status].label, r.overdue] : [r.partyCode, r.partyName, r.paymentTerms, r.balance, r.overdue])));
+            [
+              ...(customer ? ["ID", "Customer", "Terms", "Balance (Dr owes us)"] : ["ID", "Vendor", "Terms", "Balance owed (Cr)"]),
+              ...(hasOnAccount ? [customer ? "On account (paid in advance)" : "On account (advance paid)"] : []),
+              ...(customer ? ["Credit limit", "Used %", "Status"] : []),
+              "Overdue",
+            ],
+            rows.map((r) => [
+              r.partyCode, r.partyName, r.paymentTerms, r.balance,
+              ...(hasOnAccount ? [r.onAccount || 0] : []),
+              ...(customer ? [r.creditLimit, r.utilisation ?? "", STATUS[r.status].label] : []),
+              r.overdue,
+            ]));
+          // Two different things were once one figure labelled "Paid in advance". `onAccount` is what the party holds on account (an
+          // advance); `advances` is any account whose net balance is on the other side, which a return or an overpayment leaves.
           return (
             <>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <StatCard title={customer ? "Owed to us" : "We owe"} count={money(d.totals.owed)} tone="teal" subText={CURRENCY} />
-                <StatCard title={customer ? "Paid in advance" : "Advances to vendors"} count={money(d.totals.advances)} tone="plum" subText={CURRENCY} />
+                <StatCard title={customer ? "Paid in advance" : "Advances to vendors"} count={money(d.totals.onAccount)} tone="plum" subText={`${CURRENCY} · on account`} />
+                <StatCard title={customer ? "Accounts in credit (returns or overpayments)" : "Vendors in debit"} count={money(d.totals.advances)} tone="neutral" subText={CURRENCY} />
                 <StatCard title="Overdue" count={money(d.totals.overdue)} tone={d.totals.overdue > 0 ? "warning" : "neutral"} subText={CURRENCY} />
                 {customer
-                  ? <StatCard title="Over their limit" count={String(d.totals.overLimit)} subText={`${d.totals.nearLimit} more near it`} tone={d.totals.overLimit > 0 ? "danger" : "neutral"} />
-                  : <StatCard title="Vendors" count={String(d.rows.length)} tone="neutral" />}
+                  ? <StatCard className="col-span-2 lg:col-span-1" title="Over their limit" count={String(d.totals.overLimit)} subText={`${d.totals.nearLimit} more near it`} tone={d.totals.overLimit > 0 ? "danger" : "neutral"} />
+                  : <StatCard className="col-span-2 lg:col-span-1" title="Vendors" count={String(d.rows.length)} tone="neutral" />}
               </div>
               <Panel bodyClassName="p-0" title={customer ? "Customer balances" : "Vendor balances"} description={`As on ${asOn}. ${customer ? "Dr means the customer owes us." : "Cr means we owe the vendor."}`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
@@ -95,6 +110,7 @@ function Parties({ type, asOn }) {
                       <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
                           <th className="px-5 py-2 text-start">{customer ? "Customer" : "Vendor"}</th><th className="px-3 py-2 text-start">Terms</th><th className="px-3 py-2 text-end">Balance</th>
+                          {hasOnAccount && <th className="px-3 py-2 text-end" title={customer ? "Paid by the customer in advance, not yet set against an invoice" : "Paid to the vendor in advance, not yet set against an invoice"}>On account</th>}
                           {customer && <><th className="px-3 py-2 text-end">Credit limit</th><th className="px-3 py-2 text-start">Limit used</th></>}
                           <th className="px-3 py-2 text-end">Overdue</th><th className="px-5 py-2"><span className="sr-only">Account</span></th>
                         </tr>
@@ -105,6 +121,7 @@ function Parties({ type, asOn }) {
                             <td className="px-5 py-2.5"><span className="font-medium">{r.partyName}</span>{r.partyCode && <span className="block font-mono text-xs text-muted-foreground">{r.partyCode}</span>}</td>
                             <td className="px-3 py-2.5 text-muted-foreground">{r.paymentTerms || "-"}</td>
                             <td className="px-3 py-2.5 text-end font-medium">{customer ? <Balance net={r.balance} /> : <Balance net={-r.balance} />}</td>
+                            {hasOnAccount && <td className="px-3 py-2.5 text-end tabular-nums">{r.onAccount ? money(r.onAccount) : <span className="text-muted-foreground">-</span>}</td>}
                             {customer && (
                               <>
                                 <td className="px-3 py-2.5 text-end tabular-nums">{r.creditLimit > 0 ? money(r.creditLimit) : <span className="text-muted-foreground">-</span>}</td>
@@ -124,7 +141,7 @@ function Parties({ type, asOn }) {
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot><tr className="border-t-2 border-border bg-secondary/60 font-semibold"><td className="px-5 py-2.5" colSpan={2}>Net</td><td className="px-3 py-2.5 text-end">{customer ? <Balance net={d.totals.net} /> : <Balance net={-d.totals.net} />}</td>{customer && <td colSpan={2} />}<td className="px-3 py-2.5 text-end tabular-nums">{money(d.totals.overdue)}</td><td /></tr></tfoot>
+                      <tfoot><tr className="border-t-2 border-border bg-secondary/60 font-semibold"><td className="px-5 py-2.5" colSpan={2}>Net</td><td className="px-3 py-2.5 text-end">{customer ? <Balance net={d.totals.net} /> : <Balance net={-d.totals.net} />}</td>{hasOnAccount && <td className="px-3 py-2.5 text-end tabular-nums">{money(d.totals.onAccount)}</td>}{customer && <td colSpan={2} />}<td className="px-3 py-2.5 text-end tabular-nums">{money(d.totals.overdue)}</td><td /></tr></tfoot>
                     </table>
                   </div>
                 )}

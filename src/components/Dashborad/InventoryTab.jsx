@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChartArea, Empty, Skeleton } from "./widgets";
+import { Waterfall } from "./FlowCharts";
 import { ink, monthLabel, monthYearLabel, slices, compactAmount, tip } from "./helpers";
 import { trailing } from "@/lib/dashboardPeriod";
 
@@ -27,6 +28,20 @@ export default function InventoryTab({ state, theme, scope }) {
   const colours = slices(theme, "inventory");
   const trend = (d?.stockValueTrend?.months || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const alerts = d ? d.lowStock.length + d.batches.length : 0;
+  // what the stock was worth at the start, what came in, what went out (at cost), and what it is worth now
+  const flow = d?.stockFlow;
+  const flowSteps = flow
+    ? [
+        { key: "opening", label: "Opening stock", value: flow.opening, kind: "total" },
+        { key: "purchases", label: "Purchases", value: flow.purchases, kind: "change" },
+        { key: "salesReturns", label: "Sales returns", value: flow.salesReturns, kind: "change" },
+        { key: "adjustments", label: "Adjustments", value: flow.adjustments, kind: "change" },
+        { key: "purchaseReturns", label: "Purchase returns", value: -flow.purchaseReturns, kind: "change" },
+        { key: "sales", label: "Sales (at cost)", value: -flow.sales, kind: "change" },
+        { key: "writeOffs", label: "Write-offs", value: -flow.writeOffs, kind: "change" },
+        { key: "closing", label: "Closing stock", value: flow.closing, kind: "total" },
+      ]
+    : [];
 
   return (
     <div className="space-y-5">
@@ -123,6 +138,20 @@ export default function InventoryTab({ state, theme, scope }) {
           </CardContent>
         </Card>
       </div>
+
+      <Card data-anim="bento" className={cardClass}>
+        <CardHeader>
+          <CardTitle className="font-extrabold">Stock flow</CardTitle>
+          <CardDescription>
+            Opening to closing stock value{flow ? ` · ${formatDate(flow.from)} to ${formatDate(flow.to)}` : ""} · {CURRENCY}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartArea state={state} empty={flowSteps.length === 0 || flowSteps.every((s) => !s.value)} emptyText="No stock movement in this period" height={260}>
+            <Waterfall steps={flowSteps} />
+          </ChartArea>
+        </CardContent>
+      </Card>
 
       <Card data-anim="bento" className={cardClass}>
         <CardHeader>

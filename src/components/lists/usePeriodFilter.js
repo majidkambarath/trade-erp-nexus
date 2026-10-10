@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { DEFAULT_LIST_PERIOD, resolveListPeriod } from "@/lib/listPeriod";
+import { DEFAULT_LIST_PERIOD, LIST_PERIODS, resolveListPeriod } from "@/lib/listPeriod";
 import { todayInput } from "@/utils/format";
 
 // The period state of one list: what was picked, and the period in force.
@@ -12,9 +12,16 @@ import { todayInput } from "@/utils/format";
 //   problem   why the latest pick was not applied, or null
 //   today     the organisation's day
 //   choose(preset) / setFrom(day) / setTo(day) / reset()
-export function usePeriodFilter({ initial = DEFAULT_LIST_PERIOD } = {}) {
+//
+// `restore` ({ preset, from, to }, what a screen kept from the last visit - lib/pageSession.js) is where the list starts instead
+// of `initial`, but only if it still means something today; an unusable one is ignored rather than blanking the list.
+export function usePeriodFilter({ initial = DEFAULT_LIST_PERIOD, restore = null } = {}) {
   const today = todayInput();
-  const [draft, setDraft] = useState({ preset: initial, from: "", to: "" });
+  const [draft, setDraft] = useState(() => {
+    const known = restore && typeof restore === "object" && LIST_PERIODS.some((p) => p.value === restore.preset);
+    const kept = known ? { preset: restore.preset, from: restore.from || "", to: restore.to || "" } : null;
+    return kept && resolveListPeriod(kept, today).ok ? kept : { preset: initial, from: "", to: "" };
+  });
   const [applied, setApplied] = useState(draft);
 
   const change = useCallback(

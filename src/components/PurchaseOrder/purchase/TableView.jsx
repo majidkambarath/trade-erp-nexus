@@ -3,7 +3,6 @@ import {
   Eye,
   Edit3,
   CheckSquare,
-  MoreVertical,
   Download,
   Trash2,
   Copy,
@@ -17,6 +16,7 @@ import { formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import RowMenu from "../../lists/RowMenu";
 const TableView = ({
   paginatedPOs,
   selectedPOs,
@@ -198,11 +198,7 @@ const TableView = ({
                       </Can>
                     )}
 
-                    <div className="relative group">
-                      <button className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                      <div className="absolute right-0 top-8 w-36 bg-card rounded-2xl shadow-lg border border-border py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-10">
+                    <RowMenu>
                         <button onClick={() => onShowAudit && onShowAudit(po)} className="w-full px-3 py-2 text-left text-sm text-muted-foreground hover:bg-secondary flex items-center space-x-2">
                           <History className="w-3 h-3" />
                           <span>Audit trail</span>
@@ -228,8 +224,7 @@ const TableView = ({
                             </button>
                           </Can>
                         )}
-                      </div>
-                    </div>
+                    </RowMenu>
                   </div>
                 </td>
               </tr>

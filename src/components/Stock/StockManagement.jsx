@@ -22,7 +22,6 @@ import {
   TrendingDown,
   Box,
   Layers,
-  Filter,
   Download,
   RefreshCw,
   CheckCircle,
@@ -38,12 +37,14 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import BarcodeGenerator from "react-barcode";
-import { toInputDate, formatDate, formatTime, formatCurrencyAED} from "../../utils/format";
+import { toInputDate, formatDate, formatTime, formatCurrencyAED, downloadCSV } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
+import { pageSession } from "../../lib/pageSession";
 import StatCard from "../ui/stat-card";
 
-import { DateInput } from "../accounting/kit";
+import { DateInput, Field, SearchSelect } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { ItemTypeToggle, ServiceAccountFields } from "./ItemTypeFields";
@@ -51,40 +52,28 @@ import {
   buildItemPayload, emptyItemForm, isService, itemFormFromStock, itemStats, matchesType, stockLevelText, switchItemType, validateItemForm,
 } from "../../lib/itemTypes";
 
-// Has the person typed anything? The item type is always set, so it does not count.
-const hasContent = (form) => Object.entries(form).some(([key, value]) => key !== "itemType" && value);
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the filters, the
+// sort, and a half-filled NEW item. Held in memory for the tab; emptied at sign-out. Keys: searchTerm, filters, sort, formData,
+// lastSaveTime, autoSku.
+const session = pageSession("stock-items");
 
-const SessionManager = {
-  storage: {},
-  get: (key) => {
-    try {
-      return this.storage[`stock_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
-  set: (key, value) => {
-    try {
-      this.storage[`stock_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
-  remove: (key) => {
-    try {
-      delete this.storage[`stock_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("stock_session_")) {
-        delete this.storage[key];
-      }
-    });
-  },
+// Has the person typed anything? The item type is always set, and the status opens on "Active", so neither counts: a form that
+// still holds only what it opened with is not a draft.
+const hasContent = (form) => {
+  const blank = emptyItemForm(form.itemType);
+  return Object.entries(form).some(([key, value]) => key !== "itemType" && value && value !== blank[key]);
 };
+
+// A typed-into list is 40px tall (kit.jsx), the plain controls beside it 44px on touch and 40px from `lg`: this brings the two to one
+// height in the filter row, so a phone does not draw a row of controls of two sizes. The list's own styles are not in a cascade
+// layer, which beats any utility, hence the `!`. (`\_` is Tailwind's escape for a literal underscore in an arbitrary variant; String.raw
+// keeps the backslash.)
+const TOUCH_HEIGHT = String.raw`[&_.search-select\_\_control]:min-h-11! lg:[&_.search-select\_\_control]:min-h-10!`;
+
+// The distinct names a filter can offer, in order, plus the one currently chosen (a choice kept from before, or whose items were
+// all deleted since, must still be visible on the control: it is still filtering).
+const namesFor = (names, chosen) =>
+  [...new Set([...names, chosen].filter(Boolean))].sort((a, b) => a.localeCompare(b)).map((name) => ({ value: name, label: name }));
 
 // FormSelect Component (unchanged)
 const FormSelect = ({
@@ -200,22 +189,29 @@ const StockManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
-  const [, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [editItemId, setEditItemId] = useState(null);
-  const [filterCategory, setFilterCategory] = useState("");
-  const [filterVendor, setFilterVendor] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterType, setFilterType] = useState(""); // "", "goods" or "service"
-  const [showLowStock, setShowLowStock] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-  const [isAutoSKU, setIsAutoSKU] = useState(true);
-  const [barcodeData, setBarcodeData] = useState(null);
+
+  // The search, the choices and the sort come back as the person left them (lazy initialisers: the first render already has them,
+  // so nothing flashes unfiltered). A half-filled new item comes back too, but only a NEW one (see the save effect below).
+  const [kept] = useState(() => session.get("filters", {}) || {});
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
+  const [filterCategory, setFilterCategory] = useState(kept.category || "");
+  const [filterVendor, setFilterVendor] = useState(kept.vendor || "");
+  const [filterStatus, setFilterStatus] = useState(kept.status || "");
+  const [filterType, setFilterType] = useState(kept.type || ""); // "", "goods" or "service"
+  const [showLowStock, setShowLowStock] = useState(Boolean(kept.showLowStock));
+  const [sortConfig, setSortConfig] = useState(() => session.get("sort") || { key: null, direction: "asc" });
+  const [draft] = useState(() => {
+    const saved = session.get("formData");
+    return saved && hasContent(saved) ? { ...emptyItemForm(), ...saved } : null;
+  });
+  const [isAutoSKU, setIsAutoSKU] = useState(() => (draft ? session.get("autoSku", true) !== false : true));
+  const [barcodeData, setBarcodeData] = useState(() => draft?.sku || null);
 
   // The form (lib/itemTypes.js): goods or a service, and the fields each has
-  const [formData, setFormData] = useState(emptyItemForm());
+  const [formData, setFormData] = useState(() => draft || emptyItemForm());
   const service = isService(formData);
 
   const [errors, setErrors] = useState({});
@@ -232,8 +228,8 @@ const StockManagement = () => {
     isDeleting: false,
   });
 
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(draft));
+  const [lastSaveTime, setLastSaveTime] = useState(() => (draft ? session.get("lastSaveTime") : null));
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -247,7 +243,6 @@ const StockManagement = () => {
 
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
-  const searchInputRef = useRef(null);
   const barcodeRef = useRef(null);
   const navigate = useNavigate();
 
@@ -328,38 +323,17 @@ const StockManagement = () => {
     }
   }, [formData.category, isAutoSKU, categories, stockItems, editItemId]);
 
+  // A new item is kept two seconds after the person stops typing. An item being EDITED is not: it is read from the server again
+  // when they come back, and kept as a draft it would return as a form for a NEW item carrying another item's SKU.
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
-    const savedFilters = SessionManager.get("filters");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFormData && hasContent(savedFormData)) {
-      setFormData({ ...emptyItemForm(), ...savedFormData });
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-      setBarcodeData(savedFormData.sku);
-    }
-
-    if (savedFilters) {
-      setFilterCategory(savedFilters.category || "");
-      setFilterVendor(savedFilters.vendor || "");
-      setFilterStatus(savedFilters.status || "");
-      setFilterType(savedFilters.type || "");
-      setShowLowStock(savedFilters.showLowStock || false);
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showModal && hasContent(formData)) {
+    if (showModal && !editItemId && hasContent(formData)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", formData);
-        SessionManager.set("lastSaveTime", new Date().toISOString());
+        const at = new Date().toISOString();
+        session.set("formData", formData);
+        session.set("lastSaveTime", at);
+        session.set("autoSku", isAutoSKU);
         setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
+        setLastSaveTime(at);
       }, 2000);
     }
 
@@ -368,21 +342,19 @@ const StockManagement = () => {
         clearTimeout(autoSaveInterval.current);
       }
     };
-  }, [formData, showModal]);
+  }, [formData, showModal, editItemId, isAutoSKU]);
 
   useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    SessionManager.set("filters", {
+    session.set("searchTerm", searchTerm);
+    session.set("filters", {
       category: filterCategory,
       vendor: filterVendor,
       status: filterStatus,
       type: filterType,
       showLowStock: showLowStock,
     });
-  }, [filterCategory, filterVendor, filterStatus, filterType, showLowStock]);
+    session.set("sort", sortConfig);
+  }, [searchTerm, filterCategory, filterVendor, filterStatus, filterType, showLowStock, sortConfig]);
 
   const fetchStockItems = useCallback(
     async (showRefreshIndicator = false) => {
@@ -465,8 +437,9 @@ const StockManagement = () => {
 
       await fetchStockItems();
       resetForm();
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
+      session.remove("formData");
+      session.remove("lastSaveTime");
+      session.remove("autoSku");
     } catch (error) {
       showToastMessage(
         error.response?.data?.message || "Failed to save stock item.",
@@ -484,8 +457,9 @@ const StockManagement = () => {
     setIsAutoSKU(false);
     setShowModal(true);
     setIsDraftSaved(false);
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
+    session.remove("formData");
+    session.remove("lastSaveTime");
+    session.remove("autoSku");
   }, []);
 
   const showDeleteConfirmation = useCallback((item) => {
@@ -540,12 +514,14 @@ const StockManagement = () => {
     setLastSaveTime(null);
     setBarcodeData(null);
     setIsAutoSKU(true);
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
+    session.remove("formData");
+    session.remove("lastSaveTime");
+    session.remove("autoSku");
   }, []);
 
   const openAddModal = useCallback(() => {
-    resetForm();
+    // a half-filled new item kept from before opens as it was left; anything else (including an item that was being edited) starts blank
+    if (editItemId || !hasContent(formData)) resetForm();
     setShowModal(true);
     setTimeout(() => {
       const modal = document.querySelector(".modal-container");
@@ -557,7 +533,7 @@ const StockManagement = () => {
         if (firstInput) firstInput.focus();
       }
     }, 10);
-  }, [resetForm]);
+  }, [resetForm, editItemId, formData]);
 
   const handleRefresh = useCallback(() => {
     fetchStockItems(true);
@@ -655,35 +631,59 @@ const StockManagement = () => {
     sortConfig,
   ]);
 
+  // The filter choices come from the items themselves, so they are there as soon as the list is (the category and vendor lists
+  // used to be fetched only once the item form had been opened, which left both filters empty), and never offer a name that
+  // would show nothing.
+  const categoryOptions = useMemo(
+    () => namesFor(stockItems.map((item) => item.category?.name), filterCategory),
+    [stockItems, filterCategory]
+  );
+  const vendorOptions = useMemo(
+    () => namesFor(stockItems.map((item) => item.vendorId?.vendorName), filterVendor),
+    [stockItems, filterVendor]
+  );
+  const filtersOn = Boolean(searchTerm || filterCategory || filterVendor || filterStatus || filterType || showLowStock);
+  const clearFilters = useCallback(() => {
+    setSearchTerm("");
+    setFilterCategory("");
+    setFilterVendor("");
+    setFilterStatus("");
+    setFilterType("");
+    setShowLowStock(false);
+  }, []);
+
   const handleExport = useCallback(async () => {
     try {
-      const csv = [
-        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,Origin,Brand,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt,ItemType",
-        ...sortedAndFilteredItems.map(
-          (item) =>
-            `${item.itemId || item._id},${item.sku},"${item.itemName}",${
-              item.category?.name || ""
-            },${item.category?._id || ""},${item.vendorId?.vendorName || ""},${
-              item.vendorId?._id || ""
-            },${item.unitOfMeasure},${item.origin || ""},${item.brand || ""},${
-              item.currentStock
-            },${item.reorderLevel},${item.purchasePrice},${item.salesPrice},${
-              item.status
-            },${item.batchNumber || ""},${item.expiryDate || ""},${
-              item.createdAt || new Date().toISOString()
-            },${item.itemType || "goods"}`
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "stock_export.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // through downloadCSV (utils/format.js): quotes and commas inside a name stay in their cell, and a cell that would run as a
+      // spreadsheet formula (an item called "=HYPERLINK(...)") is neutralised
+      downloadCSV(
+        "stock_export.csv",
+        [
+          "ItemID", "SKU", "ItemName", "Category", "CategoryId", "VendorName", "VendorId", "UnitOfMeasure", "Origin", "Brand",
+          "CurrentStock", "ReorderLevel", "PurchasePrice", "SalesPrice", "Status", "BatchNumber", "ExpiryDate", "CreatedAt", "ItemType",
+        ],
+        sortedAndFilteredItems.map((item) => [
+          item.itemId || item._id,
+          item.sku,
+          item.itemName,
+          item.category?.name || "",
+          item.category?._id || "",
+          item.vendorId?.vendorName || "",
+          item.vendorId?._id || "",
+          item.unitOfMeasure,
+          item.origin || "",
+          item.brand || "",
+          item.currentStock,
+          item.reorderLevel,
+          item.purchasePrice,
+          item.salesPrice,
+          item.status,
+          item.batchNumber || "",
+          item.expiryDate || "",
+          item.createdAt || new Date().toISOString(),
+          item.itemType || "goods",
+        ])
+      );
 
       showToastMessage("Stock data exported successfully!", "success");
     } catch {
@@ -843,49 +843,67 @@ const StockManagement = () => {
 //   }
 // }, [formData.sku, showToastMessage]);
 
-  const EmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <Package size={40} className="text-indigo-600" />
+  // Three honest states: the first load still running, nothing matches what was asked for, and nothing there at all.
+  const EmptyState = () => {
+    if (isLoading && stockItems.length === 0) {
+      return (
+        <div className="flex items-center justify-center gap-3 px-6 py-16 text-muted-foreground" role="status">
+          <Loader2 size={20} className="animate-spin" aria-hidden="true" />
+          Loading stock items…
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="mb-5 grid h-16 w-16 place-items-center rounded-full bg-muted">
+          <Package size={28} className="text-muted-foreground" aria-hidden="true" />
+        </div>
+        <h3 className="mb-1 text-lg font-semibold text-foreground">
+          {filtersOn ? "No stock items match the search or filters" : "No stock items yet"}
+        </h3>
+        <p className="mb-6 max-w-md text-sm text-muted-foreground">
+          {filtersOn
+            ? "Clear the search and filters to see every item."
+            : "Start building your inventory by adding your first stock item."}
+        </p>
+        {filtersOn ? (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
+          >
+            Clear search and filters
+          </button>
+        ) : (
+          <Can permission="inventory.create">
+            <button type="button" onClick={openAddModal} className="erp-btn-primary">
+              <Plus size={20} />
+              Add First Item
+            </button>
+          </Can>
+        )}
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        No stock items found
-      </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm ||
-        filterCategory ||
-        filterVendor ||
-        filterStatus ||
-        filterType ||
-        showLowStock
-          ? "No items match your current filters. Try adjusting your search criteria."
-          : "Start building your inventory by adding your first stock item."}
-      </p>
-      <button
-        onClick={openAddModal}
-        className="erp-btn-primary"
-      >
-        <Plus size={20} />
-        Add First Item
-      </button>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button
+            type="button"
             onClick={() => navigate(-1)}
             className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+            title="Back"
+            aria-label="Back"
           >
-            <ArrowLeft size={16} className="text-gray-600" />
+            <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-foreground">
               Stock Management
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {stockStats.totalItems} total items
               {stockStats.serviceItems > 0 && ` (${stockStats.serviceItems} ${stockStats.serviceItems === 1 ? "service" : "services"})`} •{" "}
               {sortedAndFilteredItems.length} displayed
@@ -895,42 +913,36 @@ const StockManagement = () => {
 
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
+            type="button"
             onClick={() => handleNavigateToCategory()}
-            className="grid min-h-10 min-w-10 place-items-center p-2 rounded-lg lg:min-h-0 lg:min-w-0 bg-white shadow-sm hover:shadow-md transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-600"
+            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Manage Categories"
+            aria-label="Manage categories"
           >
-            <Tag size={16} className="text-gray-600 hover:text-indigo-600" />
+            <Tag size={16} />
           </button>
           <button
+            type="button"
             onClick={handleExport}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
+            aria-label="Export to CSV"
           >
-            <Download size={16} className="text-gray-600" />
+            <Download size={16} />
           </button>
 
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
+            aria-label="Refresh data"
           >
             <RefreshCw
               size={16}
-              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+              className={isRefreshing ? "animate-spin" : ""}
             />
-          </button>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
-              showFilters
-                ? "bg-indigo-100 text-indigo-600"
-                : "bg-white text-gray-600"
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
           </button>
         </div>
       </div>
@@ -987,19 +999,20 @@ const StockManagement = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-semibold text-foreground">
                 Inventory Items
               </h2>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Manage your stock items and inventory
               </p>
             </div>
             <Can permission="inventory.create">
               <button
+                type="button"
                 onClick={openAddModal}
                 className="erp-btn-primary"
               >
@@ -1009,106 +1022,61 @@ const StockManagement = () => {
             </Can>
           </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx). Category and
+              vendor can be long lists, so they are typed into; the rest are a handful of fixed choices. */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search items"
+            placeholder="Search name, SKU or ID…"
+            active={filtersOn}
+            onClear={clearFilters}
+          >
+            <Field label="Category" className="w-full sm:w-44">
+              <SearchSelect
+                value={filterCategory}
+                onChange={setFilterCategory}
+                options={categoryOptions}
+                placeholder="All categories"
+                noOptionsText="No categories"
+                className={TOUCH_HEIGHT}
+                clearable
               />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search by item name, SKU, or item ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+            </Field>
+            <Field label="Vendor" className="w-full sm:w-44">
+              <SearchSelect
+                value={filterVendor}
+                onChange={setFilterVendor}
+                options={vendorOptions}
+                placeholder="All vendors"
+                noOptionsText="No vendors"
+                className={TOUCH_HEIGHT}
+                clearable
               />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map((cat) => (
-                    <option key={cat._id} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={filterVendor}
-                  onChange={(e) => setFilterVendor(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Vendors</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor._id} value={vendor.vendorName}>
-                      {vendor.vendorName}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  aria-label="Item type"
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">Goods and services</option>
-                  <option value="goods">Goods only</option>
-                  <option value="service">Services only</option>
-                </select>
-
-                <button
-                  onClick={() => setShowLowStock(!showLowStock)}
-                  className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
-                    showLowStock
-                      ? "bg-red-100 border-red-300 text-red-700"
-                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  Low Stock Only
-                </button>
-
-                <button
-                  onClick={() => {
-                    setFilterCategory("");
-                    setFilterVendor("");
-                    setFilterStatus("");
-                    setFilterType("");
-                    setShowLowStock(false);
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
-          </div>
+            </Field>
+            <FilterSelect
+              label="Status"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              allLabel="All statuses"
+              options={[["Active", "Active"], ["Inactive", "Inactive"]]}
+            />
+            <FilterSelect
+              label="Item type"
+              value={filterType}
+              onChange={setFilterType}
+              allLabel="Goods and services"
+              options={[["goods", "Goods only"], ["service", "Services only"]]}
+              className="sm:w-52"
+            />
+            <FilterSelect
+              label="Stock level"
+              value={showLowStock ? "low" : ""}
+              onChange={(v) => setShowLowStock(v === "low")}
+              allLabel="All stock levels"
+              options={[["low", "Low stock only"]]}
+            />
+          </FilterBar>
         </div>
 
         {sortedAndFilteredItems.length === 0 ? (
@@ -1144,16 +1112,17 @@ const StockManagement = () => {
                   },
                   {
                     key: "category", label: "Category", card: "title",
+                    // spans, not <div>/<p>: on a phone this cell sits inside the card's own <p>, and a block inside a paragraph is invalid
                     cell: (item) => (
-                      <div>
-                        <p
-                          className="text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+                      <span className="block">
+                        <span
+                          className="block text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
                           onClick={(e) => { e.stopPropagation(); handleNavigateToCategory(item.category?._id); }}
                         >
                           {item.category?.name?.toUpperCase() || "N/A"}
-                        </p>
-                        <p className="text-xs text-gray-500">{item.unitOfMeasure}</p>
-                      </div>
+                        </span>
+                        <span className="block text-xs text-gray-500">{item.unitOfMeasure}</span>
+                      </span>
                     ),
                   },
                   { key: "vendor", label: "Vendor", card: "meta", cell: (item) => item.vendorId?.vendorName || "N/A" },

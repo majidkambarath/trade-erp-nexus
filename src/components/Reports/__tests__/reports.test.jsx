@@ -76,6 +76,65 @@ describe("ageing", () => {
     expect(await screen.findByText("Nothing outstanding")).toBeInTheDocument();
   });
 
+  describe("against the ledger", () => {
+    const LEDGER = { ledger: 880, ageing: 1000, unapplied: -120 };
+
+    it("shows what is not set against an invoice and what the customer accounts hold, so the page ties to the books", async () => {
+      m.ageing.mockResolvedValue({ ...AGEING, reconciliation: LEDGER });
+      at(<AgeingReport />);
+      await screen.findByText("Aged Mart");
+      const tie = screen.getByLabelText("Ageing against the ledger");
+      const line = (label) => within(within(tie).getByText(label).parentElement);
+      expect(line("Returns, credit notes and balances on account not set against an invoice").getByText("-120.00")).toBeInTheDocument();
+      expect(line("Per the ledger (customer accounts)").getByText("880.00")).toBeInTheDocument();
+      // the open invoices it starts from are the total of the table above
+      expect(line("Open invoices, as aged above").getByText("1,000.00")).toBeInTheDocument();
+    });
+
+    it("names the vendor accounts for payables", async () => {
+      m.ageing.mockResolvedValue({ ...AGEING, reconciliation: LEDGER });
+      at(<AgeingReport />);
+      await screen.findByText("Aged Mart");
+      fireEvent.click(screen.getByRole("tab", { name: "Payables" }));
+      expect(await screen.findByText("Per the ledger (vendor accounts)")).toBeInTheDocument();
+      expect(screen.queryByText("Per the ledger (customer accounts)")).not.toBeInTheDocument();
+    });
+
+    it("says nothing when the invoices are all the ledger holds, or when the server sent no reconciliation", async () => {
+      m.ageing.mockResolvedValue({ ...AGEING, reconciliation: { ledger: 1000, ageing: 1000, unapplied: 0 } });
+      at(<AgeingReport />);
+      await screen.findByText("Aged Mart");
+      expect(screen.queryByLabelText("Ageing against the ledger")).not.toBeInTheDocument();
+      expect(screen.queryByText(/not set against an invoice/)).not.toBeInTheDocument();
+
+      m.ageing.mockResolvedValue(AGEING);
+      fireEvent.click(screen.getByRole("tab", { name: "Payables" }));
+      await waitFor(() => expect(m.ageing).toHaveBeenCalledTimes(2));
+      expect(screen.queryByLabelText("Ageing against the ledger")).not.toBeInTheDocument();
+    });
+
+    it("still ties to the ledger when no invoice is open, which is when only returns or credit notes are left", async () => {
+      m.ageing.mockResolvedValue({ ...AGEING, rows: [], overdue: 0, totals: { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 }, reconciliation: { ledger: -45, ageing: 0, unapplied: -45 } });
+      at(<AgeingReport />);
+      expect(await screen.findByText("Nothing outstanding")).toBeInTheDocument();
+      const tie = screen.getByLabelText("Ageing against the ledger");
+      expect(within(within(tie).getByText("Per the ledger (customer accounts)").parentElement).getByText("-45.00")).toBeInTheDocument();
+      expect(within(tie).getByText("0.00")).toBeInTheDocument(); // no open invoice: the ageing is nil, and says so
+    });
+
+    it("puts the two lines in the export", async () => {
+      m.ageing.mockResolvedValue({ ...AGEING, reconciliation: LEDGER });
+      at(<AgeingReport />);
+      await screen.findByText("Aged Mart");
+      fireEvent.click(screen.getByRole("button", { name: /Export CSV/ }));
+      const [, heads, rows] = downloadCSV.mock.calls.at(-1);
+      expect(rows.at(-3)).toEqual(["Total", "", 100, 200, 300, 0, 400, 1000]);
+      expect(rows.at(-2)).toEqual(["Returns, credit notes and balances on account not set against an invoice", "", "", "", "", "", "", -120]);
+      expect(rows.at(-1)).toEqual(["Per the ledger (customer accounts)", "", "", "", "", "", "", 880]);
+      expect(rows.at(-1)).toHaveLength(heads.length);
+    });
+  });
+
   it("reports a failure with a retry", async () => {
     m.ageing.mockRejectedValueOnce(new Error("boom"));
     at(<AgeingReport />);
@@ -182,6 +241,51 @@ describe("financial statements", () => {
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     expect(downloadCSV.mock.calls.length).toBe(exported + 1);
     expect(downloadCSV.mock.calls.at(-1)[0]).toMatch(/^profit-and-loss-/);
+  });
+
+  it("profit and loss takes sales discounts off revenue: a synthetic group of negative lines, named, and revenue is net of it", async () => {
+    m.profitLossDetail.mockResolvedValue(PL({
+      revenue: {
+        groups: [
+          { groupId: "g1", name: "Sales Income", total: 400, accounts: [{ accountId: "i", accountCode: "SAL0001", accountName: "Sales Revenue", amount: 400 }] },
+          { groupId: "sales-discounts", name: "Less: sales discounts and rebates", synthetic: true, total: -30, accounts: [{ accountId: "d", accountCode: "DSC0001", accountName: "Sales Discount", amount: -30 }] },
+        ],
+        total: 370,
+      },
+      grossProfit: 270, grossMargin: 73, netProfit: 120,
+    }));
+    at(<FinancialStatements />, "/?tab=pl");
+    const line = (await screen.findByText("Sales Discount")).closest("tr");
+    // the line is there, negative and not hidden, under the name of its group
+    expect(within(line).getByText("-30.00")).toBeInTheDocument();
+    expect(screen.getByText("Less: sales discounts and rebates")).toBeInTheDocument();
+    expect(screen.getByText("Sales Income")).toBeInTheDocument();
+    // revenue is the net of it, in the total row and in the headline card
+    expect(within(screen.getByText("Total revenue").closest("tr")).getByText("370.00")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Revenue", level: 3 }).closest(".shadow-card")).toHaveTextContent("370.00");
+    expect(screen.getByText("73.0% of revenue")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    const rows = downloadCSV.mock.calls.at(-1)[2];
+    expect(rows).toContainEqual(["", "Less: sales discounts and rebates", ""]);
+    expect(rows).toContainEqual(["DSC0001", "Sales Discount", -30]);
+    expect(rows).toContainEqual(["", "Total revenue", 370]);
+    // the ledger drill-down still opens on the discount account
+    m.accountLedger.mockResolvedValue({ opening: 0, closing: -30, totals: { debit: 30, credit: 0 }, rows: [] });
+    fireEvent.click(within(line).getByRole("button", { name: /Sales Discount/ }));
+    expect(await screen.findByRole("dialog", { name: /DSC0001/ })).toBeInTheDocument();
+  });
+
+  it("profit and loss names a lone synthetic group too, so a period with only discounts does not read as an unexplained negative", async () => {
+    m.profitLossDetail.mockResolvedValue(PL({
+      revenue: { groups: [{ groupId: "sales-discounts", name: "Less: sales discounts and rebates", synthetic: true, total: -30, accounts: [{ accountId: "d", accountCode: "DSC0001", accountName: "Sales Discount", amount: -30 }] }], total: -30 },
+      grossProfit: -130, grossMargin: null, netProfit: -280,
+    }));
+    at(<FinancialStatements />, "/?tab=pl");
+    expect(await screen.findByText("Less: sales discounts and rebates")).toBeInTheDocument();
+    expect(within(screen.getByText("Sales Discount").closest("tr")).getByText("-30.00")).toBeInTheDocument();
+    expect(within(screen.getByText("Total revenue").closest("tr")).getByText("-30.00")).toBeInTheDocument();
   });
 
   it("profit and loss shows a loss as a loss, and re-queries when the dates change", async () => {

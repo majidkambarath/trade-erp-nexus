@@ -13,6 +13,7 @@ const TYPES = {
   receivable: { label: "Receivables", party: "Customer", help: "What customers owe you, by how late it is." },
   payable: { label: "Payables", party: "Vendor", help: "What you owe vendors, by how late it is." },
 };
+const UNAPPLIED_LABEL = "Returns, credit notes and balances on account not set against an invoice";
 // the older the bucket, the stronger the signal
 const BUCKET_TONE = { current: "", d1_30: "", d31_60: "text-status-warning", d61_90: "text-status-warning", d90plus: "text-status-danger" };
 
@@ -22,11 +23,19 @@ export default function AgeingReport() {
   const [open, setOpen] = useState({});
   const { data, loading, error, reload } = useAsync(() => accounting.ageing({ type, asOf }), [type, asOf]);
   const t = TYPES[type];
+  // What the party accounts hold in the books against the open invoices above: the two differ by the returns, credit notes and
+  // balances on account that are not set against an invoice. Nothing is said when they agree.
+  const tie = data?.reconciliation && Math.abs(Number(data.reconciliation.unapplied) || 0) >= 0.005 ? data.reconciliation : null;
+  const ledgerLabel = `Per the ledger (${t.party.toLowerCase()} accounts)`;
 
   function exportCsv() {
     const heads = ["Party", "Terms", ...data.buckets.map((b) => b.label), "Total"];
     const rows = data.rows.map((r) => [r.partyName, r.paymentTerms || "", ...data.buckets.map((b) => r.buckets[b.key]), r.total]);
     rows.push(["Total", "", ...data.buckets.map((b) => data.totals[b.key]), data.totals.total]);
+    if (tie) {
+      const blank = data.buckets.map(() => "");
+      rows.push([UNAPPLIED_LABEL, "", ...blank, tie.unapplied], [ledgerLabel, "", ...blank, tie.ledger]);
+    }
     downloadCSV(`ageing-${type}-${asOf}.csv`, heads, rows);
   }
 
@@ -117,6 +126,22 @@ export default function AgeingReport() {
               </tfoot>
             </table>
           </div>
+        )}
+        {tie && (
+          <dl aria-label="Ageing against the ledger" className="space-y-2 border-t border-border px-4 py-3 text-sm sm:px-5">
+            <div className="flex items-baseline justify-between gap-4 text-muted-foreground">
+              <dt className="min-w-0 flex-1">Open invoices, as aged above</dt>
+              <dd className="shrink-0 whitespace-nowrap tabular-nums">{formatNumber(data.totals.total, 2)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4">
+              <dt className="min-w-0 flex-1">{UNAPPLIED_LABEL}</dt>
+              <dd className="shrink-0 whitespace-nowrap tabular-nums">{formatNumber(tie.unapplied, 2)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-4 border-t border-border pt-2 font-semibold">
+              <dt className="min-w-0 flex-1">{ledgerLabel}</dt>
+              <dd className="shrink-0 whitespace-nowrap tabular-nums">{formatNumber(tie.ledger, 2)}</dd>
+            </div>
+          </dl>
         )}
       </Panel>
     </div>

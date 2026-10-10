@@ -26,6 +26,7 @@ const openTab = async (name) => {
 };
 const widget = (title) => screen.getByText(title, { selector: "h3, h2" }).closest("[data-slot='card']");
 const href = (el) => el.getAttribute("href");
+const plain = (text) => text.replace(/\u00a0/g, " "); // Intl puts a no-break space between the currency and the figure
 
 let errors;
 beforeEach(() => {
@@ -100,6 +101,14 @@ const ANALYTICS = {
   topVendors: [{ partyId: "v2", name: "Delta Foods", purchases: 100, previous: 80, changePct: 25 }, { partyId: "v1", name: "Gulf Mills", purchases: 50, previous: 0, changePct: null }],
   collections: ["2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((weekStart, i) => ({ weekStart, receipts: i * 10, invoiced: i * 20 })),
   treemap: [{ itemId: "RICE", name: "Rice", size: 640 }, { itemId: "OIL", name: "Oil", size: 300 }],
+  categoryMargin: { averagePct: 30, rows: [{ key: "k1", name: "Oils", revenue: 300, marginPct: 40 }, { key: "k2", name: "Grains", revenue: 150, marginPct: 20 }] },
+  // 20 + 45 - 25.7 = 39.3 days
+  businessFlow: {
+    statement: { revenue: 1000, directCosts: 700, grossProfit: 300, operatingExpenses: 80, otherIncome: 30, netProfit: 250 },
+    previous: { revenue: 800, netProfit: 100, revenueChangePct: 25 },
+    stages: { bought: 500, stock: 2050, sold: 1000, collected: 400, owedByCustomers: 1547, owedToVendors: 2000 },
+    cycle: { from: "2026-07-08", to: "2026-10-05", days: 90, minDays: 14, enough: true, dso: 20, dpo: 25.7, dio: 45, cycleDays: 39.3, receivables: 1547, payables: 2000, stockValue: 2050, invoiced: 945, purchased: 525, cogs: 600 },
+  },
   hourly: [{ hour: 8, mon: 1, tue: 0, wed: 2, thu: 0, fri: 0, weekend: 0 }, { hour: 10, mon: 0, tue: 0, wed: 0, thu: 3, fri: 0, weekend: 1 }],
 };
 
@@ -125,12 +134,20 @@ const INVENTORY = {
     { batchId: "b2", stockId: "s2", itemName: "Oil", batchNumber: "O1", qtyOnHand: 40, unit: "ltr", expiryDate: "2026-10-15T00:00:00.000Z", daysToExpiry: 10, expired: false },
   ],
   stockValueTrend: { available: true, months: MONTHS.map((month, i) => ({ month, value: [0, 0, 0, 0, 350, 2050, 2290, 2050][i] })) },
+  // 2,290 + 100 bought - 10 adjusted down - 330 sold (at cost) = 2,050
+  stockFlow: { from: "2026-10-01", to: "2026-10-05", opening: 2290, purchases: 100, salesReturns: 0, adjustments: -10, purchaseReturns: 0, sales: 330, writeOffs: 0, closing: 2050 },
 };
 
 const REPORTS = {
   currency: "AED", period: PERIOD, grossProfit: 300, netProfit: 250,
   vat: { from: "2026-10-01", to: "2026-10-05", outputVat: 53, recoverableVat: 5, net: 48, position: "payable", hasActivity: true },
-  valueGrowth: MONTHS.map((month, i) => ({ month, grossProfit: [0, 0, 0, 0, 30, 150, 100, 300][i] })),
+  valueGrowth: MONTHS.map((month, i) => ({ month, grossProfit: [0, 0, 0, 0, 30, 150, 100, 300][i], netProfit: [0, 0, 0, 0, 10, -40, 60, 250][i], revenue: 0 })),
+  // 1,000 revenue - 700 cost of goods = 300 gross; + 30 other income - 80 operating expenses = 250 net
+  profitFlow: { revenue: 1000, directCosts: 700, grossProfit: 300, operatingExpenses: 80, otherIncome: 30, netProfit: 250 },
+  expenses: {
+    total: 80,
+    rows: [{ key: "g1", name: "Rent", amount: 50, sharePct: 62.5 }, { key: "g2", name: "Utilities", amount: 20, sharePct: 25 }, { key: "others", name: "Other", amount: 10, sharePct: 12.5 }],
+  },
   vouchers: [{ voucherType: "receipt", amount: 100 }, { voucherType: "payment", amount: 300 }, { voucherType: "journal", amount: 5000 }, { voucherType: "contra", amount: 1000 }, { voucherType: "expense", amount: 0 }],
   ageing: ANALYTICS.ageing,
 };
@@ -160,17 +177,28 @@ const NOTHING = {
     pipeline: ANALYTICS.pipeline.map((x) => ({ ...x, value: 0 })),
     settlement: ANALYTICS.settlement.map((x) => ({ ...x, count: 0, amount: 0 })),
     topCustomers: [], ageing: ANALYTICS.ageing.map((x) => ({ ...x, receivables: 0, payables: 0 })), topVendors: [],
-    collections: ANALYTICS.collections.map((x) => ({ ...x, receipts: 0, invoiced: 0 })), treemap: [], hourly: [],
+    collections: ANALYTICS.collections.map((x) => ({ ...x, receipts: 0, invoiced: 0 })), treemap: [], categoryMargin: { averagePct: null, rows: [] }, hourly: [],
+    businessFlow: {
+      statement: { revenue: 0, directCosts: 0, grossProfit: 0, operatingExpenses: 0, otherIncome: 0, netProfit: 0 },
+      previous: { revenue: 0, netProfit: 0, revenueChangePct: null },
+      stages: { bought: 0, stock: 0, sold: 0, collected: 0, owedByCustomers: 0, owedToVendors: 0 },
+      cycle: { from: "2026-10-05", to: "2026-10-05", days: 1, minDays: 14, enough: false, dso: null, dpo: null, dio: null, cycleDays: null, receivables: 0, payables: 0, stockValue: 0, invoiced: 0, purchased: 0, cogs: 0 },
+    },
   },
   sales: {
     ...SALES, orders: { count: 0, previous: 0, changePct: null }, averageOrder: { value: null, previous: null, changePct: null },
     approvedShare: { pct: null, previousPct: null, approved: 0, created: 0 },
     monthly: SALES.monthly.map((x) => ({ ...x, sales: 0, purchases: 0 })), bestSellers: [], daily: ANALYTICS.weekly.map((w) => ({ ...w, orders: 0, returns: 0 })), topCustomers: [],
   },
-  inventory: { ...INVENTORY, totals: { value: 0, items: 0, reorderItems: 0, expiring: 0, expired: 0, agreesWithLedger: null }, categories: [], mix: [], lowStock: [], batches: [], stockValueTrend: { available: false, months: INVENTORY.stockValueTrend.months.map((x) => ({ ...x, value: 0 })) } },
+  inventory: {
+    ...INVENTORY, totals: { value: 0, items: 0, reorderItems: 0, expiring: 0, expired: 0, agreesWithLedger: null }, categories: [], mix: [], lowStock: [], batches: [],
+    stockValueTrend: { available: false, months: INVENTORY.stockValueTrend.months.map((x) => ({ ...x, value: 0 })) },
+    stockFlow: { from: "2026-10-01", to: "2026-10-05", opening: 0, purchases: 0, salesReturns: 0, adjustments: 0, purchaseReturns: 0, sales: 0, writeOffs: 0, closing: 0 },
+  },
   reports: {
     ...REPORTS, grossProfit: 0, netProfit: 0, vat: { ...REPORTS.vat, outputVat: 0, recoverableVat: 0, net: 0, position: "nil", hasActivity: false },
-    valueGrowth: REPORTS.valueGrowth.map((x) => ({ ...x, grossProfit: 0 })), vouchers: REPORTS.vouchers.map((v) => ({ ...v, amount: 0 })), ageing: ANALYTICS.ageing.map((x) => ({ ...x, receivables: 0, payables: 0 })),
+    profitFlow: { revenue: 0, directCosts: 0, grossProfit: 0, operatingExpenses: 0, otherIncome: 0, netProfit: 0 }, expenses: { total: 0, rows: [] },
+    valueGrowth: REPORTS.valueGrowth.map((x) => ({ ...x, grossProfit: 0, netProfit: 0 })), vouchers: REPORTS.vouchers.map((v) => ({ ...v, amount: 0 })), ageing: ANALYTICS.ageing.map((x) => ({ ...x, receivables: 0, payables: 0 })),
   },
 };
 
@@ -509,15 +537,68 @@ describe("the other tabs", () => {
     await ready();
     await openTab("Reports");
     await screen.findByText("Value growth");
-    expect(href(screen.getByText("Gross profit").closest("a"))).toBe("/financial-statements?tab=pl");
-    expect(screen.getByText("Gross profit").closest("a")).toHaveTextContent("AED 300.00");
+    // "Gross profit" and "Net profit" are also the names of steps in the profit flow chart: the tile is the one in a link
+    const tile = (label) => screen.getAllByText(label).map((el) => el.closest("a")).find(Boolean);
+    expect(href(tile("Gross profit"))).toBe("/financial-statements?tab=pl");
+    expect(tile("Gross profit")).toHaveTextContent("AED 300.00");
     expect(screen.getByText("VAT payable").closest("a")).toHaveTextContent("AED 48.00");
-    expect(screen.getByText("Net profit").closest("a")).toHaveTextContent("AED 250.00");
+    expect(tile("Net profit")).toHaveTextContent("AED 250.00");
     expect(screen.getByText("Journal").closest("a")).toHaveTextContent("AED 5,000.00");
     expect(screen.getByText("Expense").closest("a")).toHaveTextContent("None posted");
     expect(widget("VAT snapshot")).toHaveTextContent("Output VATAED 53.00");
     expect(widget("VAT snapshot")).toHaveTextContent("Net payableAED 48.00");
     expect(widget("Receivables vs payables ageing")).toBeInTheDocument();
+  });
+
+  it("Reports: the profit flow walks from revenue to net profit, and the expense rows add up to the total", async () => {
+    show();
+    await ready();
+    await openTab("Reports");
+    await screen.findByText("Profit flow");
+    const flow = widget("Profit flow");
+    const label = plain(flow.querySelector("[role='img']").getAttribute("aria-label"));
+    expect(label).toBe(
+      "Revenue AED 1,000.00; Cost of goods sold minus AED 700.00; Gross profit AED 300.00; Operating expenses minus AED 80.00; Other income plus AED 30.00; Net profit AED 250.00",
+    );
+    expect(flow.querySelectorAll(".recharts-bar-rectangle").length).toBe(6);
+    const spend = widget("Where the expenses go");
+    expect(spend).toHaveTextContent("AED 80.00");
+    for (const name of ["Rent", "Utilities", "Other"]) expect(within(spend).getByText(name)).toBeInTheDocument();
+    expect(widget("Net profit by month").querySelectorAll(".recharts-bar-rectangle").length).toBe(8);
+    expect(widget("Net profit by month")).toHaveTextContent("Loss");
+  });
+
+  it("Inventory: the stock flow goes from opening to closing value, out-going steps as minus", async () => {
+    show();
+    await ready();
+    await openTab("Inventory");
+    await screen.findByText("Stock flow");
+    const flow = widget("Stock flow");
+    expect(plain(flow.querySelector("[role='img']").getAttribute("aria-label"))).toBe(
+      "Opening stock AED 2,290.00; Purchases plus AED 100.00; Sales returns AED 0.00; Adjustments minus AED 10.00; Purchase returns AED 0.00; Sales (at cost) minus AED 330.00; Write-offs AED 0.00; Closing stock AED 2,050.00",
+    );
+    expect(flow).toHaveTextContent("Opening to closing stock value");
+  });
+
+  it("Dashboard: the business flow, from buying to cash, with the statement and the cash cycle", async () => {
+    show();
+    await ready();
+    const section = screen.getByText("From buying to cash").closest("section");
+    expect(within(section).getByText("Bought").closest("a")).toHaveAttribute("href", "/purchase-order");
+    expect(within(section).getByText("Sold").closest("a")).toHaveTextContent("+25.0% on the period before");
+    expect(within(section).getByText("Customers still owe you").closest("a")).toHaveTextContent("AED 1,547");
+    expect(widget("Where the revenue went").querySelectorAll("[data-node]")).toHaveLength(6);
+    expect(widget("Cash cycle")).toHaveTextContent("39.3 days");
+    expect(widget("Cash cycle")).toHaveTextContent("Your cash is tied up for 39.3 days");
+  });
+
+  it("Dashboard: margin by category, with the company's margin as the line", async () => {
+    show();
+    await ready();
+    const card = widget("Margin by category");
+    expect(card).toHaveTextContent("dashed line is all categories, 30.0%");
+    for (const name of ["Oils", "Grains"]) expect(within(card).getByText(name)).toBeInTheDocument();
+    expect(card.querySelectorAll(".recharts-bar-rectangle").length).toBe(2);
   });
 });
 
@@ -538,6 +619,9 @@ describe("with nothing posted yet", () => {
     }
     expect(screen.getAllByText("No sales this month").length).toBeGreaterThanOrEqual(3); // top product, customer mix, top customers
     expect(screen.getByText("No item sales this month")).toBeInTheDocument();
+    expect(screen.getByText(/No sales or purchases yet/)).toBeInTheDocument();
+    expect(screen.getByText("No revenue posted this month")).toBeInTheDocument();
+    expect(screen.getByText(/needs at least 14 days of sales to measure/)).toBeInTheDocument();
     expect(screen.queryByText(/NaN|undefined|Infinity/)).not.toBeInTheDocument();
     expect(widget("Customer mix").querySelector("svg")).toBeNull();
   });
@@ -561,6 +645,12 @@ describe("with nothing posted yet", () => {
     expect(screen.getByText("No gross profit posted in the last 8 months")).toBeInTheDocument();
     expect(screen.getByText("No VAT transactions this quarter")).toBeInTheDocument();
     expect(screen.getAllByText("None posted")).toHaveLength(5);
+    for (const t of ["No revenue or costs posted this month", "No operating expenses this month", "No profit or loss posted in the last 8 months"]) {
+      expect(screen.getByText(t), t).toBeInTheDocument();
+    }
+    await openTab("Inventory");
+    await screen.findByText("Stock alerts");
+    expect(screen.getByText("No stock movement in this period")).toBeInTheDocument();
   });
 });
 

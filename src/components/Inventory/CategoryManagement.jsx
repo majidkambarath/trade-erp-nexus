@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Activity,
   Plus,
-  Search,
-  Filter,
   Download,
   RefreshCw,
   Tag,
@@ -12,76 +9,53 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
   AlertCircle,
   AlertTriangle,
   Trash2,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
+import { pageSession } from "../../lib/pageSession";
 import StatCard from "../ui/stat-card";
+import FilterBar from "../lists/FilterBar";
+import ListPager from "../lists/ListPager";
+import { pageFigures } from "../../lib/pagination";
 
 import { downloadCSV, formatTime } from "../../utils/format";
 import { DataTable } from "../accounting/DataTable";
 import Can from "../shell/Can";
-// Session management utilities
-const SessionManager = {
-  storage: {},
 
-  get: (key) => {
-    try {
-      return this.storage[`category_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, and a half-filled
+// new-category form. Held in memory for the tab; emptied at sign-out.
+const session = pageSession("inventory-categories");
 
-  set: (key, value) => {
-    try {
-      this.storage[`category_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
-
-  remove: (key) => {
-    try {
-      delete this.storage[`category_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("category_session_")) {
-        delete this.storage[key];
-      }
-    });
-  },
-};
+const blankForm = () => ({ name: "", description: "", status: "Active" });
+// a form is worth keeping once the person has put something in it ("Active" is where it starts, not an entry)
+const hasEntry = (draft) => Boolean(draft && (draft.name || draft.description || (draft.status && draft.status !== "Active")));
 
 const CategoryManagement = () => {
   const [categories, setCategories] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // the list is being asked for from the first frame: "No categories yet" must not show before the answer is in
+  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  // the search and a half-filled new-category form come back as the person left them
+  const [restoredDraft] = useState(() => {
+    const draft = session.get("formData");
+    return hasEntry(draft) ? { ...blankForm(), ...draft } : null;
+  });
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [stats, setStats] = useState({
     totalCategories: 0,
     activeCategories: 0,
     inactiveCategories: 0,
   });
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    status: "Active",
-  });
+  const [formData, setFormData] = useState(() => restoredDraft || blankForm());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showToast, setShowToast] = useState({
@@ -89,8 +63,8 @@ const CategoryManagement = () => {
     message: "",
     type: "success",
   });
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(restoredDraft));
+  const [lastSaveTime, setLastSaveTime] = useState(() => (restoredDraft ? session.get("lastSaveTime") : null));
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     visible: false,
     categoryId: null,
@@ -99,57 +73,64 @@ const CategoryManagement = () => {
   });
 
   const formRef = useRef(null);
-  const autoSaveInterval = useRef(null);
-  const itemsPerPage = 10;
 
+  // a search is sent once the person pauses, not on every key
+  const [askedSearch, setAskedSearch] = useState(() => searchTerm.trim());
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
-      autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", formData);
-        SessionManager.set("lastSaveTime", new Date().toISOString());
-        setIsDraftSaved(true);
-        setLastSaveTime(new Date().toISOString());
-      }, 2000);
-    }
-
-    return () => {
-      if (autoSaveInterval.current) {
-        clearTimeout(autoSaveInterval.current);
-      }
-    };
-  }, [formData, showModal]);
-
-  useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
+    const t = setTimeout(() => setAskedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(t);
   }, [searchTerm]);
 
+  // Only the NEW-category form is kept: an edit is a change to a record the server holds, and kept as a draft it would come back
+  // as a new category carrying another one's details. It is written at once (leaving the page inside the two seconds below must
+  // not lose it); the two seconds only decide when the form says "saved".
+  useEffect(() => {
+    if (!showModal || isEditMode || !hasEntry(formData)) return undefined;
+    const at = new Date().toISOString();
+    session.set("formData", formData);
+    session.set("lastSaveTime", at);
+    const t = setTimeout(() => {
+      setIsDraftSaved(true);
+      setLastSaveTime(at);
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [formData, showModal, isEditMode]);
+
+  useEffect(() => {
+    session.set("searchTerm", searchTerm);
+  }, [searchTerm]);
+
+  const showToastMessage = useCallback((message, type = "success") => {
+    setShowToast({ visible: true, message, type });
+    setTimeout(
+      () => setShowToast((prev) => ({ ...prev, visible: false })),
+      3000
+    );
+  }, []);
+
+  // The rows on the screen answer one question (a page of one search). The empty state is a claim about THAT question, so it is
+  // drawn only once the answer to the question now being asked is in: after a page or a search changes there is one frame, before
+  // the request starts, in which the old (possibly empty) rows would otherwise be read as the answer to the new one.
+  const [answeredFor, setAnsweredFor] = useState("");
+  const asking = `${page}|${askedSearch}|${pageSize}`;
+  const categoryRequest = useRef(0);
   const fetchCategories = useCallback(
     async (showRefreshIndicator = false) => {
+      const ask = ++categoryRequest.current;
       setIsLoading(showRefreshIndicator ? false : true);
       try {
         const params = {
           page,
-          limit: itemsPerPage,
-          search: searchTerm,
+          limit: pageSize,
+          search: askedSearch || undefined,
         };
         const response = await axiosInstance.get("/categories/categories", { params });
+        // an answer to a search the person has since changed is not shown
+        if (ask !== categoryRequest.current) return;
         setCategories(response.data.data?.categories || []);
         setTotalPages(response.data.totalPages || 1);
+        setTotalRows(Number(response.data.total) || 0);
+        setAnsweredFor(`${page}|${askedSearch}|${pageSize}`);
         if (showRefreshIndicator) {
           showToastMessage("Data refreshed successfully!", "success");
         }
@@ -160,10 +141,10 @@ const CategoryManagement = () => {
           "error"
         );
       } finally {
-        setIsLoading(false);
+        if (ask === categoryRequest.current) setIsLoading(false);
       }
     },
-    [page, searchTerm]
+    [page, pageSize, askedSearch, showToastMessage]
   );
 
   const fetchStats = useCallback(async () => {
@@ -180,20 +161,28 @@ const CategoryManagement = () => {
       console.error("Error fetching stats:", error);
       showToastMessage("Failed to fetch statistics", "error");
     }
-  }, []);
+  }, [showToastMessage]);
 
+  // each is asked for on its own: a new search or page must not fetch the cards again
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // a new search starts at the first page, and a page that no longer exists (the last row of the last page was deleted) falls back
+  // to the last one, so the list is never "empty" while the categories are on another page
   useEffect(() => {
-    fetchCategories();
-    fetchStats();
-  }, [fetchCategories, fetchStats]);
-
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+    setPage(1);
+  }, [askedSearch]);
+  useEffect(() => {
+    if (!isLoading && page > totalPages) setPage(Math.max(1, totalPages));
+  }, [isLoading, page, totalPages]);
+  const filtersOn = Boolean(searchTerm.trim());
+  // what the list on the screen was actually asked for: the wording of its empty state follows this, not the box, which can be
+  // ahead of it by the pause above
+  const listFiltered = Boolean(askedSearch);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setAskedSearch("");
+  };
 
   const handleChange = useCallback(
     (e) => {
@@ -212,6 +201,18 @@ const CategoryManagement = () => {
       newErrors.description = "Description cannot exceed 500 characters";
     return newErrors;
   }, [formData]);
+
+  const resetForm = useCallback(() => {
+    setFormData(blankForm());
+    setErrors({});
+    setShowModal(false);
+    setIsEditMode(false);
+    setEditCategoryId(null);
+    setIsDraftSaved(false);
+    setLastSaveTime(null);
+    session.remove("formData");
+    session.remove("lastSaveTime");
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     const newErrors = validateForm();
@@ -240,23 +241,7 @@ const CategoryManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, validateForm, isEditMode, editCategoryId, fetchCategories, fetchStats, showToastMessage]);
-
-  const resetForm = useCallback(() => {
-    setFormData({
-      name: "",
-      description: "",
-      status: "Active",
-    });
-    setErrors({});
-    setShowModal(false);
-    setIsEditMode(false);
-    setEditCategoryId(null);
-    setIsDraftSaved(false);
-    setLastSaveTime(null);
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
-  }, []);
+  }, [formData, validateForm, resetForm, isEditMode, editCategoryId, fetchCategories, fetchStats, showToastMessage]);
 
   const handleEdit = useCallback((category) => {
     setFormData({
@@ -346,48 +331,31 @@ const CategoryManagement = () => {
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <button className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
-            <ChevronLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-black bg-clip-text">
-              Category Management
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {stats.totalCategories} total categories • {categories.length} displayed
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Category Management</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {stats.totalCategories} total categories • {categories.length} displayed
+          </p>
         </div>
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
+            type="button"
             onClick={handleExport}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
+            aria-label="Export to CSV"
           >
-            <Download size={16} className="text-gray-600" />
+            <Download size={16} />
           </button>
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={isLoading}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
+            aria-label="Refresh data"
           >
-            <RefreshCw
-              size={16}
-              className={`text-gray-600 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </button>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
-              showFilters
-                ? "bg-indigo-100 text-indigo-600"
-                : "bg-white text-gray-600"
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
+            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -437,16 +405,12 @@ const CategoryManagement = () => {
           ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Category List
-              </h2>
-              <p className="text-gray-600 text-sm mt-1">
-                Manage all inventory categories
-              </p>
+              <h2 className="text-xl font-semibold text-foreground">Category List</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Manage all inventory categories</p>
             </div>
             <Can permission="inventory.create">
               <button
@@ -469,37 +433,16 @@ const CategoryManagement = () => {
             </Can>
           </div>
 
-          {showFilters && (
-            <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="relative flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Search by category name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setSearchTerm("")}
-                className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-              >
-                Clear Filters
-              </button>
-            </div>
-          )}
+          {/* The search: always showing, the same row every list of the product has (components/lists/FilterBar.jsx). It has no other
+              choice to offer: a category has a name, a description and a status, and the server searches the first two. */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search categories"
+            placeholder="Search name or description…"
+            active={filtersOn}
+            onClear={clearFilters}
+          />
         </div>
 
         {isLoading && (
@@ -548,67 +491,47 @@ const CategoryManagement = () => {
               ]}
             />
 
-            {categories.length === 0 && (
+            {/* not before the answer to this page and search is in, and not while the page is about to fall back to the last one
+                (the categories are there, on another page) */}
+            {categories.length === 0 && answeredFor === asking && page <= totalPages && (
               <div className="text-center py-12">
                 <Tag size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">No categories found</p>
-                <p className="text-gray-400 text-sm">
-                  Try adjusting your search criteria or add a new category
+                <p className="text-foreground">
+                  {listFiltered ? "No categories match the search or filters" : "No categories yet"}
                 </p>
+                <p className="text-muted-foreground text-sm">
+                  {listFiltered ? (
+                    "Clear the search to see every category."
+                  ) : (
+                    <Can permission="inventory.create" fallback="Categories your team adds will be listed here.">
+                      Add a category to start the list.
+                    </Can>
+                  )}
+                </p>
+                {listFiltered && (
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <button type="button" onClick={clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
+                      Clear search and filters
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
         {!isLoading && categories.length > 0 && (
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <span>Showing</span>
-                <span className="font-semibold">
-                  {(page - 1) * itemsPerPage + 1}-
-                  {Math.min(page * itemsPerPage, stats.totalCategories)}
-                </span>
-                <span>of</span>
-                <span className="font-semibold">{stats.totalCategories}</span>
-                <span>categories</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNumber = i + 1;
-                    return (
-                      <button
-                        key={pageNumber}
-                        onClick={() => setPage(pageNumber)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
-                          page === pageNumber
-                            ? "bg-indigo-600 text-white"
-                            : "text-gray-600 hover:bg-gray-100"
-                        }`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
+          <ListPager
+            figures={pageFigures({ page, size: pageSize, total: totalRows })}
+            onPage={setPage}
+            onPageSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            noun="categories"
+            one="category"
+            className="rounded-none border-0 border-t shadow-none"
+          />
         )}
       </div>
 
@@ -624,7 +547,7 @@ const CategoryManagement = () => {
                   <p className="text-gray-600 text-sm">
                     {isEditMode ? "Update an existing inventory category" : "Create a new inventory category"}
                   </p>
-                  {isDraftSaved && lastSaveTime && (
+                  {!isEditMode && isDraftSaved && lastSaveTime && (
                     <p className="text-sm text-green-600 flex items-center">
                       <CheckCircle2 size={12} className="mr-1" />
                       Draft saved {formatLastSaveTime(lastSaveTime)}
@@ -708,7 +631,8 @@ const CategoryManagement = () => {
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
                 <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
+                  {/* a new category is kept as a draft; an edit is not (nothing is saved until Update) */}
+                  {isEditMode ? null : isDraftSaved ? (
                     <span className="flex items-center text-green-600">
                       <CheckCircle2 size={14} className="mr-1" />
                       Changes saved automatically

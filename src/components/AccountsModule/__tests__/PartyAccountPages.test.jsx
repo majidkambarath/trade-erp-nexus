@@ -606,7 +606,7 @@ describe("payables list", () => {
     m.balances.mockResolvedValue({
       type: "vendor",
       rows: [{ partyId: "v1", partyName: "Fresh Farms LLC", balance: 4000, overdue: 1500, paymentTerms: "Net 60" }],
-      totals: { owed: 4000, advances: 0, net: 4000, overdue: 1500 },
+      totals: { owed: 4000, advances: 120, onAccount: 750, net: 4000, overdue: 1500 },
     });
     showList(<PurchaseAccount />, "/debit-accounts");
     expect(await screen.findByRole("heading", { level: 1, name: "Payables" })).toBeInTheDocument();
@@ -618,6 +618,10 @@ describe("payables list", () => {
     expect(m.balances).toHaveBeenCalledWith("vendor");
     expect(card("Total payable")).toHaveTextContent("4,000.00");
     expect(within(card("Total payable")).getByTitle("Credit balance")).toBeInTheDocument();
+    // what was paid ahead is the vendors' own advance accounts (onAccount), not the accounts whose net is merely on the other side
+    expect(card("Advances to vendors")).toHaveTextContent("750.00");
+    expect(card("Advances to vendors")).not.toHaveTextContent("120.00");
+    expect(screen.queryByRole("heading", { name: "Paid in advance", level: 3 })).not.toBeInTheDocument();
     fireEvent.click(within(table).getByRole("link", { name: "Fresh Farms LLC" }));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/debit-accounts/vendor/v1"));
   });

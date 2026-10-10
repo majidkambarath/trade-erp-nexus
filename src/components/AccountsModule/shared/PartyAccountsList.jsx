@@ -135,7 +135,9 @@ export default function PartyAccountsList({ kind }) {
             subText={t ? `${t.overLimit} over, ${t.nearLimit} near the limit` : "Loading"}
           />
         ) : (
-          <StatCard title="Paid in advance" icon={<Wallet />} tone="olive" count={t ? <Balance net={t.advances} /> : dash} subText={`${CURRENCY} · paid ahead of invoices`} />
+          // `advances` is any vendor account whose net is on the other side (a return, an overpayment): not an advance. What was paid
+          // ahead is `onAccount`, which stays a dash when the server did not send it rather than showing the wrong figure.
+          <StatCard title="Advances to vendors" icon={<Wallet />} tone="olive" count={typeof t?.onAccount === "number" ? <Balance net={t.onAccount} /> : dash} subText={`${CURRENCY} · paid ahead of invoices`} />
         )}
       </section>
 

@@ -13,6 +13,7 @@ vi.mock("../../../lib/partyMasterApi", () => ({ partyMaster: { documentTypes: { 
 
 import CustomerManagement from "../CustomerManagement";
 import { todayInput } from "../../../utils/format";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const addDays = (iso, n) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -33,6 +34,7 @@ const CUSTOMERS = [
 ];
 
 beforeEach(() => {
+  clearPageSessions();
   Object.values(mocks).forEach((m) => m.mockReset());
   mocks.get.mockResolvedValue({ data: { data: CUSTOMERS } });
   mocks.banks.mockResolvedValue([]);
@@ -101,5 +103,168 @@ describe("Customer management", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+});
+
+// The search and the two choices used to be "remembered" by a helper that threw on every read and write (`this` is undefined in a
+// module-level arrow function), so nothing was ever kept; the filters sat behind a toggle button, and a customer with no email
+// (the field is optional) crashed the search.
+describe("the search and the choices", () => {
+  const CREEK = {
+    _id: "c3", customerId: "CUST2026003", customerName: "Creek Traders", contactPerson: "Ali", phone: "+971503334444", billingAddress: "Creek",
+    creditLimit: 1000, paymentTerms: "Net 15", status: "Inactive", trnNumber: null, vat: { status: "unregistered", trn: null }, credit: { days: 15 }, documents: [],
+  }; // no email at all
+  const searchbox = () => screen.getByRole("searchbox", { name: "Search customers" });
+  const status = () => screen.getByRole("combobox", { name: "Status" });
+  const terms = () => screen.getByRole("combobox", { name: "Payment terms" });
+  const clear = () => screen.queryByRole("button", { name: "Clear filters" });
+  const names = () => screen.getAllByRole("row").slice(1).map((r) => r.textContent);
+
+  it("are on the page without pressing anything first, and there is no toggle or dead back button", async () => {
+    render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    expect(searchbox()).toBeVisible();
+    expect(status()).toBeVisible();
+    expect(terms()).toBeVisible();
+    expect(screen.queryByTitle("Toggle filters")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear Filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Refresh data" })).toBeInTheDocument();
+  });
+
+  it("narrow the list, and are still there after going to another page and coming back", async () => {
+    const first = render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    fireEvent.change(searchbox(), { target: { value: "bay" } });
+    fireEvent.change(status(), { target: { value: "Active" } });
+    fireEvent.change(terms(), { target: { value: "Net 30" } });
+    expect(screen.queryByText("Al Noor Mart")).toBeNull();
+    expect(screen.getByText("Bay Grocers")).toBeInTheDocument();
+    first.unmount();
+
+    render(<CustomerManagement />);
+    await screen.findByText("Bay Grocers");
+    expect(searchbox()).toHaveValue("bay");
+    expect(status()).toHaveValue("Active");
+    expect(terms()).toHaveValue("Net 30");
+    expect(screen.queryByText("Al Noor Mart")).toBeNull();
+    expect(screen.getByText(/1 displayed/)).toBeInTheDocument();
+  });
+
+  it("Clear filters empties all three, is offered only while one is set, and the cleared state is what comes back", async () => {
+    const first = render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    expect(clear()).toBeNull();
+
+    fireEvent.change(terms(), { target: { value: "Net 45" } });
+    expect(clear()).toBeInTheDocument();
+    fireEvent.change(searchbox(), { target: { value: "noor" } });
+    fireEvent.change(status(), { target: { value: "Active" } });
+    fireEvent.click(clear());
+
+    expect(searchbox()).toHaveValue("");
+    expect(status()).toHaveValue("");
+    expect(terms()).toHaveValue("");
+    expect(clear()).toBeNull();
+    expect(screen.getByText("Bay Grocers")).toBeInTheDocument();
+    first.unmount();
+
+    render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    expect(searchbox()).toHaveValue("");
+    expect(status()).toHaveValue("");
+    expect(terms()).toHaveValue("");
+  });
+
+  it("the Clear search button in the box empties only the search", async () => {
+    render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    fireEvent.change(status(), { target: { value: "Active" } });
+    fireEvent.change(searchbox(), { target: { value: "bay" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(searchbox()).toHaveValue("");
+    expect(status()).toHaveValue("Active");
+  });
+
+  it("a customer with no email does not break the search, and a term only some customers carry can be chosen", async () => {
+    mocks.get.mockResolvedValue({ data: { data: [...CUSTOMERS, CREEK] } });
+    render(<CustomerManagement />);
+    await screen.findByText("Creek Traders");
+
+    // "bay" reads every customer's email: the one with none used to throw and blank the page
+    fireEvent.change(searchbox(), { target: { value: "bay" } });
+    expect(screen.getByText("Bay Grocers")).toBeInTheDocument();
+    expect(screen.queryByText("Creek Traders")).toBeNull();
+    fireEvent.change(searchbox(), { target: { value: "" } });
+
+    expect(within(terms()).getByRole("option", { name: "Net 15" })).toBeInTheDocument();
+    expect(within(terms()).getByRole("option", { name: "Cash on Delivery" })).toBeInTheDocument();
+    fireEvent.change(terms(), { target: { value: "Net 15" } });
+    expect(screen.getByText("Creek Traders")).toBeInTheDocument();
+    expect(screen.queryByText("Al Noor Mart")).toBeNull();
+  });
+
+  it("a stat card sets the Status choice you can now see", async () => {
+    mocks.get.mockResolvedValue({ data: { data: [...CUSTOMERS, CREEK] } });
+    render(<CustomerManagement />);
+    await screen.findByText("Creek Traders");
+    fireEvent.click(screen.getByRole("button", { name: /Inactive Customers/ }));
+    expect(status()).toHaveValue("Inactive");
+    expect(screen.getByText("Creek Traders")).toBeInTheDocument();
+    expect(screen.queryByText("Al Noor Mart")).toBeNull();
+  });
+
+  it("with a search or choice set and nothing matching, says so and offers to clear them; with none set, says there are none yet", async () => {
+    const view = render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    fireEvent.change(searchbox(), { target: { value: "no such customer" } });
+    expect(screen.getByText("No customers match the search or filters")).toBeInTheDocument();
+    expect(screen.queryByText("No customers yet")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add First Customer" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search and filters" }));
+    expect(searchbox()).toHaveValue("");
+    expect(await screen.findByText("Al Noor Mart")).toBeInTheDocument();
+    view.unmount();
+
+    clearPageSessions();
+    mocks.get.mockResolvedValue({ data: { data: [] } });
+    render(<CustomerManagement />);
+    expect(await screen.findByText("No customers yet")).toBeInTheDocument();
+    expect(screen.queryByText("No customers match the search or filters")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear search and filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add First Customer" })).toBeInTheDocument();
+  });
+
+  it("keeps the column the list is sorted by, and nothing goes to the browser's storage", async () => {
+    const first = render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    const header = () => screen.getByRole("button", { name: /^Customer Name/ });
+    fireEvent.click(header()); // ascending
+    fireEvent.click(header()); // descending
+    expect(names()[0]).toContain("Bay Grocers");
+    fireEvent.change(searchbox(), { target: { value: "grocers" } });
+    first.unmount();
+
+    render(<CustomerManagement />);
+    await screen.findByText("Bay Grocers");
+    expect(header()).toHaveTextContent("↓");
+    fireEvent.change(searchbox(), { target: { value: "" } });
+    expect(names()[0]).toContain("Bay Grocers");
+    expect(names()[1]).toContain("Al Noor Mart");
+
+    const stored = [localStorage, sessionStorage].flatMap((st) =>
+      Array.from({ length: st.length }, (_, i) => `${st.key(i)}=${st.getItem(st.key(i))}`)
+    );
+    expect(stored.join("\n")).not.toMatch(/grocers/i);
+  });
+
+  it("keeps the search while the add form is opened and cancelled (the form keeps no draft of its own on this screen)", async () => {
+    render(<CustomerManagement />);
+    await screen.findByText("Al Noor Mart");
+    fireEvent.change(searchbox(), { target: { value: "noor" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /Add Customer/ })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "Add customer" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(searchbox()).toHaveValue("noor");
   });
 });

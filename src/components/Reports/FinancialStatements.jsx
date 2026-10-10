@@ -121,7 +121,7 @@ function StatementBlock({ title, section, onLedger }) {
       {groups.length === 0 && <tr><td colSpan={2} className="px-5 py-2.5 text-sm text-muted-foreground">Nothing in this period.</td></tr>}
       {groups.map((g) => (
         <React.Fragment key={g.groupId || g.name}>
-          {groups.length > 1 && <tr><td colSpan={2} className="px-5 pt-2.5 text-xs font-medium text-muted-foreground">{g.name}</td></tr>}
+          {(groups.length > 1 || g.synthetic) && <tr><td colSpan={2} className="px-5 pt-2.5 text-xs font-medium text-muted-foreground">{g.name}</td></tr>}
           {g.accounts.map((a) => (
             <tr key={a.accountId} className="hover:bg-accent/40">
               <td className="py-1.5 pe-3 ps-9 text-sm"><button type="button" onClick={() => onLedger?.({ _id: a.accountId, accountCode: a.accountCode, accountName: a.accountName })} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button></td>
@@ -151,7 +151,8 @@ function ProfitLoss({ range, onLedger }) {
       {(d) => {
         const exportCsv = () => {
           const lines = [];
-          const block = (title, s) => { lines.push([title, "", ""]); s.groups.forEach((g) => g.accounts.forEach((a) => lines.push([a.accountCode, a.accountName, a.amount]))); lines.push(["", `Total ${title.toLowerCase()}`, s.total]); };
+          // a synthetic group (sales discounts, which are taken off revenue) gets a row of its own: its amounts are negative
+          const block = (title, s) => { lines.push([title, "", ""]); s.groups.forEach((g) => { if (g.synthetic) lines.push(["", g.name, ""]); g.accounts.forEach((a) => lines.push([a.accountCode, a.accountName, a.amount])); }); lines.push(["", `Total ${title.toLowerCase()}`, s.total]); };
           block("Revenue", d.revenue); block("Cost of sales", d.directCosts); lines.push(["", "Gross profit", d.grossProfit]);
           block("Other income", d.otherIncome); block("Operating expenses", d.operatingExpenses); lines.push(["", "Net profit", d.netProfit]);
           downloadCSV(`profit-and-loss-${range.from}-${range.to}.csv`, ["Code", "Account", "Amount"], lines);

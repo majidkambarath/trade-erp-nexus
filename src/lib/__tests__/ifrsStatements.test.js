@@ -3,7 +3,7 @@ import {
   buildDocument, cashDocument, documentCsv, documentHtml, equityDocument, fileSlug, formatAmount, isAsAtTab, isTab, keyFigures, notesDocument,
   positionDocument, printDocument, profitDocument, requestFor, signedText, warnings,
 } from "../ifrsStatements";
-import { CASH, EQUITY, NOTES, POSITION, PROFIT, withoutComparative } from "./ifrsFixtures";
+import { CASH, EQUITY, NOTES, NOTES_REGROUPED, POSITION, POSITION_REGROUPED, PROFIT, PROFIT_WITH_DISCOUNTS, withoutComparative } from "./ifrsFixtures";
 import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 
 const table = (doc, i = 0) => doc.blocks.filter((b) => b.type === "table")[i];
@@ -86,6 +86,38 @@ describe("statement of financial position", () => {
     expect(table(doc).columns).toEqual(["30/06/2025"]);
     expect(row(doc, "TOTAL ASSETS").values).toEqual([12221]);
   });
+
+  it("shows an overdraft, customer credits and supplier debits on their own side, as positive lines under string group ids", () => {
+    const doc = positionDocument(POSITION_REGROUPED);
+    const labels = table(doc).rows.map((r) => r.label);
+    // a bank in credit is a current liability, a supplier in debit a current asset (IAS 1.32)
+    expect(row(doc, "Bank overdrafts")).toMatchObject({ kind: "line", level: 2, values: [150, 0] });
+    expect(row(doc, "Customer credit balances").values).toEqual([80, 0]);
+    expect(row(doc, "Supplier debit balances and advances").values).toEqual([230, 0]);
+    expect(labels.indexOf("Supplier debit balances and advances")).toBeLessThan(labels.indexOf("Total current assets"));
+    expect(labels.indexOf("Current liabilities")).toBeLessThan(labels.indexOf("Customer credit balances"));
+    expect(labels.indexOf("Bank overdrafts")).toBeLessThan(labels.indexOf("Total current liabilities"));
+    expect(row(doc, "Total current assets").values).toEqual([11271, 3635]);
+    expect(row(doc, "Total current liabilities").values).toEqual([2096, 535]);
+    expect(row(doc, "TOTAL ASSETS").values).toEqual([12451, 3635]);
+    expect(row(doc, "TOTAL EQUITY AND LIABILITIES").values).toEqual([12451, 3635]);
+    expect(warnings("position", POSITION_REGROUPED)).toEqual([]);
+  });
+
+  it("lists the accounts of those groups as positive amounts, and never reads a group id as anything but text", () => {
+    const doc = positionDocument(POSITION_REGROUPED, { detail: true });
+    expect(row(doc, "Mashreq Current")).toMatchObject({ kind: "detail", code: "BANK0003", values: [150, 0], level: 3 });
+    expect(row(doc, "Customer - Bright Mart").values).toEqual([80, 0]);
+    expect(row(doc, "Vendor - Delta Packaging").values).toEqual([230, 0]);
+    // the groups are named by their text, so one without an id at all (the profit lines) draws just as well
+    const bare = structuredClone(POSITION_REGROUPED);
+    bare.equityAndLiabilities.currentLiabilities.groups.forEach((g) => { delete g.groupId; });
+    expect(row(positionDocument(bare), "Bank overdrafts").values).toEqual([150, 0]);
+  });
+
+  it("says in its footnote where an account on the wrong side of its group is shown", () => {
+    expect(positionDocument(POSITION).blocks.at(-1).text).toMatch(/bank account in credit as a bank overdraft, a customer in credit as a liability, a supplier in debit as an asset/);
+  });
 });
 
 describe("statement of profit or loss", () => {
@@ -113,6 +145,15 @@ describe("statement of profit or loss", () => {
     const doc = profitDocument(PROFIT, { detail: true });
     expect(row(doc, "Rent Expense")).toMatchObject({ kind: "detail", code: "OPEX0005", values: [-200, 0] });
     expect(row(doc, "Sales Revenue").values).toEqual([800, 200]);
+  });
+
+  it("takes sales discounts off revenue: the negative line stays negative and every subtotal is net of it", () => {
+    const doc = profitDocument(PROFIT_WITH_DISCOUNTS, { detail: true });
+    expect(row(doc, "Revenue").values).toEqual([750, 200]);
+    expect(row(doc, "Sales Discount")).toMatchObject({ kind: "detail", code: "DSC0001", values: [-50, 0] });
+    expect(row(doc, "Gross profit").values).toEqual([350, 100]);
+    expect(row(doc, "Profit for the period").values).toEqual([105, 100]);
+    expect(keyFigures("pl", PROFIT_WITH_DISCOUNTS).map((f) => f.value)).toEqual([750, 350, 115, 105]);
   });
 });
 
@@ -174,6 +215,48 @@ describe("statement of cash flows", () => {
     expect(row(doc, "Other movements (not classified above)").values).toEqual([-500, 0]);
     expect(row(doc, "Loss / (gain) on disposal of non-current assets").values).toEqual([40, 0]);
   });
+
+  it("draws the investing and financing lines by what the server sent, gross, and leaves the nil optional ones out", () => {
+    const quiet = cashDocument(CASH);
+    const labels = table(quiet).rows.map((r) => r.label);
+    // what was bought is always there; disposals, repayments and drawings are nil and optional, so they are not drawn
+    expect(row(quiet, "Purchase of property, plant and equipment").values).toEqual([-1200, 0]);
+    expect(row(quiet, "Proceeds from borrowings").values).toEqual([2000, 0]);
+    expect(row(quiet, "Capital introduced by the owners").values).toEqual([5000, 3000]);
+    for (const hidden of ["Proceeds from disposal of non-current assets", "Repayment of borrowings", "Drawings and dividends paid"]) expect(labels).not.toContain(hidden);
+    // the lines sit between their heading and their net
+    expect(labels.indexOf("Cash flows from investing activities")).toBeLessThan(labels.indexOf("Purchase of property, plant and equipment"));
+    expect(labels.indexOf("Capital introduced by the owners")).toBeLessThan(labels.indexOf("Net cash from / (used in) financing activities"));
+
+    const busy = structuredClone(CASH);
+    busy.investing.lines[1].amount = 300;
+    busy.financing.lines[1].amount = -500;
+    busy.financing.lines[3].amount = -100;
+    busy.financing.lines[3].comparative = -40;
+    const doc = cashDocument(busy);
+    expect(row(doc, "Proceeds from disposal of non-current assets").values).toEqual([300, 0]);
+    expect(row(doc, "Repayment of borrowings").values).toEqual([-500, 0]);
+    expect(row(doc, "Drawings and dividends paid").values).toEqual([-100, -40]);
+    // a line the old statement named is no longer there, and nothing looks for it
+    expect(labels).not.toContain("Net (purchase) / disposal of non-current assets");
+    expect(labels).not.toContain("Capital introduced / (drawings and dividends)");
+  });
+
+  it("uses the server's label for interest and finance charges paid, and any line a later server adds under investing", () => {
+    expect(row(cashDocument(CASH), "Interest and finance charges paid").values).toEqual([-15, 0]);
+    const more = structuredClone(CASH);
+    more.investing.lines.push({ key: "somethingNew", label: "Acquisition of subsidiary", amount: -75, comparative: 0, optional: true });
+    expect(row(cashDocument(more), "Acquisition of subsidiary").values).toEqual([-75, 0]);
+    expect(documentCsv(cashDocument(more)).rows).toContainEqual(["  Acquisition of subsidiary", -75, 0]);
+  });
+
+  it("says in its footnote that cash and cash equivalents include overdrafts and that the position shows them as a liability", () => {
+    const text = cashDocument(CASH).blocks.at(-1).text;
+    expect(text).toMatch(/Indirect method/);
+    expect(text).toMatch(/including bank overdrafts repayable on demand \(IAS 7\.8\)/);
+    expect(text).toMatch(/statement of financial position shows an overdraft as a liability/);
+    expect(text).toMatch(/IAS 7\.45-46/);
+  });
 });
 
 describe("notes", () => {
@@ -223,6 +306,101 @@ describe("notes", () => {
     const ageing = doc.blocks.find((b) => b.title?.startsWith("Ageing of trade receivables"));
     expect(ageing.rows.find((r) => r.label.startsWith("Receipts and credit notes")).values).toEqual([-100]);
     expect(doc.blocks.some((b) => b.title?.endsWith("Value added tax") && b.type === "table")).toBe(false);
+  });
+
+  const cashBlocks = (doc) => {
+    const at = doc.blocks.findIndex((b) => b.title === "9. Cash and cash equivalents");
+    return { cash: doc.blocks[at], presented: doc.blocks[at + 1] };
+  };
+
+  it("presents cash as the two lines of the statement of financial position, the overdraft as a deduction, under the cash note", () => {
+    const { cash, presented } = cashBlocks(notesDocument(NOTES));
+    expect(cash.signed).toBe(true);
+    expect(presented).toMatchObject({ type: "table", title: "Presented in the statement of financial position as", columns: ["30/06/2025", "30/06/2024"] });
+    expect(presented.signed).toBeUndefined(); // plain amounts, a deduction in brackets: it is a presentation, not a ledger balance
+    expect(presented.rows.map((r) => [r.label, ...r.values])).toEqual([
+      ["Cash and bank balances (current assets)", 6386, 3000],
+      ["Bank overdrafts (current liabilities)", -150, 0],
+      ["Total cash and cash equivalents", 6236, 3000],
+    ]);
+    expect(presented.rows.at(-1).kind).toBe("total");
+    // the two lines make the total of the note above
+    expect(presented.rows[0].values[0] + presented.rows[1].values[0]).toBe(cash.rows.at(-1).values[0]);
+    // and it is not numbered as a note of its own
+    expect(presented.title).not.toMatch(/^\d+\./);
+  });
+
+  it("leaves the overdraft line out when there is none, draws it from the comparative alone, and draws nothing when the server sent no split", () => {
+    const none = structuredClone(NOTES);
+    none.tables.cash.presentedAs[1].amount = 0;
+    expect(cashBlocks(notesDocument(none)).presented.rows.map((r) => r.label)).toEqual(["Cash and bank balances (current assets)", "Total cash and cash equivalents"]);
+
+    const last = structuredClone(NOTES);
+    last.tables.cash.presentedAs[1].amount = 0;
+    last.tables.cash.presentedAs[1].comparative = 60;
+    expect(cashBlocks(notesDocument(last)).presented.rows[1]).toMatchObject({ label: "Bank overdrafts (current liabilities)", values: [0, -60] });
+
+    const old = structuredClone(NOTES);
+    delete old.tables.cash.presentedAs;
+    const doc = notesDocument(old);
+    expect(doc.blocks.some((b) => b.title === "Presented in the statement of financial position as")).toBe(false);
+    expect(doc.blocks.some((b) => b.title === "10. Trade and other payables")).toBe(true);
+
+    expect(cashBlocks(notesDocument(withoutComparative(NOTES))).presented.rows.map((r) => r.values)).toEqual([[6386], [-150], [6236]]);
+  });
+
+  it("adds supplier debits to the receivables and customer credits to the payables, in their totals, only when there are some", () => {
+    const quiet = notesDocument(NOTES);
+    const rec = (d) => d.blocks.find((b) => b.title === "7. Trade and other receivables");
+    const pay = (d) => d.blocks.find((b) => b.title === "10. Trade and other payables");
+    expect(rec(quiet).rows.map((r) => r.label)).toEqual(["Trade receivables (customers)", "Total trade and other receivables"]);
+    expect(pay(quiet).rows.map((r) => r.label)).toEqual(["Trade payables (vendors)", "Total trade and other payables"]);
+
+    const doc = notesDocument(NOTES_REGROUPED);
+    expect(rec(doc).rows.map((r) => [r.label, ...r.values])).toEqual([
+      ["Trade receivables (customers)", 1160, 210],
+      ["Supplier accounts in debit (presented with receivables)", 230, 0],
+      ["Total trade and other receivables", 1390, 210],
+    ]);
+    expect(pay(doc).rows.map((r) => [r.label, ...r.values])).toEqual([
+      ["Trade payables (vendors)", 1800, 525],
+      ["Customer accounts in credit (presented with payables)", 80, 0],
+      ["Total trade and other payables", 1880, 525],
+    ]);
+    // a figure that exists only in the comparative column is still drawn
+    const earlier = structuredClone(NOTES);
+    earlier.tables.tradePayables.rows[2].comparative = 25;
+    expect(pay(notesDocument(earlier)).rows[1]).toMatchObject({ label: "Customer accounts in credit (presented with payables)", values: [0, 25] });
+  });
+
+  it("ties each ageing to the ledger it was worked out from, saying so when that is net of accounts on the other side", () => {
+    const agrees = notesDocument(NOTES);
+    const rec = (d) => d.blocks.find((b) => b.title === "Ageing of trade receivables at 30/06/2025");
+    const pay = (d) => d.blocks.find((b) => b.title === "Ageing of trade payables at 30/06/2025");
+    expect(rec(agrees).rows.at(-1)).toMatchObject({ kind: "total", label: "Trade receivables per ledger", values: [1160] });
+    expect(pay(agrees).rows.at(-1)).toMatchObject({ label: "Trade payables per ledger", values: [1800] });
+
+    const net = notesDocument(NOTES_REGROUPED);
+    expect(rec(net).rows.map((r) => [r.label, r.values[0]]).slice(-3)).toEqual([
+      ["of which overdue", 420], ["Receipts and credit notes not set against an invoice", -80], ["Customer accounts per ledger, net of accounts in credit", 1080],
+    ]);
+    expect(pay(net).rows.at(-1)).toMatchObject({ label: "Vendor accounts per ledger, net of accounts in debit", values: [1570] });
+  });
+
+  it("carries the presentation, the added rows and the net ageing into the CSV and the printed page", () => {
+    const doc = notesDocument(NOTES_REGROUPED);
+    const { headers, rows } = documentCsv(doc);
+    expect(headers).toEqual(["Line item", "30/06/2025", "30/06/2024"]);
+    expect(rows).toContainEqual(["Presented in the statement of financial position as", "30/06/2025", "30/06/2024"]);
+    expect(rows).toContainEqual(["Bank overdrafts (current liabilities)", -150, 0]);
+    expect(rows).toContainEqual(["Supplier accounts in debit (presented with receivables)", 230, 0]);
+    expect(rows).toContainEqual(["Customer accounts per ledger, net of accounts in credit", 1080]);
+
+    const html = documentHtml(doc, { company: "X" });
+    expect(html).toContain("Presented in the statement of financial position as");
+    expect(html).toContain("(150.00)");
+    expect(html).toContain("Supplier accounts in debit (presented with receivables)");
+    expect(html).toContain("Customer accounts per ledger, net of accounts in credit");
   });
 });
 
@@ -278,6 +456,20 @@ describe("CSV and print", () => {
     const notes = documentCsv(notesDocument(NOTES));
     expect(notes.rows[0][0]).toBe("1. Reporting entity");
     expect(notes.rows).toContainEqual(["Trade receivables (customers)", 1160, 210]);
+  });
+
+  it("exports and prints a sales discount as a negative figure, and the regrouped groups as positive ones", () => {
+    const profit = profitDocument(PROFIT_WITH_DISCOUNTS, { detail: true });
+    const csv = documentCsv(profit);
+    expect(csv.rows).toContainEqual(["Revenue", 750, 200]);
+    expect(csv.rows).toContainEqual(["  DSC0001 Sales Discount", -50, 0]);
+    expect(documentHtml(profit, { company: "X" })).toContain("(50.00)");
+
+    const position = documentCsv(positionDocument(POSITION_REGROUPED, { detail: true }));
+    expect(position.rows).toContainEqual(["    Bank overdrafts", 150, 0]);
+    expect(position.rows).toContainEqual(["      BANK0003 Mashreq Current", 150, 0]);
+    expect(position.rows).toContainEqual(["TOTAL EQUITY AND LIABILITIES", 12451, 3635]);
+    expect(documentHtml(positionDocument(POSITION_REGROUPED), { company: "X" })).toContain("Supplier debit balances and advances");
   });
 
   it("builds a printable page with the company, the statement, the period and AED", () => {

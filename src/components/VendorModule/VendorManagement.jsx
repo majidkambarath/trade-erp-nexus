@@ -3,15 +3,12 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  useRef,
 } from "react";
 import {
-  ArrowLeft,
   Plus,
   Search,
   Edit,
   Trash2,
-  X,
   User,
   AlertTriangle,
   Loader2,
@@ -20,64 +17,49 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Filter,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
+import { pageSession } from "../../lib/pageSession";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
-// Session management utilities (using memory storage for Claude environment)
-const SessionManager = {
-  storage: {},
 
-  get: (key) => {
-    try {
-      return this.storage[`vendor_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices
+// and the column the list is sorted by. Held in memory for the tab; emptied at sign-out. The add / edit form is the shared party
+// form (components/parties) and keeps no draft here, as before.
+const session = pageSession("vendor-management");
 
-  set: (key, value) => {
-    try {
-      this.storage[`vendor_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
+const STATUS_OPTIONS = ["Compliant", "Non-compliant", "Pending", "Expired"].map((s) => [s, s]);
+const PAYMENT_TERMS_OPTIONS = [
+  ["30 days", "30 days"],
+  ["Net 30", "Net 30"],
+  ["45 days", "45 days"],
+  ["Net 60", "Net 60"],
+  ["60 days", "60 days"],
+  ["COD", "Cash On Delivery"],
+];
 
-  remove: (key) => {
-    try {
-      delete this.storage[`vendor_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("vendor_session_")) {
-        delete this.storage[key];
-      }
-    });
-  },
-};
+// A vendor saved without an email (it is optional on the form) has none to search; reading it must not stop the page.
+const hasText = (value, needle) => String(value ?? "").toLowerCase().includes(needle);
 
 const VendorManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [partyModal, setPartyModal] = useState(null); // { vendor } to edit one, {} for a new vendor
-  const [searchTerm, setSearchTerm] = useState("");
+  // the search and the two choices come back as the person left them (lazy initialisers: the first render already has them)
+  const [kept] = useState(() => session.get("filters", {}) || {});
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState({
     visible: false,
     message: "",
     type: "success",
   });
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterPaymentTerms, setFilterPaymentTerms] = useState("");
+  const [filterStatus, setFilterStatus] = useState(kept.status || "");
+  const [filterPaymentTerms, setFilterPaymentTerms] = useState(kept.paymentTerms || "");
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     visible: false,
     itemName: "",
@@ -85,50 +67,24 @@ const VendorManagement = () => {
     isDeleting: false,
   });
 
-  // New UX enhancement states
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState("table"); // table, card
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState(
+    () => session.get("sort", null) || { key: null, direction: "asc" }
+  );
 
-  // Refs for enhanced UX
-  const searchInputRef = useRef(null);
-
-  // Load session data on component mount
+  // Save the search, the choices and the sort in one place.
   useEffect(() => {
-    const savedFilters = SessionManager.get("filters");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-    const savedViewMode = SessionManager.get("viewMode");
+    session.set("searchTerm", searchTerm);
+    session.set("filters", { status: filterStatus, paymentTerms: filterPaymentTerms });
+    session.set("sort", sortConfig);
+  }, [searchTerm, filterStatus, filterPaymentTerms, sortConfig]);
 
-    if (savedFilters) {
-      setFilterStatus(savedFilters.status || "");
-      setFilterPaymentTerms(savedFilters.paymentTerms || "");
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-
-    if (savedViewMode) {
-      setViewMode(savedViewMode);
-    }
-  }, []);
-
-  // Save search and filter preferences
-  useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    SessionManager.set("filters", {
-      status: filterStatus,
-      paymentTerms: filterPaymentTerms,
-    });
-  }, [filterStatus, filterPaymentTerms]);
-
-  useEffect(() => {
-    SessionManager.set("viewMode", viewMode);
-  }, [viewMode]);
+  const filtersOn = Boolean(searchTerm || filterStatus || filterPaymentTerms);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setFilterPaymentTerms("");
+  };
 
   const fetchVendors = useCallback(async (showRefreshIndicator = false) => {
     try {
@@ -250,16 +206,14 @@ const VendorManagement = () => {
   }, []);
 
   const sortedAndFilteredVendors = useMemo(() => {
+    const needle = searchTerm.toLowerCase();
     let filtered = vendors.filter(
       (vendor) =>
-        (vendor.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.contactPerson
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          vendor.vendorId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (vendor.trnNO &&
-            vendor.trnNO.toLowerCase().includes(searchTerm.toLowerCase()))) &&
+        (hasText(vendor.vendorName, needle) ||
+          hasText(vendor.contactPerson, needle) ||
+          hasText(vendor.email, needle) ||
+          hasText(vendor.vendorId, needle) ||
+          hasText(vendor.trnNO, needle)) &&
         (filterStatus ? vendor.status === filterStatus : true) &&
         (filterPaymentTerms ? vendor.paymentTerms === filterPaymentTerms : true)
     );
@@ -312,44 +266,29 @@ const VendorManagement = () => {
     <div className="bg-background p-4 sm:p-6 md:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8">
-        <div className="flex items-center space-x-4">
-          <button className="grid min-h-10 min-w-10 place-items-center p-2 rounded-lg lg:min-h-0 lg:min-w-0 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Vendor Management
-            </h1>
-            <p className="text-gray-600 text-sm mt-1">
-              {vendorStats.totalVendors} total vendors •{" "}
-              {sortedAndFilteredVendors.length} displayed
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Vendor Management
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {vendorStats.totalVendors} total vendors •{" "}
+            {sortedAndFilteredVendors.length} displayed
+          </p>
         </div>
 
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
+            aria-label="Refresh data"
           >
             <RefreshCw
               size={16}
-              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+              className={isRefreshing ? "animate-spin" : ""}
             />
-          </button>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
-              showFilters
-                ? "bg-blue-100 text-blue-600"
-                : "bg-white text-gray-600"
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
           </button>
         </div>
       </div>
@@ -425,103 +364,80 @@ const VendorManagement = () => {
       )}
 
       {/* Main Content */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-lg font-semibold text-gray-900">All Vendors</h2>
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+            <h2 className="text-xl font-semibold text-foreground">All Vendors</h2>
             <Can permission="purchase.create">
               <button
+                type="button"
                 onClick={openAddModal}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 w-full sm:w-auto transform hover:scale-105 active:scale-95"
+                className="erp-btn-primary w-full sm:w-auto"
               >
-                <Plus size={16} />
+                <Plus size={18} />
                 Add Vendor
               </button>
             </Can>
           </div>
 
-          {/* Search and Filters */}
-          <div className="mt-4 space-y-4">
-            <div className="relative">
-              <Search
-                size={16}
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search by Vendor ID, Name, Email, Contact Person, or TRN NO..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
-                >
-                  <option value="">All Statuses</option>
-                  <option value="Compliant">Compliant</option>
-                  <option value="Non-compliant">Non-compliant</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Expired">Expired</option>
-                </select>
-
-                <select
-                  value={filterPaymentTerms}
-                  onChange={(e) => setFilterPaymentTerms(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full sm:w-auto"
-                >
-                  <option value="">All Payment Terms</option>
-                  <option value="30 days">30 days</option>
-                  <option value="Net 30">Net 30</option>
-                  <option value="45 days">45 days</option>
-                  <option value="Net 60">Net 60</option>
-                  <option value="60 days">60 days</option>
-                  <option value="COD">Cash On Delivery</option>
-                </select>
-
-                <button
-                  onClick={() => {
-                    setFilterStatus("");
-                    setFilterPaymentTerms("");
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200 w-full sm:w-auto"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search vendors"
+            placeholder="Search name, ID, email or TRN…"
+            active={filtersOn}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              label="Status"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              allLabel="All statuses"
+              options={STATUS_OPTIONS}
+            />
+            <FilterSelect
+              label="Payment terms"
+              value={filterPaymentTerms}
+              onChange={setFilterPaymentTerms}
+              allLabel="All payment terms"
+              options={PAYMENT_TERMS_OPTIONS}
+              className="sm:w-52"
+            />
+          </FilterBar>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
           {sortedAndFilteredVendors.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-gray-400 mb-4">
-                <Search size={48} className="mx-auto" />
+              <div className="mb-4 text-muted-foreground">
+                {filtersOn ? (
+                  <Search size={48} className="mx-auto" aria-hidden="true" />
+                ) : (
+                  <User size={48} className="mx-auto" aria-hidden="true" />
+                )}
               </div>
-              <p className="text-gray-600 text-lg mb-2">No vendors found</p>
-              <p className="text-gray-500">
-                {searchTerm || filterStatus || filterPaymentTerms
-                  ? "Try adjusting your search or filters"
-                  : "Get started by adding your first vendor"}
+              <p className="text-foreground">
+                {filtersOn ? "No vendors match the search or filters" : "No vendors yet"}
               </p>
+              <p className="text-sm text-muted-foreground">
+                {filtersOn
+                  ? "Clear the search and filters to see every vendor."
+                  : "Get started by adding your first vendor."}
+              </p>
+              {filtersOn && (
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
+                  >
+                    Clear search and filters
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <DataTable

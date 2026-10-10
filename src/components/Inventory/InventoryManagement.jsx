@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Activity,
   Plus,
-  Search,
-  Filter,
   Download,
   RefreshCw,
   Package,
@@ -16,70 +14,38 @@ import {
   Eye,
   BarChart3,
   MapPin,
-  AlertCircle,
   CheckCircle2,
   XCircle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
-  X,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED, todayInput, CURRENCY} from "../../utils/format";
-import { resolveListPeriod } from "../../lib/listPeriod";
+import { decimalRound, downloadCSV, formatDate as formatDay, formatDateTime, formatTime, formatCurrencyAED, CURRENCY } from "../../utils/format";
 import { DEFAULT_PAGE_SIZE, pageFigures } from "../../lib/pagination";
+import { pageSession } from "../../lib/pageSession";
 import ListPager from "../lists/ListPager";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
 import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
-// Session management utilities
-const SessionManager = {
-  storage: {},
 
-  get: (key) => {
-    try {
-      return this.storage[`inventory_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices,
+// the period, and a half-filled movement form. Held in memory for the tab; emptied at sign-out.
+const session = pageSession("inventory-movements");
 
-  set: (key, value) => {
-    try {
-      this.storage[`inventory_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
-
-  remove: (key) => {
-    try {
-      delete this.storage[`inventory_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("inventory_session_")) {
-        delete this.storage[key];
-      }
-    });
-  },
-};
-
-
-// The movements of this calendar month: the page opens on it, like every list of documents, and says so under the title.
-const monthRange = () => {
-  const p = resolveListPeriod({ preset: "month" }, todayInput());
-  return { start: p.from, end: p.to };
-};
 // The server compares `date <= endDate` on the instant, so a bare day would stop at that day's midnight and drop the day's own
 // movements: the end of a range is the end of that day.
 const endOfDay = (day) => (day ? `${day}T23:59:59.999Z` : "");
+
+// A movement's `totalValue` is the cost that moved and is stored positive both ways; what it is worth to the books has the
+// direction of the quantity (server: services/stock/inventoryMovementService.js).
+const signedValue = (m) => Math.sign(Number(m.quantity) || 0) * Math.abs(Number(m.totalValue) || 0);
+const signText = (n) => (n > 0 ? "+" : n < 0 ? "−" : "");
+// The server sends the person's NAME. An account that no longer exists has none, and its raw id is never shown in its place.
+const whoText = (m) => m.createdByName || "Unknown user";
 
 const InventoryManagement = () => {
   const [movements, setMovements] = useState([]);
@@ -87,12 +53,14 @@ const InventoryManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showFilters, setShowFilters] = useState(false); // Added showFilters state
   const [selectedMovement, setSelectedMovement] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterEventType, setFilterEventType] = useState("");
-  const [filterMovementType, setFilterMovementType] = useState("");
-  const [dateRange, setDateRange] = useState(monthRange);
+  // the search and the two choices come back as the person left them; the period opens on this calendar month, like every list
+  const [kept] = useState(() => session.get("filters", {}));
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
+  const [filterEventType, setFilterEventType] = useState(kept.eventType || "");
+  const [filterMovementType, setFilterMovementType] = useState(kept.movementType || "");
+  const periodFilter = usePeriodFilter({ restore: kept.period });
+  const { period } = periodFilter;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [totalRows, setTotalRows] = useState(0);
@@ -100,19 +68,26 @@ const InventoryManagement = () => {
     totalMovements: 0,
     stockIn: 0,
     stockOut: 0,
+    valueIn: 0,
+    valueOut: 0,
     totalValue: 0,
     recentMovements: 0,
   });
-  const [formData, setFormData] = useState({
-    stockId: "",
-    quantity: "",
-    eventType: "STOCK_ADJUSTMENT",
-    referenceNumber: "",
-    unitCost: "",
-    notes: "",
-    batchNumber: "",
-    expiryDate: "",
-    location: "MAIN",
+  const [formData, setFormData] = useState(() => {
+    const draft = session.get("formData");
+    return draft && Object.values(draft).some((val) => val)
+      ? draft
+      : {
+          stockId: "",
+          quantity: "",
+          eventType: "STOCK_ADJUSTMENT",
+          referenceNumber: "",
+          unitCost: "",
+          notes: "",
+          batchNumber: "",
+          expiryDate: "",
+          location: "MAIN",
+        };
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,8 +96,15 @@ const InventoryManagement = () => {
     message: "",
     type: "success",
   });
-  const [isDraftSaved, setIsDraftSaved] = useState(false);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(session.get("formData")));
+  const [lastSaveTime, setLastSaveTime] = useState(() => session.get("lastSaveTime"));
+
+  // a search is sent once the person pauses, not on every key
+  const [askedSearch, setAskedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setAskedSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
@@ -140,37 +122,10 @@ const InventoryManagement = () => {
   ];
 
   useEffect(() => {
-    const savedFormData = SessionManager.get("formData");
-    const savedFilters = SessionManager.get("filters");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-    const savedShowFilters = SessionManager.get("showFilters");
-
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
-      setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
-    }
-
-    if (savedFilters) {
-      setFilterEventType(savedFilters.eventType || "");
-      setFilterMovementType(savedFilters.movementType || "");
-      setDateRange(savedFilters.dateRange || monthRange());
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-
-    if (savedShowFilters !== null) {
-      setShowFilters(savedShowFilters);
-    }
-  }, []);
-
-  useEffect(() => {
     if (showModal && Object.values(formData).some((val) => val)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", formData);
-        SessionManager.set("lastSaveTime", new Date().toISOString());
+        session.set("formData", formData);
+        session.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
       }, 2000);
@@ -184,14 +139,13 @@ const InventoryManagement = () => {
   }, [formData, showModal]);
 
   useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
-    SessionManager.set("filters", {
+    session.set("searchTerm", searchTerm);
+    session.set("filters", {
       eventType: filterEventType,
       movementType: filterMovementType,
-      dateRange,
+      period: { preset: periodFilter.preset, from: periodFilter.from, to: periodFilter.to },
     });
-    SessionManager.set("showFilters", showFilters);
-  }, [searchTerm, filterEventType, filterMovementType, dateRange, showFilters]);
+  }, [searchTerm, filterEventType, filterMovementType, periodFilter.preset, periodFilter.from, periodFilter.to]);
 
   const fetchStockItems = useCallback(async () => {
     try {
@@ -212,11 +166,11 @@ const InventoryManagement = () => {
       const params = {
         page,
         limit: pageSize,
-        search: searchTerm,
-        eventType: filterEventType,
-        movementType: filterMovementType,
-        startDate: dateRange.start,
-        endDate: endOfDay(dateRange.end),
+        search: askedSearch || undefined,
+        eventType: filterEventType || undefined,
+        movementType: filterMovementType || undefined,
+        startDate: period.from || undefined,
+        endDate: endOfDay(period.to) || undefined,
       };
       const response = await axiosInstance.get("/inventory/inventory", { params });
       if (ask !== movementRequest.current) return;
@@ -234,20 +188,22 @@ const InventoryManagement = () => {
     } finally {
       if (ask === movementRequest.current) setIsLoading(false);
     }
-  }, [page, pageSize, searchTerm, filterEventType, filterMovementType, dateRange]);
+  }, [page, pageSize, askedSearch, filterEventType, filterMovementType, period.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStats = useCallback(async () => {
     try {
       const response = await axiosInstance.get("/inventory/inventory/stats", {
         params: {
-          startDate: dateRange.start,
-          endDate: endOfDay(dateRange.end),
+          startDate: period.from || undefined,
+          endDate: endOfDay(period.to) || undefined,
         },
       });
       setStats(response.data.data?.stats || {
         totalMovements: 0,
         stockIn: 0,
         stockOut: 0,
+        valueIn: 0,
+        valueOut: 0,
         totalValue: 0,
         recentMovements: 0,
       });
@@ -255,30 +211,27 @@ const InventoryManagement = () => {
       console.error("Error fetching stats:", error);
       showToastMessage("Failed to fetch statistics", "error");
     }
-  }, [dateRange]);
+  }, [period.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    fetchStockItems();
-    fetchMovements();
-    fetchStats();
-  }, [fetchStockItems, fetchMovements, fetchStats]);
+  // each is asked for on its own: a new search must not fetch the item list again, nor the cards when only the page changed
+  useEffect(() => { fetchStockItems(); }, [fetchStockItems]);
+  useEffect(() => { fetchMovements(); }, [fetchMovements]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   // a new search, filter, range or page size starts at the first page, and a page that no longer exists falls back to the last
   const pageInfo = pageFigures({ page, size: pageSize, total: totalRows });
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, filterEventType, filterMovementType, dateRange, pageSize]);
+  }, [askedSearch, filterEventType, filterMovementType, period.key, pageSize]);
   useEffect(() => {
     if (!isLoading && page > pageInfo.pages) setPage(pageInfo.pages);
   }, [isLoading, page, pageInfo.pages]);
-  const thisMonthRange = monthRange();
-  const isThisMonth = dateRange.start === thisMonthRange.start && dateRange.end === thisMonthRange.end;
-  const rangeText =
-    dateRange.start && dateRange.end
-      ? `${formatDateGB(dateRange.start)} – ${formatDateGB(dateRange.end)}`
-      : dateRange.start
-        ? `from ${formatDateGB(dateRange.start)}`
-        : `up to ${formatDateGB(dateRange.end)}`;
+  const filtersOn = Boolean(searchTerm || filterEventType || filterMovementType);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterEventType("");
+    setFilterMovementType("");
+  };
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
@@ -357,8 +310,8 @@ const InventoryManagement = () => {
     setShowModal(false);
     setIsDraftSaved(false);
     setLastSaveTime(null);
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
+    session.remove("formData");
+    session.remove("lastSaveTime");
   }, []);
 
   // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
@@ -371,10 +324,10 @@ const InventoryManagement = () => {
     []
   );
 
-  const formatDate = useCallback((dateString) => {
-    if (!dateString) return "N/A";
-    return formatDateTime(dateString) || "N/A";
-  }, []);
+  // A movement's date is a DAY (a document's date is stored at midnight, which would read "04:00" in Dubai and mean nothing).
+  // When it was recorded is a moment, and the details say so separately.
+  const formatDate = useCallback((dateString) => (dateString ? formatDay(dateString) || "N/A" : "N/A"), []);
+  const formatRecorded = useCallback((stamp) => (stamp ? formatDateTime(stamp) || "N/A" : "N/A"), []);
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
@@ -405,10 +358,10 @@ const InventoryManagement = () => {
           "EventType",
           "ReferenceNumber",
           "UnitCost",
-          "TotalValue",
+          "Value",
           "Location",
           "Date",
-          "CreatedBy",
+          "RecordedBy",
         ],
         movements.map((m) => [
           m._id,
@@ -418,10 +371,10 @@ const InventoryManagement = () => {
           m.eventType,
           m.referenceNumber,
           decimalRound(m.unitCost),
-          decimalRound(m.totalValue),
+          decimalRound(signedValue(m)),
           m.location,
-          formatDateGB(m.date),
-          m.createdBy || "Unknown",
+          formatDay(m.date),
+          whoText(m),
         ])
       );
 
@@ -467,62 +420,29 @@ const InventoryManagement = () => {
     <div className="p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <button className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
-            <ChevronLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-black bg-clip-text">
-              Inventory Movements
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {totalRows} {totalRows === 1 ? "movement" : "movements"} •{" "}
-              <span className="font-semibold text-black">{dateRange.start || dateRange.end ? (isThisMonth ? "This month" : "Selected dates") : "All time"}</span>
-              {dateRange.start || dateRange.end ? <> • {rangeText}</> : null}
-              {isThisMonth ? null : (
-                <>
-                  {" • "}
-                  <button type="button" onClick={() => { setDateRange(monthRange()); setPage(1); }} className="font-medium text-black underline underline-offset-2 hover:opacity-80">This month</button>
-                </>
-              )}
-              {dateRange.start || dateRange.end ? (
-                <>
-                  {" • "}
-                  <button type="button" onClick={() => { setDateRange({ start: "", end: "" }); setPage(1); }} className="font-medium text-black underline underline-offset-2 hover:opacity-80">Show all time</button>
-                </>
-              ) : null}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Inventory Movements</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every change to stock on hand, newest first.</p>
         </div>
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
+            type="button"
             onClick={handleExport}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Export to CSV"
+            aria-label="Export to CSV"
           >
-            <Download size={16} className="text-gray-600" />
+            <Download size={16} />
           </button>
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={isLoading}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
+            aria-label="Refresh data"
           >
-            <RefreshCw
-              size={16}
-              className={`text-gray-600 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </button>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`grid min-h-10 min-w-10 place-items-center p-2 rounded-lg shadow-sm lg:min-h-0 lg:min-w-0 hover:shadow-md transition-all duration-200 ${
-              showFilters
-                ? "bg-indigo-100 text-indigo-600"
-                : "bg-white text-gray-600"
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
+            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -562,8 +482,11 @@ const InventoryManagement = () => {
             icon: <ArrowDownCircle size={24} />,
           },
           {
-            title: "Total Value",
+            // what came in less what went out, at cost: the two halves are said under it so the figure can be checked
+            title: "Net Value",
             count: formatCurrency(stats.totalValue),
+            subText: `In ${formatCurrencyAED(Number(stats.valueIn) || 0)} · Out ${formatCurrencyAED(Number(stats.valueOut) || 0)}`,
+            fit: true,
             icon: <BarChart3 size={24} />,
           },
           {
@@ -578,6 +501,7 @@ const InventoryManagement = () => {
               count={card.count}
               icon={card.icon}
               subText={card.subText}
+              fit={card.fit}
               tone={["teal", "plum", "olive", "rose"][index % 4]}
               onClick={card.onClick}
             />
@@ -585,16 +509,12 @@ const InventoryManagement = () => {
       </div>
 
       {/* Main Content */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                Movement History
-              </h2>
-              <p className="text-gray-600 text-sm mt-1">
-                Track all inventory movements and changes
-              </p>
+              <h2 className="text-xl font-semibold text-foreground">Movement History</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Track all inventory movements and changes</p>
             </div>
             <button
               onClick={() => {
@@ -613,82 +533,40 @@ const InventoryManagement = () => {
             </button>
           </div>
 
-          {/* Filters */}
-          {showFilters && (
-            <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="relative flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Search by item name, stock ID, or reference number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <select
-                  value={filterEventType}
-                  onChange={(e) => setFilterEventType(e.target.value)}
-                  className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Event Types</option>
-                  {eventTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={filterMovementType}
-                  onChange={(e) => setFilterMovementType(e.target.value)}
-                  className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Movements</option>
-                  <option value="IN">Stock In</option>
-                  <option value="OUT">Stock Out</option>
-                </select>
-                <DateInput
-                  aria-label="Movements from"
-                  value={dateRange.start}
-                  onChange={(e) =>
-                    setDateRange((prev) => ({ ...prev, start: e.target.value }))
-                  }
-                  className="w-44"
-                />
-                <DateInput
-                  aria-label="Movements to"
-                  value={dateRange.end}
-                  onChange={(e) =>
-                    setDateRange((prev) => ({ ...prev, end: e.target.value }))
-                  }
-                  className="w-44"
-                />
-                <button
-                  onClick={() => {
-                    setFilterEventType("");
-                    setFilterMovementType("");
-                    setDateRange({ start: "", end: "" });
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search movements"
+            placeholder="Search item or reference…"
+            active={filtersOn}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              label="Event type"
+              value={filterEventType}
+              onChange={setFilterEventType}
+              allLabel="All event types"
+              options={eventTypes.map((t) => [t.value, t.label])}
+            />
+            <FilterSelect
+              label="Direction"
+              value={filterMovementType}
+              onChange={setFilterMovementType}
+              allLabel="In and out"
+              options={[["IN", "Stock in"], ["OUT", "Stock out"]]}
+              className="sm:w-40"
+            />
+            <PeriodSelect filter={periodFilter} labelled />
+          </FilterBar>
+          <PeriodNote
+            filter={periodFilter}
+            count={totalRows}
+            noun="movements"
+            one="movement"
+            extra={filtersOn ? "filtered" : undefined}
+            className="mt-3"
+          />
         </div>
 
         {/* Loading State */}
@@ -715,8 +593,8 @@ const InventoryManagement = () => {
                         <Package size={16} className="text-indigo-600" />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{m.itemName || m.stockId}</p>
-                        <p className="text-sm font-normal text-gray-500">ID: {m.stockId}</p>
+                        <span className="block truncate font-semibold text-foreground">{m.itemName || m.stockId}</span>
+                        <span className="block text-sm font-normal text-muted-foreground">ID: {m.stockId}</span>
                       </div>
                     </div>
                   ),
@@ -730,8 +608,8 @@ const InventoryManagement = () => {
                       <div className="flex items-center space-x-2">
                         <MovementIcon size={20} className={movementColor} />
                         <div>
-                          <p className={`font-bold ${movementColor}`}>{m.quantity > 0 ? "+" : ""}{m.quantity}</p>
-                          <p className="text-xs text-gray-500">Stock: {m.previousStock} &rarr; {m.newStock}</p>
+                          <span className={`block font-bold ${movementColor}`}>{m.quantity > 0 ? "+" : ""}{m.quantity}</span>
+                          <span className="block text-xs text-muted-foreground">Stock: {m.previousStock} &rarr; {m.newStock}</span>
                         </div>
                       </div>
                     );
@@ -757,35 +635,40 @@ const InventoryManagement = () => {
                 {
                   key: "date", header: "Date & User", card: "meta",
                   cell: (m) => (
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="flex items-center space-x-2">
-                        <Calendar size={14} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">{formatDate(m.date)}</span>
+                    <div className="flex flex-col gap-y-1">
+                      <span className="flex items-center gap-2">
+                        <Calendar size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="whitespace-nowrap text-sm text-foreground">{formatDate(m.date)}</span>
                       </span>
-                      <span className="flex items-center space-x-2">
-                        <User size={14} className="text-gray-400" />
-                        <span className="text-sm text-gray-600">{m.createdBy || "Unknown"}</span>
+                      <span className="flex items-center gap-2">
+                        <User size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+                        <span className="text-sm text-muted-foreground">{whoText(m)}</span>
                       </span>
                     </div>
                   ),
                 },
                 {
+                  // worth what the books say: negative when stock went out (the stored cost is positive both ways)
                   key: "value", header: "Value", align: "end", card: "amount",
-                  cell: (m) => (
-                    <div className="text-right">
-                      <p className={`font-bold ${getMovementColor(m.totalValue)}`}>
-                        {m.totalValue >= 0 ? "+" : ""}
-                        {formatCurrency(m.totalValue, getMovementColor(m.totalValue))}
-                      </p>
-                      <p className="text-xs font-normal text-gray-500">{formatCurrency(m.unitCost)}</p>
-                    </div>
-                  ),
+                  cell: (m) => {
+                    const worth = signedValue(m);
+                    const tone = worth < 0 ? "text-status-danger" : "text-status-success";
+                    return (
+                      <div className="text-right">
+                        <span className={`block font-semibold ${tone}`}>
+                          {signText(worth)}
+                          {formatCurrency(Math.abs(worth), tone)}
+                        </span>
+                        <span className="block text-xs font-normal text-muted-foreground">{formatCurrency(m.unitCost)} each</span>
+                      </div>
+                    );
+                  },
                 },
                 {
                   key: "actions", header: "Actions", align: "center", card: "actions",
                   cell: (m) => (
                     <div className="flex items-center justify-center space-x-2">
-                      <button onClick={() => showMovementDetails(m)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="View Details">
+                      <button type="button" onClick={() => showMovementDetails(m)} className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground lg:h-9 lg:w-9" title="View Details" aria-label={`View details of ${m.referenceNumber}`}>
                         <Eye size={16} />
                       </button>
                     </div>
@@ -797,10 +680,28 @@ const InventoryManagement = () => {
             {movements.length === 0 && (
               <div className="text-center py-12">
                 <Activity size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">{dateRange.start || dateRange.end ? `No inventory movements dated ${rangeText}` : "No inventory movements found"}</p>
-                <p className="text-gray-400 text-sm">
-                  {dateRange.start || dateRange.end ? "Show all time to see earlier ones, or add a new movement" : "Try adjusting your search criteria or add a new movement"}
+                <p className="text-foreground">
+                  {filtersOn ? "No movements match the search or filters" : period.all ? "No inventory movements yet" : `No inventory movements in ${period.label.toLowerCase()}`}
                 </p>
+                <p className="text-muted-foreground text-sm">
+                  {filtersOn
+                    ? "Clear the search and filters, or widen the period."
+                    : period.all
+                      ? "Record a movement to start the history."
+                      : "Widen the period to see earlier ones, or record a new movement."}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {filtersOn && (
+                    <button type="button" onClick={clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
+                      Clear search and filters
+                    </button>
+                  )}
+                  {!period.all && (
+                    <button type="button" onClick={() => periodFilter.choose("all")} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
+                      Show all time
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1185,15 +1086,10 @@ const InventoryManagement = () => {
                           Total Value:
                         </span>
                         <span
-                          className={`font-bold ${getMovementColor(
-                            selectedMovement.totalValue
-                          )}`}
+                          className={`font-bold ${signedValue(selectedMovement) < 0 ? "text-status-danger" : "text-status-success"}`}
                         >
-                          {selectedMovement.totalValue >= 0 ? "+" : ""}
-                          {formatCurrency(
-                            selectedMovement.totalValue,
-                            getMovementColor(selectedMovement.totalValue)
-                          )}
+                          {signText(signedValue(selectedMovement))}
+                          {formatCurrency(Math.abs(signedValue(selectedMovement)))}
                         </span>
                       </div>
                     </div>
@@ -1213,26 +1109,25 @@ const InventoryManagement = () => {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Created By
+                      Recorded By
                     </label>
                     <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
                       <User size={16} className="text-gray-400" />
-                      <span className="text-sm">
-                        {selectedMovement.createdBy || "Unknown"}
-                      </span>
+                      <span className="text-sm">{whoText(selectedMovement)}</span>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Date & Time
+                      Date
                     </label>
                     <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
                       <Calendar size={16} className="text-gray-400" />
-                      <span className="text-sm">
-                        {formatDate(selectedMovement.date)}
-                      </span>
+                      <span className="text-sm">{formatDate(selectedMovement.date)}</span>
                     </div>
+                    {selectedMovement.createdAt && (
+                      <p className="mt-1 text-xs text-gray-500">Recorded {formatRecorded(selectedMovement.createdAt)}</p>
+                    )}
                   </div>
                 </div>
               </div>

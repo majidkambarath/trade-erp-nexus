@@ -29,7 +29,9 @@ const legacyTone = (textColor = "") => {
   return "neutral";
 };
 
-export function StatCard({ title, count, icon, subText, trend, tone, textColor, onClick, className }) {
+// `fit` is for a figure that can be long (an amount in the millions): it is drawn to the width of the card - never clipped, never
+// broken across two lines - by sizing the text to the card (a container query), from 12px up to the usual 24px.
+export function StatCard({ title, count, icon, subText, trend, tone, textColor, onClick, className, fit = false }) {
   const t = TONES[tone ?? legacyTone(textColor)];
   const interactive = typeof onClick === "function";
   const Root = interactive ? "button" : "div";
@@ -55,7 +57,15 @@ export function StatCard({ title, count, icon, subText, trend, tone, textColor, 
           </span>
         )}
       </div>
-      <p className={cn("mt-2 text-xl font-bold tracking-tight tabular-nums sm:mt-3 sm:text-2xl", t.value)}>{count}</p>
+      {fit ? (
+        <div className="mt-2 [container-type:inline-size] sm:mt-3">
+          <p className={cn("whitespace-nowrap font-bold leading-tight tracking-tight tabular-nums", t.value)} style={{ fontSize: "clamp(0.75rem, 9.4cqw, 1.5rem)" }}>
+            {count}
+          </p>
+        </div>
+      ) : (
+        <p className={cn("mt-2 text-xl font-bold tracking-tight tabular-nums sm:mt-3 sm:text-2xl", t.value)}>{count}</p>
+      )}
       <div className="mt-1 flex items-center justify-between gap-2">
         {subText && <p className="text-xs text-muted-foreground">{subText}</p>}
         {trend && (

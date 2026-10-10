@@ -5,7 +5,6 @@ import {
   Eye,
   Edit3,
   CheckSquare,
-  MoreVertical,
   FileText,
   CheckSquare as ConfirmIcon,
 } from "lucide-react";
@@ -13,6 +12,7 @@ import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import RowMenu from "../../lists/RowMenu";
 
 const TableView = ({
   paginatedSOs,
@@ -222,11 +222,10 @@ const TableView = ({
                         </button>
                       </Can>
                     )}
-                    <div className="relative group">
-                      <button className="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
-                      <div className="absolute right-0 top-8 w-36 bg-white rounded-lg shadow-lg border border-slate-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-10">
+                    <RowMenu
+                      buttonClassName="p-1.5 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                      menuClassName="w-36 bg-white rounded-lg shadow-lg border border-slate-200 py-1"
+                    >
                         <button onClick={() => onShowAudit && onShowAudit(so)} className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
                           Audit trail
                         </button>
@@ -246,8 +245,7 @@ const TableView = ({
                             </button>
                           </Can>
                         )}
-                      </div>
-                    </div>
+                    </RowMenu>
                   </div>
                 </td>
               </tr>

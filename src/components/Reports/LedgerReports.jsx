@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
+import { DAY_BOOK_HEADERS, JOURNAL_HEADERS, dayBookRows, exportedText, fetchAllPages, journalRows } from "../../lib/ledgerExport";
 import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
 import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
@@ -135,6 +136,23 @@ function DayBook({ range }) {
   useEffect(() => setPage(1), [range.from, range.to, type]);
 
   const state = useAsync(() => accounting.dayBook({ from: range.from, to: range.to, type: type || undefined, search: needle || undefined, page, limit: PAGE }), [range.from, range.to, type, needle, page]);
+  const { notify, toastNode } = useToasts();
+  const [exporting, setExporting] = useState(false);
+
+  // The file holds every voucher the dates, type and search select - not the page on screen.
+  async function exportAll() {
+    setExporting(true);
+    try {
+      const { rows, total, truncated } = await fetchAllPages((p) => accounting.dayBook({ from: range.from, to: range.to, type: type || undefined, search: needle || undefined, ...p }));
+      downloadCSV(`day-book-${range.from}-${range.to}.csv`, DAY_BOOK_HEADERS, dayBookRows(rows, formatDate));
+      notify(exportedText({ written: rows.length, total, truncated }, "voucher", "vouchers"));
+    } catch (e) {
+      notify(errorMessage(e), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -146,7 +164,6 @@ function DayBook({ range }) {
       <Frame state={state}>
         {(d) => {
           const pages = Math.max(1, Math.ceil(d.total / PAGE));
-          const exportCsv = () => downloadCSV(`day-book-${range.from}-${range.to}.csv`, ["Date", "Voucher", "Type", "Party", "Narration", "Amount"], d.rows.map((r) => [formatDate(r.date), r.voucherNo, r.typeLabel, r.party, r.narration, r.amount]));
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -154,7 +171,7 @@ function DayBook({ range }) {
                 {d.byType.slice(0, 3).map((t, i) => <StatCard key={t.voucherType} title={t.label} count={money(t.amount)} subText={`${t.count} voucher${t.count === 1 ? "" : "s"}`} tone={["teal", "plum", "olive"][i]} />)}
               </div>
               <Panel bodyClassName="p-0" title="Day book" description="Every voucher posted in the period, newest first. Open one to see the debits and credits it made."
-                actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
+                actions={<Button size="sm" variant="outline" onClick={exportAll} disabled={!d.rows.length || exporting} aria-busy={exporting || undefined}><Download className="h-3.5 w-3.5" aria-hidden="true" />{exporting ? "Exporting…" : "CSV"}</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No vouchers" text="Nothing was posted for this selection." /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">
                     <table className="w-full text-sm">
@@ -191,6 +208,7 @@ function DayBook({ range }) {
         }}
       </Frame>
       {open && <VoucherImpact voucher={open} onClose={() => setOpen(null)} />}
+      {toastNode}
     </div>
   );
 }
@@ -232,17 +250,33 @@ function Journals({ range }) {
   const [page, setPage] = useState(1);
   useEffect(() => setPage(1), [range.from, range.to]);
   const state = useAsync(() => accounting.dayBook({ from: range.from, to: range.to, type: "journal", includeLines: true, page, limit: 20 }), [range.from, range.to, page]);
+  const { notify, toastNode } = useToasts();
+  const [exporting, setExporting] = useState(false);
+
+  // every journal of the period, each with its lines, not the twenty on screen
+  async function exportAll() {
+    setExporting(true);
+    try {
+      const { rows, total, truncated } = await fetchAllPages((p) => accounting.dayBook({ from: range.from, to: range.to, type: "journal", includeLines: true, ...p }));
+      downloadCSV(`journals-${range.from}-${range.to}.csv`, JOURNAL_HEADERS, journalRows(rows, formatDate));
+      notify(exportedText({ written: rows.length, total, truncated }, "journal", "journals"));
+    } catch (e) {
+      notify(errorMessage(e), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
+    <>
     <Frame state={state}>
       {(d) => {
         const pages = Math.max(1, Math.ceil(d.total / 20));
-        const exportCsv = () => downloadCSV(`journals-${range.from}-${range.to}.csv`, ["Date", "Voucher", "Narration", "Account code", "Account", "Debit", "Credit"],
-          d.rows.flatMap((r) => r.lines.map((l) => [formatDate(r.date), r.voucherNo, r.narration, l.accountCode, l.accountName, l.debit, l.credit])));
         return (
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">{d.total} journal{d.total === 1 ? "" : "s"} in this period</p>
-              <Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>
+              <Button size="sm" variant="outline" onClick={exportAll} disabled={!d.rows.length || exporting} aria-busy={exporting || undefined}><Download className="h-3.5 w-3.5" aria-hidden="true" />{exporting ? "Exporting…" : "CSV"}</Button>
             </div>
             {d.rows.length === 0 && <Panel><EmptyState title="No journals" text="No journal voucher was posted in this period." /></Panel>}
             {d.rows.map((r) => (
@@ -276,6 +310,8 @@ function Journals({ range }) {
         );
       }}
     </Frame>
+    {toastNode}
+    </>
   );
 }
 
@@ -296,9 +332,12 @@ function CashAndBankBook({ range, onLedger }) {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard title="Cash" count={money(d.totals.cash.closing)} subText={`closing, ${CURRENCY}`} tone="olive" />
                 <StatCard title="Bank" count={money(d.totals.bank.closing)} subText={`closing, ${CURRENCY}`} tone="teal" />
-                <StatCard title="Money in" count={money(d.totals.all.receipts)} tone="plum" />
-                <StatCard title="Money out" count={money(d.totals.all.payments)} tone="rose" />
+                <StatCard title="Debits to cash and bank" count={money(d.totals.all.receipts)} subText="including transfers between your accounts" tone="plum" />
+                <StatCard title="Credits to cash and bank" count={money(d.totals.all.payments)} subText="including transfers between your accounts" tone="rose" />
               </div>
+              <p className="text-xs text-muted-foreground">
+                A transfer between your own accounts is a debit on one and a credit on the other, so it counts on both sides here. The <Link to="/financial-statements?tab=cash" className="font-medium text-foreground underline underline-offset-2">Cash flow tab</Link> shows money in and out without transfers.
+              </p>
               <Panel bodyClassName="p-0" title="Cash and bank book" description="Each cash and bank account: what it held, what came in, what went out, and what it holds now."
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No cash or bank accounts" text="Add them in the chart of accounts." /> : (

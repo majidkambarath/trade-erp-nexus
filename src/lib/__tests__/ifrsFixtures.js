@@ -42,6 +42,28 @@ export const POSITION = {
   isBalanced: true, difference: 0, comparativeIsBalanced: true, comparativeDifference: 0,
 };
 
+// The same company with three accounts on the other side of their own group (IAS 1.32): a second bank account in credit, a customer
+// who paid more than was invoiced and a supplier paid ahead. Their group ids are plain strings, not ObjectIds, and every amount is
+// positive: a liability is a liability, not a negative asset. 230 of supplier debits against 80 + 150 of liabilities keeps it balanced.
+const sumPair = (...ps) => pair(ps.reduce((t, p) => t + p.amount, 0), ps.reduce((t, p) => t + p.comparative, 0));
+const regroupedAssets = section("Current assets", [
+  ...currentAssets.groups,
+  group("Supplier debit balances and advances", [acct("AP0002", "Vendor - Delta Packaging", 230, 0)], { groupId: "supplier-debit-balances" }),
+]);
+const regroupedLiabilities = section("Current liabilities", [
+  ...currentLiabilities.groups,
+  group("Customer credit balances", [acct("AR0002", "Customer - Bright Mart", 80, 0)], { groupId: "customer-credit-balances" }),
+  group("Bank overdrafts", [acct("BANK0003", "Mashreq Current", 150, 0)], { groupId: "bank-overdrafts" }),
+]);
+export const POSITION_REGROUPED = {
+  ...POSITION,
+  assets: { nonCurrent: nonCurrentAssets, current: regroupedAssets, ...sumPair(nonCurrentAssets, regroupedAssets) },
+  equityAndLiabilities: {
+    equity, nonCurrentLiabilities, currentLiabilities: regroupedLiabilities,
+    liabilities: sumPair(nonCurrentLiabilities, regroupedLiabilities), ...sumPair(equity, nonCurrentLiabilities, regroupedLiabilities),
+  },
+};
+
 const lines = (accounts) => ({ accounts, amount: accounts.reduce((t, a) => t + a.amount, 0), comparative: accounts.reduce((t, a) => t + a.comparative, 0) });
 export const PROFIT = {
   ...head("profit-or-loss", "Statement of profit or loss and other comprehensive income"),
@@ -59,6 +81,15 @@ export const PROFIT = {
   profitForPeriod: pair(155, 100),
   otherComprehensiveIncome: pair(0, 0),
   totalComprehensiveIncome: pair(155, 100),
+};
+
+// The same month with 50 of sales discounts: the server lists the discount account inside revenue as a negative line, so revenue
+// and every subtotal under it are net of it (IFRS 15.47).
+export const PROFIT_WITH_DISCOUNTS = {
+  ...PROFIT,
+  revenue: lines([acct("SAL0001", "Sales Revenue", 800, 200), acct("DSC0001", "Sales Discount", -50, 0)]),
+  grossProfit: pair(350, 100), operatingProfit: pair(130, 100), profitBeforeTax: pair(115, 100),
+  profitForPeriod: pair(105, 100), totalComprehensiveIncome: pair(105, 100),
 };
 
 const eqRow = (key, label, kind, share, retained, other = 0) => ({ key, label, kind, values: { share_capital: share, retained_earnings: retained, other_equity: other, total: share + retained + other } });
@@ -119,20 +150,26 @@ export const CASH = {
       amount: -610, comparative: -100,
     },
     cashGenerated: line("cashGenerated", "Cash generated from operations", -410, 0),
-    interestPaid: line("interestPaid", "Interest paid", -15, 0),
+    interestPaid: line("interestPaid", "Interest and finance charges paid", -15, 0),
     incomeTaxPaid: line("incomeTaxPaid", "Income tax paid", -4, 0),
     net: line("operating", "Net cash from / (used in) operating activities", -429, 0),
   },
+  // gross lines (IAS 7.21): what was bought and, when there is any, what disposals brought in; money drawn, repaid, put in and taken out
   investing: {
     label: "Cash flows from investing activities",
-    lines: [line("nonCurrentAssets", "Net (purchase) / disposal of non-current assets", -1200, 0)],
+    lines: [
+      line("assetPurchases", "Purchase of property, plant and equipment", -1200, 0),
+      line("assetDisposals", "Proceeds from disposal of non-current assets", 0, 0, { optional: true }),
+    ],
     net: line("investing", "Net cash from / (used in) investing activities", -1200, 0),
   },
   financing: {
     label: "Cash flows from financing activities",
     lines: [
-      line("borrowings", "Proceeds from / (repayment of) borrowings and long-term liabilities", 2000, 0),
-      line("equity", "Capital introduced / (drawings and dividends)", 5000, 3000),
+      line("borrowingsDrawn", "Proceeds from borrowings", 2000, 0, { optional: true }),
+      line("borrowingsRepaid", "Repayment of borrowings", 0, 0, { optional: true }),
+      line("capitalIntroduced", "Capital introduced by the owners", 5000, 3000, { optional: true }),
+      line("drawingsAndDividends", "Drawings and dividends paid", 0, 0, { optional: true }),
     ],
     net: line("financing", "Net cash from / (used in) financing activities", 7000, 3000),
   },
@@ -145,7 +182,7 @@ export const CASH = {
 };
 
 const ageing = (buckets, total, overdue, notSet) => ({
-  basis: "Open invoices dated up to the date, aged from their due date.",
+  basis: "Open invoices dated up to the date, aged from their due date, as they stood at the end of that day.",
   buckets: [
     { key: "current", label: "Not yet due", amount: buckets[0] }, { key: "d1_30", label: "1-30 days", amount: buckets[1] },
     { key: "d31_60", label: "31-60 days", amount: buckets[2] }, { key: "d61_90", label: "61-90 days", amount: buckets[3] },
@@ -168,7 +205,11 @@ export const NOTES = {
   tables: {
     tradeReceivables: {
       title: "Trade and other receivables",
-      rows: [line("trade", "Trade receivables (customers)", 1160, 210), line("other", "Advances to vendors and other receivables", 0, 0, { optional: true })],
+      rows: [
+        line("trade", "Trade receivables (customers)", 1160, 210),
+        line("other", "Advances to vendors and other receivables", 0, 0, { optional: true }),
+        line("supplierDebits", "Supplier accounts in debit (presented with receivables)", 0, 0, { optional: true }),
+      ],
       total: pair(1160, 210), ageing: ageing([740, 210, 0, 0, 210], 1160, 420, 0),
     },
     inventory: { title: "Inventories", accounts: [acct("INV0001", "Inventory Stock", 1400, 400)], total: pair(1400, 400), basis: "Weighted average cost" },
@@ -179,10 +220,19 @@ export const NOTES = {
         { accountId: "c2", accountCode: "BANK0002", accountName: "ENBD Current", kind: "bank", net: -150, comparativeNet: 0 },
       ],
       total: { amount: 6236, comparative: 3000, net: 6236, comparativeNet: 3000 },
+      // the same 6,236 as two lines of the statement of financial position (IAS 7.45): the bank in credit is a liability
+      presentedAs: [
+        line("cashAssets", "Cash and bank balances (current assets)", 6386, 3000),
+        line("bankOverdrafts", "Bank overdrafts (current liabilities)", 150, 0, { negate: true, optional: true }),
+      ],
     },
     tradePayables: {
       title: "Trade and other payables",
-      rows: [line("trade", "Trade payables (vendors)", 1800, 525), line("other", "Advances from customers and other payables", 0, 0, { optional: true })],
+      rows: [
+        line("trade", "Trade payables (vendors)", 1800, 525),
+        line("other", "Advances from customers and other payables", 0, 0, { optional: true }),
+        line("customerCredits", "Customer accounts in credit (presented with payables)", 0, 0, { optional: true }),
+      ],
       total: pair(1800, 525), ageing: ageing([750, 525, 0, 0, 525], 1800, 1050, 0),
     },
     vat: {
@@ -192,6 +242,20 @@ export const NOTES = {
     },
   },
 };
+
+// The notes of the same regrouped company: 230 of supplier accounts in debit joins the receivables and 80 of customer accounts in
+// credit the payables, so the ageing ties to the NET of the customer (vendor) accounts, not to the trade line above it.
+export const NOTES_REGROUPED = (() => {
+  const n = structuredClone(NOTES);
+  const { tradeReceivables: r, tradePayables: p } = n.tables;
+  r.rows[2] = { ...r.rows[2], amount: 230, comparative: 0 };
+  r.total = pair(1160 + 230, 210);
+  r.ageing = ageing([740, 210, 0, 0, 210], 1160, 420, -80);
+  p.rows[2] = { ...p.rows[2], amount: 80, comparative: 0 };
+  p.total = pair(1800 + 80, 525);
+  p.ageing = ageing([750, 525, 0, 0, 525], 1800, 1050, -230);
+  return n;
+})();
 
 // The same response with the comparative column switched off, as the API returns for compare=none.
 export function withoutComparative(value) {

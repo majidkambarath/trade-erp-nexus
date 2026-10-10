@@ -3,15 +3,11 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
-  useRef,
 } from "react";
 import {
-  ArrowLeft,
   Plus,
-  Search,
   Edit,
   Trash2,
-  X,
   CreditCard,
   Users,
   TrendingUp,
@@ -23,67 +19,42 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Filter,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { formatCurrencyAED } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
+import { pageSession } from "../../lib/pageSession";
+import { CUSTOMER_STATUSES, CUSTOMER_TERMS } from "../../lib/partyForms";
 import StatCard from "../ui/stat-card";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
 
-// Session management utilities
-const SessionManager = {
-  storage: {},
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two
+// choices and the column the list is sorted by. Held in memory for the tab; emptied at sign-out. The add / edit form is the
+// shared party form (components/parties) and keeps no draft, so there is none to remember here.
+const session = pageSession("customers");
 
-  get: (key) => {
-    try {
-      return this.storage[`customer_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
-
-  set: (key, value) => {
-    try {
-      this.storage[`customer_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
-
-  remove: (key) => {
-    try {
-      delete this.storage[`customer_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-
-  clear: () => {
-    Object.keys(this.storage).forEach((key) => {
-      if (key.startsWith("customer_session_")) {
-        delete this.storage[key];
-      }
-    });
-  },
-};
+// A customer may have no email (the field is optional) and the search reads it: an absent one reads as nothing, never throws.
+const lower = (value) => String(value ?? "").toLowerCase();
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([]);
   const [partyModal, setPartyModal] = useState(null); // { customer } to edit one, {} for a new customer
-  const [searchTerm, setSearchTerm] = useState("");
+  // the search and the choices come back as the person left them
+  const [kept] = useState(() => session.get("filters", {}) || {});
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState({
     visible: false,
     message: "",
     type: "success",
   });
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterPaymentTerms, setFilterPaymentTerms] = useState("");
+  const [filterStatus, setFilterStatus] = useState(kept.status || "");
+  const [filterPaymentTerms, setFilterPaymentTerms] = useState(kept.paymentTerms || "");
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     visible: false,
     customerId: null,
@@ -93,11 +64,9 @@ const CustomerManagement = () => {
 
   // New UX enhancement states
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-
-  // Refs for enhanced UX
-  const searchInputRef = useRef(null);
+  const [sortConfig, setSortConfig] = useState(
+    () => session.get("sort") || { key: null, direction: "asc" }
+  );
 
   // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
   const formatCurrency = useCallback(
@@ -109,17 +78,15 @@ const CustomerManagement = () => {
     []
   );
 
-  // Save search and filter preferences
+  // Remember the search, the choices and the sort for the next visit to this page
   useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    SessionManager.set("filters", {
+    session.set("searchTerm", searchTerm);
+    session.set("filters", {
       status: filterStatus,
       paymentTerms: filterPaymentTerms,
     });
-  }, [filterStatus, filterPaymentTerms]);
+    session.set("sort", sortConfig);
+  }, [searchTerm, filterStatus, filterPaymentTerms, sortConfig]);
 
   const fetchCustomers = useCallback(async (showRefreshIndicator = false) => {
     try {
@@ -280,18 +247,13 @@ const CustomerManagement = () => {
   }, [customers]);
 
   const sortedAndFilteredCustomers = useMemo(() => {
+    const needle = searchTerm.toLowerCase();
     let filtered = customers.filter(
       (customer) =>
-        (customer.customerName
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-          customer.contactPerson
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          customer.customerId
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase())) &&
+        (lower(customer.customerName).includes(needle) ||
+          lower(customer.contactPerson).includes(needle) ||
+          lower(customer.email).includes(needle) ||
+          lower(customer.customerId).includes(needle)) &&
         (filterStatus ? customer.status === filterStatus : true) &&
         (filterPaymentTerms
           ? customer.paymentTerms === filterPaymentTerms
@@ -316,27 +278,50 @@ const CustomerManagement = () => {
     return filtered;
   }, [customers, searchTerm, filterStatus, filterPaymentTerms, sortConfig]);
 
-  // Enhanced Empty State Component
-  const EmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <UserPlus size={40} className="text-purple-600" />
+  // What counts as a filter: a search or a choice. "Clear filters" is offered only while one is set.
+  const filtersOn = Boolean(searchTerm || filterStatus || filterPaymentTerms);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setFilterPaymentTerms("");
+  };
+
+  // The usual terms, then any other a customer carries (the form turns "credit days: 15" into "Net 15", up to 365), then
+  // the one chosen: so every customer can be reached from the choice and a restored choice is always one of the entries.
+  const paymentTermOptions = useMemo(() => {
+    const others = customers.map((c) => c.paymentTerms).filter(Boolean);
+    return [...new Set([...CUSTOMER_TERMS, ...others, filterPaymentTerms].filter(Boolean))];
+  }, [customers, filterPaymentTerms]);
+
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+      <div className="mb-5 grid h-20 w-20 place-items-center rounded-full bg-muted">
+        <UserPlus size={36} className="text-muted-foreground" aria-hidden="true" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        No customers found
+      <h3 className="mb-2 text-xl font-semibold text-foreground">
+        {filtersOn ? "No customers match the search or filters" : "No customers yet"}
       </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm || filterStatus || filterPaymentTerms
-          ? "No customers match your current filters. Try adjusting your search criteria."
+      <p className="mb-6 max-w-md text-sm text-muted-foreground">
+        {filtersOn
+          ? "Clear the search and filters to see every customer."
           : "Start building your customer base by adding your first customer."}
       </p>
-      <button
-        onClick={openAddModal}
-        className="erp-btn-primary"
-      >
-        <Plus size={20} />
-        Add First Customer
-      </button>
+      {filtersOn ? (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
+        >
+          Clear search and filters
+        </button>
+      ) : (
+        <Can permission="sales.create">
+          <button onClick={openAddModal} className="erp-btn-primary">
+            <Plus size={20} />
+            Add First Customer
+          </button>
+        </Can>
+      )}
     </div>
   );
 
@@ -356,46 +341,31 @@ const CustomerManagement = () => {
 
   return (
     <div className="bg-background p-4 sm:p-6">
-      {/* Enhanced Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <button className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">
-            <ArrowLeft size={16} className="text-gray-600" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-black bg-clip-text">
-              Customer Management
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {customerStats.totalCustomers} total customers •{" "}
-              {sortedAndFilteredCustomers.length} displayed
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Customer Management
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {customerStats.totalCustomers} total customers •{" "}
+            {sortedAndFilteredCustomers.length} displayed
+          </p>
         </div>
 
         <div className="flex items-center space-x-2 mt-4 sm:mt-0">
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             title="Refresh data"
+            aria-label="Refresh data"
           >
             <RefreshCw
               size={16}
-              className={`text-gray-600 ${isRefreshing ? "animate-spin" : ""}`}
+              className={isRefreshing ? "animate-spin" : ""}
             />
-          </button>
-
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border transition-colors ${
-              showFilters
-                ? "border-brand bg-brand-soft text-brand-on-soft"
-                : "border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
           </button>
         </div>
       </div>
@@ -478,15 +448,15 @@ const CustomerManagement = () => {
       </div>
 
       {/* Main Content */}
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-semibold text-foreground">
                 Customer Directory
               </h2>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Manage all your customer information
               </p>
             </div>
@@ -501,74 +471,35 @@ const CustomerManagement = () => {
             </Can>
           </div>
 
-          {/* Search and Filters */}
-          <div className="mt-6 space-y-4">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-              />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search customers by ID, name, email, or contact person..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">All Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-
-                <select
-                  value={filterPaymentTerms}
-                  onChange={(e) => setFilterPaymentTerms(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">All Payment Terms</option>
-                  <option value="Net 30">Net 30</option>
-                  <option value="Net 45">Net 45</option>
-                  <option value="Net 60">Net 60</option>
-                  <option value="Cash on Delivery">Cash on Delivery</option>
-                  <option value="Prepaid">Prepaid</option>
-                </select>
-
-                <button
-                  onClick={() => {
-                    setFilterStatus("");
-                    setFilterPaymentTerms("");
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search customers"
+            placeholder="Name, ID, email or contact…"
+            active={filtersOn}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              label="Status"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              allLabel="All statuses"
+              options={CUSTOMER_STATUSES.map((s) => [s, s])}
+            />
+            <FilterSelect
+              label="Payment terms"
+              value={filterPaymentTerms}
+              onChange={setFilterPaymentTerms}
+              allLabel="All terms"
+              options={paymentTermOptions.map((t) => [t, t])}
+            />
+          </FilterBar>
         </div>
 
         {/* Table/Content */}
         {sortedAndFilteredCustomers.length === 0 ? (
-          <EmptyState />
+          emptyState
         ) : (
           <div className="overflow-x-auto">
             <DataTable

@@ -101,8 +101,13 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
               </div>
             )}
 
-            <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`Amounts in AED. Supplies are reported under ${d.emirate} until customers carry their own emirate.`}
+            <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`Amounts in AED. Standard-rated supplies are reported under the emirate of your establishment (${d.emirate}), set in Settings > Business rules > Tax identity.`}
               actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Can permission="reports.vat"><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></Can></>}>
+              {d.emirateAssumed && (
+                <div className="border-b border-border px-4 py-2.5 sm:px-5">
+                  <Pill tone="warning" className="whitespace-normal text-start"><TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />Company emirate not set: reported under Dubai</Pill>
+                </div>
+              )}
               <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
@@ -140,10 +145,11 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
                     <span className="min-w-28 font-medium">{r.label}</span>
                     <span className="text-muted-foreground">Documents {money(r.documents)}</span>
                     <span className="text-muted-foreground">Ledger {r.ledger == null ? "not set up" : money(r.ledger)}</span>
-                    <span className="ms-auto">{r.agrees ? <Pill tone="success"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Agrees</Pill> : <Pill tone="warning"><TriangleAlert className="h-3 w-3" aria-hidden="true" />{r.ledger == null ? "No account to compare" : `Differs by ${money(Math.abs(r.difference))}`}</Pill>}</span>
+                    <span className="ms-auto">{r.agrees ? <Pill tone="success"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Agrees</Pill> : r.explained ? <Pill tone="neutral">{r.journals < 0 ? "Settled by journal" : "Adjusted by journal"} {money(Math.abs(r.journals))}</Pill> : <Pill tone="warning"><TriangleAlert className="h-3 w-3" aria-hidden="true" />{r.ledger == null ? "No account to compare" : `Differs by ${money(Math.abs(r.difference))}`}</Pill>}</span>
                   </li>
                 ))}
               </ul>
+              {d.reconciliation.rows.some((r) => r.explained) && <p className="mt-3 text-xs text-muted-foreground">The documents agree with the ledger; the difference is VAT posted by journal in these days - usually the previous return being paid to the tax authority. Check it is what you meant.</p>}
               {d.notReported.count > 0 && <p className="mt-3 text-xs text-muted-foreground">{d.notReported.count} line{d.notReported.count === 1 ? "" : "s"} ({money(d.notReported.amount)} AED) are out of scope, zero-rated or exempt purchases, or sales on which the customer accounts for the VAT, and appear in no box.</p>}
               {d.customerAccounts?.count > 0 && <p className="mt-2 text-xs text-muted-foreground">{d.customerAccounts.count} sale line{d.customerAccounts.count === 1 ? "" : "s"} ({money(d.customerAccounts.amount)} AED) are under the reverse charge: you charge no VAT and declare none; your customer declares them in box 3.</p>}
               {Boolean(d.boxes.find((b) => b.box === "3")?.vat) && <p className="mt-2 text-xs text-muted-foreground">Box 3 is the VAT you assess yourself on purchases under the reverse charge (services from abroad, some local supplies). It is posted to Reverse-charge VAT, and the same amount is claimed back in box 10, so it does not change the net.</p>}

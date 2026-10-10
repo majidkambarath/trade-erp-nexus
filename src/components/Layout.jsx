@@ -166,7 +166,12 @@ const LayoutShell = () => {
   }
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
+    // A fixed frame, not `h-dvh` in the page's flow. In flow, any absolutely positioned element deep in a long page
+    // (an sr-only span in a list, a row menu) took the WINDOW as its containing block, escaped this overflow-hidden and
+    // made the document taller than the window: scrolling past the end of a list then slid the whole shell up, leaving
+    // the bottom bar floating mid-window over an empty block. A fixed frame is the containing block for what is inside
+    // it, clips it, and stays put whatever the document does.
+    <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
       <a
         href="#main"
         className="sr-only z-50 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:start-4 focus:top-3"
@@ -195,7 +200,7 @@ const LayoutShell = () => {
           id="main"
           ref={mainRef}
           tabIndex={-1}
-          className="erp-scope min-h-0 flex-1 overflow-y-auto focus:outline-none"
+          className="erp-scope min-h-0 flex-1 overflow-y-auto overscroll-contain focus:outline-none"
         >
           {/* a page that breaks shows a message here; the rail and header stay usable, and
               moving to another page clears it */}

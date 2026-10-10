@@ -23,10 +23,14 @@ export default function PeriodPicker({ selection, onChange, today, scope, proble
         : `${formatDate(compare.previousFrom)} – ${formatDate(compare.previousTo)}`
       : null;
 
+  // A preset ("This month") has nothing beside it, so on a phone its select speaks for itself and the word "Period" above it
+  // only costs a line; the label stays for a screen reader, and comes back as soon as Year / Month / From / To sit beside it.
+  const alone = !["quarterOf", "monthOf", "yearOf", "custom"].includes(kind);
+
   return (
-    <section aria-label="Dashboard period" data-anim="hero" className="rounded-[1.5rem] bg-card p-4 shadow-[var(--shadow-card)] sm:p-5">
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="Period" className="w-full sm:w-60">
+    <section aria-label="Dashboard period" data-anim="hero" className="rounded-2xl bg-card p-3 shadow-[var(--shadow-card)] sm:rounded-[1.5rem] sm:p-5">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 sm:gap-y-3">
+        <Field label="Period" className="w-full sm:w-60" labelClassName={alone ? "sr-only sm:not-sr-only" : undefined}>
           <Select value={kind} onChange={(e) => onChange(selectionFor(e.target.value, today))}>
             {PERIOD_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
           </Select>
@@ -65,7 +69,7 @@ export default function PeriodPicker({ selection, onChange, today, scope, proble
         )}
       </div>
 
-      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground sm:mt-3 sm:gap-y-1 sm:text-sm">
         <CalendarRange className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>
           Showing <span className="font-semibold text-foreground">{scope.label}</span>

@@ -2,6 +2,8 @@
 // from a link starts empty and asks the server for a token with the session cookie, and page
 // scripts never find a token sitting in storage.
 
+import { clearPageSessions } from "../lib/pageSession.js";
+
 let accessToken = null;
 let admin = null;
 
@@ -20,6 +22,8 @@ export const clearSession = () => {
   accessToken = null;
   admin = null;
   setSelectedBranch(null);
+  // the filters and half-typed forms the screens kept belong to the person who has just left
+  clearPageSessions();
 };
 
 // The branch a head-office user has chosen to work in ("" or nothing = all branches). Kept for this tab only, and

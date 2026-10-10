@@ -207,9 +207,10 @@ function DataCard({ row, index, columns, href, onClick }) {
             </div>
             {primary.length > 0 &&
               title.map((c) => (
-                <p key={c.key} className="mt-0.5 truncate text-sm text-foreground">
+                // a div, not a p: a title cell is often built from blocks (a name over an id), and a block inside a p is invalid
+                <div key={c.key} className="mt-0.5 truncate text-sm text-foreground">
                   {c.cell(row, index)}
-                </p>
+                </div>
               ))}
           </div>
           {badge.length > 0 && (

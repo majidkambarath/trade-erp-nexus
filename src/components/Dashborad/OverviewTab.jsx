@@ -33,7 +33,6 @@ import {
   RadialBarChart,
   ResponsiveContainer,
   Tooltip,
-  Treemap,
   XAxis,
   YAxis,
   Legend,
@@ -45,6 +44,9 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChartArea, Empty, Skeleton } from "./widgets";
+import SkuTreemap from "./SkuTreemap";
+import { RankedBars } from "./FlowCharts";
+import BusinessFlow from "./BusinessFlow";
 import { ago, dayLabel, gold, hourLabel, ink, monthLabel, monthYearLabel, mutedInk, opsRows, recentLink, signed, slices, compactAmount, tip, weekdayLabel } from "./helpers";
 import { addMonths, quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
@@ -397,12 +399,20 @@ function Gallery({ a, analytics, scope, theme, mix, range }) {
   const ageing = (a?.ageing || []).map((b) => ({ bucket: b.label, receivables: b.receivables, payables: b.payables }));
   const vendors = a?.topVendors || [];
   const collections = (a?.collections || []).map((w) => ({ week: dayLabel(w.weekStart), receipts: w.receipts, invoiced: w.invoiced }));
-  const treemap = (a?.treemap || []).map((t, i) => ({ name: t.name, size: t.size, fill: [ink, gold, "#525252", mutedInk, "#737373", theme === "dark" ? "#404040" : "#d6d3d1", theme === "dark" ? "#2a2a2a" : "#a8a29e", "var(--chart-3)"][i] }));
+  const treemap = a?.treemap || [];
+  // an older server sends no margin figures: the card then says there are none rather than failing
+  const margin = a?.categoryMargin || { averagePct: null, rows: [] };
+  const margins = (margin.rows || []).map((r) => ({ key: r.key, name: r.name, value: r.marginPct, revenue: r.revenue }));
+  const round1 = (n) => Math.round(n * 10) / 10;
   const hourly = (a?.hourly || []).map((h) => ({ ...h, hour: hourLabel(h.hour) }));
   const radarColours = [ink, gold, mutedInk, "#737373"];
 
   return (
     <>
+      <div className="mt-6">
+        <BusinessFlow state={analytics} scope={scope} />
+      </div>
+
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-12">
         <Card data-anim="bento" className={cn(cardClass, "lg:col-span-5")}>
           <CardHeader className="pb-1">
@@ -787,59 +797,66 @@ function Gallery({ a, analytics, scope, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">SKU revenue map</CardTitle>
-            <CardDescription>Treemap · top items by net revenue {at}</CardDescription>
+            <CardDescription>Treemap · top items by net revenue {at} · hover a tile for the amount</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={treemap.length === 0} emptyText={`No item sales ${at}`} height={260}>
-              <ResponsiveContainer width="100%" height={260}>
-                <Treemap
-                  data={treemap}
-                  dataKey="size"
-                  stroke="var(--background)"
-                  aspectRatio={4 / 3}
-                  content={({ x, y, width, height, name, fill }) => {
-                    if (width < 36 || height < 28) return null;
-                    return (
-                      <g>
-                        <rect x={x} y={y} width={width} height={height} style={{ fill, stroke: "var(--background)", strokeWidth: 3 }} rx={10} />
-                        <text x={x + 8} y={y + 18} fill={fill === gold ? "#171717" : "#fafafa"} fontSize={11} fontWeight={700}>
-                          {name}
-                        </text>
-                      </g>
-                    );
-                  }}
-                />
-              </ResponsiveContainer>
+              <SkuTreemap rows={treemap} theme={theme} height={260} />
             </ChartArea>
           </CardContent>
         </Card>
       </div>
 
-      <Card data-anim="bento" className={cn("mt-4", cardClass)}>
-        <CardHeader className="pb-1">
-          <CardTitle className="text-base font-extrabold">Documents created by hour</CardTitle>
-          <CardDescription>Trade documents and vouchers by weekday · {trail(4, "weeks")} · organisation time zone</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartArea state={analytics} empty={hourly.length === 0} emptyText={`No documents created in the ${trail(4, "weeks")}`} height={260}>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={hourly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="hour" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
-                <Tooltip contentStyle={tip} />
-                <Legend />
-                <Bar dataKey="weekend" name="Sat/Sun" stackId="d" fill="#a8a29e" />
-                <Bar dataKey="mon" name="Mon" stackId="d" fill={theme === "dark" ? "#2a2a2a" : "#d6d3d1"} />
-                <Bar dataKey="tue" name="Tue" stackId="d" fill={mutedInk} />
-                <Bar dataKey="wed" name="Wed" stackId="d" fill="#525252" />
-                <Bar dataKey="thu" name="Thu" stackId="d" fill={ink} />
-                <Bar dataKey="fri" name="Fri" stackId="d" fill={gold} radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartArea>
-        </CardContent>
-      </Card>
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
+          <CardHeader className="pb-1">
+            <CardTitle className="text-base font-extrabold">Margin by category</CardTitle>
+            <CardDescription>Gross margin % {at}{margin.averagePct !== null && margin.averagePct !== undefined ? ` · dashed line is all categories, ${formatNumber(margin.averagePct, 1)}%` : ""}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={analytics} empty={margins.length === 0} emptyText={`No category margins ${at}`} height={260}>
+              <RankedBars
+                rows={margins}
+                height={260}
+                axisText={(v) => `${v}%`}
+                valueText={(v) => `${formatNumber(v, 1)}%`}
+                reference={margin.averagePct === null || margin.averagePct === undefined ? null : { value: margin.averagePct, label: `All ${formatNumber(margin.averagePct, 1)}%` }}
+                describe={(r) => {
+                  const gap = margin.averagePct === null || margin.averagePct === undefined ? null : round1(r.value - margin.averagePct);
+                  const vs = gap === null ? "" : gap === 0 ? " · same as all categories" : ` · ${formatNumber(Math.abs(gap), 1)} points ${gap > 0 ? "above" : "below"} all categories`;
+                  return `${formatNumber(r.value, 1)}% margin on ${formatCurrencyAED(r.revenue)} revenue${vs}`;
+                }}
+              />
+            </ChartArea>
+          </CardContent>
+        </Card>
+
+        <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
+          <CardHeader className="pb-1">
+            <CardTitle className="text-base font-extrabold">Documents created by hour</CardTitle>
+            <CardDescription>Trade documents and vouchers by weekday · {trail(4, "weeks")} · organisation time zone</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={analytics} empty={hourly.length === 0} emptyText={`No documents created in the ${trail(4, "weeks")}`} height={260}>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={hourly}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="hour" tickLine={false} axisLine={false} fontSize={12} />
+                  <YAxis tickLine={false} axisLine={false} fontSize={12} allowDecimals={false} />
+                  <Tooltip contentStyle={tip} />
+                  <Legend />
+                  <Bar dataKey="weekend" name="Sat/Sun" stackId="d" fill="#a8a29e" />
+                  <Bar dataKey="mon" name="Mon" stackId="d" fill={theme === "dark" ? "#2a2a2a" : "#d6d3d1"} />
+                  <Bar dataKey="tue" name="Tue" stackId="d" fill={mutedInk} />
+                  <Bar dataKey="wed" name="Wed" stackId="d" fill="#525252" />
+                  <Bar dataKey="thu" name="Thu" stackId="d" fill={ink} />
+                  <Bar dataKey="fri" name="Fri" stackId="d" fill={gold} radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartArea>
+          </CardContent>
+        </Card>
+      </div>
     </>
   );
 }

@@ -9,13 +9,11 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Plus,
-  Search,
   Edit,
   Trash2,
   X,
   User,
   Phone,
-  MapPin,
   FileText,
   Calendar,
   Upload,
@@ -37,65 +35,45 @@ import axiosInstance from "../../axios/axios";
 import { toInputDate, formatDate, formatTime } from "../../utils/format";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
+import { pageSession } from "../../lib/pageSession";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
 
 import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import { useOrganisation } from "../shell/OrganisationContext";
-// Session management utilities
-const SessionManager = {
-  storage: {},
 
-  get: (key) => {
-    try {
-      return SessionManager.storage[`staff_session_${key}`] || null;
-    } catch {
-      return null;
-    }
-  },
-
-  set: (key, value) => {
-    try {
-      SessionManager.storage[`staff_session_${key}`] = value;
-    } catch (error) {
-      console.warn("Session storage failed:", error);
-    }
-  },
-
-  remove: (key) => {
-    try {
-      delete SessionManager.storage[`staff_session_${key}`];
-    } catch (error) {
-      console.warn("Session removal failed:", error);
-    }
-  },
-
-  clear: () => {
-    Object.keys(SessionManager.storage).forEach((key) => {
-      if (key.startsWith("staff_session_")) {
-        delete SessionManager.storage[key];
-      }
-    });
-  },
-};
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices,
+// the sort, and a half-filled add-staff form. Held in this tab's memory only; emptied at sign-out.
+const session = pageSession("staff");
 
 // What a draft of the add-staff form keeps: the text the person typed. Not the files (a file cannot be shown again without being
 // chosen again), and not the defaults a blank form starts with (the status "Active"): a form nobody has typed in is not a draft.
-// It lives in memory only (SessionManager.storage above), never in the browser's storage: it holds a person's ID number.
+// It lives in memory only (pageSession above), never in the browser's storage: it holds a person's ID number.
 const BLANK_FORM = { name: "", designation: "", contactNo: "", idNo: "", joiningDate: "", idProof: null, addressProof: null, status: "Active" };
 const DRAFT_FIELDS = ["name", "designation", "contactNo", "idNo", "joiningDate"];
 const hasDraftContent = (form) => DRAFT_FIELDS.some((k) => String(form?.[k] ?? "").trim() !== "");
 const draftOf = (form) => ({ ...Object.fromEntries(DRAFT_FIELDS.map((k) => [k, String(form?.[k] ?? "")])), status: form?.status || "Active" });
 
+const designations = [
+  "Manager",
+  "Accountant",
+  "Sales Executive",
+  "HR Manager",
+  "IT Support",
+  "Marketing Specialist",
+];
+
 const StaffManagement = () => {
   const [staff, setStaff] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  // the search, the two choices and the sort come back as the person left them (lazy initialisers: the first render already has them)
+  const [kept] = useState(() => session.get("filters", {}) || {});
+  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [editStaffId, setEditStaffId] = useState(null);
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterDesignation, setFilterDesignation] = useState("");
-  const [showFilters] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [filterStatus, setFilterStatus] = useState(kept.status || "");
+  const [filterDesignation, setFilterDesignation] = useState(kept.designation || "");
+  const [sortConfig, setSortConfig] = useState(() => session.get("sort") || { key: null, direction: "asc" });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -130,22 +108,12 @@ const StaffManagement = () => {
   const [lastSaveTime, setLastSaveTime] = useState(null);
 
   const formRef = useRef(null);
-  const searchInputRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const navigate = useNavigate();
   // The employee files are their own permission (staff.view to read, staff.manage to add, change or delete), apart from
   // the people who sign in. The server refuses the rest; this only decides what to offer.
   const { canAny } = useOrganisation();
   const canManage = canAny("staff.manage");
-
-  const designations = [
-    "Manager",
-    "Accountant",
-    "Sales Executive",
-    "HR Manager",
-    "IT Support",
-    "Marketing Specialist",
-  ];
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
@@ -186,25 +154,11 @@ const StaffManagement = () => {
   }, [fetchStaff]);
 
   useEffect(() => {
-    const savedFilters = SessionManager.get("filters");
-    const savedSearchTerm = SessionManager.get("searchTerm");
-
-    if (savedFilters) {
-      setFilterStatus(savedFilters.status || "");
-      setFilterDesignation(savedFilters.designation || "");
-    }
-
-    if (savedSearchTerm) {
-      setSearchTerm(savedSearchTerm);
-    }
-  }, []);
-
-  useEffect(() => {
     // Only a NEW staff member is drafted: an edit starts from a saved record, and must never become the draft of an add.
     if (showModal && !editStaffId && hasDraftContent(formData)) {
       autoSaveInterval.current = setTimeout(() => {
-        SessionManager.set("formData", draftOf(formData));
-        SessionManager.set("lastSaveTime", new Date().toISOString());
+        session.set("formData", draftOf(formData));
+        session.set("lastSaveTime", new Date().toISOString());
         setIsDraftSaved(true);
         setLastSaveTime(new Date().toISOString());
       }, 2000);
@@ -218,15 +172,13 @@ const StaffManagement = () => {
   }, [formData, showModal, editStaffId]);
 
   useEffect(() => {
-    SessionManager.set("searchTerm", searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    SessionManager.set("filters", {
+    session.set("searchTerm", searchTerm);
+    session.set("filters", {
       status: filterStatus,
       designation: filterDesignation,
     });
-  }, [filterStatus, filterDesignation]);
+    session.set("sort", sortConfig);
+  }, [searchTerm, filterStatus, filterDesignation, sortConfig]);
 
   const handleChange = useCallback(
     (e) => {
@@ -313,8 +265,8 @@ const StaffManagement = () => {
       await fetchStaff();
       resetForm();
 
-      SessionManager.remove("formData");
-      SessionManager.remove("lastSaveTime");
+      session.remove("formData");
+      session.remove("lastSaveTime");
     } catch (error) {
       showToastMessage(
         error.response?.data?.message || "Failed to save staff member.",
@@ -358,8 +310,8 @@ const StaffManagement = () => {
     setShowModal(true);
     setIsDraftSaved(false);
 
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
+    session.remove("formData");
+    session.remove("lastSaveTime");
   }, []);
 
   const showDeleteConfirmation = useCallback((staffMember) => {
@@ -426,21 +378,21 @@ const StaffManagement = () => {
     setIsDraftSaved(false);
     setLastSaveTime(null);
 
-    SessionManager.remove("formData");
-    SessionManager.remove("lastSaveTime");
+    session.remove("formData");
+    session.remove("lastSaveTime");
   }, []);
 
   const openAddModal = useCallback(() => {
     // A draft kept from before - the person left the page part-way through adding someone - is picked up again. Closing the
     // form, or starting to edit someone, discards it, so anything else starts blank.
-    const kept = SessionManager.get("formData");
-    if (hasDraftContent(kept)) {
+    const draft = session.get("formData");
+    if (hasDraftContent(draft)) {
       setEditStaffId(null);
-      setFormData({ ...BLANK_FORM, ...kept, idProof: null, addressProof: null });
+      setFormData({ ...BLANK_FORM, ...draft, idProof: null, addressProof: null });
       setFilePreviews({ idProof: null, addressProof: null });
       setErrors({});
       setIsDraftSaved(true);
-      setLastSaveTime(SessionManager.get("lastSaveTime"));
+      setLastSaveTime(session.get("lastSaveTime"));
     } else {
       resetForm();
     }
@@ -544,30 +496,58 @@ const StaffManagement = () => {
     return filtered;
   }, [staff, searchTerm, filterStatus, filterDesignation, sortConfig]);
 
+  // the designations to choose from: the ones the add form offers, plus any a record already carries (an older record may name
+  // one that is not on the list, and a filter that cannot reach it would hide it), plus the one the person has chosen
+  const designationOptions = useMemo(
+    () =>
+      [...new Set([...designations, ...staff.map((s) => s.designation), filterDesignation].filter(Boolean))].map(
+        (d) => [d, d]
+      ),
+    [staff, filterDesignation]
+  );
+
+  const filtersOn = Boolean(searchTerm || filterStatus || filterDesignation);
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("");
+    setFilterDesignation("");
+  };
+
   const EmptyState = () => (
-    <div className="flex flex-col items-center justify-center py-16 px-6">
-      <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-6 animate-pulse">
-        <Users size={40} className="text-indigo-600" />
+    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+        <Users size={36} className="text-muted-foreground" aria-hidden="true" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        No staff members found
+      <h3 className="mb-2 text-xl font-semibold text-foreground">
+        {filtersOn ? "No staff match the search or filters" : "No staff members found"}
       </h3>
-      <p className="text-gray-600 text-center mb-8 max-w-md">
-        {searchTerm || filterStatus || filterDesignation
-          ? "No staff match your current filters. Try adjusting your search criteria."
+      <p className="mb-6 max-w-md text-sm text-muted-foreground">
+        {filtersOn
+          ? "Clear the search and filters to see everyone."
           : canManage
             ? "Start building your team by adding your first staff member."
             : "No staff records have been added yet."}
       </p>
-      {canManage && (
-        <button
-          onClick={openAddModal}
-          className="erp-btn-primary"
-        >
-          <Plus size={20} />
-          Add First Staff Member
-        </button>
-      )}
+      <div className="flex flex-wrap justify-center gap-2">
+        {filtersOn && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
+          >
+            Clear search and filters
+          </button>
+        )}
+        {!filtersOn && canManage && (
+          <button
+            onClick={openAddModal}
+            className="erp-btn-primary"
+          >
+            <Plus size={20} />
+            Add First Staff Member
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -590,16 +570,18 @@ const StaffManagement = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
           <button
+            type="button"
+            aria-label="Go back"
             className="grid h-10 w-10 shrink-0 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
             onClick={() => navigate(-1)}
           >
-            <ArrowLeft size={16} className="text-gray-600" />
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-black bg-clip-text">
+            <h1 className="text-2xl font-bold text-foreground">
               Staff Management
             </h1>
-            <p className="text-gray-600 mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {staffStats.totalStaff} total staff •{" "}
               {sortedAndFilteredStaff.length} displayed
             </p>
@@ -659,14 +641,14 @@ const StaffManagement = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+        <div className="border-b border-border p-4 sm:p-6">
+          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-semibold text-foreground">
                 Staff Directory
               </h2>
-              <p className="text-gray-600 text-sm mt-1">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Manage your team members and their professional details
               </p>
             </div>
@@ -681,66 +663,30 @@ const StaffManagement = () => {
             )}
           </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-              />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search by name, designation, or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            {showFilters && (
-              <div className="flex flex-col sm:flex-row gap-4 p-4 bg-background rounded-lg">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Status</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-                <select
-                  value={filterDesignation}
-                  onChange={(e) => setFilterDesignation(e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  <option value="">All Designations</option>
-                  {designations.map((des) => (
-                    <option key={des} value={des}>
-                      {des}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    setFilterStatus("");
-                    setFilterDesignation("");
-                    setSearchTerm("");
-                  }}
-                  className="px-4 py-2 text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-background transition-colors duration-200"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            searchLabel="Search staff"
+            placeholder="Search name, designation or ID"
+            active={filtersOn}
+            onClear={clearFilters}
+          >
+            <FilterSelect
+              label="Status"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              allLabel="All statuses"
+              options={[["Active", "Active"], ["Inactive", "Inactive"]]}
+            />
+            <FilterSelect
+              label="Designation"
+              value={filterDesignation}
+              onChange={setFilterDesignation}
+              allLabel="All designations"
+              options={designationOptions}
+            />
+          </FilterBar>
         </div>
 
         {sortedAndFilteredStaff.length === 0 ? (

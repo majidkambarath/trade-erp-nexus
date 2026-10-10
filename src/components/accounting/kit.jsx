@@ -123,7 +123,7 @@ export const inputClass =
   "h-11 lg:h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-status-danger";
 
 // Label, control, hint and error, wired together with ids so screen readers announce them.
-export function Field({ label, hint, error, required, className, children }) {
+export function Field({ label, hint, error, required, className, labelClassName, children }) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errId = `${id}-err`;
@@ -137,7 +137,7 @@ export function Field({ label, hint, error, required, className, children }) {
     : children;
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-sm font-medium text-foreground">
+      <label htmlFor={id} className={cn("text-sm font-medium text-foreground", labelClassName)}>
         {label}
         {required && <span aria-hidden="true" className="ms-0.5 text-status-danger">*</span>}
       </label>

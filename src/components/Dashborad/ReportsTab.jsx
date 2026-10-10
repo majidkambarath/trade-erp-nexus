@@ -1,12 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Percent, TrendingUp, Wallet } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CURRENCY, formatCurrencyAED, formatDate } from "@/utils/format";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CURRENCY, formatCurrencyAED, formatDate, formatNumber } from "@/utils/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChartArea, Skeleton } from "./widgets";
-import { gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, tip } from "./helpers";
+import { RankedBars, Waterfall } from "./FlowCharts";
+import { DECREASE, gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, tip } from "./helpers";
 import { quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
 
@@ -30,6 +31,19 @@ export default function ReportsTab({ state, scope }) {
   const span = (from, to) => (from === to ? formatDate(from) : `${formatDate(from)} to ${formatDate(to)}`);
   const growth = (d?.valueGrowth || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const ageing = (d?.ageing || []).map((b) => ({ bucket: b.label, receivables: b.receivables, payables: b.payables }));
+  // the profit and loss as a walk: what came in, what it cost to sell, what it cost to run, what is left
+  const flow = d?.profitFlow;
+  const flowSteps = flow
+    ? [
+        { key: "revenue", label: "Revenue", value: flow.revenue, kind: "total" },
+        { key: "cogs", label: "Cost of goods sold", value: -flow.directCosts, kind: "change" },
+        { key: "gross", label: "Gross profit", value: flow.grossProfit, kind: "total" },
+        { key: "opex", label: "Operating expenses", value: -flow.operatingExpenses, kind: "change" },
+        { key: "other", label: "Other income", value: flow.otherIncome, kind: "change" },
+        { key: "net", label: "Net profit", value: flow.netProfit, kind: "total" },
+      ]
+    : [];
+  const expenses = (d?.expenses?.rows || []).map((r) => ({ key: r.key, name: r.name, value: r.amount, sharePct: r.sharePct, muted: r.key === "others" }));
   const vat = d?.vat;
   const vatRows = vat
     ? [
@@ -73,38 +87,106 @@ export default function ReportsTab({ state, scope }) {
         })}
       </div>
 
-      <Card data-anim="bento" className={cardClass}>
-        <CardHeader>
-          <CardTitle className="font-extrabold">Value growth</CardTitle>
-          <CardDescription>Gross profit trend · {trail(8, "months")} · {CURRENCY}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartArea state={state} empty={!growth.some((m) => m.grossProfit)} emptyText={`No gross profit posted in the ${trail(8, "months")}`} height={280}>
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                <defs>
-                  <linearGradient id="profitGold" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={compactAmount} />
-                <Tooltip contentStyle={tip} labelFormatter={(_, p) => p?.[0]?.payload.full} formatter={(v) => [formatCurrencyAED(v), "Gross profit"]} />
-                <Area
-                  type="monotone"
-                  dataKey="grossProfit"
-                  stroke={ink}
-                  fill="url(#profitGold)"
-                  strokeWidth={2.5}
-                  dot={{ r: 3, fill: ink, strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: gold, stroke: ink, strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartArea>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
+          <CardHeader>
+            <CardTitle className="font-extrabold">Profit flow</CardTitle>
+            <CardDescription>Revenue to net profit · {at} · {CURRENCY}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={state} empty={!flowSteps.some((s) => s.value)} emptyText={`No revenue or costs posted ${at}`} height={260}>
+              <Waterfall steps={flowSteps} />
+            </ChartArea>
+          </CardContent>
+        </Card>
+
+        <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
+          <CardHeader>
+            <CardTitle className="font-extrabold">Where the expenses go</CardTitle>
+            <CardDescription>
+              Operating expenses by group · {at} · {CURRENCY}
+              {d?.expenses?.total ? ` · ${formatCurrencyAED(d.expenses.total)}` : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={state} empty={expenses.length === 0} emptyText={`No operating expenses ${at}`} height={260}>
+              <RankedBars
+                rows={expenses}
+                height={Math.max(220, expenses.length * 40 + 34)}
+                valueText={compactAmount}
+                describe={(r) => `${formatCurrencyAED(r.value)}${r.sharePct === null || r.sharePct === undefined ? "" : ` · ${formatNumber(r.sharePct, 1)}% of operating expenses`}`}
+              />
+            </ChartArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card data-anim="bento" className={cardClass}>
+          <CardHeader>
+            <CardTitle className="font-extrabold">Value growth</CardTitle>
+            <CardDescription>Gross profit trend · {trail(8, "months")} · {CURRENCY}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={state} empty={!growth.some((m) => m.grossProfit)} emptyText={`No gross profit posted in the ${trail(8, "months")}`} height={280}>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                  <defs>
+                    <linearGradient id="profitGold" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} tickFormatter={compactAmount} />
+                  <Tooltip contentStyle={tip} labelFormatter={(_, p) => p?.[0]?.payload.full} formatter={(v) => [formatCurrencyAED(v), "Gross profit"]} />
+                  <Area
+                    type="monotone"
+                    dataKey="grossProfit"
+                    stroke={ink}
+                    fill="url(#profitGold)"
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: ink, strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: gold, stroke: ink, strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartArea>
+          </CardContent>
+        </Card>
+
+        <Card data-anim="bento" className={cardClass}>
+          <CardHeader>
+            <CardTitle className="font-extrabold">Net profit by month</CardTitle>
+            <CardDescription>After operating expenses · {trail(8, "months")} · {CURRENCY}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartArea state={state} empty={!growth.some((m) => m.netProfit)} emptyText={`No profit or loss posted in the ${trail(8, "months")}`} height={280}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} tickFormatter={compactAmount} />
+                  <ReferenceLine y={0} stroke="var(--muted-foreground)" />
+                  <Tooltip
+                    cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
+                    contentStyle={tip}
+                    labelFormatter={(_, p) => p?.[0]?.payload.full}
+                    formatter={(v) => [formatCurrencyAED(v), v < 0 ? "Net loss" : "Net profit"]}
+                  />
+                  <Bar dataKey="netProfit" name="Net profit" radius={[6, 6, 0, 0]} maxBarSize={36}>
+                    {growth.map((m) => <Cell key={m.month} fill={m.netProfit < 0 ? DECREASE : ink} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-1 flex justify-center gap-4 text-xs font-semibold text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: ink }} /> Profit</span>
+                <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: DECREASE }} /> Loss</span>
+              </div>
+            </ChartArea>
+          </CardContent>
+        </Card>
+      </div>
 
       <p className="-mb-2 text-sm text-muted-foreground">Vouchers posted {at}</p>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">

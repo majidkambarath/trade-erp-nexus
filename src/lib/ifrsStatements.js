@@ -109,11 +109,11 @@ export function positionDocument(data, { detail = false } = {}) {
 }
 
 export const POSITION_FOOTNOTE =
-  "Classification: an asset or liability is non-current when its account group, or any group above it, is named as fixed, non-current, property, plant, equipment, intangible or long-term; everything else is current. Profit is shown inside equity: profit before the start of the period as accumulated profit brought forward, and profit since as profit for the period.";
+  "Classification: an asset or liability is non-current when its account group, or any group above it, is named as fixed, non-current, property, plant, equipment, intangible or long-term; everything else is current. An account on the other side of its own group is shown where it belongs, not as a negative: a bank account in credit as a bank overdraft, a customer in credit as a liability, a supplier in debit as an asset (IAS 1.32). Profit is shown inside equity: profit before the start of the period as accumulated profit brought forward, and profit since as profit for the period.";
 export const PROFIT_FOOTNOTE =
   "Expenses are shown by function. Revenue, cost of sales and gross profit follow the sales and direct cost groups of the posting configuration. Of the other expenses, accounts named like depreciation or amortisation, interest, finance or bank charges, and income or corporate tax are shown on their own lines.";
 export const CASH_FOOTNOTE =
-  "Indirect method. Cash and cash equivalents are the active cash and bank accounts. Movements are taken from the general ledger; anything the rules cannot place appears as Other.";
+  "Indirect method. Cash and cash equivalents are the active cash and bank accounts, including bank overdrafts repayable on demand (IAS 7.8). The statement of financial position shows an overdraft as a liability, and the note on cash and cash equivalents reconciles the two (IAS 7.45-46). Movements are taken from the general ledger; anything the rules cannot place appears as Other.";
 export const EQUITY_FOOTNOTE =
   "Profit is not closed to equity by an entry in the ledger, so profit of earlier periods is added to retained earnings at the start of the period. Capital introduced and drawings are the net movement on each equity account.";
 
@@ -234,27 +234,33 @@ export function notesDocument(data) {
   for (const p of data.policies) blocks.push({ type: "text", title: numbered(p.title), text: p.text });
 
   const amounts = (rows) => rows.filter((r) => !skipZero(r)).map((r) => ({ kind: "line", level: 0, label: r.label, values: values(r) }));
-  const ageingTable = (title, ageing, ledgerLabel, unsetLabel, ledgerTotal) => ({
-    type: "table",
-    title,
-    columns: ["Amount"],
-    rows: [
-      ...ageing.buckets.map((b) => ({ kind: "line", level: 0, label: b.label, values: [num(b.amount)] })),
-      { kind: "subtotal", level: 0, label: "Open invoices", values: [num(ageing.total)] },
-      { kind: "detail", level: 1, label: "of which overdue", values: [num(ageing.overdue)] },
-      ...(ageing.notSetAgainstInvoices ? [{ kind: "line", level: 0, label: unsetLabel, values: [num(ageing.notSetAgainstInvoices)] }] : []),
-      { kind: "total", level: 0, label: ledgerLabel, values: [num(ledgerTotal)] },
-    ],
-  });
+  // What the ledger holds is the open invoices plus what is not set against one, so the table adds up by construction. It is the
+  // NET of every customer (vendor) account, while the trade line of the note above counts only the accounts that owe: when one
+  // is in credit (debit) the two differ, and the closing line says it is the net.
+  const ageingTable = (title, ageing, { ledgerLabel, netLabel, unsetLabel, trade }) => {
+    const ledgerTotal = r2((Number(ageing.total) || 0) + (Number(ageing.notSetAgainstInvoices) || 0));
+    return {
+      type: "table",
+      title,
+      columns: ["Amount"],
+      rows: [
+        ...ageing.buckets.map((b) => ({ kind: "line", level: 0, label: b.label, values: [num(b.amount)] })),
+        { kind: "subtotal", level: 0, label: "Open invoices", values: [num(ageing.total)] },
+        { kind: "detail", level: 1, label: "of which overdue", values: [num(ageing.overdue)] },
+        ...(ageing.notSetAgainstInvoices ? [{ kind: "line", level: 0, label: unsetLabel, values: [num(ageing.notSetAgainstInvoices)] }] : []),
+        { kind: "total", level: 0, label: ledgerTotal === r2(trade) ? ledgerLabel : netLabel, values: [num(ledgerTotal)] },
+      ],
+    };
+  };
 
   blocks.push({
     type: "table", title: numbered("Trade and other receivables"), columns,
     rows: [...amounts(t.tradeReceivables.rows), { kind: "total", level: 0, label: "Total trade and other receivables", values: values(t.tradeReceivables.total) }],
   });
-  blocks.push(ageingTable(
-    `Ageing of trade receivables at ${formatDate(data.asAt)}`, t.tradeReceivables.ageing,
-    "Trade receivables per ledger", "Receipts and credit notes not set against an invoice", t.tradeReceivables.rows[0].amount
-  ));
+  blocks.push(ageingTable(`Ageing of trade receivables at ${formatDate(data.asAt)}`, t.tradeReceivables.ageing, {
+    ledgerLabel: "Trade receivables per ledger", netLabel: "Customer accounts per ledger, net of accounts in credit",
+    unsetLabel: "Receipts and credit notes not set against an invoice", trade: t.tradeReceivables.rows[0].amount,
+  }));
   blocks.push({
     type: "table", title: numbered("Inventories"), columns,
     rows: [
@@ -270,14 +276,26 @@ export function notesDocument(data) {
       { kind: "total", level: 0, label: "Total cash and cash equivalents", values: cmp ? [num(t.cash.total.net), num(t.cash.total.comparativeNet)] : [num(t.cash.total.net)] },
     ],
   });
+  // The same total as two lines of the statement of financial position: the accounts in debit are current assets and the ones
+  // in credit are a liability, drawn here as a deduction (IAS 7.45). Left out when the server sent no split.
+  const presented = (t.cash.presentedAs || []).filter((l) => !skipZero(l));
+  if (presented.length) {
+    blocks.push({
+      type: "table", title: "Presented in the statement of financial position as", columns,
+      rows: [
+        ...presented.map((l) => ({ kind: "line", level: 0, label: l.label, values: values({ amount: l.negate ? scale(l.amount, -1) : l.amount, comparative: l.negate ? scale(l.comparative, -1) : l.comparative }) })),
+        { kind: "total", level: 0, label: "Total cash and cash equivalents", values: cmp ? [num(t.cash.total.net), num(t.cash.total.comparativeNet)] : [num(t.cash.total.net)] },
+      ],
+    });
+  }
   blocks.push({
     type: "table", title: numbered("Trade and other payables"), columns,
     rows: [...amounts(t.tradePayables.rows), { kind: "total", level: 0, label: "Total trade and other payables", values: values(t.tradePayables.total) }],
   });
-  blocks.push(ageingTable(
-    `Ageing of trade payables at ${formatDate(data.asAt)}`, t.tradePayables.ageing,
-    "Trade payables per ledger", "Payments and debit notes not set against an invoice", t.tradePayables.rows[0].amount
-  ));
+  blocks.push(ageingTable(`Ageing of trade payables at ${formatDate(data.asAt)}`, t.tradePayables.ageing, {
+    ledgerLabel: "Trade payables per ledger", netLabel: "Vendor accounts per ledger, net of accounts in debit",
+    unsetLabel: "Payments and debit notes not set against an invoice", trade: t.tradePayables.rows[0].amount,
+  }));
   if (t.vat) {
     blocks.push({
       type: "table", title: numbered("Value added tax"), columns,

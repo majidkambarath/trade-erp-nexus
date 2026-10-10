@@ -12,6 +12,7 @@ vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: m.status
 vi.mock("../../../lib/accountingApi", () => ({ accounting: { postableAccounts: m.postable }, ApiError: class extends Error {} }));
 
 import { OrganisationProvider, useOrganisation } from "../../shell/OrganisationContext";
+import { clearPageSessions } from "../../../lib/pageSession";
 import StockManagement from "../StockManagement";
 
 configure({ asyncUtilTimeout: 8000 });
@@ -41,6 +42,7 @@ const show = async (grants = ["inventory.view", "inventory.create", "inventory.e
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearPageSessions(); // what the screen keeps for the tab must not leak from one test into the next
   m.postable.mockResolvedValue(ACCOUNTS);
   m.post.mockResolvedValue({ data: { data: { stock: {} } } });
   m.put.mockResolvedValue({ data: { data: { stock: {} } } });
@@ -84,8 +86,8 @@ describe("the item list", () => {
 
   it("filters to goods or to services", async () => {
     await show();
-    fireEvent.click(screen.getByTitle("Toggle filters"));
-    const filter = screen.getByLabelText("Item type", { selector: "select" });
+    // the filters are on the page already: nothing to open first
+    const filter = screen.getByRole("combobox", { name: "Item type" });
     fireEvent.change(filter, { target: { value: "service" } });
     expect(screen.getByText("INSTALLATION")).toBeInTheDocument();
     expect(screen.queryByText("BASMATI")).not.toBeInTheDocument();
@@ -94,7 +96,7 @@ describe("the item list", () => {
     expect(screen.queryByText("INSTALLATION")).not.toBeInTheDocument();
     // a service is never low on stock
     fireEvent.change(filter, { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Low Stock Only" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Stock level" }), { target: { value: "low" } });
     expect(screen.getByText("BASMATI")).toBeInTheDocument();
     expect(screen.queryByText("INSTALLATION")).not.toBeInTheDocument();
   });

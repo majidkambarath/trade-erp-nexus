@@ -56,6 +56,37 @@ describe("the return", () => {
     expect(m.compute).toHaveBeenCalledWith({ from: expect.stringMatching(/^\d{4}-\d{2}-01$/), to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
   });
 
+  it("says supplies are reported under the emirate of the company's establishment, and where to set it", async () => {
+    m.compute.mockResolvedValue(RETURN({ emirate: "Sharjah", emirateAssumed: false }));
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    const note = screen.getByText(/Standard-rated supplies are reported under the emirate of your establishment/);
+    expect(note).toHaveTextContent("(Sharjah)");
+    expect(note).toHaveTextContent("Settings > Business rules > Tax identity");
+    expect(screen.queryByText(/until customers carry their own emirate/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Company emirate not set/)).not.toBeInTheDocument();
+  });
+
+  it("warns, in the return itself, when no emirate is set and Dubai was assumed", async () => {
+    m.compute.mockResolvedValue(RETURN({ emirate: "Dubai", emirateAssumed: true }));
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    const pill = screen.getByText("Company emirate not set: reported under Dubai");
+    expect(pill.className).toMatch(/status-warning/);
+    // it sits in the return panel, above the boxes, and the rule is still explained
+    expect(pill.closest("section")).toContainElement(screen.getByText("Standard-rated supplies in Dubai"));
+    expect(screen.getByText(/emirate of your establishment \(Dubai\)/)).toBeInTheDocument();
+    // the reconciliation behaviour next to it is unchanged
+    expect(within(screen.getByText("Input VAT", { selector: "span" }).closest("li")).getByText("Differs by 5.00")).toBeInTheDocument();
+  });
+
+  it("says nothing about the emirate being assumed when the server does not say so", async () => {
+    m.compute.mockResolvedValue(RETURN());
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    expect(screen.queryByText(/Company emirate not set/)).not.toBeInTheDocument();
+  });
+
   it("warns about lines with no treatment and takes you to them", async () => {
     m.compute.mockResolvedValue(RETURN({ unclassified: { count: 2, amount: 80, vat: 0, lines: [{ docNo: "SO-2026-0007" }, { docNo: "SO-2026-0009" }] } }));
     m.detail.mockResolvedValue({ total: 0, page: 1, limit: 50, totals: { taxable: 0, vat: 0 }, rows: [] });
@@ -200,6 +231,26 @@ describe("reverse charge in the return", () => {
     expect(within(row).getByText("Differs by 7.00")).toBeInTheDocument();
     expect(within(row).getByText(/Documents 40\.00/)).toBeInTheDocument();
     expect(within(screen.getByText("Input VAT", { selector: "span" }).closest("li")).getByText("Agrees")).toBeInTheDocument();
+  });
+
+  it("says a difference that is only a journal is the VAT settled by journal, not an error, and explains it once", async () => {
+    m.compute.mockResolvedValue({
+      ...RC(),
+      reconciliation: { rows: [
+        { label: "Output VAT", documents: 86332.57, ledger: -7726.69, difference: 94059.26, agrees: false, journals: -94059.26, explained: true },
+        { label: "Input VAT", documents: 100, ledger: 100, difference: 0, agrees: true, journals: 0, explained: false },
+        { label: "Reverse-charge VAT (self-assessed)", documents: 40, ledger: 47, difference: -7, agrees: false, journals: 0, explained: false },
+      ] },
+    });
+    at();
+    await screen.findByText("Agrees with the ledger?");
+    const out = screen.getByText("Output VAT", { selector: "span" }).closest("li");
+    expect(within(out).getByText(/Settled by journal 94,059.26/)).toBeInTheDocument();
+    expect(within(out).queryByText(/Differs by/)).not.toBeInTheDocument();
+    // a difference that is not a journal still reads as one
+    const rc = screen.getByText("Reverse-charge VAT (self-assessed)", { selector: "span" }).closest("li");
+    expect(within(rc).getByText("Differs by 7.00")).toBeInTheDocument();
+    expect(screen.getAllByText(/the difference is VAT posted by journal/)).toHaveLength(1);
   });
 
   it("explains box 3 when it holds something, and says a sale on which the customer accounts is in no box", async () => {

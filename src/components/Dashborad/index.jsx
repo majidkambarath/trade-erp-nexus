@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
+import { motionOK } from "./motion";
 import { LayoutDashboard, TrendingUp, Package, ShoppingCart, RefreshCw, MapPin, Plus } from "lucide-react";
 import { getBrand } from "@/config/brands";
 import { CURRENCY, toInputDate } from "@/utils/format";
@@ -94,9 +95,19 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
+    if (!motionOK()) return undefined; // reduced motion (or no matchMedia): everything is simply there
+    // fromTo with both ends written out, never from(): from() reads the element's CURRENT opacity as its end value, and a
+    // card with a CSS transition (the four quick-action buttons) is part-way through one when the effect runs a second
+    // time (React StrictMode, or a quick tab change) - it then "animated" to 5% opacity and stayed invisible.
+    // clearProps hands the element back to its stylesheet when the reveal is over, so hover styles are the CSS's again.
     const ctx = gsap.context(() => {
-      gsap.from("[data-anim='hero']", { y: -16, opacity: 0, duration: 0.45, ease: "power3.out" });
-      gsap.from("[data-anim='bento']", { y: 24, opacity: 0, duration: 0.5, stagger: 0.07, delay: 0.08, ease: "power3.out" });
+      gsap.fromTo("[data-anim='hero']", { y: -16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.45, ease: "power3.out", clearProps: "opacity,transform" });
+      // the whole reveal takes 0.6s however many cards there are (it was 0.07s each: the last cards of a long page came in seconds late)
+      gsap.fromTo(
+        "[data-anim='bento']",
+        { y: 24, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, stagger: { amount: 0.6 }, delay: 0.08, ease: "power3.out", clearProps: "opacity,transform" },
+      );
     }, rootRef);
     return () => ctx.revert();
   }, [theme, tab]);
@@ -115,7 +126,7 @@ function Dashboard() {
   };
 
   const refresh = () => {
-    gsap.fromTo("[data-anim='bento']", { opacity: 0.5, y: 8 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.04 });
+    if (motionOK()) gsap.fromTo("[data-anim='bento']", { opacity: 0.5, y: 8 }, { opacity: 1, y: 0, duration: 0.35, stagger: { amount: 0.4 }, clearProps: "opacity,transform" });
     [core, analytics, visited.sales && sales, visited.inventory && inventory, visited.finance && reports].filter(Boolean).forEach((s) => s.reload());
   };
 
@@ -125,29 +136,39 @@ function Dashboard() {
   return (
     <div ref={rootRef} className="min-h-full bg-background font-sans text-foreground">
       <div className="mx-auto w-full max-w-[1680px] space-y-5 bg-background px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-        <div data-anim="hero" className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Operations Overview</h1>
-              {company?.emirate && (
-                <Badge variant="secondary" className="rounded-full border-0 bg-secondary font-semibold">
-                  <MapPin className="mr-1 h-3 w-3" />
-                  {company.emirate}, UAE
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {company?.name || getBrand().name} · {CURRENCY} · {clockLabel}
-            </p>
+        {/* One row on a phone: the title on the left, Refresh and New Order on the right (they used to wrap
+            under the title and leave the right half of the header empty), the company line across the full
+            width below. At lg the actions sit beside both lines, as before. */}
+        <div
+          data-anim="hero"
+          className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 lg:gap-y-0"
+        >
+          <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">Operations Overview</h1>
+            {company?.emirate && (
+              <Badge variant="secondary" className="rounded-full border-0 bg-secondary font-semibold">
+                <MapPin className="mr-1 h-3 w-3" />
+                {company.emirate}, UAE
+              </Badge>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="col-span-2 row-start-2 text-sm text-muted-foreground lg:col-span-1 lg:col-start-1">
+            {company?.name || getBrand().name} · {CURRENCY} · {clockLabel}
+          </p>
+
+          <div className="col-start-2 row-start-1 flex items-center gap-1 sm:gap-2 lg:row-span-2">
             <Button variant="ghost" size="icon" className="rounded-full" onClick={refresh} aria-label="Refresh the figures">
               <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
             </Button>
-            <Button className="rounded-full bg-primary text-primary-foreground hover:opacity-90" onClick={() => navigate("/sales-order")}>
+            {/* icon only below sm (the name stays for a screen reader); the words come back from sm up */}
+            <Button
+              className="rounded-full bg-primary px-0 text-primary-foreground hover:opacity-90 max-sm:w-11 sm:px-5"
+              onClick={() => navigate("/sales-order")}
+              aria-label="New order"
+            >
               <Plus className="h-4 w-4" />
-              New Order
+              <span className="hidden sm:inline">New Order</span>
             </Button>
           </div>
         </div>
