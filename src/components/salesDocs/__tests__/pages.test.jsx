@@ -40,14 +40,14 @@ const at = (ui, url = "/") => render(<MemoryRouter initialEntries={[url]}>{ui}</
 describe("QuotationsPage", () => {
   it("opens on the list and goes to the form and back", async () => {
     at(<QuotationsPage />, "/quotations");
-    expect(await screen.findByText("No quotations yet")).toBeInTheDocument();
+    expect(await screen.findByText("No quotations in this month")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: /new quotation/i })[0]);
     expect(await screen.findByText("Create quotation")).toBeInTheDocument();
     expect(screen.getByLabelText("Valid until")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
-    expect(await screen.findByText("No quotations yet")).toBeInTheDocument();
+    expect(await screen.findByText("No quotations in this month")).toBeInTheDocument();
   });
 
   it("the form opens with a date and a validity already filled in", async () => {
@@ -72,7 +72,7 @@ describe("QuotationsPage", () => {
 describe("DeliveryNotesPage", () => {
   it("New delivery note asks how the goods are being sent, and both ways lead somewhere", async () => {
     at(<DeliveryNotesPage />, "/delivery-notes");
-    expect(await screen.findByText("No delivery notes yet")).toBeInTheDocument();
+    expect(await screen.findByText("No delivery notes in this month")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: /new delivery note/i })[0]);
 
     const dialog = await screen.findByRole("dialog");

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Eye, FileText, Pencil, Search, Trash2, Truck } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { ConfirmDialog, DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { ConfirmDialog, DataTable, ErrorNote, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { deliveryNotes } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, DELIVERY_TABS, clockText, invoiceBlocker, invoiceText, statusLabel } from "../../lib/salesDocuments";
 import { statusTone } from "../../lib/status";
@@ -12,6 +12,12 @@ import { Note, PillTabs } from "./parts";
 import { useDebounced, useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { allowActions } from "../../lib/salesDocuments";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
+import { useClampPage, useServerPage } from "../lists/useServerPage";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import ListPager from "../lists/ListPager";
+import ListEmpty from "../lists/ListEmpty";
+import { pageFigures } from "../../lib/pagination";
 
 // Delivery notes: what is being sent, what has arrived, and above all what has arrived and not been invoiced,
 // because a tax invoice is due within 14 days of delivery. The "Not invoiced" tab is where that is chased, and
@@ -22,25 +28,39 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
   const acts = (r) => allowActions(r.actions, me);
   const [status, setStatus] = useState(initialStatus);
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [picked, setPicked] = useState({}); // id -> the note, on the Not invoiced tab
   const [dialog, setDialog] = useState(null); // "invoice" | { remove: note }
   const search = useDebounced(q);
+  // The list opens on this calendar month (the date on the note). "Not invoiced" is a worklist: a delivered note is chased
+  // until it is invoiced, whenever it went out, so that tab ignores the period. The tiles and the tab counts are the whole
+  // book, so a tile that narrows the list to a status also widens it to all time.
+  const periodFilter = usePeriodFilter();
+  const { period } = periodFilter;
+  const dated = status !== "UNINVOICED";
+  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${search}|${dated ? period.key : "any"}`);
   const summary = useAsync(() => deliveryNotes.summary(), [reloadKey]);
   const { data, loading, error, reload } = useAsync(
-    () => deliveryNotes.list({ status: status || undefined, search: search || undefined, page, limit: 20 }),
-    [status, search, page, reloadKey]
+    () => deliveryNotes.list({
+      status: status || undefined, search: search || undefined,
+      dateFrom: (dated && period.from) || undefined, dateTo: (dated && period.to) || undefined, page, limit: pageSize,
+    }),
+    [status, search, dated, period.key, page, pageSize, reloadKey]
   );
   const rows = data?.rows || [];
-  const pages = data?.pagination?.pages || 1;
+  useClampPage({ pagination: data?.pagination, loaded: Boolean(data) && !loading, page, setPage });
   const s = summary.data;
-  const counts = s ? { ...s.byStatus, UNINVOICED: s.uninvoiced.count, "": Object.values(s.byStatus).reduce((t, n) => t + n, 0) } : undefined;
+  // tab counts are all-time: shown only while the list is too (the Not invoiced count is always its own list's)
+  const counts = s
+    ? period.all
+      ? { ...s.byStatus, UNINVOICED: s.uninvoiced.count, "": Object.values(s.byStatus).reduce((t, n) => t + n, 0) }
+      : { UNINVOICED: s.uninvoiced.count }
+    : undefined;
   const chosen = Object.values(picked);
   const selecting = status === "UNINVOICED";
   const action = useDocumentAction({ notify, reload: async () => { await Promise.all([reload(), summary.reload()]); } });
 
   const pick = (note, on) => setPicked((p) => { const n = { ...p }; if (on) n[note._id] = note; else delete n[note._id]; return n; });
-  const changeTab = (v) => { setStatus(v); setPage(1); setPicked({}); };
+  const changeTab = (v) => { setStatus(v); setPicked({}); };
   const overdue = (s?.clock?.pastStandard || 0) + (s?.clock?.overdue || 0);
 
   const createInvoice = async (body) => {
@@ -61,20 +81,35 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
       />
 
       {s && (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-5">
+          <p className="mb-2 text-xs text-muted-foreground">All delivery notes, whatever the period below</p>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard title="Delivered, not invoiced" count={formatNumber(s.uninvoiced.value, 2)} subText={`${s.uninvoiced.count} note${s.uninvoiced.count === 1 ? "" : "s"} waiting for an invoice`} tone="teal" onClick={() => changeTab("UNINVOICED")} />
           <StatCard title="Past the 14-day window" count={String(overdue)} subText={overdue ? "invoice these first" : "nothing late"} tone={overdue ? "danger" : "neutral"} onClick={() => changeTab("UNINVOICED")} />
           <StatCard title="Invoice due within 3 days" count={String(s.clock?.dueSoon || 0)} subText={s.clock?.dueSoon ? "tax invoice due soon" : "nothing about to fall due"} tone={s.clock?.dueSoon ? "warning" : "neutral"} onClick={() => changeTab("UNINVOICED")} />
-          <StatCard title="On the road" count={String(s.byStatus.DISPATCHED || 0)} subText="dispatched, not yet signed for" tone="plum" onClick={() => changeTab("DISPATCHED")} />
+          <StatCard title="On the road" count={String(s.byStatus.DISPATCHED || 0)} subText="dispatched, not yet signed for" tone="plum" onClick={() => { changeTab("DISPATCHED"); periodFilter.choose("all"); }} />
+        </div>
         </div>
       )}
 
-      <div className="mb-4 flex flex-col gap-3 print:hidden sm:flex-row sm:flex-wrap sm:items-center">
-        <PillTabs tabs={DELIVERY_TABS} value={status} counts={counts} label="Delivery note status" onChange={changeTab} />
-        <div className="relative min-w-56 flex-1 sm:max-w-sm">
-          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <TextInput aria-label="Search delivery notes" className="ps-9" placeholder="Number, customer, vehicle or item…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+      <div className="mb-4 print:hidden">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <PillTabs tabs={DELIVERY_TABS} value={status} counts={counts} label="Delivery note status" onChange={changeTab} />
+          <div className="relative min-w-56 flex-1 sm:max-w-sm">
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <TextInput aria-label="Search delivery notes" className="ps-9" placeholder="Number, customer, vehicle or item…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          {dated && <PeriodSelect filter={periodFilter} labelled />}
         </div>
+        {dated ? (
+          <PeriodNote filter={periodFilter} count={data ? data.pagination.total : null} noun="delivery notes" one="delivery note" extra={status ? `status: ${DELIVERY_TABS.find(([v]) => v === status)?.[1] || status}` : undefined} className="mt-3" />
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">Not invoiced</span>
+            {" \u00b7 every delivered note still waiting for an invoice, whatever its date"}
+            {data ? ` \u00b7 ${data.pagination.total} ${data.pagination.total === 1 ? "note" : "notes"}` : ""}
+          </p>
+        )}
       </div>
 
       {selecting && (
@@ -100,11 +135,19 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading delivery notes" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data && rows.length === 0 && (
-          <EmptyState
-            title={status || search ? "No delivery notes here" : "No delivery notes yet"}
-            text={status === "UNINVOICED" ? "Every delivered note has been invoiced." : status || search ? "Try another status or clear the search." : "Make one against a sales order, or for goods that go out before they are invoiced."}
-            action={!status && !search && mayAdd ? <Button onClick={onNew}>New delivery note</Button> : undefined}
+        {data && rows.length === 0 && !dated && !search && (
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">Every delivered note has been invoiced.</p>
+        )}
+        {data && rows.length === 0 && (dated || search) && (
+          <ListEmpty
+            filter={periodFilter}
+            noun="delivery notes"
+            inPeriod={null}
+            filtered={Boolean(status || search)}
+            onClearFilters={() => { setStatus(""); setQ(""); }}
+            emptyTitle="No delivery notes yet"
+            createText="Make one against a sales order, or for goods that go out before they are invoiced."
+            action={mayAdd ? <Button onClick={onNew}>New delivery note</Button> : undefined}
           />
         )}
         {rows.length > 0 && (
@@ -163,14 +206,15 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
             ]}
           />
         )}
-        {pages > 1 && (
-          <nav aria-label="Pages" className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
-            <span className="text-muted-foreground">Page {page} of {pages}</span>
-            <span className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-              <Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button>
-            </span>
-          </nav>
+        {data && rows.length > 0 && (
+          <ListPager
+            figures={pageFigures({ page, size: pageSize, total: data.pagination.total })}
+            onPage={setPage}
+            onPageSize={setPageSize}
+            noun="delivery notes"
+            one="delivery note"
+            className="rounded-none border-0 border-t shadow-none"
+          />
         )}
       </Panel>
 

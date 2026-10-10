@@ -16,7 +16,7 @@ vi.mock("recharts", async (orig) => {
 
 import Dashboard from "../index";
 import { ThemeProvider } from "../../theme-provider";
-import { ago, compactAmount, opsRows, recentLink } from "../helpers";
+import { ago, compactAmount, dayLabel, monthYearLabel, opsRows, recentLink } from "../helpers";
 import { formatDate } from "../../../utils/format";
 
 const show = (url = "/dashboard") => render(<ThemeProvider><MemoryRouter initialEntries={[url]}><Dashboard /></MemoryRouter></ThemeProvider>);
@@ -280,6 +280,15 @@ describe("header and tabs", () => {
     expect(m.sales).toHaveBeenCalledTimes(1);
   });
 
+  it("the period control is above the tabs, so it is there whichever tab is open", async () => {
+    show();
+    await ready();
+    const control = screen.getByRole("combobox", { name: "Period" });
+    expect(control).toHaveValue("month");
+    await openTab("Inventory");
+    expect(screen.getByRole("combobox", { name: "Period" })).toBe(control);
+  });
+
   it("changing the period fetches every part again for it", async () => {
     show();
     await ready();
@@ -329,14 +338,12 @@ describe("the Dashboard tab with real figures", () => {
     expect(screen.getByText("Peak Oct · AED 640.00")).toBeInTheDocument();
   });
 
-  it("the three header figures cannot run into each other in the narrow centre column: they get the whole width, with the period control above them", async () => {
+  it("the three header figures cannot run into each other in the narrow centre column: they start smaller at xl and never size to their content", async () => {
     show();
     await ready();
+    // the period control is above the tabs (it follows every tab), so it is no longer in this card at all
     const row = screen.getByText("Sales value").closest(".grid");
-    const header = row.parentElement;
-    // at xl the control moves above the figures (flex-col-reverse puts the second child first), and the figures start smaller
-    expect(header).toHaveClass("xl:flex-col-reverse");
-    expect(header.lastElementChild).toContainElement(screen.getByLabelText("Period"));
+    expect(row.parentElement).not.toContainElement(screen.getByRole("combobox", { name: "Period" }));
     for (const label of ["Sales value", "Avg. margin", "Avg. order"]) {
       const figure = screen.getByText(label).nextElementSibling;
       expect(figure).toHaveClass("xl:text-2xl", "2xl:text-3xl");
@@ -664,5 +671,163 @@ describe("no dummy content", () => {
     for (const dummy of [/portfolio rank/i, /team hub/i, /collaborate on market analysis/i, /demo series/i, /demo data/i, /client showcase/i, /UAE fleet/i, /emirate sales/i, /Al Quoz/, /JAFZA/, /ICAD/, /Jebel Ali/, /Sharjah Industrial/, /channel mix/i, /branch vs target/i, /Basmati/, /Al Maya/, /Lulu/, /Carrefour/, /delivery sla/i, /warehouse capacity/i, /goal progress/i, /funnel/i, /inquir/i]) {
       expect(text, String(dummy)).not.toMatch(dummy);
     }
+  });
+});
+
+// ---------------------------------------------------------------- the period filter (src/lib/dashboardPeriod.js)
+
+describe("the period filter", () => {
+  // Only the date is faked, so waitFor and the timers behave as they do everywhere else. "Today" is Saturday 10 Oct 2026, in Q4.
+  const setToday = (iso = "2026-10-10T08:00:00Z") => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(iso));
+  };
+  afterEach(() => vi.useRealTimers());
+  beforeEach(busy);
+
+  const pick = (label, value) => fireEvent.change(screen.getByRole("combobox", { name: label }), { target: { value } });
+  const lastAsked = (fn) => fn.mock.calls[fn.mock.calls.length - 1][0];
+  // the line under the control, in the person's own date format
+  const scopeLine = () => screen.getByRole("region", { name: "Dashboard period" }).textContent;
+  // every part that was asked for has answered (the refresh icon stops spinning), so no update is left to land after the test
+  const settled = () => waitFor(() => expect(document.querySelector(".animate-spin")).toBeNull());
+
+  it("This year is 1 January to today, sent as from / to to every part, and the line says so in words", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "year");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-01-01", to: "2026-10-10" }));
+    expect(lastAsked(m.analytics)).toEqual({ from: "2026-01-01", to: "2026-10-10" });
+    await openTab("Sales");
+    await waitFor(() => expect(lastAsked(m.sales)).toEqual({ from: "2026-01-01", to: "2026-10-10" }));
+    await openTab("Inventory");
+    await waitFor(() => expect(lastAsked(m.inventory)).toEqual({ from: "2026-01-01", to: "2026-10-10" }));
+    await openTab("Reports");
+    await waitFor(() => expect(lastAsked(m.reports)).toEqual({ from: "2026-01-01", to: "2026-10-10" }));
+    expect(scopeLine()).toContain("This year (to date)");
+    expect(scopeLine()).toContain(`${formatDate("2026-01-01")} – ${formatDate("2026-10-10")}`);
+    await settled();
+  });
+
+  it("a specific quarter opens on the last complete one, and Q1 of the same year is one change away", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "quarterOf");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-07-01", to: "2026-09-30" }));
+    expect(screen.getByRole("combobox", { name: "Year" })).toHaveValue("2026");
+    expect(screen.getByRole("combobox", { name: "Quarter" })).toHaveValue("3");
+    pick("Quarter", "1");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-01-01", to: "2026-03-31" }));
+    pick("Year", "2025");
+    pick("Quarter", "4");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2025-10-01", to: "2025-12-31" }));
+    expect(scopeLine()).toContain("Q4 2025");
+    await settled();
+  });
+
+  it("never offers a quarter or a month that has not started", async () => {
+    setToday("2026-05-02T08:00:00Z"); // second quarter, fifth month
+    show();
+    await ready();
+    pick("Period", "quarterOf");
+    expect([...screen.getByRole("combobox", { name: "Quarter" }).options].map((o) => o.value)).toEqual(["1", "2"]);
+    pick("Year", "2025");
+    expect([...screen.getByRole("combobox", { name: "Quarter" }).options].map((o) => o.value)).toEqual(["1", "2", "3", "4"]);
+    pick("Period", "monthOf");
+    pick("Year", "2026");
+    expect([...screen.getByRole("combobox", { name: "Month" }).options].map((o) => o.textContent)).toEqual(["January", "February", "March", "April", "May"]);
+    await settled();
+  });
+
+  it("a specific month is asked for as month=YYYY-MM and a previous year as its whole 1 Jan to 31 Dec", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "monthOf");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ month: "2026-09" }));
+    pick("Month", "2");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ month: "2026-02" }));
+    pick("Period", "yearOf");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2025-01-01", to: "2025-12-31" }));
+    // a previous year offers no current year
+    expect([...screen.getByRole("combobox", { name: "Year" }).options].map((o) => o.value)).not.toContain("2026");
+    await settled();
+  });
+
+  it("a custom range asks for exactly those days, and a range that ends before it starts is explained and not asked for", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "custom");
+    const from = screen.getByLabelText("From");
+    const to = screen.getByLabelText("To");
+    fireEvent.change(from, { target: { value: "2026-03-05" } });
+    fireEvent.change(to, { target: { value: "2026-04-20" } });
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-03-05", to: "2026-04-20" }));
+    const calls = m.summary.mock.calls.length;
+    fireEvent.change(to, { target: { value: "2026-03-01" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("The period ends before it starts.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Still showing Custom range");
+    expect(m.summary).toHaveBeenCalledTimes(calls); // nothing was asked for
+    expect(lastAsked(m.summary)).toEqual({ from: "2026-03-05", to: "2026-04-20" });
+    await settled();
+  });
+
+  it("an end date in the future is held at today, and the line says the period has not ended", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "custom");
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-09-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-12-31" } });
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-09-01", to: "2026-10-10" }));
+    expect(scopeLine()).toContain("has not ended yet");
+    await settled();
+  });
+
+  it("every tab words its figures for the period: a past quarter reads 'in Q3 2026', 'the period before' and '8 months to September 2026'", async () => {
+    setToday();
+    show();
+    await ready();
+    pick("Period", "quarterOf");
+    await waitFor(() => expect(lastAsked(m.summary)).toEqual({ from: "2026-07-01", to: "2026-09-30" }));
+    // Dashboard tab
+    await waitFor(() => expect(screen.getByText("Receipts vs invoices in Q3 2026")).toBeInTheDocument());
+    expect(screen.getByText(`Weekly, 6 weeks to ${formatDate("2026-09-30")} · AED`)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "VAT Q3 2026" })).toBeInTheDocument();
+    expect(await screen.findByText(`Receipts, week to ${dayLabel("2026-09-30")}`)).toBeInTheDocument();
+    expect(screen.getByText("Sales invoices of Q3 2026 · by how far they are paid (where they stand today)")).toBeInTheDocument();
+    expect(screen.getByText(`${monthYearLabel("2026-09")} vs ${monthYearLabel("2026-08")} · AED`)).toBeInTheDocument();
+    // Sales
+    await openTab("Sales");
+    await screen.findByText("Best sellers");
+    expect(screen.getByText("Orders in Q3 2026")).toBeInTheDocument();
+    expect(screen.getByText("Orders in Q3 2026").closest("[data-slot='card']")).toHaveTextContent("+50.0% on the period before");
+    expect(screen.getByText("Monthly AED · 8 months to September 2026")).toBeInTheDocument();
+    // Inventory: the value is as at the quarter's end, the alerts are today's
+    await openTab("Inventory");
+    await screen.findByText("Stock alerts");
+    expect(screen.getByText(/Stock value is as at/)).toHaveTextContent(`Stock value is as at ${formatDate("2026-09-30")}`);
+    expect(screen.getByText(/Stock value is as at/)).toHaveTextContent("Stock alerts are always today's position.");
+    expect(widget("Stock alerts")).toHaveTextContent("as of today");
+    // Reports
+    await openTab("Reports");
+    await screen.findByText("Value growth");
+    expect(screen.getByText(`Q3 2026, ${formatDate("2026-10-01")} to ${formatDate("2026-10-05")}`)).toBeInTheDocument();
+    expect(screen.getByText("Vouchers posted in Q3 2026")).toBeInTheDocument();
+    await settled();
+  });
+
+  it("the default period keeps every sentence exactly as it was: 'this month', 'last 8 months', 'the month before'", async () => {
+    setToday();
+    show();
+    await ready();
+    expect(screen.getByText("Receipts vs invoices this month")).toBeInTheDocument();
+    expect(widget("Sales vs purchase vs profit")).toHaveTextContent("Last 8 months");
+    expect(widget("Category sales")).toHaveTextContent("This month vs last month");
+    expect(screen.getByRole("link", { name: "VAT this quarter" })).toBeInTheDocument();
+    expect(scopeLine()).toContain("This month");
   });
 });

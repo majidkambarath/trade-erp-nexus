@@ -17,6 +17,9 @@ import { POSITION, PROFIT, EQUITY, CASH, NOTES } from "../src/lib/__tests__/ifrs
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = process.env.SHOT_DIR || join(ROOT, ".shots");
+// The order lists open on the current calendar month and cut to it in the browser, so the stub's order rows are dated in it
+// (a fixed October date would leave an empty list - and no row to open - in any other month).
+const THIS_MONTH = new Date().toISOString().slice(0, 7);
 const API_PORT = 4477;
 const WEB_PORT = 5177;
 
@@ -300,7 +303,7 @@ const SENDS = {
   6: { sendId: "s6", channel: "whatsapp", status: "HANDED_OFF", at: "2026-10-06T10:32:00.000Z", to: "971501112222", openedAt: null, error: null },
 };
 const doc = (i) => ({
-  _id: `d${i}`, id: `d${i}`, partyId: `p${i}`, transactionNo: `SO-2026-004${i}`, date: "2026-10-0" + ((i % 9) + 1),
+  _id: `d${i}`, id: `d${i}`, partyId: `p${i}`, transactionNo: `SO-2026-004${i}`, date: `${THIS_MONTH}-0${(i % 9) + 1}`,
   deliveryDate: "2026-10-1" + ((i % 9) + 1), customerName: `Al Noor Trading ${i}`,
   vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "APPROVED", "DRAFT"][i % 3], lastSend: SENDS[i] || null,
   totalAmount: 12480.5 * i,

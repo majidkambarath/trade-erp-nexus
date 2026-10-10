@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 import { AsRole, roleLoaded, statusFor } from "../../../shell/__tests__/asRole";
 import { FIRST_APPROVAL_MESSAGE } from "../../../../lib/approvals";
+import { todayInput } from "../../../../utils/format";
 
 // Test support (not a test): what an order module's list page does about APPROVING, shared by the four modules.
 //
@@ -37,9 +38,10 @@ export function approvalCases(config) {
   const Page = config.Page; // a capitalised local, so the linter sees it used in the JSX below
   const GRANTS = [`${module}.view`, `${module}.approve`];
 
+  // dated TODAY: the list opens on the current calendar month, so a fixed date would drop out of it when the month turns
   const raw = (id, over = {}) => ({
     _id: id, transactionNo: `DOC-${id}`, status: open, partyId: "p1", partyName: "Acme Corp", party: { customerName: "Acme Corp", vendorName: "Acme Corp" },
-    date: "2026-10-01T00:00:00.000Z", deliveryDate: "2026-10-05T00:00:00.000Z", totalAmount: 100, createdBy: "u2", priority: "Medium", approvals: [],
+    date: `${todayInput()}T00:00:00.000Z`, deliveryDate: "2026-10-05T00:00:00.000Z", totalAmount: 100, createdBy: "u2", priority: "Medium", approvals: [],
     items: [{ itemId: "i1", itemCode: "ITM1", description: "Item One", qty: 2, rate: 200, vatAmount: 10, vatPercent: 5 }],
     ...over,
   });

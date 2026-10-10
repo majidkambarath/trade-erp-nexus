@@ -25,7 +25,10 @@ import {
   X,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED, CURRENCY} from "../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatDateTime, formatTime, formatCurrencyAED, todayInput, CURRENCY} from "../../utils/format";
+import { resolveListPeriod } from "../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageFigures } from "../../lib/pagination";
+import ListPager from "../lists/ListPager";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
@@ -69,6 +72,15 @@ const SessionManager = {
 };
 
 
+// The movements of this calendar month: the page opens on it, like every list of documents, and says so under the title.
+const monthRange = () => {
+  const p = resolveListPeriod({ preset: "month" }, todayInput());
+  return { start: p.from, end: p.to };
+};
+// The server compares `date <= endDate` on the instant, so a bare day would stop at that day's midnight and drop the day's own
+// movements: the end of a range is the end of that day.
+const endOfDay = (day) => (day ? `${day}T23:59:59.999Z` : "");
+
 const InventoryManagement = () => {
   const [movements, setMovements] = useState([]);
   const [stockItems, setStockItems] = useState([]);
@@ -80,9 +92,10 @@ const InventoryManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEventType, setFilterEventType] = useState("");
   const [filterMovementType, setFilterMovementType] = useState("");
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [dateRange, setDateRange] = useState(monthRange);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [totalRows, setTotalRows] = useState(0);
   const [stats, setStats] = useState({
     totalMovements: 0,
     stockIn: 0,
@@ -113,7 +126,6 @@ const InventoryManagement = () => {
 
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
-  const itemsPerPage = 10;
 
   const eventTypes = [
     { value: "INITIAL_STOCK", label: "Initial Stock", color: "indigo" },
@@ -142,7 +154,7 @@ const InventoryManagement = () => {
     if (savedFilters) {
       setFilterEventType(savedFilters.eventType || "");
       setFilterMovementType(savedFilters.movementType || "");
-      setDateRange(savedFilters.dateRange || { start: "", end: "" });
+      setDateRange(savedFilters.dateRange || monthRange());
     }
 
     if (savedSearchTerm) {
@@ -192,21 +204,24 @@ const InventoryManagement = () => {
     }
   }, []);
 
+  const movementRequest = useRef(0);
   const fetchMovements = useCallback(async (showRefreshIndicator = false) => {
+    const ask = ++movementRequest.current;
     setIsLoading(showRefreshIndicator ? false : true);
     try {
       const params = {
         page,
-        limit: itemsPerPage,
+        limit: pageSize,
         search: searchTerm,
         eventType: filterEventType,
         movementType: filterMovementType,
         startDate: dateRange.start,
-        endDate: dateRange.end,
+        endDate: endOfDay(dateRange.end),
       };
       const response = await axiosInstance.get("/inventory/inventory", { params });
+      if (ask !== movementRequest.current) return;
       setMovements(response.data.data?.movements || []);
-      setTotalPages(response.data.totalPages || 1);
+      setTotalRows(Number(response.data.total) || 0);
       if (showRefreshIndicator) {
         showToastMessage("Data refreshed successfully!", "success");
       }
@@ -217,16 +232,16 @@ const InventoryManagement = () => {
         "error"
       );
     } finally {
-      setIsLoading(false);
+      if (ask === movementRequest.current) setIsLoading(false);
     }
-  }, [page, searchTerm, filterEventType, filterMovementType, dateRange]);
+  }, [page, pageSize, searchTerm, filterEventType, filterMovementType, dateRange]);
 
   const fetchStats = useCallback(async () => {
     try {
       const response = await axiosInstance.get("/inventory/inventory/stats", {
         params: {
           startDate: dateRange.start,
-          endDate: dateRange.end,
+          endDate: endOfDay(dateRange.end),
         },
       });
       setStats(response.data.data?.stats || {
@@ -247,6 +262,23 @@ const InventoryManagement = () => {
     fetchMovements();
     fetchStats();
   }, [fetchStockItems, fetchMovements, fetchStats]);
+
+  // a new search, filter, range or page size starts at the first page, and a page that no longer exists falls back to the last
+  const pageInfo = pageFigures({ page, size: pageSize, total: totalRows });
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterEventType, filterMovementType, dateRange, pageSize]);
+  useEffect(() => {
+    if (!isLoading && page > pageInfo.pages) setPage(pageInfo.pages);
+  }, [isLoading, page, pageInfo.pages]);
+  const thisMonthRange = monthRange();
+  const isThisMonth = dateRange.start === thisMonthRange.start && dateRange.end === thisMonthRange.end;
+  const rangeText =
+    dateRange.start && dateRange.end
+      ? `${formatDateGB(dateRange.start)} – ${formatDateGB(dateRange.end)}`
+      : dateRange.start
+        ? `from ${formatDateGB(dateRange.start)}`
+        : `up to ${formatDateGB(dateRange.end)}`;
 
   const showToastMessage = useCallback((message, type = "success") => {
     setShowToast({ visible: true, message, type });
@@ -444,7 +476,21 @@ const InventoryManagement = () => {
               Inventory Movements
             </h1>
             <p className="text-gray-600 mt-1">
-              {stats.totalMovements} total movements • {movements.length} displayed
+              {totalRows} {totalRows === 1 ? "movement" : "movements"} •{" "}
+              <span className="font-semibold text-black">{dateRange.start || dateRange.end ? (isThisMonth ? "This month" : "Selected dates") : "All time"}</span>
+              {dateRange.start || dateRange.end ? <> • {rangeText}</> : null}
+              {isThisMonth ? null : (
+                <>
+                  {" • "}
+                  <button type="button" onClick={() => { setDateRange(monthRange()); setPage(1); }} className="font-medium text-black underline underline-offset-2 hover:opacity-80">This month</button>
+                </>
+              )}
+              {dateRange.start || dateRange.end ? (
+                <>
+                  {" • "}
+                  <button type="button" onClick={() => { setDateRange({ start: "", end: "" }); setPage(1); }} className="font-medium text-black underline underline-offset-2 hover:opacity-80">Show all time</button>
+                </>
+              ) : null}
             </p>
           </div>
         </div>
@@ -751,9 +797,9 @@ const InventoryManagement = () => {
             {movements.length === 0 && (
               <div className="text-center py-12">
                 <Activity size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">No inventory movements found</p>
+                <p className="text-gray-500">{dateRange.start || dateRange.end ? `No inventory movements dated ${rangeText}` : "No inventory movements found"}</p>
                 <p className="text-gray-400 text-sm">
-                  Try adjusting your search criteria or add a new movement
+                  {dateRange.start || dateRange.end ? "Show all time to see earlier ones, or add a new movement" : "Try adjusting your search criteria or add a new movement"}
                 </p>
               </div>
             )}
@@ -762,54 +808,14 @@ const InventoryManagement = () => {
 
         {/* Pagination */}
         {!isLoading && movements.length > 0 && (
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <span>Showing</span>
-                <span className="font-semibold">
-                  {(page - 1) * itemsPerPage + 1}-
-                  {Math.min(page * itemsPerPage, movements.length)}
-                </span>
-                <span>of</span>
-                <span className="font-semibold">{movements.length}</span>
-                <span>movements</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const pageNumber = i + 1;
-                    return (
-                      <button
-                        key={pageNumber}
-                        onClick={() => setPage(pageNumber)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
-                          page === pageNumber
-                            ? "bg-indigo-600 text-white"
-                            : "text-gray-600 hover:bg-gray-100"
-                        }`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setPage(Math.min(totalPages, page + 1))}
-                  disabled={page === totalPages}
-                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
+          <ListPager
+            figures={pageInfo}
+            onPage={setPage}
+            onPageSize={setPageSize}
+            noun="movements"
+            one="movement"
+            className="rounded-none border-0 border-t shadow-none"
+          />
         )}
       </div>
 

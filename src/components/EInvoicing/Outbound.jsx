@@ -6,16 +6,25 @@ import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
 import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
 
+// The server returns the newest documents a page at a time (25 unless asked, 100 at most) as a plain list with no total, so
+// the screen asks for 50 and offers older ones while a page comes back full. (It used to ask for none and show only the
+// newest 25, with no sign that more existed.)
+const PAGE = 50;
+
 export default function Outbound({ notify, enabled }) {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [preview, setPreview] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busyId, setBusyId] = useState(null);
-  const docs = useAsync(() => einvoice.documents({ search: query || undefined }), [query]);
+  const docs = useAsync(() => einvoice.documents({ search: query || undefined, page, limit: PAGE }), [query, page]);
 
-  const rows = (docs.data || []).filter((d) => !status || d.status === status);
+  const loaded = docs.data || [];
+  const rows = loaded.filter((d) => !status || d.status === status);
+  const first = (page - 1) * PAGE + 1;
+  const hasOlder = loaded.length >= PAGE;
 
   async function act(fn, doc, okMessage) {
     setBusyId(doc._id);
@@ -36,7 +45,7 @@ export default function Outbound({ notify, enabled }) {
       description={enabled ? "Approved sales documents. Send each one once its customer details are complete." : "E-invoicing is switched off. You can preview documents, but sending needs it switched on in Settings."}
       actions={
         <>
-          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); }} className="relative">
+          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); setPage(1); }} className="relative">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Document number" aria-label="Search by document number"
               className="h-9 w-44 rounded-full border border-input bg-background ps-9 pe-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40" />
@@ -50,7 +59,13 @@ export default function Outbound({ notify, enabled }) {
     >
       {docs.loading && !docs.data && <Spinner label="Loading documents" />}
       {docs.error && <div className="p-5"><ErrorNote error={docs.error} onRetry={docs.reload} /></div>}
-      {docs.data && rows.length === 0 && <EmptyState title="No documents" text={status || query ? "Nothing matches that filter." : "Approved sales invoices and sales returns appear here."} />}
+      {docs.data && rows.length === 0 && (
+        <EmptyState
+          title="No documents"
+          text={status || query ? "Nothing matches that filter." : page > 1 ? "There are no older documents." : "Approved sales invoices and sales returns appear here."}
+          action={page > 1 ? <Button variant="outline" onClick={() => setPage(page - 1)}>Newer documents</Button> : undefined}
+        />
+      )}
       {rows.length > 0 && (
         <div className="erp-scroll table-pin-first overflow-x-auto">
           <DataTable
@@ -85,6 +100,18 @@ export default function Outbound({ notify, enabled }) {
             ]}
           />
         </div>
+      )}
+
+      {docs.data && (page > 1 || hasOlder) && (
+        <nav aria-label="Pages" className="flex flex-col gap-2 border-t border-border px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-muted-foreground">
+            {loaded.length ? `Documents ${first} to ${first + loaded.length - 1}, newest first${status ? ". The status filter applies to this page only" : ""}` : "No older documents"}
+          </span>
+          <span className="flex gap-2 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
+            <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Newer</Button>
+            <Button size="sm" variant="outline" disabled={!hasOlder} onClick={() => setPage(page + 1)}>Older</Button>
+          </span>
+        </nav>
       )}
 
       {preview && !preview.confirmSend && (

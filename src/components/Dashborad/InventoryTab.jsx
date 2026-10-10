@@ -8,19 +8,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { ChartArea, Empty, Skeleton } from "./widgets";
 import { ink, monthLabel, monthYearLabel, slices, compactAmount, tip } from "./helpers";
+import { trailing } from "@/lib/dashboardPeriod";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 
 // Inventory tab: where the stock value sits, what needs reordering or is about to expire, and how
-// the Inventory account has moved. Stock on hand is today's position whichever period is chosen.
-export default function InventoryTab({ state, theme }) {
+// the Inventory account has moved.
+//
+// Two different "as at"s, and the tab says which is which (the server's dashboardService.inventory):
+//   - the stock VALUE (categories, mix, total) is as at the period's last day - today while the period runs to today, and for a
+//     past period worked out from the stock movements up to that day as the books stand now;
+//   - the stock ALERTS (reorder level, batches near expiry) cannot be wound back: they are today's position whichever period
+//     is chosen.
+export default function InventoryTab({ state, theme, scope }) {
   const d = state.data;
+  const asAt = scope.current ? "today" : formatDate(scope.to);
+  const trail = (n, unit) => trailing(scope, n, unit, formatDate);
   const colours = slices(theme, "inventory");
   const trend = (d?.stockValueTrend?.months || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const alerts = d ? d.lowStock.length + d.batches.length : 0;
 
   return (
     <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">
+        Stock value is as at <span className="font-semibold text-foreground">{asAt}</span>
+        {scope.current ? "" : ", worked out from the stock movements as the books stand now"}. Stock alerts are always today&apos;s position.
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {!d && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-[1.75rem]" />)}
         {d && d.categories.length === 0 && (
@@ -48,7 +61,7 @@ export default function InventoryTab({ state, theme }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader>
             <CardTitle className="font-extrabold">Inventory mix</CardTitle>
-            <CardDescription>Stock value by category{d ? ` · ${formatCurrencyAED(d.totals.value)}` : ""}</CardDescription>
+            <CardDescription>Stock value by category{d ? ` · ${formatCurrencyAED(d.totals.value)}` : ""}{scope.current ? "" : ` · as at ${asAt}`}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={state} empty={!d || d.mix.length === 0} emptyText="No stock on hand yet" height={220}>
@@ -78,7 +91,7 @@ export default function InventoryTab({ state, theme }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader>
             <CardTitle className="font-extrabold">Stock alerts</CardTitle>
-            <CardDescription>Items at or below reorder level, and batches that expire within 30 days or already have</CardDescription>
+            <CardDescription>Items at or below reorder level, and batches that expire within 30 days or already have · as of today</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-14" />)}
@@ -114,7 +127,7 @@ export default function InventoryTab({ state, theme }) {
       <Card data-anim="bento" className={cardClass}>
         <CardHeader>
           <CardTitle className="font-extrabold">Stock value trend</CardTitle>
-          <CardDescription>Month-end balance of the Inventory account · {CURRENCY}</CardDescription>
+          <CardDescription>Month-end balance of the Inventory account · {trail(8, "months")} · {CURRENCY}</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartArea

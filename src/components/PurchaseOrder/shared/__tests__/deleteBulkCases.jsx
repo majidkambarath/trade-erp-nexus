@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom";
 import { AsRole, roleLoaded, statusFor } from "../../../shell/__tests__/asRole";
+import { todayInput } from "../../../../utils/format";
 
 // Test support (not a test): the bulk Delete of an order module's list page, shared by the four modules.
 //
@@ -13,9 +14,10 @@ import { AsRole, roleLoaded, statusFor } from "../../../shell/__tests__/asRole";
 // documents only offers no Delete at all. Someone who holds deletePosted deletes everything selected and is warned that the
 // approved ones are reversed in stock and in the ledger.
 
+// dated TODAY: the list opens on the current calendar month, so a fixed date would drop out of it when the month turns
 const raw = (id, status) => ({
   _id: id, transactionNo: `DOC-${id}`, status, partyId: "p1", partyName: "Acme Corp", party: { customerName: "Acme Corp", vendorName: "Acme Corp" },
-  date: "2026-10-01T00:00:00.000Z", deliveryDate: "2026-10-05T00:00:00.000Z", totalAmount: 525, createdBy: "Boss", priority: "Medium",
+  date: `${todayInput()}T00:00:00.000Z`, deliveryDate: "2026-10-05T00:00:00.000Z", totalAmount: 525, createdBy: "Boss", priority: "Medium",
   items: [{ itemId: "i1", itemCode: "ITM1", description: "Item One", qty: 2, rate: 200, vatAmount: 10, vatPercent: 5 }],
 });
 

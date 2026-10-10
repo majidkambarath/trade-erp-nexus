@@ -3,15 +3,17 @@ import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { LayoutDashboard, TrendingUp, Package, ShoppingCart, RefreshCw, MapPin, Plus } from "lucide-react";
 import { getBrand } from "@/config/brands";
-import { CURRENCY } from "@/utils/format";
+import { CURRENCY, toInputDate } from "@/utils/format";
 import { orgTimezone } from "@/utils/orgLocale";
 import { dashboard } from "@/lib/dashboardApi";
+import { defaultSelection, describePeriod } from "@/lib/dashboardPeriod";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ErrorNote } from "../accounting/kit";
+import PeriodPicker from "./PeriodPicker";
 import OverviewTab from "./OverviewTab";
 import SalesTab from "./SalesTab";
 import InventoryTab from "./InventoryTab";
@@ -20,27 +22,29 @@ import ReportsTab from "./ReportsTab";
 // Home. Every figure and chart comes from GET /dashboard-summary (src/lib/dashboardApi.js), which
 // reads the same reports the rest of the app uses, so nothing here is sampled or made up. Where
 // there is nothing to show, the card says so in its own space. The Dashboard tab loads first; the
-// other tabs load when they are opened, and all of them follow the period chosen in the header card.
+// other tabs load when they are opened, and all of them follow the period chosen above the tabs
+// (PeriodPicker; src/lib/dashboardPeriod.js turns a choice into what the server is asked for).
 
 // the header's date and time, on the organisation's own clock
 const clockFormatter = (zone) =>
   new Intl.DateTimeFormat("en-AE", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 // Loads one part of the dashboard for a period once `enabled`, and again whenever the period
-// changes. A reply to an older request never replaces a newer one.
-function useSection(load, period, enabled) {
+// changes (`scope` is memoised, so it is a new object only when the period really is). A reply to an
+// older request never replaces a newer one.
+function useSection(load, scope, enabled) {
   const [state, setState] = useState({ data: null, loading: false, error: null });
   const run = useRef(0);
   const reload = useCallback(() => {
     const id = ++run.current;
     setState((s) => ({ ...s, loading: true, error: null }));
     Promise.resolve()
-      .then(() => load({ period }))
+      .then(() => load(scope.query))
       .then(
         (data) => id === run.current && setState({ data, loading: false, error: null }),
         (error) => id === run.current && setState((s) => ({ ...s, loading: false, error }))
       );
-  }, [load, period]);
+  }, [load, scope]);
   useEffect(() => {
     if (enabled) reload();
   }, [enabled, reload]);
@@ -57,16 +61,30 @@ function Dashboard() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const rootRef = useRef(null);
-  const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("overview");
   const [visited, setVisited] = useState({ overview: true });
   const [now, setNow] = useState(new Date());
 
-  const core = useSection(dashboard.summary, period, true);
-  const analytics = useSection(dashboard.analytics, period, true);
-  const sales = useSection(dashboard.sales, period, Boolean(visited.sales));
-  const inventory = useSection(dashboard.inventory, period, Boolean(visited.inventory));
-  const reports = useSection(dashboard.reports, period, Boolean(visited.finance));
+  // What the person picked, and the last pick that could be asked for: a range that ends before it starts is explained
+  // under the control while the figures stay on the period that was showing.
+  const today = useMemo(() => toInputDate(now), [now]);
+  const [selection, setSelection] = useState(defaultSelection);
+  const [applied, setApplied] = useState(defaultSelection);
+  const picked = useMemo(() => describePeriod(selection, today), [selection, today]);
+  const scope = useMemo(() => describePeriod(applied, today), [applied, today]);
+  const choose = (next) => {
+    setSelection(next);
+    if (describePeriod(next, today).ok) setApplied(next);
+  };
+
+  const core = useSection(dashboard.summary, scope, true);
+  // what the figures are compared with is the server's own answer, shown only once it is the answer for THIS period
+  const served = core.data?.period;
+  const compare = served && served.from === scope.from && served.to === scope.to ? served : null;
+  const analytics = useSection(dashboard.analytics, scope, true);
+  const sales = useSection(dashboard.sales, scope, Boolean(visited.sales));
+  const inventory = useSection(dashboard.inventory, scope, Boolean(visited.inventory));
+  const reports = useSection(dashboard.reports, scope, Boolean(visited.finance));
   const sections = [core, analytics, sales, inventory, reports];
   const refreshing = sections.some((s) => s.loading);
 
@@ -134,6 +152,8 @@ function Dashboard() {
           </div>
         </div>
 
+        <PeriodPicker selection={selection} onChange={choose} today={today} scope={scope} problem={picked.ok ? null : picked.error} compare={compare} />
+
         <Tabs value={tab} onValueChange={openTab} className="gap-6">
           {/* Four pills with icons are ~510px. Centring that in a 390px screen made the whole
               page 450px wide and scrolled every card's left edge out of view. The row scrolls
@@ -165,28 +185,28 @@ function Dashboard() {
             <Failed state={core} />
             <Failed state={analytics} />
             <div aria-busy={core.loading || analytics.loading} className={busy(core)}>
-              <OverviewTab core={core} analytics={analytics} period={period} setPeriod={setPeriod} theme={theme} />
+              <OverviewTab core={core} analytics={analytics} scope={scope} theme={theme} />
             </div>
           </TabsContent>
 
           <TabsContent value="sales" className="space-y-5">
             <Failed state={sales} />
             <div aria-busy={sales.loading} className={busy(sales)}>
-              <SalesTab state={sales} period={period} />
+              <SalesTab state={sales} scope={scope} />
             </div>
           </TabsContent>
 
           <TabsContent value="inventory" className="space-y-5">
             <Failed state={inventory} />
             <div aria-busy={inventory.loading} className={busy(inventory)}>
-              <InventoryTab state={inventory} theme={theme} />
+              <InventoryTab state={inventory} theme={theme} scope={scope} />
             </div>
           </TabsContent>
 
           <TabsContent value="finance" className="space-y-5">
             <Failed state={reports} />
             <div aria-busy={reports.loading} className={busy(reports)}>
-              <ReportsTab state={reports} />
+              <ReportsTab state={reports} scope={scope} />
             </div>
           </TabsContent>
         </Tabs>

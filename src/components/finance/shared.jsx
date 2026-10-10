@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, Printer, Search, Trash2 } from "lucide-react";
+import { History, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, errorMessage, inputClass, useAsync, DateInput } from "../accounting/kit";
 import { accounting } from "../../lib/accountingApi";
@@ -12,6 +12,11 @@ import { useOrganisation } from "../shell/OrganisationContext";
 import { ApprovalBanner, useApproval } from "../shell/Approval";
 import { awaitingLabel, firstApproverName, FIRST_APPROVAL_MESSAGE, wasFirstApproval } from "../../lib/approvals";
 import { deleteKey } from "../../lib/permissions";
+import { DEFAULT_PAGE_SIZE, pageFigures } from "../../lib/pagination";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import ListPager from "../lists/ListPager";
+import ListEmpty from "../lists/ListEmpty";
 
 // Pieces every finance voucher screen shares: the list with search, dates and paging; the
 // read-only view; and the account / bank lists the entry forms pick from.
@@ -66,70 +71,95 @@ function useDebounced(value, ms = 300) {
   return v;
 }
 
-export function useVoucherList(voucherType, { limit = 15 } = {}) {
-  const [filters, setFilters] = useState({ search: "", dateFrom: "", dateTo: "", status: "", paymentMode: "", page: 1 });
-  const search = useDebounced(filters.search);
+// A voucher list: server-paged, filtered by search, status, payment mode and a PERIOD that opens on this calendar month
+// (lib/listPeriod.js). `filters` is what the toolbar draws; `set` changes a filter and goes back to page 1, and so does a new
+// period. A page that no longer exists (the last row of the last page was deleted) is replaced by the last page there is.
+export function useVoucherList(voucherType, { limit = DEFAULT_PAGE_SIZE } = {}) {
+  const periodFilter = usePeriodFilter();
+  const { period } = periodFilter;
+  const [state, setState] = useState({ search: "", status: "", paymentMode: "", page: 1, pageSize: limit, forPeriod: period.key });
+  // the page belongs to the period it was chosen in: a new period starts at page 1 without a second request
+  const page = state.forPeriod === period.key ? state.page : 1;
+  const search = useDebounced(state.search);
   const list = useAsync(
-    () => vouchers.list({ voucherType, search: search || undefined, dateFrom: filters.dateFrom || undefined, dateTo: filters.dateTo || undefined, status: filters.status || undefined, paymentMode: filters.paymentMode || undefined, page: filters.page, limit }),
-    [voucherType, search, filters.dateFrom, filters.dateTo, filters.status, filters.paymentMode, filters.page, limit]
+    () => vouchers.list({
+      voucherType, search: search || undefined, dateFrom: period.from || undefined, dateTo: period.to || undefined,
+      status: state.status || undefined, paymentMode: state.paymentMode || undefined, page, limit: state.pageSize,
+    }),
+    [voucherType, search, period.key, state.status, state.paymentMode, page, state.pageSize]
   );
-  const set = (patch) => setFilters((f) => ({ ...f, page: 1, ...patch }));
-  return { filters, set, setPage: (page) => setFilters((f) => ({ ...f, page })), ...list, rows: list.data?.rows || [], pagination: list.data?.pagination };
+  const set = (patch) => setState((f) => ({ ...f, page: 1, forPeriod: period.key, ...patch }));
+  const setPage = (p) => setState((f) => ({ ...f, page: p, forPeriod: period.key }));
+  const setPageSize = (n) => set({ pageSize: n });
+  const pagination = list.data?.pagination;
+  const lastPage = pagination?.pages || 1;
+  useEffect(() => {
+    if (list.data && !list.data.rows?.length && pagination?.total > 0 && page > lastPage) setPage(lastPage);
+  }, [list.data, pagination?.total, page, lastPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  return {
+    filters: { ...state, search: state.search, page, periodFilter, count: pagination?.total ?? null },
+    set, setPage, setPageSize,
+    clearFilters: () => set({ search: "", status: "", paymentMode: "" }),
+    ...list, rows: list.data?.rows || [], pagination,
+  };
 }
 
 export function ListToolbar({ filters, set, statuses = true, children }) {
-  // On a phone: search across the full width, then the two dates side by side, then status.
-  // Fixed widths (w-40, w-36) only apply once there is room for them to sit in one row.
+  // On a phone: search across the full width, then the period, then status. Fixed widths (w-44, w-36) only apply once there
+  // is room for them to sit in one row. The line under it says which days are showing and how to widen them.
+  const { periodFilter } = filters;
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end print:hidden">
-      <div className="relative w-full sm:min-w-56 sm:max-w-sm sm:flex-1">
-        <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <TextInput aria-label="Search vouchers" className="ps-9" placeholder="Search number, party or narration…" value={filters.search} onChange={(e) => set({ search: e.target.value })} />
+    <div className="mb-4 print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="relative w-full sm:min-w-56 sm:max-w-sm sm:flex-1">
+          <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <TextInput aria-label="Search vouchers" className="ps-9" placeholder="Search number, party or narration…" value={filters.search} onChange={(e) => set({ search: e.target.value })} />
+        </div>
+        {periodFilter && <PeriodSelect filter={periodFilter} labelled />}
+        {statuses && (
+          <Field label="Status" className="w-full sm:w-36">
+            <select className={inputClass} value={filters.status} onChange={(e) => set({ status: e.target.value })}>
+              <option value="">All</option>
+              <option value="approved">Posted</option>
+              <option value="pending">Waiting for approval</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="bounced">Bounced</option>
+            </select>
+          </Field>
+        )}
+        {children}
       </div>
-      <div className="flex gap-3">
-        <Field label="From" className="min-w-0 flex-1 sm:w-40 sm:flex-none"><DateInput value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} /></Field>
-        <Field label="To" className="min-w-0 flex-1 sm:w-40 sm:flex-none"><DateInput value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} /></Field>
-      </div>
-      {statuses && (
-        <Field label="Status" className="w-full sm:w-36">
-          <select className={inputClass} value={filters.status} onChange={(e) => set({ status: e.target.value })}>
-            <option value="">All</option>
-            <option value="approved">Posted</option>
-            <option value="pending">Waiting for approval</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="bounced">Bounced</option>
-          </select>
-        </Field>
-      )}
-      {children}
+      {periodFilter && <PeriodNote filter={periodFilter} count={filters.count} noun="vouchers" one="voucher" className="mt-3" />}
     </div>
   );
 }
 
-export function Pager({ pagination, onPage }) {
-  if (!pagination || pagination.pages <= 1) return null;
-  return (
-    <nav aria-label="Pages" className="flex flex-col gap-2 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 print:hidden">
-      <span className="text-muted-foreground">{pagination.total} vouchers · page {pagination.current} of {pagination.pages}</span>
-      {/* Page steps are the one control on a long list people hit repeatedly, so on touch
-          they take the full width and a 44px height instead of a 28px corner button. */}
-      <span className="flex gap-2 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
-        <Button variant="outline" size="sm" disabled={pagination.current <= 1} onClick={() => onPage(pagination.current - 1)}><ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />Previous</Button>
-        <Button variant="outline" size="sm" disabled={pagination.current >= pagination.pages} onClick={() => onPage(pagination.current + 1)}>Next<ChevronRight className="h-3.5 w-3.5" aria-hidden="true" /></Button>
-      </span>
-    </nav>
-  );
+// `pagination` is the server's { current, pages, total, limit }.
+export function Pager({ pagination, onPage, onPageSize, noun = "vouchers", one = "voucher" }) {
+  if (!pagination || !pagination.total) return null;
+  const figures = pageFigures({ page: pagination.current, size: pagination.limit, total: pagination.total });
+  return <ListPager figures={figures} onPage={onPage} onPageSize={onPageSize || (() => {})} noun={noun} one={one} className="rounded-none border-0 border-t shadow-none" />;
 }
 
 // The loading / error / empty states every list shows, then the table the page supplies.
 export function ListBody({ list, emptyTitle, emptyText, children }) {
   if (list.loading && !list.data) return <Spinner label="Loading" />;
   if (list.error) return <div className="p-5"><ErrorNote error={list.error} onRetry={list.reload} /></div>;
-  if (!list.rows.length) return <EmptyState title={emptyTitle} text={emptyText} />;
+  if (!list.rows.length) {
+    // "none this month" is not "none": say which, and offer the way out (the period is the usual reason a list is empty)
+    const { periodFilter, search, status, paymentMode } = list.filters;
+    const noun = String(emptyTitle || "No vouchers").replace(/^No /i, "").toLowerCase();
+    return (
+      <ListEmpty
+        filter={periodFilter} noun={noun} inPeriod={null} filtered={Boolean(search || status || paymentMode)} onClearFilters={list.clearFilters}
+        emptyTitle={emptyTitle} createText={emptyText}
+      />
+    );
+  }
   return (
     <>
       <div className="erp-scroll table-pin-first relative overflow-x-auto">{children}</div>
-      <Pager pagination={list.pagination} onPage={list.setPage} />
+      <Pager pagination={list.pagination} onPage={list.setPage} onPageSize={list.setPageSize} />
     </>
   );
 }

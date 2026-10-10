@@ -2,7 +2,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CURRENCY, formatCurrencyAED, formatNumber } from "@/utils/format";
+import { CURRENCY, formatCurrencyAED, formatDate, formatNumber } from "@/utils/format";
+import { trailing } from "@/lib/dashboardPeriod";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -10,12 +11,12 @@ import { ChartArea, Empty, Skeleton } from "./widgets";
 import { gold, ink, monthLabel, monthYearLabel, signed, compactAmount, tip, weekdayLabel } from "./helpers";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
-const WORD = { week: "week", month: "month", quarter: "quarter", custom: "period" };
-
 // Sales tab: orders, average order, best sellers and the sales / purchase trend, all of the period chosen above.
-export default function SalesTab({ state, period }) {
+// `scope` words it ("this month", "in Q2 2026") and says what each series ends on (src/lib/dashboardPeriod.js).
+export default function SalesTab({ state, scope }) {
   const d = state.data;
-  const word = WORD[d?.period?.id || period] || "period";
+  const { at, before } = scope;
+  const trail = (n, unit) => trailing(scope, n, unit, formatDate);
   const monthly = (d?.monthly || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const daily = (d?.daily || []).map((x) => ({ ...x, day: weekdayLabel(x.date) }));
   const customers = (d?.topCustomers || []).map((c) => ({ name: c.name, aed: c.netRevenue }));
@@ -23,7 +24,7 @@ export default function SalesTab({ state, period }) {
   const approved = d?.approvedShare;
   const points = approved && approved.pct !== null && approved.previousPct !== null ? Math.round((approved.pct - approved.previousPct) * 10) / 10 : null;
   const tiles = d && [
-    { label: `Orders this ${word}`, value: formatNumber(d.orders.count, 0), change: d.orders.changePct === null ? null : signed(d.orders.changePct), empty: d.orders.count === 0 },
+    { label: `Orders ${at}`, value: formatNumber(d.orders.count, 0), change: d.orders.changePct === null ? null : signed(d.orders.changePct), empty: d.orders.count === 0 },
     { label: "Avg. order", value: d.averageOrder.value === null ? "—" : formatCurrencyAED(d.averageOrder.value), change: d.averageOrder.changePct === null ? null : signed(d.averageOrder.changePct), empty: d.averageOrder.value === null },
     { label: "Orders approved", value: approved.pct === null ? "—" : `${formatNumber(approved.pct, 1)}%`, change: points === null ? null : `${points > 0 ? "+" : points < 0 ? "-" : ""}${formatNumber(Math.abs(points), 1)} points`, empty: approved.pct === null },
   ];
@@ -44,10 +45,10 @@ export default function SalesTab({ state, period }) {
                 {m.change !== null ? (
                   <>
                     <ArrowUpRight className="mr-0.5 h-3 w-3" />
-                    {m.change} on the {word} before
+                    {m.change} on the {before}
                   </>
                 ) : (
-                  <span className="font-medium text-foreground/70">{m.empty ? `No sales this ${word}` : `Nothing to compare with the ${word} before`}</span>
+                  <span className="font-medium text-foreground/70">{m.empty ? `No sales ${at}` : `Nothing to compare with the ${before}`}</span>
                 )}
               </p>
             </CardContent>
@@ -59,10 +60,10 @@ export default function SalesTab({ state, period }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-8")}>
           <CardHeader>
             <CardTitle className="font-extrabold">Sales vs Purchase</CardTitle>
-            <CardDescription>Monthly {CURRENCY} · last 8 months</CardDescription>
+            <CardDescription>Monthly {CURRENCY} · {trail(8, "months")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={state} empty={!monthly.some((m) => m.sales || m.purchases)} emptyText="No sales or purchases posted in the last 8 months" height={300}>
+            <ChartArea state={state} empty={!monthly.some((m) => m.sales || m.purchases)} emptyText={`No sales or purchases posted in the ${trail(8, "months")}`} height={300}>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={monthly} barGap={8}>
                   <CartesianGrid stroke="var(--border)" vertical={false} />
@@ -80,11 +81,11 @@ export default function SalesTab({ state, period }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-4")}>
           <CardHeader>
             <CardTitle className="font-extrabold">Best sellers</CardTitle>
-            <CardDescription>By net revenue this {word}</CardDescription>
+            <CardDescription>By net revenue {at}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-16" />)}
-            {d && d.bestSellers.length === 0 && <Empty height={200}>No item sales this {word}</Empty>}
+            {d && d.bestSellers.length === 0 && <Empty height={200}>No item sales {at}</Empty>}
             {d?.bestSellers?.map((p, i) => (
               <div key={p.itemId} className="rounded-2xl bg-secondary/70 px-3 py-3">
                 <div className="mb-1 flex items-center justify-between gap-2">
@@ -103,10 +104,10 @@ export default function SalesTab({ state, period }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader>
             <CardTitle className="font-extrabold">Daily order trend</CardTitle>
-            <CardDescription>Approved sales orders · last 7 days</CardDescription>
+            <CardDescription>Approved sales orders · {trail(7, "days")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={state} empty={!daily.some((x) => x.orders)} emptyText="No approved sales orders in the last 7 days" height={220}>
+            <ChartArea state={state} empty={!daily.some((x) => x.orders)} emptyText={`No approved sales orders in the ${trail(7, "days")}`} height={220}>
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={daily}>
                   <defs>
@@ -129,11 +130,11 @@ export default function SalesTab({ state, period }) {
           <CardHeader>
             <CardTitle className="font-extrabold">Sales by customer</CardTitle>
             <CardDescription>
-              Top 5 by net revenue this {word} · {CURRENCY} · <Link to="/party-balances?tab=customers" className="underline underline-offset-2">balances</Link>
+              Top 5 by net revenue {at} · {CURRENCY} · <Link to="/party-balances?tab=customers" className="underline underline-offset-2">balances</Link>
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={state} empty={customers.length === 0} emptyText={`No sales this ${word}`} height={220}>
+            <ChartArea state={state} empty={customers.length === 0} emptyText={`No sales ${at}`} height={220}>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={customers}>
                   <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />

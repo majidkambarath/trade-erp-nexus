@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { approveMany, processTransaction } from "../../../lib/processTransaction";
 import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
@@ -50,7 +50,14 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import SaleInvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput, CURRENCY } from "../../../utils/format";
+import { usePeriodFilter } from "../../lists/usePeriodFilter";
+import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
+import ListPager from "../../lists/ListPager";
+import ListEmpty from "../../lists/ListEmpty";
+import { fetchAllTransactions } from "../../../lib/transactionList";
+import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
@@ -85,12 +92,18 @@ const SalesOrderManagement = () => {
   const [sendSO, setSendSO] = useState(null); // the order being sent to its customer
   const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [dateFilter, setDateFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  // The list opens on this calendar month; a link that names a document (?search=) opens on all time, because that document
+  // may be from any month. Only a change of period asks the server again: the rest is filtered, sorted and paged here.
+  const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
+  const { period } = periodFilter;
+  const previous = previousPeriod(period, periodFilter.today);
+  const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
+  const listRequest = useRef(0);
   const [notifications, setNotifications] = useState([]);
   const [selectedSOs, setSelectedSOs] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -139,13 +152,19 @@ const SalesOrderManagement = () => {
   useEffect(() => {
     fetchCustomers();
     fetchStockItems();
-    fetchTransactions();
   }, []);
 
-  // Refetch on filter change
+  // Read the list for the period shown, on mount and whenever the period changes
   useEffect(() => {
     fetchTransactions();
-  }, [searchTerm, statusFilter, customerFilter, dateFilter]);
+  }, [period.key]);
+
+  // A new search, filter or period starts at the first page and drops a selection made on other rows: a bulk action must act
+  // on what is seen
+  useEffect(() => {
+    setSelectedSOs([]);
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, customerFilter, period.key]);
 
   // Generate SO number on create
   useEffect(() => {
@@ -205,22 +224,18 @@ const SalesOrderManagement = () => {
   };
 
   const fetchTransactions = async () => {
+    const ask = ++listRequest.current;
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/transactions/transactions", {
-        params: {
-          type: "sales_order",
-          search: searchTerm,
-          status: statusFilter !== "ALL" ? statusFilter : undefined,
-          partyId: customerFilter !== "ALL" ? customerFilter : undefined,
-          dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
-        },
+      // every page of the period (the server returns 20 unless asked, and 200 at most), not the newest twenty
+      const { rows: transactions, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
+        type: "sales_order",
+        period,
+        serverDates: true,
+        compare: previous,
       });
-
-      const transactions = response.data?.data || [];
-      // DEBUG: Log raw backend rows for LPO/DOC/Discount audit
-      //console.log("[FETCH SO LIST] rows:", transactions.map(t => ({ id: t._id, lpono: t.lpono ?? t.refNo, docno: t.docno ?? t.docNo, discount: t.discount })));
-      console.log("Transaction Fetch from backend "+transactions);
+      if (ask !== listRequest.current) return; // a newer read is on its way
+      setListInfo({ total, truncated, previousTotal });
       // helper to format invoice number for APPROVED orders:
 // remove leading SO (case-insensitive), keep digits, pad to 4 chars (e.g. SO277 -> 0277)
 const formatDisplayTransactionNo = (t) => {
@@ -278,7 +293,7 @@ const formatDisplayTransactionNo = (t) => {
         "error"
       );
     } finally {
-      setIsLoading(false);
+      if (ask === listRequest.current) setIsLoading(false);
     }
   };
 
@@ -355,107 +370,64 @@ const formatDisplayTransactionNo = (t) => {
     };
   };
 
-  // STATISTICS
-  const getStatistics = useMemo(
-    () => () => {
-      const total = salesOrders.length;
-      const draft = salesOrders.filter((so) => so.status === "DRAFT").length;
-      const confirmed = salesOrders.filter(
-        (so) => so.status === "APPROVED"
-      ).length;
-      const invoiced = salesOrders.filter(
-        (so) => so.status === "INVOICED"
-      ).length;
-
-      const totalValue = salesOrders.reduce(
-        (sum, so) => sum + parseFloat(so.totalAmount),
-        0
-      );
-      const invoicedValue = salesOrders
-        .filter((so) => so.status === "INVOICED")
-        .reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-
-      const thisMonth = new Date().getMonth();
-      const thisYear = new Date().getFullYear();
-      const thisMonthSOs = salesOrders.filter((so) => {
-        const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === thisMonth && soDate.getFullYear() === thisYear
-        );
-      }).length;
-
-      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-      const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
-      const lastMonthSOs = salesOrders.filter((so) => {
-        const soDate = new Date(so.date);
-        return (
-          soDate.getMonth() === lastMonth &&
-          soDate.getFullYear() === lastMonthYear
-        );
-      }).length;
-
-      const growthRate =
-        lastMonthSOs === 0
-          ? 0
-          : ((thisMonthSOs - lastMonthSOs) / lastMonthSOs) * 100;
-
-      return {
-        total,
-        draft,
-        confirmed,
-        invoiced,
-        totalValue,
-        invoicedValue,
-        thisMonthSOs,
-        growthRate,
-      };
-    },
-    [salesOrders]
+  // The documents of the period, exactly: the server is asked for a day either side, and this is the test that counts.
+  // Everything below (the cards, the list, the pages) is these rows.
+  const periodRows = useMemo(
+    () => salesOrders.filter((so) => inPeriod(toInputDate(so.date), period)),
+    [salesOrders, period]
   );
 
-  const statistics = getStatistics();
+  // STATISTICS - of the period shown, against the period before it
+  const statistics = useMemo(() => {
+    const total = periodRows.length;
+    const draft = periodRows.filter((so) => so.status === "DRAFT").length;
+    const confirmed = periodRows.filter((so) => so.status === "APPROVED").length;
+    const invoiced = periodRows.filter((so) => so.status === "INVOICED").length;
+    const totalValue = periodRows.reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+    const invoicedValue = periodRows
+      .filter((so) => so.status === "INVOICED")
+      .reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+    return {
+      total,
+      draft,
+      confirmed,
+      invoiced,
+      totalValue,
+      invoicedValue,
+      compare: compareCount(total, listInfo.previousTotal, previous?.name),
+    };
+  }, [periodRows, listInfo.previousTotal, previous?.name]);
 
-  // FILTERING & SORTING
+  // FILTERING & SORTING (search, status and customer are applied here, to the whole period)
+  const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || customerFilter !== "ALL";
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("ALL");
+    setCustomerFilter("ALL");
+    setCurrentPage(1);
+  };
   const filteredAndSortedSOs = useMemo(
     () => () => {
-      let filtered = salesOrders.filter((so) => {
+      const needle = searchTerm.trim().toLowerCase();
+      const has = (v) => String(v ?? "").toLowerCase().includes(needle);
+      let filtered = periodRows.filter((so) => {
         const matchesSearch =
-          so.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          so.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          so.createdBy?.toLowerCase().includes(searchTerm.toLowerCase());
+          !needle ||
+          has(so.transactionNo) ||
+          has(so.displayTransactionNo) ||
+          has(so.customerName) ||
+          has(so.createdBy) ||
+          has(so.refNo) ||
+          has(so.docNo) ||
+          has(so.notes) ||
+          (so.items || []).some((i) => has(i.description) || has(i.itemName));
 
         const matchesStatus =
           statusFilter === "ALL" || so.status === statusFilter;
         const matchesCustomer =
           customerFilter === "ALL" || so.customerId === customerFilter;
 
-        let matchesDate = true;
-        if (dateFilter !== "ALL") {
-          const soDate = new Date(so.date);
-          const today = new Date();
-          switch (dateFilter) {
-            case "TODAY":
-              matchesDate = soDate.toDateString() === today.toDateString();
-              break;
-            case "WEEK": {
-              const weekAgo = new Date(
-                today.getTime() - 7 * 24 * 60 * 60 * 1000
-              );
-              matchesDate = soDate >= weekAgo;
-              break;
-            }
-            case "MONTH": {
-              const monthAgo = new Date(
-                today.getFullYear(),
-                today.getMonth() - 1,
-                today.getDate()
-              );
-              matchesDate = soDate >= monthAgo;
-              break;
-            }
-          }
-        }
-        return matchesSearch && matchesStatus && matchesCustomer && matchesDate;
+        return matchesSearch && matchesStatus && matchesCustomer;
       });
 
       filtered.sort((a, b) => {
@@ -493,22 +465,22 @@ const formatDisplayTransactionNo = (t) => {
       return filtered;
     },
     [
-      salesOrders,
+      periodRows,
       searchTerm,
       statusFilter,
       customerFilter,
-      dateFilter,
       sortBy,
       sortOrder,
     ]
   );
 
   const filteredSOs = filteredAndSortedSOs();
-  const totalPages = Math.ceil(filteredSOs.length / itemsPerPage);
-  const paginatedSOs = filteredSOs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // the page shown is always one that exists: a filter that leaves fewer rows, or a deleted last row, never leaves an empty page
+  const pageView = pageSlice(filteredSOs, currentPage, itemsPerPage);
+  const paginatedSOs = pageView.rows;
+  useEffect(() => {
+    if (currentPage !== pageView.page) setCurrentPage(pageView.page);
+  }, [currentPage, pageView.page]);
 
   const getStatusColor = (status) => statusClasses(status);
 
@@ -753,13 +725,14 @@ const formatDisplayTransactionNo = (t) => {
   const Dashboard = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+        {/* the four cards are the period shown above (This month unless widened), never "the newest twenty" */}
         <StatCard
           title="Total Orders"
           count={statistics.total}
           tone="teal"
           icon={<ShoppingCart />}
-          subText="Against last month"
-          trend={`${statistics.growthRate >= 0 ? "+" : "−"}${Math.abs(statistics.growthRate).toFixed(1)}%`}
+          subText={statistics.compare.subText || period.label}
+          trend={statistics.compare.trend || undefined}
         />
         <StatCard
           title="Approved"
@@ -776,11 +749,11 @@ const formatDisplayTransactionNo = (t) => {
           subText={`Invoiced ${CURRENCY} ${formatNumber(statistics.invoicedValue)}`}
         />
         <StatCard
-          title="This Month"
-          count={statistics.thisMonthSOs}
+          title="Drafts"
+          count={statistics.draft}
           tone="rose"
           icon={<BarChart3 />}
-          subText="New orders created"
+          subText="Waiting for approval"
         />
       </div>
 
@@ -789,17 +762,17 @@ const formatDisplayTransactionNo = (t) => {
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-sm font-semibold text-foreground">Recent sales orders</h3>
             <span className="text-xs text-muted-foreground">
-              {salesOrders.length} in total
+              {periodRows.length} {period.all ? "in total" : `· ${period.label}`}
             </span>
           </header>
           <div className="px-5">
-            {salesOrders.length === 0 ? (
+            {periodRows.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No sales orders yet. Create one to see it here.
+                {period.all ? "No sales orders yet. Create one to see it here." : `No sales orders in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
               </p>
             ) : (
               <ul className="divide-y divide-border">
-                {salesOrders.slice(0, 5).map((so) => (
+                {periodRows.slice(0, 5).map((so) => (
                   <li key={so.id} className="flex items-center justify-between gap-4 py-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <span
@@ -831,7 +804,7 @@ const formatDisplayTransactionNo = (t) => {
               </ul>
             )}
           </div>
-          {salesOrders.length > 0 && (
+          {periodRows.length > 0 && (
             <footer className="border-t border-border px-5 py-3">
               <button
                 type="button"
@@ -883,75 +856,6 @@ const formatDisplayTransactionNo = (t) => {
       </div>
     </div>
   );
-
-  const Pagination = () => {
-    const startItem = (currentPage - 1) * itemsPerPage + 1;
-    const endItem = Math.min(currentPage * itemsPerPage, filteredSOs.length);
-
-    return (
-      <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
-        <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
-          <span className="text-sm text-muted-foreground">
-            Showing {startItem} to {endItem} of {filteredSOs.length} orders
-          </span>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1.5 border border-input rounded-lg text-sm bg-card text-foreground"
-          >
-            <option value={10}>10 per page</option>
-            <option value={25}>25 per page</option>
-            <option value={50}>50 per page</option>
-            <option value={100}>100 per page</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <div className="flex space-x-1">
-            {[...Array(Math.min(5, totalPages))].map((_, i) => {
-              let pageNum =
-                totalPages <= 5
-                  ? i + 1
-                  : currentPage <= 3
-                  ? i + 1
-                  : currentPage >= totalPages - 2
-                  ? totalPages - 4 + i
-                  : currentPage - 2 + i;
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                    currentPage === pageNum
-                      ? "border-foreground bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="bg-background font-sans">
@@ -1015,7 +919,7 @@ const formatDisplayTransactionNo = (t) => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="Search by SO number, customer, or user..."
+                    placeholder="Search by number, customer, reference or item..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -1052,19 +956,7 @@ const formatDisplayTransactionNo = (t) => {
                     </option>
                   ))}
                 </select>
-                <select
-                  value={dateFilter}
-                  onChange={(e) => {
-                    setDateFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-2.5 rounded-lg border border-input bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                >
-                  <option value="ALL">All Dates</option>
-                  <option value="TODAY">Today</option>
-                  <option value="WEEK">This Week</option>
-                  <option value="MONTH">This Month</option>
-                </select>
+                <PeriodSelect filter={periodFilter} />
               </div>
               <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
                 <button
@@ -1144,6 +1036,7 @@ const formatDisplayTransactionNo = (t) => {
                 )}
               </div>
             </div>
+            <PeriodNote filter={periodFilter} count={periodRows.length} extra={filtersOn ? `${filteredSOs.length} match the search and filters` : undefined} noun="orders" one="order" limited={listInfo.truncated} className="mt-3" />
           </div>
         )}
       </div>
@@ -1156,7 +1049,17 @@ const formatDisplayTransactionNo = (t) => {
         ) : (
           <>
             {activeView === "dashboard" && <Dashboard />}
-            {activeView === "list" && (
+            {activeView === "list" && filteredSOs.length === 0 && (
+              <ListEmpty
+                filter={periodFilter}
+                noun="sales orders"
+                inPeriod={periodRows.length}
+                filtered={filtersOn}
+                onClearFilters={clearFilters}
+                createText="Create the first one with New sales order."
+              />
+            )}
+            {activeView === "list" && filteredSOs.length > 0 && (
               <>
                 {wide && viewMode === "table" ? (
                   <TableView
@@ -1199,7 +1102,14 @@ const formatDisplayTransactionNo = (t) => {
                     onSendDocument={setSendSO}
                   />
                 )}
-                {filteredSOs.length > 0 && <Pagination />}
+                <ListPager
+                  figures={pageView}
+                  onPage={setCurrentPage}
+                  onPageSize={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
+                  noun="orders"
+                  one="order"
+                  className="mt-4"
+                />
               </>
             )}
             {(activeView === "create" || activeView === "edit") && (

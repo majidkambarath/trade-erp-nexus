@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { approveMany, processTransaction } from "../../../lib/processTransaction";
 import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
 import { useApproval } from "../../shell/Approval";
@@ -49,7 +49,7 @@ import POForm from "./POForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput, CURRENCY } from "../../../utils/format";
 import { purchaseReturnTotals } from "../../OrderEntry/lineMath";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
@@ -59,6 +59,13 @@ import { WIDE, useMediaQuery } from "../../accounting/DataTable";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
+import { usePeriodFilter } from "../../lists/usePeriodFilter";
+import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
+import ListPager from "../../lists/ListPager";
+import ListEmpty from "../../lists/ListEmpty";
+import { fetchAllTransactions } from "../../../lib/transactionList";
+import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const PurchaseReturnOrderManagement = () => {
   const { canAny } = useOrganisation();
   const { stateOf, me } = useApproval();
@@ -72,12 +79,18 @@ const PurchaseReturnOrderManagement = () => {
   const [auditPO, setAuditPO] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [dateFilter, setDateFilter] = useState("ALL");
   const [vendorFilter, setVendorFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
+  // The list opens on this calendar month. Only a change of period asks the server again: search, status and party are
+  // applied here, to the whole period, and the pages are cut here.
+  const periodFilter = usePeriodFilter({ initial: DEFAULT_LIST_PERIOD });
+  const { period } = periodFilter;
+  const previous = previousPeriod(period, periodFilter.today);
+  const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
+  const listRequest = useRef(0);
   const [notifications, setNotifications] = useState([]);
   const [selectedPOs, setSelectedPOs] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -112,13 +125,19 @@ const PurchaseReturnOrderManagement = () => {
   useEffect(() => {
     fetchVendors();
     fetchStockItems();
-    fetchTransactions();
   }, []);
 
-  // Refetch transactions when filters change
+  // Read the list for the period shown, on mount and whenever the period changes
   useEffect(() => {
     fetchTransactions();
-  }, [searchTerm, statusFilter, vendorFilter, dateFilter]);
+  }, [period.key]);
+
+  // A new search, filter or period starts at the first page and drops a selection made on other rows: a bulk action must
+  // act on what is seen
+  useEffect(() => {
+    setSelectedPOs([]);
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, vendorFilter, period.key]);
 
   // Fetch vendors from backend
   const fetchVendors = async () => {
@@ -176,20 +195,19 @@ const PurchaseReturnOrderManagement = () => {
 
   // Fetch transactions from backend
   const fetchTransactions = async () => {
+    const ask = ++listRequest.current;
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get("/transactions/transactions", {
-        params: {
-          type: "purchase_return",
-          search: searchTerm,
-          status: statusFilter !== "ALL" ? statusFilter : undefined,
-          partyId: vendorFilter !== "ALL" ? vendorFilter : undefined,
-          dateFilter: dateFilter !== "ALL" ? dateFilter : undefined,
-        },
+      const { rows: fetched, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
+        type: "purchase_return",
+        period,
+        serverDates: false,
+        compare: previous,
       });
-      console.log("Transactions Response:", response.data); // Debug
+      if (ask !== listRequest.current) return; // a newer read is on its way
+      setListInfo({ total, truncated, previousTotal });
       setPurchaseOrders(
-        response.data.data.map((transaction) => ({
+        fetched.map((transaction) => ({
           id: transaction._id,
           transactionNo: transaction.transactionNo,
           vendorId: transaction.partyId?._id || transaction.partyId, // Ensure vendorId is a string
@@ -219,7 +237,7 @@ const PurchaseReturnOrderManagement = () => {
         "error"
       );
     } finally {
-      setIsLoading(false);
+      if (ask === listRequest.current) setIsLoading(false);
     }
   };
 
@@ -255,98 +273,51 @@ const PurchaseReturnOrderManagement = () => {
     setTimeout(resetForm, 0); // Delay to ensure state updates
   };
 
-  // Statistics calculations
-  const getStatistics = useMemo(
-    () => () => {
-      const total = purchaseOrders.length;
-      const pending = purchaseOrders.filter((po) => po.status === "PENDING").length;
-      const approved = purchaseOrders.filter((po) => po.status === "APPROVED").length;
-      const draft = purchaseOrders.filter((po) => po.status === "DRAFT").length;
-      const rejected = purchaseOrders.filter((po) => po.status === "REJECTED").length;
+  // The documents of the period, exactly (returns are read without a date filter: see lib/transactionList.js).
+  // Everything below (the cards, the list, the pages) is these rows.
+  const periodRows = useMemo(() => purchaseOrders.filter((row) => inPeriod(toInputDate(row.date), period)), [purchaseOrders, period]);
 
-      const totalValue = purchaseOrders.reduce(
-        (sum, po) => sum + parseFloat(po.totalAmount),
-        0
-      );
-      const approvedValue = purchaseOrders
-        .filter((po) => po.status === "APPROVED")
-        .reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
+  // STATISTICS - of the period shown, against the period before it
+  const statistics = useMemo(() => {
+    const total = periodRows.length;
+    const pending = periodRows.filter((po) => po.status === "PENDING").length;
+    const approved = periodRows.filter((po) => po.status === "APPROVED").length;
+    const draft = periodRows.filter((po) => po.status === "DRAFT").length;
+    const rejected = periodRows.filter((po) => po.status === "REJECTED").length;
+    const totalValue = periodRows.reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
+    const approvedValue = periodRows.filter((po) => po.status === "APPROVED").reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
+    return {
+      total, pending, approved, draft, rejected, totalValue, approvedValue,
+      compare: compareCount(total, previous ? purchaseOrders.filter((r) => inPeriod(toInputDate(r.date), previous)).length : null, previous?.name),
+    };
+  }, [periodRows, purchaseOrders, previous]);
 
-      const thisMonth = new Date().getMonth();
-      const thisYear = new Date().getFullYear();
-      const thisMonthPOs = purchaseOrders.filter((po) => {
-        const poDate = new Date(po.date);
-        return poDate.getMonth() === thisMonth && poDate.getFullYear() === thisYear;
-      }).length;
-
-      const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
-      const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
-      const lastMonthPOs = purchaseOrders.filter((po) => {
-        const poDate = new Date(po.date);
-        return poDate.getMonth() === lastMonth && poDate.getFullYear() === lastMonthYear;
-      }).length;
-
-      const growthRate =
-        lastMonthPOs === 0
-          ? 0
-          : ((thisMonthPOs - lastMonthPOs) / lastMonthPOs) * 100;
-
-      return {
-        total,
-        pending,
-        approved,
-        draft,
-        rejected,
-        totalValue,
-        approvedValue,
-        thisMonthPOs,
-        growthRate,
-      };
-    },
-    [purchaseOrders]
-  );
-
-  const statistics = getStatistics();
-
-  // Filtering and sorting logic
+  // FILTERING & SORTING (search, status and party are applied here, to the whole period)
+  const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || vendorFilter !== "ALL";
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("ALL");
+    setVendorFilter("ALL");
+    setCurrentPage(1);
+  };
   const filteredAndSortedPOs = useMemo(
     () => () => {
-      let filtered = purchaseOrders.filter((po) => {
+      const needle = searchTerm.trim().toLowerCase();
+      const has = (v) => String(v ?? "").toLowerCase().includes(needle);
+      let filtered = periodRows.filter((row) => {
         const matchesSearch =
-          po.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          po.createdBy.toLowerCase().includes(searchTerm.toLowerCase());
+          !needle ||
+          has(row.transactionNo) ||
+          has(row.displayTransactionNo) ||
+          has(row.vendorName) ||
+          has(row.createdBy) ||
+          has(row.notes) ||
+          (row.items || []).some((i) => has(i.description) || has(i.itemName));
 
-        const matchesStatus = statusFilter === "ALL" || po.status === statusFilter;
-        const matchesVendor = vendorFilter === "ALL" || po.vendorId === vendorFilter;
+        const matchesStatus = statusFilter === "ALL" || row.status === statusFilter;
+        const matchesParty = vendorFilter === "ALL" || row.vendorId === vendorFilter;
 
-        let matchesDate = true;
-        if (dateFilter !== "ALL") {
-          const poDate = new Date(po.date);
-          const today = new Date();
-
-          switch (dateFilter) {
-            case "TODAY":
-              matchesDate = poDate.toDateString() === today.toDateString();
-              break;
-            case "WEEK": {
-              const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-              matchesDate = poDate >= weekAgo;
-              break;
-            }
-            case "MONTH": {
-              const monthAgo = new Date(
-                today.getFullYear(),
-                today.getMonth() - 1,
-                today.getDate()
-              );
-              matchesDate = poDate >= monthAgo;
-              break;
-            }
-          }
-        }
-
-        return matchesSearch && matchesStatus && matchesVendor && matchesDate;
+        return matchesSearch && matchesStatus && matchesParty;
       });
 
       filtered.sort((a, b) => {
@@ -381,15 +352,16 @@ const PurchaseReturnOrderManagement = () => {
 
       return filtered;
     },
-    [purchaseOrders, searchTerm, statusFilter, vendorFilter, dateFilter, sortBy, sortOrder]
+    [periodRows, searchTerm, statusFilter, vendorFilter, sortBy, sortOrder]
   );
 
   const filteredPOs = filteredAndSortedPOs();
-  const totalPages = Math.ceil(filteredPOs.length / itemsPerPage);
-  const paginatedPOs = filteredPOs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // the page shown is always one that exists: a filter that leaves fewer rows, or a deleted last row, never leaves an empty page
+  const pageView = pageSlice(filteredPOs, currentPage, itemsPerPage);
+  const paginatedPOs = pageView.rows;
+  useEffect(() => {
+    if (currentPage !== pageView.page) setCurrentPage(pageView.page);
+  }, [currentPage, pageView.page]);
 
   const getStatusColor = (status) => statusClasses(status);
 
@@ -512,8 +484,8 @@ const PurchaseReturnOrderManagement = () => {
           count={statistics.total}
           tone="teal"
           icon={<ShoppingCart />}
-          subText="Against last month"
-          trend={`${statistics.growthRate >= 0 ? "+" : "−"}${Math.abs(statistics.growthRate).toFixed(1)}%`}
+          subText={statistics.compare.subText || period.label}
+          trend={statistics.compare.trend || undefined}
         />
         <StatCard
           title="Pending"
@@ -530,11 +502,11 @@ const PurchaseReturnOrderManagement = () => {
           subText={`Approved ${CURRENCY} ${formatNumber(statistics.approvedValue)}`}
         />
         <StatCard
-          title="This Month"
-          count={statistics.thisMonthPOs}
+          title="Approved"
+          count={statistics.approved}
           tone="rose"
           icon={<BarChart3 />}
-          subText="New purchase returns created"
+          subText="Sent back to vendors"
         />
       </div>
 
@@ -542,16 +514,16 @@ const PurchaseReturnOrderManagement = () => {
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-sm font-semibold text-foreground">Recent purchase returns</h3>
-            <span className="text-xs text-muted-foreground">{purchaseOrders.length} in total</span>
+            <span className="text-xs text-muted-foreground">{periodRows.length} {period.all ? "in total" : `· ${period.label}`}</span>
           </header>
           <div className="px-5">
-            {purchaseOrders.length === 0 ? (
+            {periodRows.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                No purchase returns yet. Create one to see it here.
+                {period.all ? "No purchase returns yet. Create one to see it here." : `No purchase returns in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
               </p>
             ) : (
               <ul className="divide-y divide-border">
-                {purchaseOrders.slice(0, 5).map((row) => (
+                {periodRows.slice(0, 5).map((row) => (
                   <li key={row.id} className="flex items-center justify-between gap-4 py-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <span
@@ -583,7 +555,7 @@ const PurchaseReturnOrderManagement = () => {
               </ul>
             )}
           </div>
-          {purchaseOrders.length > 0 && (
+          {periodRows.length > 0 && (
             <footer className="border-t border-border px-5 py-3">
               <button
                 type="button"
@@ -634,81 +606,6 @@ const PurchaseReturnOrderManagement = () => {
       </div>
     </div>
   );
-
-  const Pagination = () => {
-    const startItem = (currentPage - 1) * itemsPerPage + 1;
-    const endItem = Math.min(currentPage * itemsPerPage, filteredPOs.length);
-
-    return (
-      <div className="flex items-center justify-between bg-card rounded-xl px-6 py-4 border border-border shadow-card">
-        <div className="grid w-full grid-cols-2 gap-2 [&>*]:min-w-0 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-4">
-          <span className="text-sm text-slate-600">
-            Showing {startItem} to {endItem} of {filteredPOs.length} orders
-          </span>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-            }}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-sm"
-          >
-            <option value={10}>10 per page</option>
-            <option value={25}>25 per page</option>
-            <option value={50}>50 per page</option>
-            <option value={100}>100 per page</option>
-          </select>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-
-          <div className="flex space-x-1">
-            {[...Array(Math.min(5, totalPages))].map((_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                    currentPage === pageNum
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const resetForm = useCallback(() => {
     setFormData({
@@ -882,7 +779,7 @@ const PurchaseReturnOrderManagement = () => {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by PR number, vendor, or user..."
+                    placeholder="Search by number, vendor or item..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
@@ -923,19 +820,7 @@ const PurchaseReturnOrderManagement = () => {
                   ))}
                 </select>
 
-                <select
-                  value={dateFilter}
-                  onChange={(e) => {
-                    setDateFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="ALL">All Dates</option>
-                  <option value="TODAY">Today</option>
-                  <option value="WEEK">This Week</option>
-                  <option value="MONTH">This Month</option>
-                </select>
+                <PeriodSelect filter={periodFilter} />
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
@@ -1016,6 +901,7 @@ const PurchaseReturnOrderManagement = () => {
                 )}
               </div>
             </div>
+            <PeriodNote filter={periodFilter} count={periodRows.length} extra={filtersOn ? `${filteredPOs.length} match the search and filters` : undefined} noun="returns" one="return" limited={listInfo.truncated} className="mt-3" />
           </div>
         )}
       </div>
@@ -1028,7 +914,17 @@ const PurchaseReturnOrderManagement = () => {
         ) : (
           <>
             {activeView === "dashboard" && <Dashboard />}
-            {activeView === "list" && (
+            {activeView === "list" && filteredPOs.length === 0 && (
+              <ListEmpty
+                filter={periodFilter}
+                noun="purchase returns"
+                inPeriod={periodRows.length}
+                filtered={filtersOn}
+                onClearFilters={clearFilters}
+                createText="Create the first one with New purchase return."
+              />
+            )}
+            {activeView === "list" && filteredPOs.length > 0 && (
               <>
                 {wide && viewMode === "table" ? (
                   <TableView
@@ -1065,7 +961,14 @@ const PurchaseReturnOrderManagement = () => {
                     onShowAudit={setAuditPO}
                   />
                 )}
-                {filteredPOs.length > 0 && <Pagination />}
+                <ListPager
+                  figures={pageView}
+                  onPage={setCurrentPage}
+                  onPageSize={(n) => { setItemsPerPage(n); setCurrentPage(1); }}
+                  noun="returns"
+                  one="return"
+                  className="mt-4"
+                />
               </>
             )}
             {(activeView === "create" || activeView === "edit") && (

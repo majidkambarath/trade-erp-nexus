@@ -9,6 +9,12 @@ import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
+import { useClampPage, useServerPage } from "../lists/useServerPage";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import ListPager from "../lists/ListPager";
+import ListEmpty from "../lists/ListEmpty";
+import { pageFigures } from "../../lib/pagination";
 
 // Every cheque received from a customer or issued to a vendor. A cheque waits here until it
 // clears; a bounced one reverses the receipt or payment it was taken for.
@@ -24,12 +30,23 @@ export default function ChequeRegister() {
   const [audit, setAudit] = useState(null);
   const [direction, setDirection] = useState("");
   const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const { notify, toastNode } = useToasts();
   const [action, setAction] = useState(null); // { kind: "clear"|"bounce"|"cancel", cheque }
-  const { data, loading, error, reload } = useAsync(() => banking.cheques({ status: status || undefined, direction: direction || undefined, q: q || undefined, page, limit: 25 }), [status, direction, q, page]);
+  // Pending cheques are a worklist - one post-dated a year ahead is still to be presented - so that tab is every date. The
+  // other tabs (cleared, bounced, cancelled, all) open on this calendar month, by the date on the cheque.
+  const periodFilter = usePeriodFilter();
+  const { period } = periodFilter;
+  const dated = status !== "pending";
+  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${dated ? period.key : "any"}`);
+  const { data, loading, error, reload } = useAsync(
+    () => banking.cheques({
+      status: status || undefined, direction: direction || undefined, q: q || undefined,
+      from: (dated && period.from) || undefined, to: dated && period.to ? `${period.to}T23:59:59.999Z` : undefined, page, limit: pageSize,
+    }),
+    [status, direction, q, dated, period.key, page, pageSize]
+  );
   const rows = data?.rows || [];
-  const pages = Math.max(1, Math.ceil((data?.total || 0) / 25));
+  useClampPage({ pagination: data && { pages: Math.max(1, Math.ceil((data.total || 0) / pageSize)), total: data.total }, loaded: Boolean(data) && !loading, page, setPage });
   const done = (msg) => { setAction(null); notify(msg); reload(); };
 
   return (
@@ -47,24 +64,38 @@ export default function ChequeRegister() {
         <div className="scrollbar-none -mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
           <div role="tablist" aria-label="Cheque status" className="inline-flex rounded-full border border-border bg-card p-1">
             {TABS.map(([v, label]) => (
-              <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); setPage(1); }} className={cn("shrink-0 whitespace-nowrap min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+              <button key={label} role="tab" type="button" aria-selected={status === v} onClick={() => setStatus(v)} className={cn("shrink-0 whitespace-nowrap min-h-10 rounded-full px-4 py-1.5 text-sm font-medium lg:min-h-0", status === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{label}</button>
             ))}
           </div>
         </div>
         <Field label="Direction" className="w-full sm:w-40">
-          <select className={inputClass} value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1); }}>
+          <select className={inputClass} value={direction} onChange={(e) => setDirection(e.target.value)}>
             <option value="">Both</option><option value="receipt">Received</option><option value="payment">Issued</option>
           </select>
         </Field>
         <div className="relative min-w-56 flex-1 sm:max-w-sm">
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <TextInput aria-label="Search cheques" className="ps-9" placeholder="Cheque no., party, voucher or bank…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+          <TextInput aria-label="Search cheques" className="ps-9" placeholder="Cheque no., party, voucher or bank…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {dated && <PeriodSelect filter={periodFilter} labelled />}
       </div>
+      {dated ? (
+        <PeriodNote filter={periodFilter} count={data ? data.total : null} noun="cheques" one="cheque" className="-mt-1 mb-4" />
+      ) : (
+        <p className="-mt-1 mb-4 text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">Pending</span>
+          {" · every cheque still to be presented or paid, whatever its date"}
+          {data ? ` · ${data.total} ${data.total === 1 ? "cheque" : "cheques"}` : ""}
+        </p>
+      )}
       <Panel bodyClassName="p-0">
         {loading && !data && <Spinner label="Loading cheques" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data && rows.length === 0 && <EmptyState title="No cheques here" text="Cheques appear when a receipt or payment is taken by cheque." />}
+        {data && rows.length === 0 && (dated && !period.all ? (
+          <ListEmpty filter={periodFilter} noun="cheques" inPeriod={null} filtered={Boolean(q || direction)} onClearFilters={() => { setQ(""); setDirection(""); }} emptyTitle="No cheques here" createText="Cheques appear when a receipt or payment is taken by cheque." />
+        ) : (
+          <EmptyState title="No cheques here" text="Cheques appear when a receipt or payment is taken by cheque." />
+        ))}
         {rows.length > 0 && (
           <DataTable
             caption="Cheques"
@@ -99,11 +130,15 @@ export default function ChequeRegister() {
             ]}
           />
         )}
-        {pages > 1 && (
-          <nav aria-label="Pages" className="flex items-center justify-between border-t border-border px-5 py-3 text-sm">
-            <span className="text-muted-foreground">Page {page} of {pages}</span>
-            <span className="flex gap-2"><Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={page >= pages} onClick={() => setPage(page + 1)}>Next</Button></span>
-          </nav>
+        {data && rows.length > 0 && (
+          <ListPager
+            figures={pageFigures({ page, size: pageSize, total: data.total })}
+            onPage={setPage}
+            onPageSize={setPageSize}
+            noun="cheques"
+            one="cheque"
+            className="rounded-none border-0 border-t shadow-none"
+          />
         )}
       </Panel>
       {action?.kind === "clear" && <ClearDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}

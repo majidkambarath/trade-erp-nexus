@@ -278,7 +278,8 @@ describe("one organisation", () => {
     await screen.findByRole("heading", { name: "Plan" });
     fireEvent.change(screen.getByLabelText("Plan"), { target: { value: "trial" } });
     fireEvent.click(screen.getByRole("button", { name: "Change plan" }));
-    expect(await screen.findByText("The base currency cannot be changed once the organisation is set up")).toBeInTheDocument();
+    // the full suite runs 160+ files at once; the default 1 s wait is too tight for this one under that load
+    expect(await screen.findByText("The base currency cannot be changed once the organisation is set up", {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it("adds a person with a role and a branch", async () => {

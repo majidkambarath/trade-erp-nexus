@@ -1,7 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Calendar,
   CheckCircle2,
   ChevronRight,
   MoreHorizontal,
@@ -47,9 +46,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { ChartArea, Empty, Skeleton } from "./widgets";
 import { ago, dayLabel, gold, hourLabel, ink, monthLabel, monthYearLabel, mutedInk, opsRows, recentLink, signed, slices, compactAmount, tip, weekdayLabel } from "./helpers";
+import { addMonths, quarterOf } from "@/lib/calendarDays";
+import { trailing } from "@/lib/dashboardPeriod";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
-const PERIOD_WORD = { week: "week", month: "month", quarter: "quarter", custom: "period" };
+const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const moneyTip = (v, name) => [formatCurrencyAED(v), name];
 const sum = (rows, ...fields) => rows.reduce((t, r) => t + fields.reduce((u, f) => u + (Number(r[f]) || 0), 0), 0);
 
@@ -61,11 +62,16 @@ const toneBadge = {
   muted: "bg-secondary text-muted-foreground border-transparent",
 };
 
-export default function OverviewTab({ core, analytics, period, setPeriod, theme }) {
+export default function OverviewTab({ core, analytics, scope, theme }) {
   const navigate = useNavigate();
   const c = core.data;
   const a = analytics.data;
-  const word = PERIOD_WORD[c?.period?.id || period] || "period";
+  // `at` reads "this month" / "in Q2 2026" (src/lib/dashboardPeriod.js); `trail` words a series that ends on the period's
+  // last day: "last 8 months", or "8 months to March 2026" for a period that is over
+  const { at } = scope;
+  const trail = (n, unit) => trailing(scope, n, unit, formatDate);
+  // the VAT card is the calendar quarter the period ends in, up to the period's end
+  const vatQuarter = `Q${quarterOf(scope.to)} ${scope.to.slice(0, 4)}`;
   const mix = slices(theme);
   const range = a ? `${formatDate(a.period.from)} – ${formatDate(a.period.to)}` : "";
 
@@ -89,7 +95,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
               {c && (
                 <>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {rate === null ? `No sales invoiced this ${word}` : `Receipts vs invoices this ${word}`}
+                    {rate === null ? `No sales invoiced ${at}` : `Receipts vs invoices ${at}`}
                   </p>
                   {rate !== null && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -104,6 +110,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
           <Card data-anim="bento" className={cn("flex-1", cardClass)}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold">Ops status</CardTitle>
+              <CardDescription className="text-xs">Orders and customers {at}; stock as of today</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9" />)}
@@ -126,9 +133,8 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
         {/* Center column */}
         <div className="flex flex-col gap-4 xl:col-span-6">
           <Card data-anim="bento" className={cardClass}>
-            {/* In the narrow centre column (xl) the period control sits above the three figures, not beside them: beside them
-                a figure like "AED 900.00" ran into the next one. */}
-            <CardHeader className="flex-row items-start justify-between space-y-0 pb-2 xl:flex-col-reverse xl:items-stretch xl:gap-3">
+            {/* The period control is above the tabs now (PeriodPicker), so the three figures have the card to themselves. */}
+            <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
               <div className="grid w-full grid-cols-1 gap-3 pr-2 min-[420px]:grid-cols-3">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-muted-foreground">Sales value</p>
@@ -149,27 +155,14 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-1 xl:self-end">
-                <div className="hidden items-center gap-1 rounded-full border border-border bg-secondary/60 px-2.5 py-1.5 sm:flex">
-                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                  <select
-                    aria-label="Period"
-                    className="bg-transparent text-xs font-semibold outline-none"
-                    value={period}
-                    onChange={(e) => setPeriod(e.target.value)}
-                  >
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="quarter">This Quarter</option>
-                  </select>
-                </div>
+              <div className="flex shrink-0 items-center gap-1">
                 <Button variant="ghost" size="icon" className="rounded-full" aria-label="Open the profit and loss" onClick={() => navigate("/financial-statements?tab=pl")}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <ChartArea state={core} empty={!monthly.some((m) => m.revenue !== 0)} emptyText="No sales posted in the last 8 months" height={250}>
+              <ChartArea state={core} empty={!monthly.some((m) => m.revenue !== 0)} emptyText={`No sales posted in the ${trail(8, "months")}`} height={250}>
                 <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={monthly}>
                     <defs>
@@ -214,7 +207,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
                   )}
                 </div>
                 {!c && <Skeleton className="h-28" />}
-                {c && !c.topProduct && <Empty height={112}>No sales this {word}</Empty>}
+                {c && !c.topProduct && <Empty height={112}>No sales {at}</Empty>}
                 {c?.topProduct && (
                   <>
                     <Link to={`/stock-detail/${c.topProduct.stockId}`} className="text-lg font-extrabold tracking-tight hover:underline">
@@ -224,7 +217,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
                       {formatCurrencyAED(c.topProduct.revenue)}
                       {c.topProduct.changePct !== null && ` · ${signed(c.topProduct.changePct)}`}
                     </p>
-                    <div className="mt-3 h-14" role="img" aria-label={`${c.topProduct.name} sales for each of the last 7 months`}>
+                    <div className="mt-3 h-14" role="img" aria-label={`${c.topProduct.name} sales for each of the ${trail(7, "months")}`}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={c.topProduct.spark}>
                           <Line type="monotone" dataKey="revenue" stroke="var(--chart-2)" strokeWidth={2.5} dot={false} />
@@ -239,13 +232,13 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
             <Card data-anim="bento" className={cardClass}>
               <CardContent className="p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">VAT this quarter</Link>
+                  <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">{scope.current ? "VAT this quarter" : `VAT ${vatQuarter}`}</Link>
                   {c?.vat?.hasActivity && c.vat.position !== "nil" && (
                     <Badge variant="secondary" className="rounded-full">{c.vat.position === "payable" ? "Payable" : "Refundable"}</Badge>
                   )}
                 </div>
                 {!c && <Skeleton className="h-28" />}
-                {c && !c.vat.hasActivity && <Empty height={112}>No VAT transactions this quarter</Empty>}
+                {c && !c.vat.hasActivity && <Empty height={112}>No VAT transactions {scope.current ? "this quarter" : `in ${vatQuarter}`}</Empty>}
                 {c?.vat?.hasActivity && (
                   <>
                     <p className="text-lg font-extrabold tracking-tight">{formatCurrencyAED(Math.abs(c.vat.net))}</p>
@@ -257,7 +250,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
                         {c.vat.unclassifiedLines} {c.vat.unclassifiedLines === 1 ? "line has" : "lines have"} no tax treatment
                       </p>
                     )}
-                    <div className="mt-3 h-14" role="img" aria-label="Output VAT for each of the last 6 months">
+                    <div className="mt-3 h-14" role="img" aria-label={`Output VAT for each of the ${trail(6, "months")}`}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={c.vat.spark}>
                           <Line type="monotone" dataKey="outputVat" stroke={ink} strokeWidth={2.5} dot={false} />
@@ -307,6 +300,7 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
                 <CardTitle className="text-base font-bold">Recent activity</CardTitle>
                 <Link to="/ledger-reports?tab=daybook" className="-my-2 inline-flex min-h-10 items-center py-2 text-xs font-semibold text-muted-foreground hover:text-foreground lg:my-0 lg:min-h-0 lg:py-0">View all</Link>
               </div>
+              <CardDescription className="text-xs">The latest vouchers, whichever period is shown</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
@@ -358,14 +352,31 @@ export default function OverviewTab({ core, analytics, period, setPeriod, theme 
         })}
       </div>
 
-      <Gallery a={a} analytics={analytics} word={word} theme={theme} mix={mix} range={range} />
+      <Gallery a={a} analytics={analytics} scope={scope} theme={theme} mix={mix} range={range} />
     </>
   );
 }
 
 // ---------------------------------------------------------------- the charts under the first screen
 
-function Gallery({ a, analytics, word, theme, mix, range }) {
+function Gallery({ a, analytics, scope, theme, mix, range }) {
+  const { at, noun, current } = scope;
+  const trail = (n, unit) => trailing(scope, n, unit, formatDate);
+  // the two months the category chart sets side by side: the month the period ends in, and the one before it
+  const thisMonth = scope.to.slice(0, 7);
+  const lastMonth = addMonths(thisMonth, -1);
+  const nameOfThis = current ? "This month" : monthYearLabel(thisMonth);
+  const nameOfLast = current ? "Last month" : monthYearLabel(lastMonth);
+  // the KPI tiles are about the week the period ends in (the server words them "this week")
+  const kpiLabel = (kpi) => {
+    if (current || !["receipts-week", "payments-week"].includes(kpi.key)) return kpi.label;
+    return `${kpi.key === "receipts-week" ? "Receipts" : "Payments"}, week to ${dayLabel(scope.to)}`;
+  };
+  const kpiNote = (kpi) => {
+    if (kpi.count !== undefined) return `${kpi.count} ${kpi.count === 1 ? "order" : "orders"} waiting for approval${current ? "" : " today"}`;
+    if (kpi.changePct !== null) return `${signed(kpi.changePct)} vs the same days ${current ? "last week" : "of the week before"}`;
+    return current ? "Nothing to compare with last week" : "Nothing to compare with the week before";
+  };
   const weekly = (a?.weekly || []).map((w) => ({ ...w, day: weekdayLabel(w.date) }));
   const customerMix = a?.customerMix?.rows || [];
   const perf = a
@@ -396,10 +407,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "lg:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Weekly order pulse</CardTitle>
-            <CardDescription>Orders vs returns · last 7 days</CardDescription>
+            <CardDescription>Orders vs returns · {trail(7, "days")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!weekly.some((w) => w.orders || w.returns)} emptyText="No orders or returns in the last 7 days" height={220}>
+            <ChartArea state={analytics} empty={!weekly.some((w) => w.orders || w.returns)} emptyText={`No orders or returns in the ${trail(7, "days")}`} height={220}>
               <ResponsiveContainer width="100%" height={220}>
                 <ComposedChart data={weekly}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -421,10 +432,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "lg:col-span-3")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Customer mix</CardTitle>
-            <CardDescription>Revenue share · this {word}</CardDescription>
+            <CardDescription>Revenue share · {at}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={customerMix.length === 0} emptyText={`No sales this ${word}`} height={160}>
+            <ChartArea state={analytics} empty={customerMix.length === 0} emptyText={`No sales ${at}`} height={160}>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie data={customerMix} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3}>
@@ -451,7 +462,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "lg:col-span-4")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Performance</CardTitle>
-            <CardDescription>Collection rate · gross margin · stock availability</CardDescription>
+            <CardDescription>Collection rate · gross margin · stock availability{current ? "" : " (stock: today)"}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={perf.length === 0} emptyText="Nothing to measure yet" height={180}>
@@ -478,10 +489,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Sales vs purchase vs profit</CardTitle>
-            <CardDescription>Last 8 months · {CURRENCY}</CardDescription>
+            <CardDescription>{cap(trail(8, "months"))} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!monthly.some((m) => m.sales || m.purchases || m.grossProfit)} emptyText="No sales or purchases posted in the last 8 months" height={280}>
+            <ChartArea state={analytics} empty={!monthly.some((m) => m.sales || m.purchases || m.grossProfit)} emptyText={`No sales or purchases posted in the ${trail(8, "months")}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={monthly}>
                   <defs>
@@ -507,10 +518,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Category sales</CardTitle>
-            <CardDescription>This month vs last month · {CURRENCY}</CardDescription>
+            <CardDescription>{nameOfThis} vs {current ? "last month" : nameOfLast} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={categories.length === 0} emptyText="No category sales this month or last" height={280}>
+            <ChartArea state={analytics} empty={categories.length === 0} emptyText={current ? "No category sales this month or last" : `No category sales in ${nameOfThis} or ${nameOfLast}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={categories} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
@@ -518,8 +529,8 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
                   <YAxis type="category" dataKey="name" width={84} tickLine={false} axisLine={false} fontSize={12} />
                   <Tooltip contentStyle={tip} formatter={moneyTip} />
                   <Legend />
-                  <Bar dataKey="previous" name="Last month" fill="#e7e5e4" radius={[0, 8, 8, 0]} barSize={12} />
-                  <Bar dataKey="current" name="This month" fill="var(--chart-2)" radius={[0, 8, 8, 0]} barSize={12} />
+                  <Bar dataKey="previous" name={nameOfLast} fill="#e7e5e4" radius={[0, 8, 8, 0]} barSize={12} />
+                  <Bar dataKey="current" name={nameOfThis} fill="var(--chart-2)" radius={[0, 8, 8, 0]} barSize={12} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartArea>
@@ -531,10 +542,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Category performance by month</CardTitle>
-            <CardDescription>Last 3 months · {CURRENCY}</CardDescription>
+            <CardDescription>{cap(trail(3, "months"))} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={categoryBars.length === 0} emptyText="No category sales in the last 3 months" height={240}>
+            <ChartArea state={analytics} empty={categoryBars.length === 0} emptyText={`No category sales in the ${trail(3, "months")}`} height={240}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={categoryBars}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -554,10 +565,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Cash inflow vs outflow</CardTitle>
-            <CardDescription>Cash and bank accounts · last 8 months · {CURRENCY}</CardDescription>
+            <CardDescription>Cash and bank accounts · {trail(8, "months")} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!a || a.cashFlow.accounts === 0 || !cash.some((m) => m.inflow || m.outflow)} emptyText={a?.cashFlow?.accounts === 0 ? "No cash or bank account set up" : "No money in or out in the last 8 months"} height={240}>
+            <ChartArea state={analytics} empty={!a || a.cashFlow.accounts === 0 || !cash.some((m) => m.inflow || m.outflow)} emptyText={a?.cashFlow?.accounts === 0 ? "No cash or bank account set up" : `No money in or out in the ${trail(8, "months")}`} height={240}>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={cash}>
                   <defs>
@@ -600,15 +611,9 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
           <Link key={kpi.key} to={kpi.to} className="block">
             <Card data-anim="bento" className="h-full rounded-[1.35rem] border-0 shadow-[var(--shadow-card)]">
               <CardContent className="p-4">
-                <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
+                <p className="text-xs font-medium text-muted-foreground">{kpiLabel(kpi)}</p>
                 <p className="mt-1 text-2xl font-extrabold tracking-tight">{formatCurrencyCompact(kpi.value)}</p>
-                <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                  {kpi.count !== undefined
-                    ? `${kpi.count} ${kpi.count === 1 ? "order" : "orders"} waiting for approval`
-                    : kpi.changePct !== null
-                      ? `${signed(kpi.changePct)} vs the same days last week`
-                      : "Nothing to compare with last week"}
-                </p>
+                <p className="mt-1 text-xs font-semibold text-muted-foreground">{kpiNote(kpi)}</p>
               </CardContent>
             </Card>
           </Link>
@@ -622,7 +627,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
             <CardDescription>Volume · revenue · margin · stock value · customers (100 = best of the four)</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!a || a.radar.categories.length === 0} emptyText={`No category sales this ${word}`} height={280}>
+            <ChartArea state={analytics} empty={!a || a.radar.categories.length === 0} emptyText={`No category sales ${at}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
                 <RadarChart data={a?.radar?.metrics}>
                   <PolarGrid stroke="var(--border)" />
@@ -645,7 +650,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
             <CardDescription>Draft → approved → part-paid or paid → fully paid</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!a || a.pipeline[0].value === 0} emptyText={`No sales orders this ${word}`} height={280}>
+            <ChartArea state={analytics} empty={!a || a.pipeline[0].value === 0} emptyText={`No sales orders ${at}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
                 <FunnelChart>
                   <Tooltip contentStyle={tip} />
@@ -661,10 +666,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-4")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Invoice settlement</CardTitle>
-            <CardDescription>Sales invoices of this {word} · by how far they are paid</CardDescription>
+            <CardDescription>Sales invoices of {noun} · by how far they are paid{current ? "" : " (where they stand today)"}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!a || sum(a.settlement, "count") === 0} emptyText={`No sales invoices this ${word}`} height={200}>
+            <ChartArea state={analytics} empty={!a || sum(a.settlement, "count") === 0} emptyText={`No sales invoices ${at}`} height={200}>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={settlement} dataKey="count" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={4}>
@@ -690,10 +695,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Top customers</CardTitle>
-            <CardDescription>Net revenue this {word} · {CURRENCY}</CardDescription>
+            <CardDescription>Net revenue {at} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={topCustomers.length === 0} emptyText={`No sales this ${word}`} height={280}>
+            <ChartArea state={analytics} empty={topCustomers.length === 0} emptyText={`No sales ${at}`} height={280}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={topCustomers} layout="vertical" margin={{ left: 8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
@@ -712,7 +717,7 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-4")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Receivables vs payables ageing</CardTitle>
-            <CardDescription>By days past due · {CURRENCY}</CardDescription>
+            <CardDescription>By days past due · {CURRENCY}{current ? "" : ` · as at ${formatDate(scope.to)}`}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={analytics} empty={!a || !ageing.some((b) => b.receivables || b.payables)} emptyText="Nothing owed to you or by you" height={280}>
@@ -734,11 +739,11 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-3")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Top vendors</CardTitle>
-            <CardDescription>Purchases this {word} · {CURRENCY} · change</CardDescription>
+            <CardDescription>Purchases {at} · {CURRENCY} · change</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-1">
             {!a && [0, 1, 2].map((i) => <Skeleton key={i} className="h-9" />)}
-            {a && vendors.length === 0 && <Empty height={200}>No purchases this {word}</Empty>}
+            {a && vendors.length === 0 && <Empty height={200}>No purchases {at}</Empty>}
             {vendors.map((v, i) => (
               <div key={v.partyId}>
                 <div className="mb-1 flex items-center justify-between gap-2 text-xs">
@@ -760,10 +765,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">Collections vs invoicing</CardTitle>
-            <CardDescription>Weekly, last 6 weeks · {CURRENCY}</CardDescription>
+            <CardDescription>Weekly, {trail(6, "weeks")} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={!collections.some((w) => w.receipts || w.invoiced)} emptyText="No receipts or invoices in the last 6 weeks" height={260}>
+            <ChartArea state={analytics} empty={!collections.some((w) => w.receipts || w.invoiced)} emptyText={`No receipts or invoices in the ${trail(6, "weeks")}`} height={260}>
               <ResponsiveContainer width="100%" height={260}>
                 <ComposedChart data={collections}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -782,10 +787,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader className="pb-1">
             <CardTitle className="text-base font-extrabold">SKU revenue map</CardTitle>
-            <CardDescription>Treemap · top items by net revenue this {word}</CardDescription>
+            <CardDescription>Treemap · top items by net revenue {at}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={analytics} empty={treemap.length === 0} emptyText={`No item sales this ${word}`} height={260}>
+            <ChartArea state={analytics} empty={treemap.length === 0} emptyText={`No item sales ${at}`} height={260}>
               <ResponsiveContainer width="100%" height={260}>
                 <Treemap
                   data={treemap}
@@ -813,10 +818,10 @@ function Gallery({ a, analytics, word, theme, mix, range }) {
       <Card data-anim="bento" className={cn("mt-4", cardClass)}>
         <CardHeader className="pb-1">
           <CardTitle className="text-base font-extrabold">Documents created by hour</CardTitle>
-          <CardDescription>Trade documents and vouchers by weekday · last 4 weeks · organisation time zone</CardDescription>
+          <CardDescription>Trade documents and vouchers by weekday · {trail(4, "weeks")} · organisation time zone</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartArea state={analytics} empty={hourly.length === 0} emptyText="No documents created in the last 4 weeks" height={260}>
+          <ChartArea state={analytics} empty={hourly.length === 0} emptyText={`No documents created in the ${trail(4, "weeks")}`} height={260}>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={hourly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />

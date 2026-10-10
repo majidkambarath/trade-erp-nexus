@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { ChartArea, Skeleton } from "./widgets";
 import { gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, tip } from "./helpers";
+import { quarterOf } from "@/lib/calendarDays";
+import { trailing } from "@/lib/dashboardPeriod";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const VOUCHERS = [
@@ -18,8 +20,14 @@ const VOUCHERS = [
 ];
 
 // Reports tab: profit, VAT, what was posted, and the ageing of what is owed each way.
-export default function ReportsTab({ state }) {
+// Profit and what was posted are for the period chosen above; the VAT card is the calendar quarter the period ends in, up to
+// the period's last day (a VAT return is by quarter); the ageing is as at the period's last day.
+export default function ReportsTab({ state, scope }) {
   const d = state.data;
+  const { at, current } = scope;
+  const trail = (n, unit) => trailing(scope, n, unit, formatDate);
+  const vatQuarter = `Q${quarterOf(scope.to)} ${scope.to.slice(0, 4)}`;
+  const span = (from, to) => (from === to ? formatDate(from) : `${formatDate(from)} to ${formatDate(to)}`);
   const growth = (d?.valueGrowth || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
   const ageing = (d?.ageing || []).map((b) => ({ bucket: b.label, receivables: b.receivables, payables: b.payables }));
   const vat = d?.vat;
@@ -30,15 +38,15 @@ export default function ReportsTab({ state }) {
       ]
     : [];
   const tiles = d && [
-    { label: "Gross profit", value: formatCurrencyAED(d.grossProfit), icon: Wallet, to: "/financial-statements?tab=pl" },
+    { label: "Gross profit", value: formatCurrencyAED(d.grossProfit), icon: Wallet, to: "/financial-statements?tab=pl", note: span(d.period.from, d.period.to) },
     {
       label: vat.position === "refundable" ? "VAT refundable" : "VAT payable",
       value: formatCurrencyAED(Math.abs(vat.net)),
       icon: Percent,
       to: "/vat-reports",
-      note: `Quarter so far, ${formatDate(vat.from)} to ${formatDate(vat.to)}`,
+      note: `${current ? "Quarter so far" : vatQuarter}, ${formatDate(vat.from)} to ${formatDate(vat.to)}`,
     },
-    { label: "Net profit", value: formatCurrencyAED(d.netProfit), icon: TrendingUp, to: "/financial-statements?tab=pl" },
+    { label: "Net profit", value: formatCurrencyAED(d.netProfit), icon: TrendingUp, to: "/financial-statements?tab=pl", note: span(d.period.from, d.period.to) },
   ];
 
   return (
@@ -68,10 +76,10 @@ export default function ReportsTab({ state }) {
       <Card data-anim="bento" className={cardClass}>
         <CardHeader>
           <CardTitle className="font-extrabold">Value growth</CardTitle>
-          <CardDescription>Gross profit trend · last 8 months · {CURRENCY}</CardDescription>
+          <CardDescription>Gross profit trend · {trail(8, "months")} · {CURRENCY}</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChartArea state={state} empty={!growth.some((m) => m.grossProfit)} emptyText="No gross profit posted in the last 8 months" height={280}>
+          <ChartArea state={state} empty={!growth.some((m) => m.grossProfit)} emptyText={`No gross profit posted in the ${trail(8, "months")}`} height={280}>
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart data={growth} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <defs>
@@ -98,6 +106,7 @@ export default function ReportsTab({ state }) {
         </CardContent>
       </Card>
 
+      <p className="-mb-2 text-sm text-muted-foreground">Vouchers posted {at}</p>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {!d && VOUCHERS.map((v) => <Skeleton key={v.type} className="h-16 rounded-[1.5rem]" />)}
         {d?.vouchers?.map((v) => {
@@ -119,7 +128,7 @@ export default function ReportsTab({ state }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-7")}>
           <CardHeader>
             <CardTitle className="font-extrabold">Receivables vs payables ageing</CardTitle>
-            <CardDescription>By days past due · {CURRENCY}</CardDescription>
+            <CardDescription>By days past due · {CURRENCY}{current ? "" : ` · as at ${formatDate(scope.to)}`}</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartArea state={state} empty={!ageing.some((b) => b.receivables || b.payables)} emptyText="Nothing owed to you or by you" height={260}>
@@ -141,10 +150,10 @@ export default function ReportsTab({ state }) {
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader>
             <CardTitle className="font-extrabold">VAT snapshot</CardTitle>
-            <CardDescription>Output · input · net {vat?.position === "refundable" ? "refundable" : "payable"} · quarter so far · {CURRENCY}</CardDescription>
+            <CardDescription>Output · input · net {vat?.position === "refundable" ? "refundable" : "payable"} · {current ? "quarter so far" : vatQuarter} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={state} empty={!vat?.hasActivity} emptyText="No VAT transactions this quarter" height={200}>
+            <ChartArea state={state} empty={!vat?.hasActivity} emptyText={current ? "No VAT transactions this quarter" : `No VAT transactions in ${vatQuarter}`} height={200}>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={vatRows.filter((r) => r.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={74} paddingAngle={3}>
