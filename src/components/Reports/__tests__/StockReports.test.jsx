@@ -183,6 +183,17 @@ describe("valuation", () => {
     expect(within(card("Inventory account")).getByText("–")).toBeInTheDocument();
   });
 
+  it("says a past day is worked out from the movements as the books stand now, and says nothing of the kind for today", async () => {
+    m.valuation.mockResolvedValue({ ...VALUATION, reconciliation: { ...REC_OK, basis: "history" } });
+    const past = at();
+    expect(await screen.findByText(/A past day: the stock side is worked out from the stock movements dated up to it, as the books stand now/)).toBeInTheDocument();
+    past.unmount();
+    m.valuation.mockResolvedValue({ ...VALUATION, reconciliation: { ...REC_OK, basis: "today" } });
+    at();
+    expect(await screen.findByText("Stock value agrees with the Inventory account")).toBeInTheDocument();
+    expect(screen.queryByText(/A past day:/)).toBeNull();
+  });
+
   it("flags negative stock and an item record that disagrees with the movements", async () => {
     m.valuation.mockResolvedValue({
       ...VALUATION,

@@ -1,6 +1,7 @@
 import Swal from "sweetalert2";
 import axiosInstance from "../axios/axios";
 import { noticeFor, wasFirstApproval } from "./approvals";
+import { announceApprovalsChanged } from "./approvalsApi";
 
 // Approve, reject or cancel an order. Approving a SALE can be held up by credit control:
 //   - "warn" mode answers 409 RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED with the reasons. The user is
@@ -30,8 +31,13 @@ export const askToOverride = async (warning) => {
 
 export async function processTransaction(id, action, { confirm = askToOverride } = {}) {
   const url = `/transactions/transactions/${id}/process`;
+  // (the shell's approvals badge is told that something was decided)
+  const decided = (response) => {
+    announceApprovalsChanged();
+    return response;
+  };
   try {
-    return await axiosInstance.patch(url, { action });
+    return decided(await axiosInstance.patch(url, { action }));
   } catch (err) {
     const body = err.response?.data;
     if (err.response?.status === 409 && body?.errorCode === "RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED") {
@@ -42,7 +48,7 @@ export async function processTransaction(id, action, { confirm = askToOverride }
         cancelled.cancelled = true;
         throw cancelled;
       }
-      return axiosInstance.patch(url, { action, [field]: true });
+      return decided(await axiosInstance.patch(url, { action, [field]: true }));
     }
     throw err;
   }

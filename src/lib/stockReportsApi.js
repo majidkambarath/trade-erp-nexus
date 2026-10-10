@@ -31,6 +31,8 @@ export const stockReports = {
   lookups: () => get("/lookups"),
   // { asOn, categoryId, search, groupBy: "item" | "category" }
   valuation: (params) => get("/valuation", params),
+  // { asOn }: the valuation's comparison with the Inventory account at the end of a day (what the month and year close read)
+  ledgerCheck: (params) => get("/ledger-check", params),
   // { from, to, categoryId, search }
   movement: (params) => get("/movement", params),
   // { itemId, from, to }

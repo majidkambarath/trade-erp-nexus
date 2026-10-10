@@ -152,7 +152,7 @@ export default function DeliverySheet({
               )}
               {pick && <td style={{ ...cell, textAlign: "center" }}><span style={{ display: "inline-block", width: 12, height: 12, border: `1px solid ${INK}` }} /></td>}
               {showPrices && !pick && <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.unitPrice)}</td>}
-              {showPrices && !pick && <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.vatPercent, 0)}</td>}
+              {showPrices && !pick && <td style={{ ...cell, textAlign: "right" }}>{l.reverseCharge ? "RC" : formatNumber(l.vatPercent, 0)}</td>}
               {showPrices && !pick && <td style={{ ...cell, textAlign: "right", fontWeight: 600 }}>{formatNumber(l.total)}</td>}
             </tr>
           ))}

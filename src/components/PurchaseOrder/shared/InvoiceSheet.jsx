@@ -51,6 +51,7 @@ export default function InvoiceSheet({
   receipt,
   terms,
   acceptance,
+  reverseCharge,
 }) {
   const soft = tint(accent, 0.1);
 
@@ -178,7 +179,8 @@ export default function InvoiceSheet({
               <td style={{ ...cell, textAlign: "right" }}>{formatQty(l.qty, 3)}</td>
               <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.unitPrice)}</td>
               <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.value)}</td>
-              <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.vatPercent, 0)}</td>
+              {/* a reverse-charge line charges no VAT: "RC" stands where the rate would be (the statement below says what it means) */}
+              <td style={{ ...cell, textAlign: "right" }}>{l.reverseCharge ? "RC" : formatNumber(l.vatPercent, 0)}</td>
               <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.vat)}</td>
               <td style={{ ...cell, textAlign: "right", fontWeight: 600 }}>{formatNumber(l.total)}</td>
             </tr>
@@ -240,8 +242,22 @@ export default function InvoiceSheet({
           <TotalRow strong border accent={accent} value={formatNumber(totals.grandTotal)}>
             Grand total ({currency})
           </TotalRow>
+          {/* our own purchase: the VAT we assess on reverse-charge lines, beside the total and not in it */}
+          {reverseCharge?.amountLabel && reverseCharge.amount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>
+              <span>{reverseCharge.amountLabel}</span>
+              <span>{formatNumber(reverseCharge.amount)}</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* what a reverse-charge line obliges the document to say */}
+      {reverseCharge?.statement && (
+        <div style={{ marginTop: 14, padding: "8px 10px", border: `1px solid ${RULE}`, borderRadius: 4, fontSize: 10.5, fontWeight: 600 }}>
+          {reverseCharge.statement}
+        </div>
+      )}
 
       {/* what the offer is subject to (a quotation) */}
       {terms && (

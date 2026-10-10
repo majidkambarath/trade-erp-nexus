@@ -95,6 +95,7 @@ export function ListToolbar({ filters, set, statuses = true, children }) {
           <select className={inputClass} value={filters.status} onChange={(e) => set({ status: e.target.value })}>
             <option value="">All</option>
             <option value="approved">Posted</option>
+            <option value="pending">Waiting for approval</option>
             <option value="cancelled">Cancelled</option>
             <option value="bounced">Bounced</option>
           </select>

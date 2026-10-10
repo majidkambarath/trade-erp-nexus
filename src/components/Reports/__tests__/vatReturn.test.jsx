@@ -178,3 +178,58 @@ describe("saved returns", () => {
     await waitFor(() => expect(m.removeReturn).toHaveBeenCalledWith("r1"));
   });
 });
+
+describe("reverse charge in the return", () => {
+  // 800 received under the reverse charge: 40 assessed in box 3, the same recovered in box 10; one sale on which the customer accounts
+  const RC = () => RETURN({
+    boxes: RETURN().boxes.map((x) => (x.box === "3" ? b("3", "Supplies subject to the reverse charge", 800, 40) : x.box === "10" ? b("10", "Expenses subject to the reverse charge", 800, 40) : x)),
+    notReported: { count: 1, amount: 100 },
+    customerAccounts: { count: 1, amount: 100 },
+    reconciliation: { rows: [
+      { label: "Output VAT", documents: 3, ledger: 3, difference: 0, agrees: true },
+      { label: "Input VAT", documents: 100, ledger: 100, difference: 0, agrees: true },
+      { label: "Reverse-charge VAT (self-assessed)", documents: 40, ledger: 47, difference: -7, agrees: false },
+    ] },
+  });
+
+  it("shows the third reconciliation row by its full name, and says when it differs", async () => {
+    m.compute.mockResolvedValue(RC());
+    at();
+    await screen.findByText("Agrees with the ledger?");
+    const row = screen.getByText("Reverse-charge VAT (self-assessed)", { selector: "span" }).closest("li");
+    expect(within(row).getByText("Differs by 7.00")).toBeInTheDocument();
+    expect(within(row).getByText(/Documents 40\.00/)).toBeInTheDocument();
+    expect(within(screen.getByText("Input VAT", { selector: "span" }).closest("li")).getByText("Agrees")).toBeInTheDocument();
+  });
+
+  it("explains box 3 when it holds something, and says a sale on which the customer accounts is in no box", async () => {
+    m.compute.mockResolvedValue(RC());
+    at();
+    await screen.findByText("Agrees with the ledger?");
+    expect(screen.getByText(/Box 3 is the VAT you assess yourself on purchases under the reverse charge/)).toBeInTheDocument();
+    expect(screen.getByText(/1 sale line \(100\.00 AED\) are under the reverse charge: you charge no VAT and declare none/)).toBeInTheDocument();
+    expect(screen.getByText(/1 line \(100\.00 AED\) are out of scope, zero-rated or exempt purchases, or sales on which the customer accounts for the VAT/)).toBeInTheDocument();
+  });
+
+  it("says none of that when there is no reverse charge", async () => {
+    m.compute.mockResolvedValue(RETURN());
+    at();
+    await screen.findByText("Agrees with the ledger?");
+    expect(screen.queryByText(/Box 3 is the VAT you assess yourself/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/under the reverse charge: you charge no VAT/)).not.toBeInTheDocument();
+  });
+
+  it("shows the VAT a purchase assesses on itself under its VAT, and exports it", async () => {
+    m.compute.mockResolvedValue(RC());
+    m.detail.mockResolvedValue({
+      total: 1, page: 1, limit: 50, totals: { taxable: 400, vat: 0 },
+      rows: [{ source: "invoice", docId: "p1", date: "2026-09-02", docNo: "PO-2026-0005", direction: "input", partyName: "Gulf Mills", trn: "", kinds: ["reverse_charge"], taxable: 400, vat: 0, rcmVat: 20 }],
+    });
+    at("/?tab=documents");
+    const row = (await screen.findByText("PO-2026-0005")).closest("tr");
+    expect(within(row).getByText("20.00 self-assessed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    expect(downloadCSV.mock.calls[0][1]).toContain("Self-assessed VAT (AED)");
+    expect(downloadCSV.mock.calls[0][2][0].slice(-3)).toEqual([400, 0, 20]);
+  });
+});

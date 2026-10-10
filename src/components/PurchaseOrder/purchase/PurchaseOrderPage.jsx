@@ -151,6 +151,7 @@ const PurchaseOrderManagement = () => {
           _id: i._id,
           itemId: i.itemId,
           itemName: i.itemName,
+          itemType: i.itemType,
           sku: i.sku,
           category: i.category,
           unitOfMeasure: i.unitOfMeasure,

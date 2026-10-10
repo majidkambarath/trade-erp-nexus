@@ -26,8 +26,9 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// The auth calls never trigger a refresh of their own: a refresh that fails must not loop.
-const AUTH_PATH = /\/(login|refresh-token|logout)$/;
+// The auth calls never trigger a refresh of their own: a refresh that fails must not loop. The second sign-in step and the
+// forgot / reset password calls are here too: they have no session to renew, and a wrong code must be an error on the form.
+export const AUTH_PATH = /\/(login|login\/2fa|refresh-token|logout|forgot-password|reset-password)$/;
 
 // One refresh at a time. Requests that fail together wait for the same refresh instead of each
 // starting one, so a page does not sign itself out part way through.

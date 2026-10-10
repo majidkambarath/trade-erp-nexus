@@ -49,6 +49,8 @@ const DEEP = {
     // "Different role in a branch": two rows on a phone is the tallest the section gets; Imran Ali already holds one
     { name: "add-person-branch-roles", clicks: ["Add a person", "Add a branch", "Add a branch"], settle: 900 },
     { name: "change-person-branch-roles", clicks: ["^Change Imran"], settle: 900 },
+    // clearing someone's two-factor (a lost phone): the confirmation names the consequence
+    { name: "reset-two-factor", clicks: ["Reset two-factor for"], settle: 900 },
     { name: "roles", page: true, clicks: ["^Roles$"], settle: 900 },
     { name: "new-role", clicks: ["^Roles$", "New role"], settle: 1100 },
     { name: "built-in-role", clicks: ["^Roles$", "^View$"], settle: 1100 },
@@ -58,7 +60,17 @@ const DEEP = {
   "accounts-setup": [
     { name: "close-year", clicks: ["^Fiscal years$", "^Close year$"], settle: 1100 },
     { name: "reopen-year", clicks: ["^Fiscal years$", "^Reopen$"], settle: 1100 },
+    // the same two for a month of the open year (the Month end panel under the years): checks, warnings to tick, stock against the ledger
+    { name: "close-month", clicks: ["^Fiscal years$", "^Close month$"], settle: 1100 },
+    { name: "reopen-month", clicks: ["^Fiscal years$", "^Reopen month$"], settle: 1100 },
   ],
+  // The item form: goods (every stock field), then a service (the Goods / Service choice, no stock fields, two account pickers).
+  "inventory-stock-items": [
+    { name: "add-item", clicks: ["^Add Stock Item"], settle: 900 },
+    { name: "add-service", clicks: ["^Add Stock Item", "^Service"], settle: 900 },
+  ],
+  // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
+  "home-approvals": [{ name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 }],
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
@@ -70,6 +82,11 @@ const DEEP = {
     // Branches: the list, then the add dialog (a form someone fills in on a phone).
     { name: "branches", page: true, clicks: ["^Branches$"], settle: 1000 },
     { name: "add-branch", clicks: ["^Branches$", "Add a branch"], settle: 900 },
+    // Security: the password panel with the two-factor panel under it (on, with two recovery codes left: the tallest state), and
+    // the two dialogs that ask for the password AND a code. The enrolment dialog (QR code, key, code box) needs typing to reach.
+    { name: "security", page: true, clicks: ["^Security$"], settle: 1000 },
+    { name: "two-factor-off", clicks: ["^Security$", "Turn off two-factor"], settle: 900 },
+    { name: "two-factor-new-codes", clicks: ["^Security$", "New recovery codes"], settle: 900 },
   ],
 
   "sales-quotations": [
@@ -243,6 +260,10 @@ const EXTRA_PAGES = [
   ["console-new-organisation", "/platform/new"],
   ["console-organisation", "/platform/organisations/gulf-fresh"],
   ["console-activity", "/platform/activity"],
+  ["console-security", "/platform/security"],
+  // reached while signed OUT, from the sign-in page and from the emailed link
+  ["forgot-password", "/forgot-password"],
+  ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],
 ];
 const PAGES = [
   ["login", "/"],
@@ -373,6 +394,17 @@ const batch = (i) => ({
 
 const n = (f, count = 6) => Array.from({ length: count }, (_, i) => f(i + 1));
 
+// The item list reads { stocks: [...] }: goods, and one service with a long name (it has no stock, so its cells show a dash and "Not stocked").
+const stockCategory = { _id: "c1", name: "Grains" };
+const stockItem = (i) => ({
+  _id: `it${i}`, itemId: `ITM00${i}`, sku: `SKU-00${i}`, itemName: `Basmati Rice ${i}`, itemType: "goods", category: stockCategory, unitOfMeasure: "u1",
+  currentStock: 40 * i, reorderLevel: 100, purchasePrice: 38, salesPrice: 42, status: "Active", origin: "India", brand: "Royal", expiryDate: "2027-03-15T00:00:00.000Z",
+});
+const serviceItem = {
+  _id: "it9", itemId: "SRV001", sku: "SV0001", itemName: "Installation and commissioning", itemType: "service", category: stockCategory, unitOfMeasure: "u2",
+  currentStock: 0, reorderLevel: 0, purchasePrice: 150, salesPrice: 400, status: "Active", incomeAccountId: "a1", expenseAccountId: null,
+};
+
 // lib/accountingApi.js hands callers `res.data.data` as-is, so the shape here has to be the
 // shape each screen actually reads - an array for most lists, an object where the screen wants
 // a summary beside its rows. Getting this wrong shows up as a blank page, which is exactly what
@@ -405,9 +437,46 @@ function stubFor(pathname) {
       // asks for, so every page is still measured; the Users and roles screen needs a rank to offer anything.
       branches: [{ code: "main", name: "Head office", isHeadOffice: true }, { code: "shj", name: "Sharjah Warehouse" }],
       branch: { code: "main", name: "Head office", canSwitch: true, canViewAll: true },
-      me: { id: "a1", name: "Super Admin", role: { key: "admin", name: "Administrator", rank: 80, approvalLimit: null }, grants: ALL_GRANTS, homeBranch: "main", branchRoles: [] },
-      // Who must approve what (Settings -> Business rules -> Approvals); off until the organisation sets it.
-      policy: { approvals: { separateApprover: false, secondApprovalAbove: null } },
+      me: { id: "a1", name: "Super Admin", role: { key: "admin", name: "Administrator", rank: 80, approvalLimit: null }, grants: ALL_GRANTS, homeBranch: "main", branchRoles: [], twoFactorEnabled: true, twoFactorRequired: false },
+      // Who must approve what (Settings -> Business rules -> Approvals); off until the organisation sets it. And whether it requires two-factor.
+      policy: { approvals: { separateApprover: false, secondApprovalAbove: null }, security: { requireTwoFactor: false } },
+    };
+  }
+
+  // The approvals list (/api/v1/approvals/waiting). The navigation badge asks the same route with ?countOnly=1 and reads `count`,
+  // so the one answer carries both. Long names, a long narration and long reasons are the point: they are what clips on a card.
+  if (p.endsWith("/approvals/waiting")) {
+    const row = (i, over) => ({
+      id: `a${i}`, kind: "document", type: "sales_order", typeLabel: "Sales order", number: `SO-2026-00${40 + i}`, party: `Al Noor Trading ${i}`, narration: "",
+      amount: 1250.75 * i, date: `2026-10-0${i}T00:00:00.000Z`, createdAt: `2026-10-0${i}T08:00:00.000Z`, branchId: "main",
+      preparedBy: "Layla Al Mansoori", preparedById: "u9", ageDays: 9 - i, state: "waiting", given: 0, firstApprovers: [], step: 1, of: 1, reason: null,
+      link: `/sales-order?search=SO-2026-00${40 + i}`, ...over,
+    });
+    return {
+      count: 4,
+      forYou: [
+        row(1),
+        row(2, { type: "purchase_order", typeLabel: "Purchase order", number: "PO-2026-0017", party: "Gulf Supply Company for Frozen and Chilled Foodstuff Trading LLC", state: "awaiting second approver", given: 1, firstApprovers: ["Sam Khan"], step: 2, of: 2, link: "/purchase-order?search=PO-2026-0017" }),
+        row(3, { id: "v3", kind: "voucher", type: "journal", typeLabel: "Journal", number: "JV-2026-0012", party: "", narration: "Month-end accrual of rent and utilities for the Al Quoz warehouse", step: 1, of: 2, link: "/journal-voucher" }),
+        row(4, { id: "v4", kind: "voucher", type: "receipt", typeLabel: "Receipt", number: "RV-2026-0031", party: "Al Noor Trading 4", link: "/receipt-voucher" }),
+      ],
+      others: [
+        row(5, { amount: 98000, step: null, of: null, reason: { code: "APPROVAL_LIMIT_EXCEEDED", message: "This document is 98000.00 AED and your approval limit is 5000.00 AED. Ask someone with a higher limit to approve it." } }),
+        row(6, { type: "sales_return", typeLabel: "Sales return", number: "SR-2026-0003", step: null, of: null, reason: { code: "SELF_APPROVAL_NOT_ALLOWED", message: "You prepared this document, so someone else has to approve it." } }),
+      ],
+      counts: { forYou: 4, others: 2 },
+      capped: false,
+    };
+  }
+  // One voucher as its own screen reads it ({ voucher, ledgerEntries }): the journal the approvals list opens, waiting for approval.
+  if (p.includes("/vouchers/vouchers/") && !p.slice(p.indexOf("/vouchers/vouchers/") + 19).includes("/")) {
+    return {
+      voucher: {
+        _id: "v3", voucherNo: "JV-2026-0012", voucherType: "journal", status: "pending", date: "2026-10-08T00:00:00.000Z", totalAmount: 1500, ledgerBased: true, createdBy: "u8", approvals: [],
+        narration: "Month-end accrual of rent and utilities for the Al Quoz warehouse",
+        entries: [{ accountName: "Rent Expense", accountCode: "OPEX0006", debitAmount: 1500, creditAmount: 0, description: "October rent" }, { accountName: "Cash in Hand", accountCode: "CASH0001", debitAmount: 0, creditAmount: 1500, description: "" }],
+      },
+      ledgerEntries: [],
     };
   }
 
@@ -461,13 +530,15 @@ function stubFor(pathname) {
       { code: "ajm", name: "Ajman Depot", isHeadOffice: false, isActive: false, address: { city: "Ajman" }, people: 0 },
     ];
   }
+  // A person's own two-factor (Settings -> Security): on, with two recovery codes left, which is the tallest the panel gets.
+  if (p.endsWith("/auth/2fa")) return { enabled: true, enabledAt: "2026-10-01T08:00:00.000Z", recoveryCodesLeft: 2, required: false };
   if (p.includes("/access/users")) {
     const person = (i, name, key, roleName, rank, over = {}) => ({ id: `u${i}`, name, email: `user${i}@gulffresh.example`, role: { key, name: roleName, rank, builtIn: true, active: true }, branchId: i % 2 ? "main" : "shj", branchRoles: [], isActive: true, status: "active", lastLogin: "2026-10-06T08:00:00.000Z", ...over });
     return [
       person(1, "Owner One", "super_admin", "Owner", 100),
       person(2, "Super Admin", "admin", "Administrator", 80, { id: "a1" }),
       // holds another role in a branch: the list says so under the role, and Change opens the dialog with a row
-      person(3, "Imran Ali", "manager", "Manager", 60, { branchRoles: [{ branchId: "shj", role: { key: "viewer", name: "Viewer", rank: 20, builtIn: true, active: true } }] }),
+      person(3, "Imran Ali", "manager", "Manager", 60, { twoFactorEnabled: true, branchRoles: [{ branchId: "shj", role: { key: "viewer", name: "Viewer", rank: 20, builtIn: true, active: true } }] }),
       person(4, "Sara Khan", "supervisor", "Sales supervisor", 55, { role: { key: "supervisor", name: "Sales supervisor", rank: 55, builtIn: false, active: true } }),
       person(5, "Lina Haddad", "viewer", "Viewer", 20, { isActive: false, status: "inactive" }),
     ];
@@ -475,6 +546,7 @@ function stubFor(pathname) {
 
   // The developer console (/api/v1/platform/*).
   if (p.includes("/platform/")) {
+    if (p.endsWith("/me/2fa")) return { enabled: false, enabledAt: null, recoveryCodesLeft: 0 };
     const org = (over) => ({ code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "standard", status: "active", featureOverrides: { einvoicing: true }, limitOverrides: { users: 25 }, subscription: { endsAt: "2026-12-31T23:59:59.999Z", graceDays: 7, onExpiry: "block" }, provisioning: { complete: true, steps: { settings: { state: "done" }, chart: { state: "done" }, taxCodes: { state: "done" } } }, ...over });
     if (p.endsWith("/catalog")) {
       return {
@@ -785,6 +857,38 @@ function stubFor(pathname) {
     };
   }
 
+  // closing or reopening a MONTH of an open year: what it would do (services/financial/periodCloseService.js; the shape is
+  // pinned by MonthClose.test.jsx). February is the latest closed month (reopen), March the next to close.
+  if (p.includes("/months/")) {
+    const c = (code, level, title, detail = "") => ({ code, level, title, detail });
+    const feb = p.endsWith("2026-02");
+    const month = feb
+      ? { key: "2026-02", label: "February 2026", startDay: "2026-02-01", endDay: "2026-02-28", status: "closed", canClose: false, canReopen: true }
+      : { key: "2026-03", label: "March 2026", startDay: "2026-03-01", endDay: "2026-03-31", status: "open", canClose: true, canReopen: false };
+    return {
+      year: { _id: "fy1", code: "2026", status: "open", startDay: "2026-01-01", endDay: "2026-12-31", lockedThrough: "2026-02-28" },
+      month, currency: "AED",
+      checks: feb ? [] : [
+        c("ALL_BRANCHES", "ok", "Every branch is included"),
+        c("EARLIER_MONTHS_CLOSED", "ok", "No earlier month is left open"),
+        c("DOCUMENTS_FINISHED", "ok", "Every document dated in March 2026 is approved, rejected or cancelled"),
+        c("LEDGER_BALANCED", "ok", "Debits equal credits up to 31 Mar 2026"),
+        c("MONTH_NOT_ENDED", "warning", "March 2026 has not ended", "It runs until 31 Mar 2026. Closing now locks the days that are left: nothing dated up to 31 Mar 2026 can be posted until the month is reopened."),
+        c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled to 31 Mar 2026", "Emirates NBD Current (to 28 Feb 2026); Mashreq Business Account (never reconciled). A bank line dated in a closed month cannot be posted for later."),
+        c("STOCK_NOT_RECONCILED", "warning", "Stock differs from the Inventory ledger by AED 1,234.50", "At 31 Mar 2026 the stock is worth AED 98,765.40 and Inventory shows AED 97,530.90. Largest: Journals and other vouchers posted to Inventory (stock 0.00, ledger 1,234.50)."),
+      ],
+      blockers: [],
+      warnings: feb ? [] : [c("MONTH_NOT_ENDED", "warning", "March 2026 has not ended"), c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled"), c("STOCK_NOT_RECONCILED", "warning", "Stock differs")],
+      canClose: !feb,
+      reopen: { canReopen: feb, blockers: [] },
+      stock: {
+        available: true, reconciles: false, stockValue: 98765.4, ledgerBalance: 97530.9, difference: 1234.5, accountName: "Inventory", basis: "history", exact: false, asOn: "2026-03-31",
+        note: "Worked out from the live stock movements dated up to that day, as the books stand now. A document reversed, changed or back-dated since is counted as it is today, not as it was that day, and a quantity written to an item without a movement can only be seen for today.",
+        sources: [{ key: "journals", label: "Journals and other vouchers posted to Inventory", stock: 0, ledger: 1234.5, difference: -1234.5 }, { key: "purchases", label: "Purchases", stock: 120000, ledger: 120000, difference: 0.01 }],
+      },
+    };
+  }
+
   // closing or reopening a fiscal year: what it would do (services/financial/yearEndService.js; the shape is pinned by YearEnd.test.jsx)
   if (p.includes("/year-end")) {
     const c = (code, level, title, detail = "") => ({ code, level, title, detail });
@@ -800,10 +904,11 @@ function stubFor(pathname) {
         c("RETAINED_EARNINGS", "ok", "The profit goes to Retained Earnings"),
         c("YEAR_NOT_ENDED", "warning", "2026 runs until 31 Dec 2026", "Closing now locks the days that are left: nothing dated up to the end of the year can be posted until the year is reopened."),
         c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled to 31 Dec 2026", "Emirates NBD Current (to 30 Sep 2026); Mashreq Business Account (never reconciled)"),
+        c("STOCK_NOT_RECONCILED", "warning", "Stock differs from the Inventory ledger by AED 1,234.50", "At 31 Dec 2026 the stock is worth AED 98,765.40 and Inventory shows AED 97,530.90."),
         c("NEXT_YEAR_CREATED", "ok", "2027 will be created", "The balances close into it, so posting carries on without a gap."),
       ],
       blockers: closed ? [] : [c("UNFINISHED_DOCUMENTS", "blocker", "3 documents and 1 voucher dated in 2026 are not approved")],
-      warnings: closed ? [] : [c("YEAR_NOT_ENDED", "warning", "2026 runs until 31 Dec 2026"), c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled")],
+      warnings: closed ? [] : [c("YEAR_NOT_ENDED", "warning", "2026 runs until 31 Dec 2026"), c("BANK_NOT_RECONCILED", "warning", "2 bank accounts are not reconciled"), c("STOCK_NOT_RECONCILED", "warning", "Stock differs from the Inventory ledger")],
       canClose: false,
       reopen: { canReopen: closed, blockers: [] },
       figures: { income: 1234567.5, expenses: 987654.25, profit: 246913.25, accounts: 14, yearIncome: 1134567.5, yearExpenses: 887654.25, yearProfit: 246913.25, broughtForward: 100000, carriedForward: { assets: 5234567.8, liabilities: 1834567.4, equity: 3400000.4, balanced: true } },
@@ -811,15 +916,26 @@ function stubFor(pathname) {
       retained: { accountName: "Retained Earnings" },
       next: { code: "2027", exists: false, startDay: "2027-01-01", endDay: "2027-12-31" },
       willPost: true,
+      stock: closed ? null : { available: true, reconciles: false, stockValue: 98765.4, ledgerBalance: 97530.9, difference: 1234.5, accountName: "Inventory", basis: "today", exact: true, asOn: "2026-12-31", note: "Worked out from every live stock movement up to now, valued at the cost that moved with it. The item records agree with it, so it is exact.", sources: [{ key: "journals", label: "Journals and other vouchers posted to Inventory", stock: 0, ledger: 1234.5, difference: -1234.5 }] },
       closing: closed ? { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026", nextYearCreated: false } : null,
     };
   }
-  if (p.includes("fiscal-year")) return [
-    { _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open" },
-    { _id: "fy0", code: "2025", startDate: "2025-01-01", endDate: "2025-12-31", status: "closed", closing: { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026" } },
-  ];
+  if (p.includes("fiscal-year")) {
+    // the open year's twelve months: January and February closed (February is the one that may be reopened), March next
+    const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const lastDay = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const months = names.map((name, i) => {
+      const n = String(i + 1).padStart(2, "0");
+      const closed = i < 2;
+      return { key: `2026-${n}`, label: `${name} 2026`, startDay: `2026-${n}-01`, endDay: `2026-${n}-${lastDay[i]}`, status: closed ? "closed" : "open", closedAt: closed ? "2026-03-03T08:00:00Z" : null, closedBy: closed ? "Mariam Al Hashimi" : null, canClose: i === 2, canReopen: i === 1 };
+    });
+    return [
+      { _id: "fy1", code: "2026", startDate: "2026-01-01", endDate: "2026-12-31", status: "open", lockedThrough: "2026-02-28", months },
+      { _id: "fy0", code: "2025", startDate: "2025-01-01", endDate: "2025-12-31", status: "closed", closing: { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026" }, months: [] },
+    ];
+  }
   if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
-  if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }];
+  if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }, { _id: "t2", name: "Reverse charge 5%", kind: "reverse_charge", ratePercent: 5, isActive: true, isDefault: false, rateHistory: [] }];
   if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
 
   // The audit trail: the whole posting picture behind one document or voucher. Its shape is
@@ -1057,17 +1173,27 @@ function stubFor(pathname) {
       boxes: [
         box("1a", "Standard-rated supplies in Abu Dhabi"), box("1b", "Standard-rated supplies in Dubai", 480000, 24000), box("1c", "Standard-rated supplies in Sharjah"),
         box("1d", "Standard-rated supplies in Ajman"), box("1e", "Standard-rated supplies in Umm Al Quwain"), box("1f", "Standard-rated supplies in Ras Al Khaimah"),
-        box("1g", "Standard-rated supplies in Fujairah"), box("3", "Supplies subject to the reverse charge"), box("4", "Zero-rated supplies", 12000),
-        box("5", "Exempt supplies", 8000), box("8", "Total supplies", 500000, 24000), box("9", "Standard-rated expenses", 180000, 9000),
-        box("10", "Expenses subject to the reverse charge"), box("11", "Total expenses", 180000, 9000), box("12", "Total VAT due", 0, 24000),
-        box("13", "Recoverable input VAT", 0, 9000), box("14", "Net VAT payable", 0, 15000),
+        box("1g", "Standard-rated supplies in Fujairah"), box("3", "Supplies subject to the reverse charge", 40000, 2000), box("4", "Zero-rated supplies", 12000),
+        box("5", "Exempt supplies", 8000), box("8", "Total supplies", 540000, 26000), box("9", "Standard-rated expenses", 180000, 9000),
+        box("10", "Expenses subject to the reverse charge", 40000, 2000), box("11", "Total expenses", 220000, 11000), box("12", "Total VAT due", 0, 26000),
+        box("13", "Recoverable input VAT", 0, 11000), box("14", "Net VAT payable", 0, 15000),
       ],
-      totals: { outputVat: 24000, recoverableVat: 9000, netPayable: 15000 },
+      totals: { outputVat: 26000, recoverableVat: 11000, netPayable: 15000 },
       unclassified: { count: 0, amount: 0, vat: 0, lines: [] },
-      notReported: { count: 0, amount: 0 },
+      notReported: { count: 1, amount: 3000 },
+      customerAccounts: { count: 1, amount: 3000 },
       notTracked: [{ box: "2", label: "Tax refunds provided to tourists" }, { box: "6", label: "Goods imported into the UAE" }, { box: "7", label: "Import adjustments" }],
-      reconciliation: { rows: [{ label: "Output VAT", documents: 24000, ledger: 24000, difference: 0, agrees: true }, { label: "Input VAT", documents: 9000, ledger: 8995, difference: 5, agrees: false }] },
+      reconciliation: { rows: [{ label: "Output VAT", documents: 24000, ledger: 24000, difference: 0, agrees: true }, { label: "Input VAT", documents: 11000, ledger: 10995, difference: 5, agrees: false }, { label: "Reverse-charge VAT (self-assessed)", documents: 2000, ledger: 2000, difference: 0, agrees: true }] },
     };
+  }
+
+  // The item list, and the postable accounts a service may name (the item form's two pickers)
+  if (p.endsWith("/stock/stock")) return { stocks: [...n(stockItem, 4), serviceItem] };
+  if (p.endsWith("/accounts/postable")) {
+    return [
+      { _id: "a1", accountCode: "4100", accountName: "Consulting income", category: "INCOME", groupName: "Sales Income", path: "Sales Income" },
+      { _id: "a2", accountCode: "5200", accountName: "Subcontractors", category: "EXPENSE", groupName: "Operating Expenses", path: "Operating Expenses" },
+    ];
   }
 
   if (p.includes("valuation") || p.includes("stock-report")) {

@@ -111,8 +111,15 @@ describe("module tabs", () => {
   });
 
   it("is omitted for single-page modules", () => {
+    // (Home has two pages now - the Dashboard and Approvals - so Settings is the module with one)
+    renderAt("/settings");
+    expect(screen.queryByRole("navigation", { name: "Settings" })).toBeNull();
+  });
+
+  it("Home is the Dashboard and Approvals", () => {
     renderAt("/dashboard");
-    expect(screen.queryByRole("navigation", { name: "Home" })).toBeNull();
+    const tabs = screen.getByRole("navigation", { name: "Home" });
+    expect(within(tabs).getAllByRole("link").map((a) => a.textContent)).toEqual(["Dashboard", "Approvals"]);
   });
 
   it("sets a readable document title", () => {

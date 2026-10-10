@@ -22,7 +22,7 @@ import axiosInstance from "../../axios/axios";
 import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 
-import { formatTime } from "../../utils/format";
+import { downloadCSV, formatTime } from "../../utils/format";
 import { DataTable } from "../accounting/DataTable";
 import Can from "../shell/Can";
 // Session management utilities
@@ -325,23 +325,12 @@ const CategoryManagement = () => {
 
   const handleExport = useCallback(async () => {
     try {
-      const csv = [
-        "CategoryID,Name,Description,Status,CreatedAt",
-        ...categories.map(
-          (c) =>
-            `${c._id},"${c.name.replace(/"/g, '""')}","${(c.description || "").replace(/"/g, '""')}",${c.status},${c.createdAt}`
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "categories_export.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // the shared exporter: it quotes cells and makes a name that begins with = + - @ text, not a formula
+      downloadCSV(
+        "categories_export.csv",
+        ["CategoryID", "Name", "Description", "Status", "CreatedAt"],
+        categories.map((c) => [c._id, c.name, c.description || "", c.status, c.createdAt])
+      );
 
       showToastMessage("Categories exported successfully!", "success");
     } catch {

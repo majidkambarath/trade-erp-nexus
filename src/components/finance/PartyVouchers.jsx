@@ -9,7 +9,7 @@ import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingO
 import { vouchers } from "../../lib/bankingApi";
 import { currencies } from "../../lib/currencyApi";
 import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
-import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, paymentPayload, toCents, validatePayment } from "../../lib/voucherForms";
+import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDate, formatDateGB } from "../../utils/format";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
@@ -192,7 +192,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
         ...paymentPayload(payment),
         ...fxPayload(fxForm, master),
       });
-      onSaved(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} ${saved.voucherNo} posted`);
+      onSaved(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} ${saved.voucherNo} ${savedVerb(saved)}`);
     } catch (err) {
       setProblem(err);
       setBusy(false);

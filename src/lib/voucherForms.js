@@ -218,6 +218,10 @@ export function flattenAccounts(chart, { categories, groupNames } = {}) {
   return groupNames ? out.filter((a) => groupNames.includes(a.groupName)) : out;
 }
 
+// What happened to a voucher the server has just saved. One a person may not post on their own (over their approval limit, or an
+// amount the organisation wants two approvers for) comes back PENDING: saved, numbered, not posted, waiting in the approvals list.
+export const savedVerb = (saved, { updated = false } = {}) => (saved?.status === "pending" ? "saved, waiting for approval - not posted yet" : updated ? "updated" : "posted");
+
 export const accountOption = (a) => ({
   value: a._id, label: a.accountName, hint: a.accountCode,
   searchText: `${a.accountCode} ${a.groupName || ""} ${a.category || ""}`,

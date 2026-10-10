@@ -183,7 +183,8 @@ const InventoryManagement = () => {
 
   const fetchStockItems = useCallback(async () => {
     try {
-      const response = await axiosInstance.get("/stock/stock");
+      // a movement changes a quantity on hand, so only goods are offered (a service has none)
+      const response = await axiosInstance.get("/stock/stock", { params: { itemType: "goods" } });
       setStockItems(response.data.data?.stocks || []);
     } catch (error) {
       console.error("Error fetching stock items:", error);

@@ -19,3 +19,21 @@ describe("documentTotals", () => {
     expect(t).toMatchObject({ priced: false, gross: 500, vat: 25, headerDiscount: 20, grandTotal: 505 });
   });
 });
+
+describe("documentTotals: reverse charge", () => {
+  it("reads the VAT the buyer assesses from the server's pricing, apart from the VAT and the total", () => {
+    const t = documentTotals({
+      items: [{ rate: 400, vatAmount: 0, rcmVat: 20 }, { rate: 200, vatAmount: 10 }],
+      pricing: { net: 600, lineDiscount: 0, lineVat: 10, rcmVat: 20, chargesNet: 0, chargesVat: 0, headerDiscount: 0, roundOff: 0, grandTotal: 610 },
+    });
+    expect(t.rcmVat).toBe(20);
+    expect(t.vat).toBe(10);
+    expect(t.grandTotal).toBe(610);
+  });
+
+  it("falls back to the lines when the document has no pricing (as the list's rows do), and is 0 with none", () => {
+    expect(documentTotals({ items: [{ rate: 400, vatAmount: 0, rcmVat: 20 }, { rate: 200, vatAmount: 10 }] })).toMatchObject({ rcmVat: 20, vat: 10, grandTotal: 610 });
+    expect(documentTotals({ items: [{ rate: 200, vatAmount: 10 }] }).rcmVat).toBe(0);
+    expect(documentTotals({ items: [{ rate: 1, vatAmount: 0 }], pricing: { net: 1, lineVat: 0, grandTotal: 1 } }).rcmVat).toBe(0);
+  });
+});

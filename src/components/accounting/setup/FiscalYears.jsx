@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { closedNote } from "../../../lib/yearEnd";
-import { formatDateGB, toInputDate } from "../../../utils/format";
+import { closedNote as monthClosedNote, defaultYear, statusLabel } from "../../../lib/periodClose";
+import { formatDate, formatDateGB, toInputDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
-import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../kit";
+import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../kit";
+import MonthCloseDialog from "./MonthCloseDialog";
 import YearEndDialog from "./YearEndDialog";
 
 export default function FiscalYears({ notify }) {
@@ -18,6 +20,10 @@ export default function FiscalYears({ notify }) {
   const series = useAsync(() => accounting.numberSeries(), []);
   const [modal, setModal] = useState(false);
   const [confirm, setConfirm] = useState(null); // { year, action }: the year-end dialog, which reads what closing would do first
+  const [monthYear, setMonthYear] = useState(null); // the year whose months are listed (else the one being worked on)
+  const [monthDialog, setMonthDialog] = useState(null); // { year, month, action }: the month dialog, which also reads first
+  const shown = years.data?.find((y) => y._id === monthYear) || defaultYear(years.data);
+  const months = shown?.months || [];
 
   return (
     <div className="space-y-5">
@@ -54,6 +60,40 @@ export default function FiscalYears({ notify }) {
         )}
       </Panel>
 
+      {months.length > 0 && (
+        <Panel
+          title="Month end"
+          description="Lock posting one month at a time inside an open year, oldest first. A closed month refuses new documents and vouchers, and changes to existing ones, in every branch, until it is reopened. Closing the year locks what is left."
+          bodyClassName="p-0"
+          actions={years.data.length > 1 ? (
+            <Select aria-label="Year" className="h-9 w-40" value={shown._id} onChange={(e) => setMonthYear(e.target.value)}>
+              {years.data.map((y) => <option key={y._id} value={y._id}>{y.code}</option>)}
+            </Select>
+          ) : <Pill>{shown.code}</Pill>}
+        >
+          <DataTable
+            caption={`Months of ${shown.code}`}
+            rows={months}
+            rowKey={(m) => m.key}
+            columns={[
+              { key: "month", header: "Month", card: "primary", className: "font-semibold whitespace-nowrap", cell: (m) => m.label },
+              { key: "period", header: "Period", card: "meta", className: "whitespace-nowrap", cell: (m) => `${formatDate(m.startDay)} to ${formatDate(m.endDay)}` },
+              { key: "status", header: "Status", card: "badge", cell: (m) => (m.status === "open" ? <Pill tone="success">{statusLabel(m)}</Pill> : <Pill tone="danger"><Lock className="h-3 w-3" aria-hidden="true" />{statusLabel(m)}</Pill>) },
+              { key: "closedBy", header: "Closed by", label: "Closed by", className: "max-w-xs text-muted-foreground", cell: (m) => monthClosedNote(m) },
+              // closing and reopening a month need accounts.close, like a year; without it the column is not drawn at all
+              ...(canClose ? [{
+                key: "action", header: "Action", align: "end", card: "actions",
+                cell: (m) => (m.canClose
+                  ? <Button size="sm" variant="outline" onClick={() => setMonthDialog({ year: shown, month: m, action: "close" })}><Lock className="h-3.5 w-3.5" aria-hidden="true" />Close month</Button>
+                  : m.canReopen
+                    ? <Button size="sm" variant="outline" onClick={() => setMonthDialog({ year: shown, month: m, action: "reopen" })}><LockOpen className="h-3.5 w-3.5" aria-hidden="true" />Reopen month</Button>
+                    : null),
+              }] : []),
+            ]}
+          />
+        </Panel>
+      )}
+
       <Panel title="Document numbering" description="One counter per series and year. Numbers are never reused: a gap means a number was issued and its document did not complete." bodyClassName="p-0">
         {series.data?.length === 0 && <EmptyState title="No numbers issued yet" text="A series appears here the first time a document of that kind is created." />}
         {series.data?.length > 0 && (
@@ -72,6 +112,12 @@ export default function FiscalYears({ notify }) {
       </Panel>
 
       {modal && <YearModal onClose={() => setModal(false)} onSaved={(code) => { setModal(false); notify(`Fiscal year ${code} added`); years.reload(); }} />}
+      {monthDialog && (
+        <MonthCloseDialog
+          year={monthDialog.year} month={monthDialog.month} mode={monthDialog.action} onClose={() => setMonthDialog(null)}
+          onDone={(message) => { setMonthDialog(null); notify(message); years.reload(); }}
+        />
+      )}
       {confirm && (
         <YearEndDialog
           year={confirm.year} mode={confirm.action} onClose={() => setConfirm(null)}

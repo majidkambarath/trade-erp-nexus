@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import { cn } from "../../lib/utils";
 import { getBrand } from "../../config/brands";
 import { PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_VERSION } from "../../config/product";
 import BrandMark from "../shell/BrandMark";
+import TwoFactorStep from "./TwoFactorStep";
 
 const REMEMBER_KEY = "erp-remember-email";
 const APP_NAME = getBrand().shortName;
@@ -105,12 +106,15 @@ export default function Login() {
   const next = safeNext(new URLSearchParams(location.search).get("next"));
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
+  // Set once the password was right for an account with two-factor on: the challenge the code must come with (five minutes).
+  const [challenge, setChallenge] = useState(null);
   const rememberedEmail = readRememberedEmail();
 
   const {
     register,
     handleSubmit,
     setFocus,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(schema),
@@ -140,6 +144,13 @@ export default function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A session is open (after one step, or after the code): keep it in memory, remember the email if asked, go where the person was headed.
+  const finishSignIn = ({ admin, tokens }, email, remember) => {
+    storeSession(tokens, admin);
+    writeRememberedEmail(email, remember);
+    navigate(next, { replace: true });
+  };
+
   const onSubmit = async (values) => {
     setServerError("");
     try {
@@ -153,10 +164,13 @@ export default function Login() {
         return;
       }
 
-      const { admin, tokens } = data.data;
-      storeSession(tokens, admin);
-      writeRememberedEmail(values.email, values.rememberMe);
-      navigate(next, { replace: true });
+      // Two-factor is on: no session yet, only a challenge for the second step.
+      if (data.data?.twoFactorRequired) {
+        setChallenge({ token: data.data.challengeToken, email: values.email, remember: values.rememberMe });
+        return;
+      }
+
+      finishSignIn(data.data, values.email, values.rememberMe);
     } catch (error) {
       if (error.response) {
         setServerError(
@@ -244,6 +258,19 @@ export default function Login() {
             )}
           </div>
 
+          {challenge ? (
+            <TwoFactorStep
+              challengeToken={challenge.token}
+              email={challenge.email}
+              onSignedIn={(result) => finishSignIn(result, challenge.email, challenge.remember)}
+              onRestart={(message) => {
+                setChallenge(null);
+                setValue("password", ""); // the password was typed for a sign-in that is over: not left in the box
+                setServerError(message || "");
+              }}
+            />
+          ) : (
+          <>
           <h2 className="text-2xl font-extrabold tracking-tight">Sign in</h2>
           <p className="mt-2 text-muted-foreground">Use your ERP account to continue.</p>
 
@@ -323,8 +350,12 @@ export default function Login() {
           </form>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
-            Forgot your password? Ask your administrator to reset it.
+            <Link to="/forgot-password" className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-4 lg:min-h-0">
+              Forgot your password?
+            </Link>
           </p>
+          </>
+          )}
 
           {/* The product's own mark. The client's name is on the brand panel and in the top bar. */}
           <p className="mt-10 text-center text-xs uppercase tracking-[0.22em] text-muted-foreground/70">

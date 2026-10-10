@@ -137,14 +137,16 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
               <ul className="divide-y divide-border">
                 {d.reconciliation.rows.map((r) => (
                   <li key={r.label} className="flex flex-wrap items-center gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
-                    <span className="w-28 font-medium">{r.label}</span>
+                    <span className="min-w-28 font-medium">{r.label}</span>
                     <span className="text-muted-foreground">Documents {money(r.documents)}</span>
                     <span className="text-muted-foreground">Ledger {r.ledger == null ? "not set up" : money(r.ledger)}</span>
                     <span className="ms-auto">{r.agrees ? <Pill tone="success"><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Agrees</Pill> : <Pill tone="warning"><TriangleAlert className="h-3 w-3" aria-hidden="true" />{r.ledger == null ? "No account to compare" : `Differs by ${money(Math.abs(r.difference))}`}</Pill>}</span>
                   </li>
                 ))}
               </ul>
-              {d.notReported.count > 0 && <p className="mt-3 text-xs text-muted-foreground">{d.notReported.count} line{d.notReported.count === 1 ? "" : "s"} ({money(d.notReported.amount)} AED) are out of scope, or zero-rated or exempt purchases, and appear in no box.</p>}
+              {d.notReported.count > 0 && <p className="mt-3 text-xs text-muted-foreground">{d.notReported.count} line{d.notReported.count === 1 ? "" : "s"} ({money(d.notReported.amount)} AED) are out of scope, zero-rated or exempt purchases, or sales on which the customer accounts for the VAT, and appear in no box.</p>}
+              {d.customerAccounts?.count > 0 && <p className="mt-2 text-xs text-muted-foreground">{d.customerAccounts.count} sale line{d.customerAccounts.count === 1 ? "" : "s"} ({money(d.customerAccounts.amount)} AED) are under the reverse charge: you charge no VAT and declare none; your customer declares them in box 3.</p>}
+              {Boolean(d.boxes.find((b) => b.box === "3")?.vat) && <p className="mt-2 text-xs text-muted-foreground">Box 3 is the VAT you assess yourself on purchases under the reverse charge (services from abroad, some local supplies). It is posted to Reverse-charge VAT, and the same amount is claimed back in box 10, so it does not change the net.</p>}
             </Panel>
           </div>
         );
@@ -177,8 +179,8 @@ function Documents({ range, initialKind }) {
       <Frame state={state}>
         {(d) => {
           const pages = Math.max(1, Math.ceil(d.total / PAGE));
-          const exportCsv = () => downloadCSV(`vat-documents-${range.from}-${range.to}.csv`, ["Date", "Document", "Direction", "Party", "TRN", "Treatment", "Taxable (AED)", "VAT (AED)"],
-            d.rows.map((r) => [formatDate(r.date), r.docNo, r.direction, r.partyName, r.trn, r.kinds.map((k) => KIND[k]?.label || k).join(" / "), r.taxable, r.vat]));
+          const exportCsv = () => downloadCSV(`vat-documents-${range.from}-${range.to}.csv`, ["Date", "Document", "Direction", "Party", "TRN", "Treatment", "Taxable (AED)", "VAT (AED)", "Self-assessed VAT (AED)"],
+            d.rows.map((r) => [formatDate(r.date), r.docNo, r.direction, r.partyName, r.trn, r.kinds.map((k) => KIND[k]?.label || k).join(" / "), r.taxable, r.vat, r.rcmVat || 0]));
           return (
             <Panel bodyClassName="p-0" title="Documents in the return" description={`${d.total} document${d.total === 1 ? "" : "s"} · taxable ${money(d.totals.taxable)} · VAT ${money(d.totals.vat)} AED`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
@@ -197,7 +199,7 @@ function Documents({ range, initialKind }) {
                           <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{r.trn || "-"}</td>
                           <td className="px-3 py-2"><span className="flex flex-wrap gap-1">{r.kinds.map((k) => <Pill key={k} tone={KIND[k]?.tone}>{KIND[k]?.label || k}</Pill>)}</span></td>
                           <td className="px-3 py-2 text-end tabular-nums">{money(r.taxable)}</td>
-                          <td className="px-5 py-2 text-end tabular-nums">{money(r.vat)}</td>
+                          <td className="px-5 py-2 text-end tabular-nums">{money(r.vat)}{r.rcmVat ? <span className="block text-xs text-muted-foreground">{money(r.rcmVat)} self-assessed</span> : null}</td>
                         </tr>
                       ))}
                     </tbody>

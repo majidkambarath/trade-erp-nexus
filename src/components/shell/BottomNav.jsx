@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { moduleHref } from "../../config/navigation";
+import { CountPill, useModuleBadge } from "./NavBadges";
 
 // Primary navigation below the desktop breakpoint: four modules in the thumb zone plus
 // More, the way a native app does it. The labelled rail (AppRail) is the same idea for a
@@ -10,7 +11,7 @@ import { moduleHref } from "../../config/navigation";
 //
 // Height is 3.5rem of controls plus the device's own bottom inset (the iPhone home bar),
 // published as --bottom-nav-h so Layout can reserve exactly that much room for content.
-function NavButton({ icon, label, isActive, badge, ...props }) {
+function NavButton({ icon, label, isActive, badge, count, ...props }) {
   const Tag = props.to ? Link : "button";
   return (
     <Tag
@@ -46,7 +47,24 @@ function NavButton({ icon, label, isActive, badge, ...props }) {
           className="absolute end-[22%] top-1 h-1.5 w-1.5 rounded-full bg-brand"
         />
       )}
+      {/* what is waiting behind one of the module's tabs (config/navigation.js `badge`) */}
+      <CountPill count={count} className="absolute end-[14%] top-0.5" />
     </Tag>
+  );
+}
+
+// One module in the bar: its icon and name, a dot if it holds an announced feature, and a number if something waits in it.
+function ModuleButton({ module, isActive }) {
+  const waiting = useModuleBadge(module);
+  return (
+    <NavButton
+      to={moduleHref(module)}
+      icon={module.icon}
+      label={module.label}
+      isActive={isActive}
+      badge={module.tabs.some((t) => t.soon)}
+      count={waiting}
+    />
   );
 }
 
@@ -64,13 +82,7 @@ export default function BottomNav({ primary, rest, activeModuleId, onOpenMore, m
       <ul className="flex items-stretch gap-0.5 px-1 pt-0.5">
         {primary.map((m) => (
           <li key={m.id} className="flex min-w-0 flex-1">
-            <NavButton
-              to={moduleHref(m)}
-              icon={m.icon}
-              label={m.label}
-              isActive={m.id === activeModuleId}
-              badge={m.tabs.some((t) => t.soon)}
-            />
+            <ModuleButton module={m} isActive={m.id === activeModuleId} />
           </li>
         ))}
         {rest.length > 0 && (

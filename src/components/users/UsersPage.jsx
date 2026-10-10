@@ -1,6 +1,6 @@
 import React, { useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Copy, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
+import { Copy, Pencil, Plus, ShieldOff, Trash2, UserPlus } from "lucide-react";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { cn } from "../../lib/utils";
@@ -159,6 +159,8 @@ function PersonDialog({ person, roles, branches, me, onClose, onSaved }) {
 
 function People({ users, roles, branches, me, notify, reload, canManage }) {
   const [dialog, setDialog] = useState(null);
+  const [resetting, setResetting] = useState(null); // the person whose two-factor is about to be cleared
+  const [resetBusy, setResetBusy] = useState(false);
   const rows = users.data || [];
   const myRank = me?.role?.rank ?? 0;
 
@@ -189,6 +191,10 @@ function People({ users, roles, branches, me, notify, reload, canManage }) {
     },
     { key: "branch", header: "Branch", card: "meta", cell: (u) => branches?.find((b) => b.code === u.branchId)?.name || u.branchId },
     { key: "last", header: "Last signed in", card: "meta", cell: (u) => (u.lastLogin ? formatDateTime(u.lastLogin) : "Never") },
+    {
+      key: "twoFactor", header: "Two-factor", card: "meta",
+      cell: (u) => <Pill tone={u.twoFactorEnabled ? "success" : "neutral"}>{u.twoFactorEnabled ? "2FA on" : "2FA off"}</Pill>,
+    },
     { key: "status", header: "Access", card: "badge", cell: (u) => <Pill tone={u.isActive && u.status === "active" ? "success" : "neutral"}>{u.isActive && u.status === "active" ? "Can sign in" : "Switched off"}</Pill> },
     {
       key: "actions", header: <span className="sr-only">Actions</span>, card: "actions", align: "end",
@@ -197,8 +203,12 @@ function People({ users, roles, branches, me, notify, reload, canManage }) {
         const allowed = canManage && (self || mayChange(myRank, u.role.rank));
         if (!allowed) return null;
         return (
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button size="sm" variant="outline" aria-label={`Change ${u.name}`} onClick={() => setDialog(u)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Change</Button>
+            {/* hidden, not disabled, unless the person may reset it: an administrator below this one's rank, never one's own */}
+            {!self && u.twoFactorEnabled && (
+              <Button size="sm" variant="ghost" aria-label={`Reset two-factor for ${u.name}`} onClick={() => setResetting(u)}><ShieldOff className="h-3.5 w-3.5" aria-hidden="true" />Reset two-factor</Button>
+            )}
           </div>
         );
       },
@@ -216,6 +226,30 @@ function People({ users, roles, branches, me, notify, reload, canManage }) {
       {users.error && <div className="p-4"><ErrorNote error={users.error} onRetry={users.reload} /></div>}
       {users.data && rows.length === 0 && <EmptyState title="Nobody yet" text="Add the first person." />}
       {rows.length > 0 && <DataTable caption="People" columns={columns} rows={rows} rowKey={(u) => u.id} />}
+      {resetting && (
+        <ConfirmDialog
+          title={`Reset two-factor for ${resetting.name}?`}
+          text="They will be signed out everywhere and can sign in with their password alone until they set it up again. Do this when they have lost their phone and their recovery codes."
+          confirmLabel="Reset two-factor"
+          danger
+          busy={resetBusy}
+          onClose={() => setResetting(null)}
+          onConfirm={async () => {
+            setResetBusy(true);
+            try {
+              await access.resetTwoFactor(resetting.id);
+              notify(`Two-factor reset for ${resetting.name}`);
+              setResetting(null);
+              reload();
+            } catch (error) {
+              notify(error?.response?.data?.message || error.message, "error");
+              setResetting(null);
+            } finally {
+              setResetBusy(false);
+            }
+          }}
+        />
+      )}
       {dialog && (
         <PersonDialog
           person={dialog === "new" ? null : dialog}

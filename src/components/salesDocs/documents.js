@@ -5,6 +5,7 @@
 // lines here, so the offer shows what the invoice will show.
 
 import { documentTotals } from "../../utils/documentTotals";
+import { isReverseCharge } from "../../lib/reverseCharge";
 import { companyBlock } from "../PurchaseOrder/shared/invoiceModel";
 import { contactLines, dateOf, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
 
@@ -37,6 +38,7 @@ export const buildQuotationDocument = (q, customer, company, currency) => {
       currency,
       notice: `This is a quotation, not a tax invoice. Prices are valid until ${dateOf(q.validUntil)}.`,
       receipt: false,
+      reverseChargeSide: "supplier", // an offer on a reverse-charge line tells the customer the VAT is theirs to account for
     }
   );
   return {
@@ -64,6 +66,7 @@ export const buildDeliveryNoteDocument = (dn, customer, company, currency, { sho
       shortReason: l.shortReason || "",
       unitPrice: l.price || 0,
       vatPercent: l.vatPercent ?? 0,
+      reverseCharge: isReverseCharge(l) && !(Number(l.vatAmount) > 0), // no VAT is charged on it: "RC" stands where the rate would be
       total: l.lineTotal || 0,
     };
   });

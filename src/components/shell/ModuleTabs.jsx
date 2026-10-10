@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "../../lib/utils";
+import { TabBadge } from "./NavBadges";
 
 // Secondary navigation for the active module, as tabs in the page header. These are
 // links to separate pages, so this is a <nav> with aria-current, not an ARIA tablist
@@ -13,7 +14,7 @@ export default function ModuleTabs({ module, activeTab }) {
     activeRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [activeTab?.to]);
 
-  // Single-page modules (Home, Reports, People, Settings) need no tab row.
+  // Single-page modules (Settings, or Home for someone who may not approve anything) need no tab row.
   if (!module || module.tabs.length < 2) return null;
 
   return (
@@ -49,6 +50,7 @@ export default function ModuleTabs({ module, activeTab }) {
                   )}
                 >
                   {tab.label}
+                  <TabBadge tab={tab} className="ms-2" />
               {tab.soon && (
                 <span className="ms-2 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-on-soft">
                   Soon

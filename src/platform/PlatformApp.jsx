@@ -6,6 +6,7 @@ import OrganisationsList from "./OrganisationsList";
 import NewOrganisation from "./NewOrganisation";
 import OrganisationDetail from "./OrganisationDetail";
 import { ActivityTab } from "./detailTabs";
+import PlatformSecurity from "./PlatformSecurity";
 import { clearConsoleSession, getConsoleToken, getConsoleUser } from "./platformSession";
 import { PageHeader } from "../components/accounting/kit";
 
@@ -46,6 +47,7 @@ export default function PlatformApp() {
             </>
           }
         />
+        <Route path="security" element={<PlatformSecurity user={user} />} />
         <Route path="*" element={<Navigate to="/platform" replace />} />
       </Routes>
     </PlatformShell>

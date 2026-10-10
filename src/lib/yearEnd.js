@@ -4,6 +4,7 @@
 
 import { formatNumber } from "../utils/format";
 import { orgCurrency } from "../utils/orgLocale";
+import { lockSentence } from "./periodClose";
 
 /** "AED 1,234.50" in the organisation's own currency. */
 export const money = (n, currency = orgCurrency()) => `${currency} ${formatNumber(Math.abs(Number(n) || 0), 2)}`.trim();
@@ -34,9 +35,9 @@ export const outstanding = (preview, ticked) => {
   return (preview?.warnings || []).filter((w) => !given.has(w.code));
 };
 
-/** What a closed year's row says about how it was closed, or "" for a year that is open. */
+/** What a closed year's row says about how it was closed; for an open year, how far its months are closed, or "". */
 export function closedNote(year, currency) {
-  if (year?.status !== "closed") return "";
+  if (year?.status !== "closed") return year?.lockedThrough ? `Months closed. ${lockSentence(year.lockedThrough)}` : "";
   const c = year.closing;
   if (!c) return "Locked only. It was closed before year-end closing existed, so its profit never reached Retained Earnings. Reopen and close it again to move it.";
   if (c.posted) return `${profitWords(c.profit, currency)} moved to ${c.retainedAccountName || "Retained Earnings"} (${c.voucherNo})`;

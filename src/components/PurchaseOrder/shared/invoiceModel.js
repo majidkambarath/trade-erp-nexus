@@ -3,6 +3,7 @@
 
 import { amountInWords, decimalAdd, decimalRound } from "../../../utils/format";
 import { orgCurrency } from "../../../utils/orgLocale";
+import { isReverseCharge } from "../../../lib/reverseCharge";
 
 const num = (v) => parseFloat(v) || 0;
 
@@ -40,19 +41,31 @@ export const invoiceLines = (items = []) =>
       vatPercent: num(it.vatPercent ?? 5),
       vat,
       total: decimalAdd(value, vat),
+      // Reverse charge: no VAT is charged on the line, so the sheet marks it "RC" instead of a rate. A line saved before the VAT stopped
+      // being charged did charge it (its VAT is not 0) and prints as an ordinary line. Read from the line's kind and VAT, which the
+      // customer's online copy also carries (the amount assessed is not part of what the customer is sent).
+      // (the two keys exist only on such a line, so every other printed row is exactly what it was)
+      ...(isReverseCharge(it) && vat === 0 ? { reverseCharge: true, rcmVat: num(it.rcmVat) } : {}),
     };
   });
 
 // The VAT return breakdown: taxable value and VAT for each rate used on the document, highest first.
 export const vatBreakdown = (lines) => {
   const byRate = new Map();
+  let reverse = null; // reverse-charge lines are not at a rate: they are one row of their own, with no VAT
   for (const line of lines) {
+    if (line.reverseCharge) {
+      reverse = reverse || { rate: null, label: "Reverse charge", taxable: 0, vat: 0 };
+      reverse.taxable = decimalAdd(reverse.taxable, line.value);
+      continue;
+    }
     const row = byRate.get(line.vatPercent) || { rate: line.vatPercent, taxable: 0, vat: 0 };
     row.taxable = decimalAdd(row.taxable, line.value);
     row.vat = decimalAdd(row.vat, line.vat);
     byRate.set(line.vatPercent, row);
   }
-  return [...byRate.values()].sort((a, b) => b.rate - a.rate);
+  const rows = [...byRate.values()].sort((a, b) => b.rate - a.rate);
+  return reverse ? [...rows, reverse] : rows;
 };
 
 // Charges carry VAT of their own, which the lines do not include. Adding the difference as a row

@@ -16,7 +16,7 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isSignIn = /\/login$/.test(error.config?.url || "");
+    const isSignIn = /\/login(\/2fa)?$/.test(error.config?.url || "");
     if (error.response?.status === 401 && !isSignIn) {
       clearConsoleSession();
       window.dispatchEvent(new CustomEvent("console-signed-out"));
@@ -32,10 +32,25 @@ export const consoleError = (error) => error?.response?.data?.message || error?.
 export const consoleErrorCode = (error) => error?.response?.data?.errorCode || null;
 
 export const platform = {
+  // Resolves with the signed-in person, or - when the account has two-factor on - { twoFactorRequired, challengeToken } for the second step.
   async login(email, password) {
     const result = data(await client.post("/login", { email, password }));
+    if (result.twoFactorRequired) return { twoFactorRequired: true, challengeToken: result.challengeToken };
     setConsoleSession({ token: result.token, user: result.user });
     return result.user;
+  },
+  async loginTwoFactor(challengeToken, payload) {
+    const result = data(await client.post("/login/2fa", { challengeToken, ...payload }));
+    setConsoleSession({ token: result.token, user: result.user });
+    return result.user;
+  },
+  // the signed-in person's own two-factor (the same shape the product's own panel uses)
+  twoFactor: {
+    status: async () => data(await client.get("/me/2fa")),
+    setup: async (password) => data(await client.post("/me/2fa/setup", { password })),
+    enable: async (code) => data(await client.post("/me/2fa/enable", { code })),
+    disable: async (input) => data(await client.post("/me/2fa/disable", input)),
+    recoveryCodes: async (input) => data(await client.post("/me/2fa/recovery-codes", input)),
   },
   me: async () => data(await client.get("/me")),
   catalog: async () => data(await client.get("/catalog")),

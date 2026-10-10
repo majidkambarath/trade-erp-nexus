@@ -24,6 +24,11 @@ import axiosInstance from "../../axios/axios";
 import BarcodeGenerator from "react-barcode";
 
 import { formatDate, formatCurrencyAED} from "../../utils/format";
+import { isService } from "../../lib/itemTypes";
+
+// A service's income / expense account as the item detail returns it (populated), else the company default.
+const accountText = (account, fallback) => (account?.accountName ? `${account.accountCode ? `${account.accountCode} ` : ""}${account.accountName}` : fallback);
+
 const StockDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -165,11 +170,13 @@ const StockDetail = () => {
     );
   }
 
+  // A service has no quantity, reorder level, batch or expiry: no stock card, and no "low stock" alert (0 <= 0).
+  const service = isService(stockItem);
   const stockStatus = getStockStatus(
     stockItem.currentStock,
     stockItem.reorderLevel
   );
-  const expiryStatus = getExpiryStatus(stockItem.expiryDate);
+  const expiryStatus = service ? { color: "text-gray-500", label: "N/A" } : getExpiryStatus(stockItem.expiryDate);
 
   return (
     <div className="bg-background py-8 px-4 sm:px-6 lg:px-8">
@@ -187,6 +194,7 @@ const StockDetail = () => {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">
                 {stockItem.itemName}
+                {service && <span className="ms-3 inline-block rounded-full border border-indigo-200 bg-indigo-50 px-3 py-0.5 align-middle text-sm font-medium text-indigo-700">Service</span>}
               </h1>
               <p className="text-sm text-gray-500 mt-1">SKU: {stockItem.sku}</p>
             </div>
@@ -235,24 +243,28 @@ const StockDetail = () => {
                   {stockItem.unitOfMeasure?.unitName || "N/A"}
                 </p>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 flex items-center">
-                  <Globe size={16} className="mr-2 text-gray-500" />
-                  Origin
-                </p>
-                <p className="text-gray-800 mt-1">
-                  {stockItem.origin || "N/A"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 flex items-center">
-                  <Star size={16} className="mr-2 text-gray-500" />
-                  Brand
-                </p>
-                <p className="text-gray-800 mt-1">{stockItem.brand || "N/A"}</p>
-              </div>
+              {!service && (
+                <>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 flex items-center">
+                      <Globe size={16} className="mr-2 text-gray-500" />
+                      Origin
+                    </p>
+                    <p className="text-gray-800 mt-1">
+                      {stockItem.origin || "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 flex items-center">
+                      <Star size={16} className="mr-2 text-gray-500" />
+                      Brand
+                    </p>
+                    <p className="text-gray-800 mt-1">{stockItem.brand || "N/A"}</p>
+                  </div>
+                </>
+              )}
             </div>
-            {stockItem.barcodeQrCode && (
+            {!service && stockItem.barcodeQrCode && (
               <div className="mt-6">
                 <p className="text-sm font-medium text-gray-600 flex items-center">
                   <Barcode size={16} className="mr-2 text-gray-500" />
@@ -274,7 +286,29 @@ const StockDetail = () => {
 
           {/* Stock & Pricing Information */}
           <div className="space-y-6">
+            {/* A service: no stock, but the accounts its sales and purchases are recorded in */}
+            {service && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
+                <h3 className="text-lg font-semibold text-gray-800 mb-5 flex items-center">
+                  <Layers size={20} className="mr-2 text-purple-500" />
+                  Service
+                </h3>
+                <div className="space-y-5">
+                  <p className="text-sm text-gray-600">Not stocked: invoicing it moves no stock and has no cost of goods.</p>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Income account</p>
+                    <p className="text-gray-800 mt-1">{accountText(stockItem.incomeAccountId, "Company default (Sales revenue)")}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Expense account</p>
+                    <p className="text-gray-800 mt-1">{accountText(stockItem.expenseAccountId, "Company default (Services purchased)")}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Stock Information */}
+            {!service && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-semibold text-gray-800 mb-5 flex items-center">
                 <Layers size={20} className="mr-2 text-purple-500" />
@@ -321,6 +355,7 @@ const StockDetail = () => {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Pricing Information */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">
@@ -463,7 +498,7 @@ const StockDetail = () => {
           </div>
 
           {/* Alerts */}
-          {(stockStatus.label === "Low Stock" ||
+          {!service && (stockStatus.label === "Low Stock" ||
             expiryStatus.label === "Expired" ||
             expiryStatus.label === "Expiring Soon") && (
             <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md">

@@ -14,6 +14,7 @@ import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
 import SendingSettings from "./SendingSettings";
 import BranchSettings from "./BranchSettings";
+import TwoFactorSection from "./TwoFactorSection";
 import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
 
 // Settings holds what belongs to the company and to the signed-in user: the company profile and
@@ -290,8 +291,9 @@ export default function SettingsModule() {
             <PreferencesPanel />
           </TabsContent>
 
-          <TabsContent value="security">
+          <TabsContent value="security" className="space-y-5">
             <PasswordPanel notify={notify} />
+            <TwoFactorSection notify={notify} />
           </TabsContent>
 
           {canEdit && (active === "company" || active === "bank") && (

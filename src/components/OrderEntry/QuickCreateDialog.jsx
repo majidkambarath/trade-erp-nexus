@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X } from "lucide-react";
-import { missingRequired } from "./quickCreate";
+import { isRequired, missingRequired } from "./quickCreate";
 import { cn } from "../../lib/utils";
 
 // One dialog for every quick create. The field list comes from quickCreate.js, so the
@@ -91,11 +91,12 @@ export default function QuickCreateDialog({
               const id = `${uid}-${f.name}`;
               const isSelect = Boolean(f.select);
               const opts = isSelect ? options[f.select] || [] : [];
+              const required = isRequired(f, values); // some fields depend on others (origin and brand are not asked of a service)
               return (
                 <div key={f.name} className="space-y-1.5">
                   <label htmlFor={id} className="block text-sm font-semibold">
                     {f.label}
-                    {f.required && <span className="ms-1 text-status-danger" aria-hidden="true">*</span>}
+                    {required && <span className="ms-1 text-status-danger" aria-hidden="true">*</span>}
                   </label>
                   {isSelect ? (
                     <div className="flex gap-2">
@@ -103,8 +104,8 @@ export default function QuickCreateDialog({
                         id={id}
                         value={values[f.name] || ""}
                         onChange={(e) => set(f.name, e.target.value)}
-                        required={f.required}
-                        aria-required={f.required || undefined}
+                        required={required}
+                        aria-required={required || undefined}
                         className={inputCls}
                       >
                         <option value="">Choose…</option>
@@ -114,7 +115,7 @@ export default function QuickCreateDialog({
                           </option>
                         ))}
                       </select>
-                      {onRequestNew && (
+                      {onRequestNew && !f.noNew && (
                         <button
                           type="button"
                           onClick={() => onRequestNew(f)}
@@ -131,8 +132,8 @@ export default function QuickCreateDialog({
                       rows={3}
                       value={values[f.name] || ""}
                       onChange={(e) => set(f.name, e.target.value)}
-                      required={f.required}
-                      aria-required={f.required || undefined}
+                      required={required}
+                      aria-required={required || undefined}
                       className={cn(inputCls, "h-auto py-2")}
                     />
                   ) : (
@@ -142,8 +143,8 @@ export default function QuickCreateDialog({
                       autoComplete="off"
                       value={values[f.name] || ""}
                       onChange={(e) => set(f.name, e.target.value)}
-                      required={f.required}
-                      aria-required={f.required || undefined}
+                      required={required}
+                      aria-required={required || undefined}
                       className={inputCls}
                     />
                   )}

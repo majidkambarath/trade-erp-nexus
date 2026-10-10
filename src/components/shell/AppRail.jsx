@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import { moduleHref } from "../../config/navigation";
 import BrandMark from "./BrandMark";
+import { CountPill, useModuleBadge } from "./NavBadges";
 
 // Primary navigation: a narrow rail where every module shows an icon AND a label.
 // Icon-only rails were rejected in the ERP redesign research for poor discoverability,
@@ -11,6 +12,7 @@ import BrandMark from "./BrandMark";
 // Pointer-only: below lg (1024px) the rail plus a dense table left too little width, so
 // BottomNav and MoreSheet carry the same information architecture on touch instead.
 function RailItem({ module, isActive }) {
+  const waiting = useModuleBadge(module);
   return (
     <li>
       <Link
@@ -37,6 +39,8 @@ function RailItem({ module, isActive }) {
           strokeWidth: isActive ? 2.2 : 1.8,
         })}
         <span className="max-w-full text-center">{module.label}</span>
+        {/* what is waiting behind one of its tabs (config/navigation.js `badge`) */}
+        <CountPill count={waiting} className="absolute end-1 top-1" />
         {module.tabs.some((t) => t.soon) && (
           <span
             // marks a module containing an announced-but-unreleased feature

@@ -108,15 +108,19 @@ export const QUICK_CREATE = {
     endpoint: "/stock/stock",
     fields: [
       { name: "itemName", label: "Item name", required: true },
+      // a service (consulting, delivery, installation) is not stocked; it can be created from an invoice line too
+      { name: "itemType", label: "Item type", select: "itemTypes", noNew: true },
       { name: "category", label: "Category", required: true, select: "categories" },
       { name: "unitOfMeasure", label: "Unit of measure", required: true, select: "units" },
-      { name: "origin", label: "Origin", required: true },
-      { name: "brand", label: "Brand", required: true },
+      // origin and brand are customs and labelling details of goods; a service has neither
+      { name: "origin", label: "Origin", required: (v) => v.itemType !== "service" },
+      { name: "brand", label: "Brand", required: (v) => v.itemType !== "service" },
     ],
     // The SKU is generated from the category, exactly as the stock page does; the user is
     // not asked for it. `existingSkus` comes from the stock list already on the page.
     payload: (v, ctx = {}) => ({
       itemName: text(v.itemName),
+      itemType: v.itemType === "service" ? "service" : "goods",
       sku: nextSku(ctx.categoryName, ctx.existingSkus),
       categoryId: v.category,
       unitOfMeasure: v.unitOfMeasure,
@@ -137,10 +141,13 @@ export const QUICK_CREATE = {
   },
 };
 
+// A field is required outright, or by a rule on the other values (origin and brand are not asked of a service).
+export const isRequired = (field, values = {}) => (typeof field.required === "function" ? Boolean(field.required(values)) : Boolean(field.required));
+
 // Returns the first missing required field, or null when the values are complete.
 export const missingRequired = (spec, values) => {
   for (const f of spec.fields) {
-    if (f.required && !text(values[f.name])) return f;
+    if (isRequired(f, values) && !text(values[f.name])) return f;
   }
   return null;
 };

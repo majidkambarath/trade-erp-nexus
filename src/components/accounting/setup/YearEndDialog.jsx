@@ -5,6 +5,7 @@ import { acknowledged, canConfirm, closedToast, money, outstanding, profitWords 
 import { formatDate } from "../../../utils/format";
 import { Button } from "../../ui/button";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../kit";
+import StockAgainstLedger from "./StockAgainstLedger";
 
 // Closing or reopening a fiscal year (services/financial/yearEndService.js decides; this only shows it). Closing is a
 // decision with consequences: the dialog reads what would happen before it asks, lists everything that stands in the
@@ -14,7 +15,8 @@ import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../kit";
 const ICON = { ok: CheckCircle2, warning: AlertTriangle, blocker: XCircle };
 const ICON_TONE = { ok: "text-status-success", warning: "text-status-warning", blocker: "text-status-danger" };
 
-function Check({ check, ticked, onTick }) {
+// One line of the checks list; the month close (MonthCloseDialog.jsx) lists its checks the same way.
+export function Check({ check, ticked, onTick }) {
   const Icon = ICON[check.level] || CheckCircle2;
   const body = (
     <>
@@ -174,6 +176,7 @@ export default function YearEndDialog({ year, mode, onClose, onDone }) {
               {(data.checks || []).map((c) => <Check key={c.code} check={c} ticked={ticked} onTick={tick} />)}
             </ul>
             <Figures preview={data} />
+            <StockAgainstLedger stock={data.stock} currency={data.currency} />
             <Carried preview={data} />
             {data.canClose && left > 0 && <p role="status" className="text-sm text-status-warning">Tick {left === 1 ? "the warning" : `the ${left} warnings`} above to close the year.</p>}
           </>

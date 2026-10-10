@@ -7,6 +7,13 @@
 
 import { rowLine, documentTotals, chargesTotals } from "./lineMath";
 import { decimalRound } from "../../utils/format";
+import { SERVICE, GOODS, isService } from "../../lib/itemTypes";
+import { isReverseCharge } from "../../lib/reverseCharge";
+
+// What a chosen item tells its line about being goods or a service. A service has nothing on hand: null, so a grid
+// shows "Service" and nothing compares it with a quantity.
+const kindOf = (stock) => ({ itemType: isService(stock) ? SERVICE : GOODS });
+const onHandOf = (stock) => (isService(stock) ? null : stock.currentStock ?? 0);
 
 const num = (v) => parseFloat(v) || 0;
 const CREATED_BY = "Current User";
@@ -86,8 +93,13 @@ const SALES_RETURN_COLUMNS = [
   col("_remove", "", "remove", { min: "w-12" }),
 ];
 
+// A return of a reverse-charge line is reverse charge too: the original's tax code comes across (the server would give it anyway) so the
+// form shows the line as the server will price it. Any other line is returned exactly as before, with no code.
+const reverseChargeOf = (l) => (isReverseCharge(l) && l.taxCodeId ? { taxCodeId: l.taxCodeId, reverseCharge: true } : {});
+
 // ---- stock -> row hydration ------------------------------------------------------------
 const hydratePurchase = (row, stock) => ({
+  ...kindOf(stock),
   description: stock.itemName,
   brand: stock.brand || "",
   origin: stock.origin || "",
@@ -101,31 +113,35 @@ const hydratePurchase = (row, stock) => ({
 });
 
 const hydrateSales = (row, stock) => ({
+  ...kindOf(stock),
   description: stock.itemName,
   rate: !row.rate || num(row.rate) === 0 ? String(stock.salesPrice || 0) : row.rate,
   purchasePrice: stock.purchasePrice || 0,
-  currentStock: stock.currentStock ?? 0,
+  currentStock: onHandOf(stock),
   vatPercent: String(stock.taxPercent ?? stock.vatPercent ?? 5),
 });
 
 const hydrateSalesReturn = (row, stock) => ({
+  ...kindOf(stock),
   description: stock.itemName,
   category: stock.category?.name || "",
   salesPrice: String(stock.salesPrice || 0),
   taxPercent: String(stock.taxPercent ?? stock.vatPercent ?? 5),
-  currentStock: stock.currentStock ?? 0,
+  currentStock: onHandOf(stock),
 });
 
 // Recompute the three display totals of a row from its own inputs. Field names come from the
 // variant, so the same code serves purchase ("total") and sales ("subtotal") lines.
 export const recalcRow = (V, row) => {
   const F = V.fields;
-  const l = rowLine({ qty: row.qty, price: row[F.unitPrice], vatPercent: row[F.vatPercent], discountPercent: row.discountPercent });
+  const l = rowLine({ qty: row.qty, price: row[F.unitPrice], vatPercent: row[F.vatPercent], discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
   return {
     ...row,
     [F.lineValue]: l.lineValue.toFixed(2),
     [F.vat]: l.vatAmount.toFixed(2),
     [F.gross]: l.lineTotal.toFixed(2),
+    // a reverse-charge line: VAT reads 0 and the VAT the buyer assesses is shown beside it (the server works out the real figure)
+    rcmVat: l.reverseCharge ? l.rcmVat.toFixed(2) : "",
   };
 };
 
@@ -150,7 +166,7 @@ const itemPayload = (V, row, stock) => {
   const qty = num(row.qty);
   const unit = num(row[V.fields.unitPrice]);
   const vatPercent = num(row[V.fields.vatPercent]);
-  const line = rowLine({ qty, price: unit, vatPercent, discountPercent: row.discountPercent });
+  const line = rowLine({ qty, price: unit, vatPercent, discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
   return {
     ...(row.lineId ? { _id: row.lineId } : {}),
     itemId: row.itemId,
@@ -173,7 +189,7 @@ const salesReturnItem = (row) => {
   const qty = Math.abs(num(row.qty));
   const price = num(row.salesPrice);
   const vatPercent = num(row.taxPercent);
-  const line = rowLine({ qty, price, vatPercent, discountPercent: row.discountPercent });
+  const line = rowLine({ qty, price, vatPercent, discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
   return {
     itemId: row.itemId,
     description: row.description,
@@ -202,10 +218,14 @@ const savedBase = (i) => ({
   lineId: i._id || "",
   itemId: i.itemId?._id || i.itemId,
   itemCode: i.itemCode || "",
+  // goods or service: the line carries it, else the item details the list joined in
+  itemType: isService(i) || isService(i.stockDetails) ? SERVICE : GOODS,
   description: i.description || "",
   qty: String(i.qty ?? ""),
   discountPercent: i.discountPercent ? String(i.discountPercent) : "",
   taxCodeId: i.taxCodeId || "",
+  // a saved reverse-charge line opens as one (the code's kind is snapshotted on the line), so its VAT column reads 0 at once
+  reverseCharge: i.taxKind === "reverse_charge",
   batchNumber: i.batchNumber || "",
   expiryDate: i.expiryDate ? String(i.expiryDate).slice(0, 10) : "",
   returnOfLineId: i.returnOfLineId || "",
@@ -225,7 +245,7 @@ const salesRowFromSaved = (i) => ({
   ...savedBase(i),
   rate: String(unitOf(i)),
   purchasePrice: i.purchasePrice ?? 0,
-  currentStock: i.currentStock ?? 0,
+  currentStock: isService(i) || isService(i.stockDetails) ? null : i.currentStock ?? 0,
   vatPercent: String(i.vatPercent ?? 5),
   subtotal: "0.00", vatAmount: "0.00", lineTotal: "0.00",
 });
@@ -234,7 +254,7 @@ const salesReturnRowFromSaved = (i) => ({
   category: i.category || "",
   salesPrice: String(unitOf(i)),
   taxPercent: String(i.vatPercent ?? 5),
-  currentStock: i.currentStock ?? 0,
+  currentStock: isService(i) || isService(i.stockDetails) ? null : i.currentStock ?? 0,
   rate: "0.00", vatAmount: "0.00", lineTotal: "0.00",
 });
 
@@ -328,7 +348,7 @@ export const VARIANTS = {
     // what can still be returned, and the server will not accept more than that.
     sourceDocument: { label: "Return against purchase order", fetchStatus: "APPROVED", docType: "purchase_order" },
     // price and VAT for a line prefilled from the original
-    fromReturnLine: (l) => ({ currentPurchasePrice: String(l.price ?? 0), vatPercent: String(l.vatPercent ?? 5), purchasePrice: l.price ?? 0 }),
+    fromReturnLine: (l) => ({ currentPurchasePrice: String(l.price ?? 0), vatPercent: String(l.vatPercent ?? 5), purchasePrice: l.price ?? 0, ...reverseChargeOf(l) }),
     discount: false,
     numberMode: false,
     payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
@@ -392,7 +412,7 @@ export const VARIANTS = {
     hasSecondDate: true,
     priority: true,
     sourceDocument: { label: "Return against sales invoice", fetchStatus: "APPROVED", docType: "sales_order" },
-    fromReturnLine: (l) => ({ salesPrice: String(l.price ?? 0), taxPercent: String(l.vatPercent ?? 5) }),
+    fromReturnLine: (l) => ({ salesPrice: String(l.price ?? 0), taxPercent: String(l.vatPercent ?? 5), ...reverseChargeOf(l) }),
     discount: false,
     numberMode: false,
     payloadHeader: (f) => ({ terms: f.terms || "", priority: f.priority || "Medium" }),
@@ -485,7 +505,7 @@ const pricedPayload = (header) => (V, f, rows, _stock, { charges } = {}) => ({
 });
 
 // A saved line carries its stock details alongside it (the server joins them), and that is where "in stock" is.
-const withStock = (i) => ({ ...salesRowFromSaved(i), currentStock: i.stockDetails?.currentStock ?? i.currentStock ?? 0 });
+const withStock = (i) => ({ ...salesRowFromSaved(i), currentStock: isService(i) || isService(i.stockDetails) ? null : i.stockDetails?.currentStock ?? i.currentStock ?? 0 });
 
 const customerSide = {
   partyType: "Customer",

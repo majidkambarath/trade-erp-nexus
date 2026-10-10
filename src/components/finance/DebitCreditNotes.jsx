@@ -9,9 +9,10 @@ import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { emptyNoteLine, money, noteTotals, notePreview, toCents, validateNote } from "../../lib/voucherForms";
+import { emptyNoteLine, money, noteTotals, notePreview, savedVerb, toCents, validateNote } from "../../lib/voucherForms";
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
+import { isReverseCharge } from "../../lib/reverseCharge";
 
 // Debit and credit notes. The party is debited by a debit note and credited by a credit note; the
 // lines on the other side say what it was for (a price difference, damaged goods, a charge).
@@ -123,7 +124,8 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
   const invoiceOptions = (invoices.data || []).map((d) => ({ value: d._id, label: d.transactionNo, hint: `${formatNumber(d.outstandingAmount, 2)} open · ${formatDateGB(d.date)}` }));
 
   const taxList = (taxes.data || []).filter((t) => t.isActive !== false);
-  const taxOptions = taxList.map((t) => ({ value: t._id, label: t.name, hint: `${t.ratePercent}%` }));
+  // a reverse-charge code is assessed on a purchase invoice, not here (the server refuses it); one a line already carries stays visible
+  const taxOptions = taxList.filter((t) => !isReverseCharge(t) || lines.some((l) => l.taxCodeId === t._id)).map((t) => ({ value: t._id, label: t.name, hint: `${t.ratePercent}%` }));
   const totals = useMemo(() => noteTotals(lines, taxList), [lines, taxList]);
   const preview = notePreview({ type, partyName: party?.[nameKey], partyType, lines, accounts, totals });
   const patch = (i, p) => setLines((ls) => ls.map((l, k) => (k === i ? { ...l, ...p } : l)));
@@ -142,7 +144,7 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
         referenceInvoiceId: canSettle && invoiceId ? invoiceId : undefined,
         lines: lines.filter((l) => l.accountId || toCents(l.amount)).map((l) => ({ accountId: l.accountId, description: l.description.trim() || undefined, amount: toCents(l.amount) / 100, taxCodeId: l.taxCodeId || undefined })),
       });
-      onSaved(`${TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} ${saved.voucherNo} posted`, type);
+      onSaved(`${TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} ${saved.voucherNo} ${savedVerb(saved)}`, type);
     } catch (e) {
       setProblem(e);
       setBusy(false);

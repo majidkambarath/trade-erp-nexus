@@ -56,6 +56,11 @@ export const accounting = {
   yearEnd: (id) => api.get(`/accounting/fiscal-years/${id}/year-end`),
   closeFiscalYear: (id, body) => api.post(`/accounting/fiscal-years/${id}/close`, body),
   reopenFiscalYear: (id) => api.post(`/accounting/fiscal-years/${id}/reopen`),
+  // months inside an open year: the list, what closing (or reopening) one would do, then the lock itself; `month` is "YYYY-MM"
+  fiscalYearMonths: (id) => api.get(`/accounting/fiscal-years/${id}/months`),
+  monthEnd: (id, month) => api.get(`/accounting/fiscal-years/${id}/months/${month}`),
+  closeMonth: (id, month, body) => api.post(`/accounting/fiscal-years/${id}/months/${month}/close`, body),
+  reopenMonth: (id, month) => api.post(`/accounting/fiscal-years/${id}/months/${month}/reopen`),
   numberSeries: () => api.get("/accounting/number-series"),
   taxCodes: () => api.get("/accounting/tax-codes"),
   createTaxCode: (body) => api.post("/accounting/tax-codes", body),

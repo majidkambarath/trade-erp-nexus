@@ -188,7 +188,7 @@ const PaymentInvoiceView = ({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${voucherType.toUpperCase()}_${selectedPayment.voucherNo}</title>
+          <title>${String(`${voucherType.toUpperCase()}_${selectedPayment.voucherNo}`).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)}</title>
           <style>
             * { box-sizing: border-box; }
             body { 

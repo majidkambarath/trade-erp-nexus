@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CreatableSelect from "react-select/creatable";
 import { Trash2 } from "lucide-react";
-import { formatNumber } from "../../utils/format";
+import { CURRENCY, formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
 import { DateInput } from "../accounting/kit";
 import { WIDE, useMediaQuery } from "../accounting/DataTable";
+import { rowIsService } from "../../lib/itemTypes";
+import { lineHint } from "../../lib/reverseCharge";
 // Line items as an ARIA grid (https://www.w3.org/WAI/ARIA/apg/patterns/grid/).
 //
 // Keyboard model:
@@ -87,7 +89,7 @@ export default function LineItemsGrid({
   const focusCell = useCallback((r, c) => {
     const el = cells.current.get(`${r}:${c}`);
     if (!el) return;
-    const target = el.querySelector("input, button, select, textarea");
+    const target = el.querySelector("input, button, select, textarea") || el.querySelector("[tabindex]"); // the dash of a cell that does not apply to a service
     (target || el).focus();
   }, []);
 
@@ -192,6 +194,10 @@ export default function LineItemsGrid({
   const renderEditor = (col, row, r, tabIndex) => {
     const value = row[col.key];
     const common = { tabIndex, "aria-label": `${col.label || col.key}, row ${r + 1}` };
+    // a service line has no batch or expiry to record, and no quantity on hand (lib/itemTypes.js)
+    if (rowIsService(row) && (col.key === "batchNumber" || col.key === "expiryDate")) {
+      return <span className="block text-muted-foreground" tabIndex={tabIndex} aria-label={`${col.label || col.key}, row ${r + 1}: not applicable to a service`}>—</span>;
+    }
     switch (col.kind) {
       case "item": {
         const current = itemOptions.find((o) => o.value === row.itemId) || null;
@@ -264,8 +270,21 @@ export default function LineItemsGrid({
           />
         );
       case "money":
+        // A reverse-charge line: the VAT column reads 0 (the supplier charges none) and says what is assessed instead
+        if (col.key === "vatAmount" && row.reverseCharge) {
+          return (
+            <span className="block">
+              <span className="block tabular-nums">{formatNumber(0)}</span>
+              <span className="ms-auto block max-w-[11rem] whitespace-normal text-xs font-normal leading-tight text-muted-foreground">
+                {lineHint(row.vatPercent ?? row.taxPercent, `${CURRENCY} ${formatNumber(Number(row.rcmVat) || 0)}`)}
+              </span>
+            </span>
+          );
+        }
         return <span className="block tabular-nums">{formatNumber(value || 0)}</span>;
       case "ro":
+        // "In stock" for a service says what it is, rather than a blank that reads like an empty shelf
+        if (col.key === "currentStock" && rowIsService(row)) return <span className="block truncate text-muted-foreground">Service</span>;
         return <span className="block truncate text-muted-foreground">{value || "—"}</span>;
       case "remove":
         return (

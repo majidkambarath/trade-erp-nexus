@@ -46,6 +46,14 @@ import { DateInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import Can from "../shell/Can";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { ItemTypeToggle, ServiceAccountFields } from "./ItemTypeFields";
+import {
+  buildItemPayload, emptyItemForm, isService, itemFormFromStock, itemStats, matchesType, stockLevelText, switchItemType, validateItemForm,
+} from "../../lib/itemTypes";
+
+// Has the person typed anything? The item type is always set, so it does not count.
+const hasContent = (form) => Object.entries(form).some(([key, value]) => key !== "itemType" && value);
+
 const SessionManager = {
   storage: {},
   get: (key) => {
@@ -199,30 +207,16 @@ const StockManagement = () => {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterVendor, setFilterVendor] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterType, setFilterType] = useState(""); // "", "goods" or "service"
   const [showLowStock, setShowLowStock] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [isAutoSKU, setIsAutoSKU] = useState(true);
   const [barcodeData, setBarcodeData] = useState(null);
 
-  // Updated formData with new fields: origin and brand
-  const [formData, setFormData] = useState({
-    sku: "",
-    itemName: "",
-    category: "",
-    unitOfMeasure: "",
-    barcodeQrCode: "",
-    reorderLevel: "",
-    batchNumber: "",
-    expiryDate: "",
-    purchasePrice: "",
-    salesPrice: "",
-    currentStock: "",
-    status: "Active",
-    vendorId: "",
-    origin: "", // New field
-    brand: "", // New field
-  });
+  // The form (lib/itemTypes.js): goods or a service, and the fields each has
+  const [formData, setFormData] = useState(emptyItemForm());
+  const service = isService(formData);
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -339,8 +333,8 @@ const StockManagement = () => {
     const savedFilters = SessionManager.get("filters");
     const savedSearchTerm = SessionManager.get("searchTerm");
 
-    if (savedFormData && Object.values(savedFormData).some((val) => val)) {
-      setFormData(savedFormData);
+    if (savedFormData && hasContent(savedFormData)) {
+      setFormData({ ...emptyItemForm(), ...savedFormData });
       setIsDraftSaved(true);
       setLastSaveTime(SessionManager.get("lastSaveTime"));
       setBarcodeData(savedFormData.sku);
@@ -350,6 +344,7 @@ const StockManagement = () => {
       setFilterCategory(savedFilters.category || "");
       setFilterVendor(savedFilters.vendor || "");
       setFilterStatus(savedFilters.status || "");
+      setFilterType(savedFilters.type || "");
       setShowLowStock(savedFilters.showLowStock || false);
     }
 
@@ -359,7 +354,7 @@ const StockManagement = () => {
   }, []);
 
   useEffect(() => {
-    if (showModal && Object.values(formData).some((val) => val)) {
+    if (showModal && hasContent(formData)) {
       autoSaveInterval.current = setTimeout(() => {
         SessionManager.set("formData", formData);
         SessionManager.set("lastSaveTime", new Date().toISOString());
@@ -384,9 +379,10 @@ const StockManagement = () => {
       category: filterCategory,
       vendor: filterVendor,
       status: filterStatus,
+      type: filterType,
       showLowStock: showLowStock,
     });
-  }, [filterCategory, filterVendor, filterStatus, showLowStock]);
+  }, [filterCategory, filterVendor, filterStatus, filterType, showLowStock]);
 
   const fetchStockItems = useCallback(
     async (showRefreshIndicator = false) => {
@@ -432,44 +428,20 @@ const StockManagement = () => {
     [errors]
   );
 
-  // Updated validation to include origin and brand
-  const validateForm = useCallback(() => {
-    const newErrors = {};
-    if (!formData.itemName.trim()) newErrors.itemName = "Item name is required";
-    if (!formData.sku.trim()) newErrors.sku = "SKU is required";
-    if (!formData.category) newErrors.category = "Category is required";
-    if (!formData.unitOfMeasure)
-      newErrors.unitOfMeasure = "Unit of measure is required";
-    // if (!formData.vendorId) newErrors.vendorId = "Vendor is required";
-    if (!formData.origin.trim()) newErrors.origin = "Origin is required"; // New validation
-    if (!formData.brand.trim()) newErrors.brand = "Brand is required"; // New validation
-    if (
-      formData.reorderLevel &&
-      (isNaN(formData.reorderLevel) || Number(formData.reorderLevel) < 0)
-    ) {
-      newErrors.reorderLevel = "Reorder level must be a valid positive number";
-    }
-    if (
-      formData.purchasePrice &&
-      (isNaN(formData.purchasePrice) || Number(formData.purchasePrice) < 0)
-    ) {
-      newErrors.purchasePrice =
-        "Purchase price must be a valid positive number";
-    }
-    if (
-      formData.salesPrice &&
-      (isNaN(formData.salesPrice) || Number(formData.salesPrice) < 0)
-    ) {
-      newErrors.salesPrice = "Sales price must be a valid positive number";
-    }
-    if (
-      formData.currentStock &&
-      (isNaN(formData.currentStock) || Number(formData.currentStock) < 0)
-    ) {
-      newErrors.currentStock = "Current stock must be a valid positive number";
-    }
-    return newErrors;
-  }, [formData]);
+  // Goods or service: the choice decides which fields the form asks for. Going to a service drops what only goods have.
+  const handleTypeChange = useCallback((type) => {
+    setFormData((prev) => switchItemType(prev, type));
+    setErrors({});
+    setIsDraftSaved(false);
+  }, []);
+
+  const handleAccountChange = useCallback((name, value) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setIsDraftSaved(false);
+  }, []);
+
+  // Origin and brand are asked of goods only; a service has no stock fields (lib/itemTypes.js validateItemForm)
+  const validateForm = useCallback(() => validateItemForm(formData), [formData]);
 
   const handleSubmit = useCallback(async () => {
     const newErrors = validateForm();
@@ -480,23 +452,8 @@ const StockManagement = () => {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        sku: formData.sku,
-        itemName: formData.itemName,
-        categoryId: formData.category,
-        unitOfMeasure: formData.unitOfMeasure,
-        barcodeQrCode: formData.barcodeQrCode,
-        reorderLevel: Number(formData.reorderLevel) || 0,
-        batchNumber: formData.batchNumber,
-        expiryDate: formData.expiryDate,
-        purchasePrice: Number(formData.purchasePrice) || 0,
-        salesPrice: Number(formData.salesPrice) || 0,
-        currentStock: Number(formData.currentStock) || 0,
-        status: formData.status,
-        vendorId: formData.vendorId,
-        origin: formData.origin, // New field
-        brand: formData.brand, // New field
-      };
+      // goods send what they always did; a service sends no stock fields at all (the server refuses them)
+      const payload = buildItemPayload(formData);
 
       if (editItemId) {
         await axiosInstance.put(`/stock/stock/${editItemId}`, payload);
@@ -521,28 +478,9 @@ const StockManagement = () => {
   }, [editItemId, formData, fetchStockItems, validateForm, showToastMessage]);
 
   const handleEdit = useCallback((item) => {
-    console.log(item)
     setEditItemId(item._id);
-    setFormData({
-      sku: item.sku,
-      itemName: item.itemName,
-      category: item.category?._id || "",
-      unitOfMeasure: item.unitOfMeasure,
-      barcodeQrCode: item.barcodeQrCode || "",
-      reorderLevel: item.reorderLevel.toString(),
-      batchNumber: item.batchNumber || "",
-      expiryDate: item.expiryDate
-        ? toInputDate(item.expiryDate)
-        : "",
-      purchasePrice: item.purchasePrice.toString(),
-      salesPrice: item.salesPrice.toString(),
-      currentStock: item.currentStock.toString(),
-      status: item.status,
-      vendorId: item.vendorId?._id || "",
-      origin: item.origin || "", // New field
-      brand: item.brand || "", // New field
-    });
-    setBarcodeData(item.sku);
+    setFormData(itemFormFromStock(item, { toInputDate }));
+    setBarcodeData(isService(item) ? null : item.sku);
     setIsAutoSKU(false);
     setShowModal(true);
     setIsDraftSaved(false);
@@ -595,23 +533,7 @@ const StockManagement = () => {
 
   const resetForm = useCallback(() => {
     setEditItemId(null);
-    setFormData({
-      sku: "",
-      itemName: "",
-      category: "",
-      unitOfMeasure: "",
-      barcodeQrCode: "",
-      reorderLevel: "",
-      batchNumber: "",
-      expiryDate: "",
-      purchasePrice: "",
-      salesPrice: "",
-      currentStock: "",
-      status: "Active",
-      vendorId: "",
-      origin: "", // New field
-      brand: "", // New field
-    });
+    setFormData(emptyItemForm());
     setErrors({});
     setShowModal(false);
     setIsDraftSaved(false);
@@ -683,8 +605,9 @@ const StockManagement = () => {
         ? item.vendorId?.vendorName === filterVendor
         : true;
       const matchesStatus = filterStatus ? item.status === filterStatus : true;
+      // a service has no stock to run low on
       const matchesLowStock = showLowStock
-        ? item.currentStock <= item.reorderLevel
+        ? !isService(item) && item.currentStock <= item.reorderLevel
         : true;
 
       return (
@@ -692,6 +615,7 @@ const StockManagement = () => {
         matchesCategory &&
         matchesVendor &&
         matchesStatus &&
+        matchesType(item, filterType) &&
         matchesLowStock
       );
     });
@@ -726,6 +650,7 @@ const StockManagement = () => {
     filterCategory,
     filterVendor,
     filterStatus,
+    filterType,
     showLowStock,
     sortConfig,
   ]);
@@ -733,7 +658,7 @@ const StockManagement = () => {
   const handleExport = useCallback(async () => {
     try {
       const csv = [
-        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,Origin,Brand,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt",
+        "ItemID,SKU,ItemName,Category,CategoryId,VendorName,VendorId,UnitOfMeasure,Origin,Brand,CurrentStock,ReorderLevel,PurchasePrice,SalesPrice,Status,BatchNumber,ExpiryDate,CreatedAt,ItemType",
         ...sortedAndFilteredItems.map(
           (item) =>
             `${item.itemId || item._id},${item.sku},"${item.itemName}",${
@@ -746,7 +671,7 @@ const StockManagement = () => {
               item.status
             },${item.batchNumber || ""},${item.expiryDate || ""},${
               item.createdAt || new Date().toISOString()
-            }`
+            },${item.itemType || "goods"}`
         ),
       ].join("\n");
 
@@ -835,26 +760,8 @@ const StockManagement = () => {
     return formatTime(time);
   }, []);
 
-  const stockStats = useMemo(() => {
-    const totalItems = stockItems.length;
-    const activeItems = stockItems.filter(
-      (item) => item.status === "Active"
-    ).length;
-    const lowStockItems = stockItems.filter(
-      (item) => item.currentStock <= item.reorderLevel
-    ).length;
-    const totalValue = stockItems.reduce(
-      (sum, item) => sum + (item.currentStock * item.purchasePrice || 0),
-      0
-    );
-
-    return {
-      totalItems,
-      activeItems,
-      lowStockItems,
-      totalValue,
-    };
-  }, [stockItems]);
+  // low stock and stock value are about goods; services are counted apart (lib/itemTypes.js)
+  const stockStats = useMemo(() => itemStats(stockItems), [stockItems]);
 
   const handleCategoryChange = useCallback(
     (e) => {
@@ -949,6 +856,7 @@ const StockManagement = () => {
         filterCategory ||
         filterVendor ||
         filterStatus ||
+        filterType ||
         showLowStock
           ? "No items match your current filters. Try adjusting your search criteria."
           : "Start building your inventory by adding your first stock item."}
@@ -978,7 +886,8 @@ const StockManagement = () => {
               Stock Management
             </h1>
             <p className="text-gray-600 mt-1">
-              {stockStats.totalItems} total items •{" "}
+              {stockStats.totalItems} total items
+              {stockStats.serviceItems > 0 && ` (${stockStats.serviceItems} ${stockStats.serviceItems === 1 ? "service" : "services"})`} •{" "}
               {sortedAndFilteredItems.length} displayed
             </p>
           </div>
@@ -1162,6 +1071,17 @@ const StockManagement = () => {
                   <option value="Inactive">Inactive</option>
                 </select>
 
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  aria-label="Item type"
+                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">Goods and services</option>
+                  <option value="goods">Goods only</option>
+                  <option value="service">Services only</option>
+                </select>
+
                 <button
                   onClick={() => setShowLowStock(!showLowStock)}
                   className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
@@ -1178,6 +1098,7 @@ const StockManagement = () => {
                     setFilterCategory("");
                     setFilterVendor("");
                     setFilterStatus("");
+                    setFilterType("");
                     setShowLowStock(false);
                     setSearchTerm("");
                   }}
@@ -1211,7 +1132,10 @@ const StockManagement = () => {
                           <Package size={20} className="text-indigo-600" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{item.itemName.toUpperCase()}</p>
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {item.itemName.toUpperCase()}
+                            {isService(item) && <span className="ms-2 inline-block rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 align-middle text-xs font-medium text-indigo-700">Service</span>}
+                          </p>
                           <p className="text-xs font-normal text-gray-500">SKU: {item.sku}</p>
                           <p className="text-xs font-normal text-gray-500">ID: {item.itemId || item._id}</p>
                         </div>
@@ -1236,6 +1160,15 @@ const StockManagement = () => {
                   {
                     key: "currentStock", label: "Stock Level", card: "amount",
                     cell: (item) => {
+                      // a service has no quantity, reorder level or stock status: a dash, not "0 / Low stock"
+                      if (isService(item)) {
+                        return (
+                          <div className="text-end">
+                            <p className="text-sm font-bold text-gray-400">{stockLevelText(item)}</p>
+                            <p className="text-xs font-normal text-gray-500">Not stocked</p>
+                          </div>
+                        );
+                      }
                       const stockStatus = getStockStatus(item.currentStock, item.reorderLevel);
                       const StockIcon = stockStatus.icon;
                       return (
@@ -1261,6 +1194,7 @@ const StockManagement = () => {
                   {
                     key: "expiryDate", label: "Expiry Date", card: "meta",
                     cell: (item) => {
+                      if (isService(item)) return <span className="text-sm text-gray-400">—</span>;
                       const expiryStatus = getExpiryStatus(item.expiryDate);
                       return (
                         <span className="flex items-center space-x-2">
@@ -1376,12 +1310,14 @@ const StockManagement = () => {
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">
-                  {editItemId ? "Edit Stock Item" : "Add New Stock Item"}
+                  {editItemId ? (service ? "Edit Service" : "Edit Stock Item") : service ? "Add New Service" : "Add New Stock Item"}
                 </h3>
                 <div className="flex items-center mt-1 space-x-4">
                   <p className="text-gray-600 text-sm">
                     {editItemId
                       ? "Update item information"
+                      : service
+                      ? "Create a service you can invoice (no stock)"
                       : "Create a new inventory item"}
                   </p>
                   {isDraftSaved && lastSaveTime && (
@@ -1402,6 +1338,16 @@ const StockManagement = () => {
 
             <div className="p-6" ref={formRef}>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+                <div className="lg:col-span-3">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Item type</h4>
+                  <ItemTypeToggle value={formData.itemType} onChange={handleTypeChange} />
+                  {editItemId && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      The type can be changed only while no stock movement or document refers to the item.
+                    </p>
+                  )}
+                </div>
+
                 <div className="lg:col-span-3">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <Package size={20} className="mr-2 text-indigo-600" />
@@ -1506,7 +1452,7 @@ const StockManagement = () => {
 
                 <div>
                   <FormSelect
-                    label="Unit of Measure"
+                    label={service ? "Unit (hour, job, month...)" : "Unit of Measure"}
                     icon={Box}
                     error={errors.unitOfMeasure}
                     name="unitOfMeasure"
@@ -1519,6 +1465,9 @@ const StockManagement = () => {
                   />
                 </div>
 
+                {/* origin, brand, barcode and the stock fields belong to goods; a service has none of them */}
+                {!service && (
+                <>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     <Globe size={16} className="inline mr-2" />
@@ -1677,6 +1626,25 @@ const StockManagement = () => {
                     onChange={handleChange}
                   />
                 </div>
+                </>
+                )}
+
+                {service && (
+                  <div className="lg:col-span-3 mt-6">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-1 flex items-center">
+                      <Banknote size={20} className="mr-2 text-indigo-600" />
+                      Accounts
+                    </h4>
+                    <p className="mb-4 text-sm text-gray-500">
+                      A service has no quantity on hand, reorder level, batches or expiry, and invoicing it moves no stock. Both accounts are optional.
+                    </p>
+                    <ServiceAccountFields
+                      incomeAccountId={formData.incomeAccountId}
+                      expenseAccountId={formData.expenseAccountId}
+                      onChange={handleAccountChange}
+                    />
+                  </div>
+                )}
 
                 <div className="lg:col-span-3 mt-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">

@@ -25,6 +25,7 @@ export default function PlatformShell({ user, onSignOut, children }) {
           <nav aria-label="Console" className="ms-2 flex items-center gap-1">
             <NavLink to="/platform" end className={link}>Organisations</NavLink>
             <NavLink to="/platform/activity" className={link}>Activity</NavLink>
+            <NavLink to="/platform/security" className={link}>Security</NavLink>
           </nav>
           <div className="ms-auto flex min-w-0 items-center gap-2">
             <span className="hidden min-w-0 truncate text-sm text-muted-foreground md:inline">{user?.email}</span>

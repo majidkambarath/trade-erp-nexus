@@ -14,6 +14,8 @@ import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
 import { formatNumber, CURRENCY } from "../../utils/format";
 import { availabilityWarning } from "../../lib/salesDocuments";
+import { ITEM_TYPES, pickerLabel, rowIsService, stockedItemIds } from "../../lib/itemTypes";
+import { isReverseCharge, taxCodeLabel } from "../../lib/reverseCharge";
 import { cn } from "../../lib/utils";
 
 import { DateInput } from "../accounting/kit";
@@ -166,7 +168,7 @@ export default function OrderForm({
     return () => { live = false; };
   }, []);
   const selectOptions = useMemo(
-    () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: `${c.name} (${c.ratePercent}%)` })) }),
+    () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: taxCodeLabel(c) })) }),
     [taxCodes]
   );
 
@@ -184,8 +186,9 @@ export default function OrderForm({
     () => allParties.map((p) => ({ value: p._id, label: `${p[V.party.idKey]} - ${p[V.party.nameKey]}` })),
     [allParties, V]
   );
+  // the picker names a service as one, so nobody sells hours by the carton
   const itemOptions = useMemo(
-    () => allStock.map((s) => ({ value: s._id, label: `${s.itemId} - ${s.itemName}` })),
+    () => allStock.map((s) => ({ value: s._id, label: pickerLabel(s) })),
     [allStock]
   );
   const party = allParties.find((p) => p._id === formData.partyId);
@@ -217,7 +220,8 @@ export default function OrderForm({
   // A delivery note moves no stock, so what is free is what is on hand less what other notes that are
   // not invoiced yet have already promised. Asked of the server when the set of items changes, not on
   // every keystroke, and only a warning: a note can still be made for goods that are on their way.
-  const itemKey = useMemo(() => [...new Set(rows.map((r) => r.itemId).filter(Boolean))].sort().join(","), [rows]);
+  // a service has nothing on hand, so it is never asked about (and never warned about)
+  const itemKey = useMemo(() => stockedItemIds(rows).join(","), [rows]);
   useEffect(() => {
     if (!V.checkAvailability || !itemKey) return undefined;
     let live = true;
@@ -230,7 +234,7 @@ export default function OrderForm({
   const stockWarnings = useMemo(() => {
     if (!V.checkAvailability) return [];
     const wanted = new Map(); // two lines for one item draw on the same stock
-    for (const r of rows) if (r.itemId) wanted.set(String(r.itemId), (wanted.get(String(r.itemId)) || 0) + num(r.qty));
+    for (const r of rows) if (r.itemId && !rowIsService(r)) wanted.set(String(r.itemId), (wanted.get(String(r.itemId)) || 0) + num(r.qty));
     return [...wanted]
       .map(([id, qty]) => availabilityWarning(rows.find((r) => String(r.itemId) === id)?.description, qty, availability[id]))
       .filter(Boolean);
@@ -245,7 +249,7 @@ export default function OrderForm({
           if (i !== r) return row;
           let next = { ...row, itemId };
           if (stock) next = { ...next, ...V.hydrate(next, stock) };
-          else next = { ...next, description: "", brand: "", origin: "" };
+          else next = { ...next, description: "", brand: "", origin: "", itemType: "" };
           return recalc(V, next);
         })
       );
@@ -261,10 +265,11 @@ export default function OrderForm({
           if (i !== r) return row;
           let next = { ...row, [key]: value };
           // A tax code carries its own rate; the server applies the rate in force on the document
-          // date, this is the preview.
-          if (key === "taxCodeId" && value) {
-            const code = taxCodes.find((c) => c._id === value);
+          // date, this is the preview. A reverse-charge code charges no VAT on the line (the buyer assesses it).
+          if (key === "taxCodeId") {
+            const code = value ? taxCodes.find((c) => c._id === value) : null;
             if (code) next = { ...next, [V.fields.vatPercent]: String(code.ratePercent) };
+            next = { ...next, reverseCharge: isReverseCharge(code) };
           }
           return recalc(V, next);
         })
@@ -505,6 +510,7 @@ export default function OrderForm({
   };
 
   const stockDialogOptions = {
+    itemTypes: ITEM_TYPES.map((t) => ({ value: t.value, label: t.label })),
     categories: lookups.categories.map((c) => ({ value: c._id, label: c.name })),
     units: lookups.units.map((u) => ({ value: u._id, label: `${u.unitName} (${u.shortCode})` })),
   };
@@ -749,6 +755,10 @@ export default function OrderForm({
                 <div className="flex justify-between"><dt className="text-muted-foreground">Lines</dt><dd>{rows.filter((r) => r.itemId).length}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.subtotal))}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">VAT</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
+                {num(totals.rcmVat) > 0 && (
+                  // reverse charge: the supplier charges no VAT; the VAT assessed on those lines is beside the total, never in it
+                  <div className="flex justify-between"><dt className="text-muted-foreground">VAT self-assessed (reverse charge)<span className="block text-xs">Not in the total: {V.partyType === "Vendor" ? "you account for it, not the supplier" : "your customer accounts for it"}</span></dt><dd>{formatNumber(num(totals.rcmVat))}</dd></div>
+                )}
                 {num(totals.discount) > 0 && (
                   <div className="flex justify-between"><dt className="text-muted-foreground">Line discounts (included in net)</dt><dd>−{formatNumber(num(totals.discount))}</dd></div>
                 )}
@@ -789,7 +799,7 @@ export default function OrderForm({
             onCellChange={changeCell}
             onRemove={removeRow}
             onAddRow={addRow}
-            onCreateItem={(r, text) => setQuick({ kind: "stockItem", rowIndex: r, initial: { itemName: text } })}
+            onCreateItem={(r, text) => setQuick({ kind: "stockItem", rowIndex: r, initial: { itemName: text, itemType: "goods" } })}
             focusRequest={focusRequest}
             selectOptions={selectOptions}
           />

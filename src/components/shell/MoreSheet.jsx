@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { TabBadge } from "./NavBadges";
 
 // What does not fit the bottom bar's four slots. A bottom sheet rather than a side drawer:
 // it opens from the bar that summoned it and its content lands under the thumb instead of
@@ -67,6 +68,7 @@ export default function MoreSheet({ open, onOpenChange, modules, active }) {
                           )}
                         >
                           <span className="truncate">{tab.label}</span>
+                          <TabBadge tab={tab} className="ms-1.5 shrink-0" />
                           {tab.soon && (
                             <span className="ms-1.5 shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-soft">
                               Soon

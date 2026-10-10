@@ -29,7 +29,11 @@ export const MODULES = [
     mobilePrimary: true,
     label: "Home",
     icon: LayoutDashboard,
-    tabs: [{ label: "Dashboard", to: "/dashboard", permission: "reports.view", keywords: ["overview", "kpi"] }],
+    tabs: [
+      { label: "Dashboard", to: "/dashboard", permission: "reports.view", keywords: ["overview", "kpi"] },
+      // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what is waiting for this person's approval
+      { label: "Approvals", to: "/approvals", permission: ["sales.approve", "purchase.approve", "finance.approve"], badge: "approvals", keywords: ["approve", "waiting", "pending", "to approve", "second approver", "limit", "held", "review"] },
+    ],
   },
   {
     id: "sales",

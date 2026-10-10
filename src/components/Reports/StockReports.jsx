@@ -200,6 +200,8 @@ const ItemCell = ({ r }) => (
   <span className="inline-flex flex-wrap items-baseline gap-x-2">
     <span className="font-medium text-foreground">{r.itemName ?? r.name}</span>
     {(r.sku || r.code) && <span className="font-mono text-xs text-muted-foreground">{r.sku || r.code}</span>}
+    {/* sales analysis counts the revenue of services; the row says it is one (its cost of goods is nil) */}
+    {r.itemType === "service" && <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">Service</span>}
   </span>
 );
 
@@ -235,6 +237,11 @@ function Reconciliation({ rec, label }) {
               : `Stock ${CURRENCY} ${money(rec.stockValue)}, ${rec.account.name} ${CURRENCY} ${money(rec.ledgerBalance)} ${label}. Stock is ${rec.difference > 0 ? "higher" : "lower"} than the ledger.`}
           </p>
           {rec.warning && <p className="mt-1 font-medium">{rec.warning}</p>}
+          {rec.basis === "history" && (
+            <p className="mt-1 text-xs">
+              A past day: the stock side is worked out from the stock movements dated up to it, as the books stand now. A document reversed, changed or back-dated since is counted as it is today, and a quantity written to an item without a movement can only be seen for today.
+            </p>
+          )}
         </div>
       </div>
       <details open={!ok} className="px-4 py-3 text-sm">

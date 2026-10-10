@@ -152,6 +152,7 @@ const SalesReturnOrderManagement = () => {
           _id: item._id,
           itemId: item.itemId,
           itemName: item.itemName,
+          itemType: item.itemType,
           sku: item.sku,
           category: item.category,
           unitOfMeasure: item.unitOfMeasure,

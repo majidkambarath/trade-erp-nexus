@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { findActive, getMobileNav, getVisibleModules, moduleHref, pageTitle } from "../config/navigation";
 import { getBrand } from "../config/brands";
@@ -15,10 +15,14 @@ import { useSession } from "./shell/useSession";
 import { OrganisationProvider, useOrganisation } from "./shell/OrganisationContext";
 import OrganisationBlocked from "./shell/OrganisationBlocked";
 import PasswordChangeRequired from "./shell/PasswordChangeRequired";
+// shown only to a person whose organisation requires two-factor and who has not set it up: loaded when needed, so the setup
+// (and the QR library behind it) is not part of what every signed-in person downloads first
+const TwoFactorRequired = lazy(() => import("./shell/TwoFactorRequired"));
 import NotInPlan from "./shell/NotInPlan";
 import NotAllowed from "./shell/NotAllowed";
 import { tabAllowed } from "../lib/permissions";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
+import { NavBadgesProvider } from "./shell/NavBadges";
 import { subscriptionNotice } from "../lib/subscriptionText";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
@@ -152,6 +156,14 @@ const LayoutShell = () => {
   if (blocked) return <OrganisationBlocked blocked={blocked} onCheckAgain={refresh} onSignOut={logout} />;
   // A password someone else set must be replaced by the person's own before anything else works (the server refuses it all).
   if (status?.me?.mustChangePassword) return <PasswordChangeRequired name={status.me.name} onChanged={refresh} onSignOut={logout} />;
+  // An organisation that requires two-factor sign-in: until the person has set it up, the server allows nothing but setting it up.
+  if (status?.me?.twoFactorRequired) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <TwoFactorRequired name={status.me.name} email={status.me.email} onEnrolled={refresh} onSignOut={logout} />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
@@ -222,7 +234,10 @@ const LayoutShell = () => {
 // The organisation is loaded once, here, for everything inside the shell.
 const Layout = () => (
   <OrganisationProvider>
-    <LayoutShell />
+    {/* the small counts beside a navigation entry (what is waiting for this person's approval) */}
+    <NavBadgesProvider>
+      <LayoutShell />
+    </NavBadgesProvider>
   </OrganisationProvider>
 );
 

@@ -61,23 +61,32 @@ const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.j
 const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
 const QuotationsPage = lazy(() => import("../components/salesDocs/QuotationsPage.jsx"));
 const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNotesPage.jsx"));
+const ApprovalsPage = lazy(() => import("../components/approvals/ApprovalsPage.jsx"));
 // The page a customer opens from an emailed link. Lazy, so no signed-in user pays for it, and outside both
 // the sign-in guard and the app shell, so it needs its own loading boundary (Layout owns the only other).
 const SharedDocument = lazy(() => import("../components/send/SharedDocument.jsx"));
+// "Forgot my password" and the emailed reset link: reached while signed OUT, so like the shared document they sit outside the
+// sign-in guard and the shell and bring their own loading boundary.
+const ForgotPassword = lazy(() => import("../components/Login/ForgotPassword.jsx"));
+const ResetPassword = lazy(() => import("../components/Login/ResetPassword.jsx"));
 // The developer console: its own sign-in and frame, outside the product's session guard and shell, loaded only by the
 // people who open it.
 const PlatformApp = lazy(() => import("../platform/PlatformApp.jsx"));
 const ConsoleLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the console…</div>;
 const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
+const AuthLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
 export default function AdminRouter() {
   return (
     <Routes>
       <Route path="/" element={<ERPLogin />} />
       <Route path="/d/:token" element={<Suspense fallback={<SharedLoading />}><SharedDocument /></Suspense>} />
+      <Route path="/forgot-password" element={<Suspense fallback={<AuthLoading />}><ForgotPassword /></Suspense>} />
+      <Route path="/reset-password" element={<Suspense fallback={<AuthLoading />}><ResetPassword /></Suspense>} />
       <Route path="/platform/*" element={<Suspense fallback={<ConsoleLoading />}><PlatformApp /></Suspense>} />
       <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/vendor-creation" element={<VendorCreation />} />
         <Route path="/customer-creation" element={<CustomerCreation />} />
         <Route path="/stock-item-creation" element={<StockCreation />} />

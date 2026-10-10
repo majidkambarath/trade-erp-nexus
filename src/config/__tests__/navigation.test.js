@@ -19,8 +19,8 @@ const srcDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..
 const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8");
 // Login, the 404 catch-all, the page a customer opens from an emailed link (/d/:token, outside the
 // app shell and the session guard) and the developer console (/platform, its own sign-in and frame) have
-// no navigation.
-const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*"]);
+// no navigation. Neither have the two pages reached while signed out: "forgot my password" and the emailed reset link.
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/forgot-password", "/reset-password"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));
@@ -53,6 +53,7 @@ describe("route coverage", () => {
 describe("findActive", () => {
   it.each([
     ["/dashboard", "home", "Dashboard"],
+    ["/approvals", "home", "Approvals"],
     ["/payment-voucher", "finance", "Payments"],
     ["/stock-detail/abc123", "inventory", "Stock Items"],
     ["/debit-accounts/vendor/v1", "purchase", "Payables"],
@@ -118,6 +119,15 @@ describe("what a role may open", () => {
     expect(viaFinance.tabs.map((t) => t.label)).toEqual(["Receivables"]);
     const viaReports = getVisibleModules(grants("reports.financial")).find((m) => m.id === "sales");
     expect(viaReports.tabs.map((t) => t.label)).toEqual(["Receivables"]);
+  });
+
+  it("the Approvals tab is offered to anyone who may approve something in any module, and to nobody else", () => {
+    const home = (g) => getVisibleModules(g).find((m) => m.id === "home")?.tabs.map((t) => t.label);
+    expect(home(grants("reports.view"))).toEqual(["Dashboard"]);
+    expect(home(grants("sales.view", "finance.create", "purchase.delete", "reports.view"))).toEqual(["Dashboard"]);
+    for (const key of ["sales.approve", "purchase.approve", "finance.approve"]) expect(home(grants("reports.view", key))).toEqual(["Dashboard", "Approvals"]);
+    expect(home(grants("finance.approve"))).toEqual(["Approvals"]); // an approver without the dashboard still has the list
+    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([["Approvals", "approvals"]]);
   });
 
   it("guarding is the default: every tab names what it needs, or says it is open and why", () => {

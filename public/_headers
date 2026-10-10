@@ -1,0 +1,11 @@
+# Response headers in Netlify / Cloudflare Pages format. Render ignores this file (its headers are in render.yaml, under `headers:`), the
+# same way it ignores public/_redirects; it is here so the site carries the same protections if it is hosted somewhere that reads it.
+# No Content-Security-Policy yet: see "Content-Security-Policy" in CLAUDE.md for what it needs first.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000
+/sw.js
+  Cache-Control: no-cache

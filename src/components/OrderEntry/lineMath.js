@@ -13,15 +13,23 @@ import { decimalRound, lineTotals } from "../../utils/format";
 // as the server, utils/pricing.js):  gross = qty x price;  net = gross - discount;
 // vat = net x vat% ;  total = net + vat.  `lineValue` is the net (after discount); `lineGross` is
 // before it. With no discount this is exactly the previous calculation.
-export const rowLine = ({ qty, price, vatPercent, discountPercent }) => {
+//
+// REVERSE CHARGE (`reverseCharge`, set when the line's tax code is of that kind): the supplier charges no VAT, so the line carries
+// vatAmount 0 and lineTotal = lineValue; the VAT the buyer assesses on it is `rcmVat` = lineValue x rate (the same rule as the
+// server, utils/pricing.js), beside the total and never in it.
+export const rowLine = ({ qty, price, vatPercent, discountPercent, reverseCharge }) => {
   const pct = Math.min(100, Math.max(0, parseFloat(discountPercent) || 0));
   const base = lineTotals({ qty: parseFloat(qty) || 0, price: parseFloat(price) || 0, vatPercent });
-  if (!pct) return { ...base, lineGross: base.lineValue, discount: 0 };
-  const lineGross = base.lineValue;
-  const discount = decimalRound((lineGross * pct) / 100);
-  const lineValue = decimalRound(lineGross - discount);
-  const vatAmount = decimalRound((lineValue * (parseFloat(vatPercent) || 0)) / 100);
-  return { lineGross, discount, lineValue, vatAmount, lineTotal: decimalRound(lineValue + vatAmount) };
+  const line = (() => {
+    if (!pct) return { ...base, lineGross: base.lineValue, discount: 0 };
+    const lineGross = base.lineValue;
+    const discount = decimalRound((lineGross * pct) / 100);
+    const lineValue = decimalRound(lineGross - discount);
+    const vatAmount = decimalRound((lineValue * (parseFloat(vatPercent) || 0)) / 100);
+    return { lineGross, discount, lineValue, vatAmount, lineTotal: decimalRound(lineValue + vatAmount) };
+  })();
+  if (!reverseCharge) return line;
+  return { ...line, vatAmount: 0, lineTotal: line.lineValue, rcmVat: line.vatAmount, reverseCharge: true };
 };
 
 // Header charges (freight, handling, ...): each has its own VAT.
@@ -50,19 +58,22 @@ export const documentTotals = (rows, priceOf, vatOf = (r) => r.vatPercent) => {
   let tax = 0;
   let total = 0;
   let discount = 0;
+  let rcm = 0; // VAT assessed on reverse-charge lines: beside the total, never in it
   for (const row of rows) {
     if (!row.itemId || !row.qty) continue;
-    const line = rowLine({ qty: row.qty, price: priceOf(row), vatPercent: vatOf(row), discountPercent: row.discountPercent });
+    const line = rowLine({ qty: row.qty, price: priceOf(row), vatPercent: vatOf(row), discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
     subtotal += line.lineValue;
     tax += line.vatAmount;
     total += line.lineTotal;
     discount += line.discount;
+    rcm += line.rcmVat || 0;
   }
   return {
     subtotal: decimalRound(subtotal).toFixed(2),
     tax: decimalRound(tax).toFixed(2),
     total: decimalRound(total).toFixed(2),
     discount: decimalRound(discount).toFixed(2),
+    ...(rcm ? { rcmVat: decimalRound(rcm).toFixed(2) } : {}), // only a document with a reverse-charge line has the key
   };
 };
 

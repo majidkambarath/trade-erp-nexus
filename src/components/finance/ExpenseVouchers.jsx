@@ -8,8 +8,9 @@ import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { describePayment, emptyPayment, money, paymentFromVoucher, paymentPayload, toCents, validatePayment } from "../../lib/voucherForms";
+import { describePayment, emptyPayment, money, paymentFromVoucher, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDateGB } from "../../utils/format";
+import { isReverseCharge } from "../../lib/reverseCharge";
 
 // Expense vouchers: an expense account of the chart, the VAT on it, and how it was paid - cash,
 // bank, transfer, cheque or card, like any other payment.
@@ -45,7 +46,7 @@ export default function ExpenseVouchers() {
               { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
@@ -75,7 +76,8 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
   const set = (p) => setF((s) => ({ ...s, ...p }));
 
   const taxList = (taxes.data || []).filter((t) => t.isActive !== false);
-  const taxOptions = taxList.map((t) => ({ value: t._id, label: t.name, hint: `${t.ratePercent}%` }));
+  // a reverse-charge code is assessed on a purchase invoice, not here (the server refuses it); one an older voucher already carries stays visible
+  const taxOptions = taxList.filter((t) => !isReverseCharge(t) || t._id === f.taxCodeId).map((t) => ({ value: t._id, label: t.name, hint: `${t.ratePercent}%` }));
   const rate = Number(taxList.find((t) => t._id === f.taxCodeId)?.ratePercent) || 0;
   const net = toCents(f.amount);
   const vat = Math.round((net * rate) / 100);
@@ -98,7 +100,7 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
         amount: net / 100, taxCodeId: f.taxCodeId || undefined, vendorId: f.vendorId || undefined, ...paymentPayload(payment),
       };
       const saved = voucher ? await vouchers.update(voucher._id, body) : await vouchers.create(body);
-      onSaved(`Expense ${saved.voucherNo} ${voucher ? "updated" : "posted"}`);
+      onSaved(`Expense ${saved.voucherNo} ${savedVerb(saved, { updated: Boolean(voucher) })}`);
     } catch (err) {
       setProblem(err);
       setBusy(false);

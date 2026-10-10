@@ -2,7 +2,8 @@
 // page (which title, which number, which rows, which warnings) are testable without rendering.
 
 import { documentTotals } from "../../../utils/documentTotals";
-import { formatDateGB } from "../../../utils/format";
+import { formatDateGB, formatNumber } from "../../../utils/format";
+import { SUPPLIER_STATEMENT, recipientStatement } from "../../../lib/reverseCharge";
 import {
   bankRows,
   companyBlock,
@@ -18,8 +19,24 @@ const INVOICED = ["APPROVED", "INVOICED"];
 export const contactLines = (p) =>
   [p.phone && `Tel: ${p.phone}`, p.email && `Email: ${p.email}`].filter(Boolean);
 
+// What a document with a reverse-charge line must say about it, or null when it has none.
+//   supplier   a sale (or its credit note): the supplier charges no VAT, and the invoice must state that the recipient accounts for it
+//              (Executive Regulation Art. 59(1)(l)). The amount the customer assesses is the customer's own figure and is not printed.
+//   recipient  a purchase (or its return): our own document. The VAT we assess is shown beside the total, never in it.
+export const reverseChargeNote = (lines, totals, side, currency) => {
+  if (!lines.some((l) => l.reverseCharge)) return null;
+  if (side !== "supplier" && side !== "recipient") return null; // a document that does not say which side it is on says nothing
+  if (side === "supplier") return { statement: SUPPLIER_STATEMENT };
+  const amount = totals.rcmVat || lines.reduce((t, l) => t + (l.rcmVat || 0), 0);
+  return {
+    statement: recipientStatement(`${currency} ${formatNumber(amount)}`),
+    amountLabel: "VAT self-assessed (reverse charge)",
+    amount,
+  };
+};
+
 // The sheet fields every document shares: what is printed, from which saved document.
-export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt }) => {
+export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, reverseChargeSide }) => {
   const lines = invoiceLines(doc.items);
   const totals = documentTotals(doc);
   return {
@@ -35,6 +52,7 @@ export const sheetFor = (doc, { title, numberLabel, number, party, meta, company
     currency,
     notice,
     receipt,
+    reverseCharge: reverseChargeNote(lines, totals, reverseChargeSide, currency),
   };
 };
 
@@ -72,6 +90,7 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         ? "This is a computer-generated tax invoice. No signature is required."
         : "This is a sales order, not a tax invoice. The tax invoice is issued when the order is approved.",
       receipt: !invoiced,
+      reverseChargeSide: "supplier",
     }),
   };
 };
@@ -102,6 +121,7 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => ({
     currency,
     notice: "This is a computer-generated purchase order. No signature is required.",
     receipt: true,
+    reverseChargeSide: "recipient",
   }),
 });
 
@@ -132,6 +152,7 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => ({
     currency,
     notice: "This is a sales return note. It credits the goods returned to the customer.",
     receipt: true,
+    reverseChargeSide: "supplier",
   }),
 });
 
@@ -161,5 +182,6 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => ({
     currency,
     notice: "This is a purchase return note. It records the goods sent back to the vendor.",
     receipt: true,
+    reverseChargeSide: "recipient",
   }),
 });

@@ -15,7 +15,7 @@ export function useOrderLookups() {
         const stocks = r.data.data?.stocks || r.data.data || [];
         setStockItems(
           stocks.map((s) => ({
-            _id: s._id, itemId: s.itemId, itemName: s.itemName, sku: s.sku, category: s.category, unitOfMeasure: s.unitOfMeasure,
+            _id: s._id, itemId: s.itemId, itemName: s.itemName, itemType: s.itemType, sku: s.sku, category: s.category, unitOfMeasure: s.unitOfMeasure,
             unitOfMeasureDetails: s.unitOfMeasureDetails || {}, currentStock: s.currentStock, purchasePrice: s.purchasePrice,
             salesPrice: s.salesPrice, reorderLevel: s.reorderLevel, status: s.status, taxPercent: s.taxPercent || 5,
           }))

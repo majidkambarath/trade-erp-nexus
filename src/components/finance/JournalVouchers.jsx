@@ -6,7 +6,7 @@ import { DataTable, DateInput, errorMessage, ErrorNote, Field, Modal, PageHeader
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
-import { emptyJournalRow, fromCents, journalPayload, journalRowsFromVoucher, journalTotals, money, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
+import { emptyJournalRow, fromCents, journalPayload, journalRowsFromVoucher, journalTotals, money, savedVerb, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
 import { drCr, formatDateGB } from "../../utils/format";
 
 // Journal vouchers: any number of rows, each a debit or a credit on an account of the chart.
@@ -43,7 +43,7 @@ export default function JournalVouchers() {
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "approved" && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
           />
         </ListBody>
@@ -94,7 +94,7 @@ export function JournalForm({ voucher, onClose, onSaved }) {
     try {
       const body = journalPayload({ date, narration: narration.trim() || undefined, rows });
       const saved = voucher ? await vouchers.update(voucher._id, body) : await vouchers.create(body);
-      onSaved(`Journal ${saved.voucherNo} ${voucher ? "updated" : "posted"}`);
+      onSaved(`Journal ${saved.voucherNo} ${savedVerb(saved, { updated: Boolean(voucher) })}`);
     } catch (e) {
       setProblem(e);
       setBusy(false);

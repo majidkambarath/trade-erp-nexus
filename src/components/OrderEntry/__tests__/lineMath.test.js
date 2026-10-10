@@ -80,3 +80,32 @@ describe("documentTotals", () => {
     expect(documentTotals(rows, (r) => r.rate).total).toBe("20.00");
   });
 });
+
+// ================================= reverse charge =================================
+// The supplier charges no VAT; the buyer assesses it. A reverse-charge line has VAT 0 and lineTotal = lineValue, with the assessed VAT
+// as `rcmVat` beside them: the preview of what the server prices (utils/pricing.js) and posts.
+describe("reverse charge", () => {
+  it("a line has no VAT in its total and carries the assessed VAT beside it", () => {
+    const l = rowLine({ qty: "4", price: "100", vatPercent: "5", reverseCharge: true });
+    expect(l).toMatchObject({ lineValue: 400, vatAmount: 0, lineTotal: 400, rcmVat: 20, reverseCharge: true });
+  });
+
+  it("is assessed on the discounted value", () => {
+    expect(rowLine({ qty: "10", price: "100", vatPercent: "5", discountPercent: "10", reverseCharge: true })).toMatchObject({ lineValue: 900, vatAmount: 0, lineTotal: 900, rcmVat: 45 });
+  });
+
+  it("any other line is exactly what it was, with no reverse-charge keys", () => {
+    const l = rowLine({ qty: "4", price: "100", vatPercent: "5" });
+    expect(l).toEqual({ lineValue: 400, vatAmount: 20, lineTotal: 420, lineGross: 400, discount: 0 });
+    expect(rowLine({ qty: "4", price: "100", vatPercent: "5", reverseCharge: false })).toEqual(l);
+  });
+
+  it("a document keeps the assessed VAT out of its total, and only a document with a reverse-charge line has the key", () => {
+    const rows = [
+      { itemId: "a", qty: "4", price: "100", vatPercent: "5", reverseCharge: true },
+      { itemId: "b", qty: "2", price: "100", vatPercent: "5" },
+    ];
+    expect(documentTotals(rows, (r) => r.price)).toEqual({ subtotal: "600.00", tax: "10.00", total: "610.00", discount: "0.00", rcmVat: "20.00" });
+    expect(documentTotals([rows[1]], (r) => r.price)).not.toHaveProperty("rcmVat");
+  });
+});

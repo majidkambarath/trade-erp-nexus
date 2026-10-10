@@ -15,6 +15,8 @@ export function documentTotals(doc) {
       charges: (doc.charges || []).filter((c) => Number(c.amount) > 0),
       chargesNet: Number(p.chargesNet) || 0,
       vat: decimalAdd(Number(p.lineVat) || 0, Number(p.chargesVat) || 0),
+      // VAT assessed on reverse-charge lines: beside the total, never in it (absent on a document priced before it existed)
+      rcmVat: Number(p.rcmVat) || decimalSum(items.map((it) => it.rcmVat)),
       headerDiscount: Number(p.headerDiscount) || 0,
       roundOff: Number(p.roundOff) || 0,
       grandTotal: Number(p.grandTotal) || 0,
@@ -24,7 +26,7 @@ export function documentTotals(doc) {
   const vat = decimalSum(items.map((it) => it.vatAmount));
   const discount = parseFloat(doc?.discount || 0) || 0;
   return {
-    priced: false, gross, lineDiscount: 0, charges: [], chargesNet: 0, vat,
+    priced: false, gross, lineDiscount: 0, charges: [], chargesNet: 0, vat, rcmVat: decimalSum(items.map((it) => it.rcmVat)),
     headerDiscount: discount, roundOff: 0,
     grandTotal: Math.max(0, decimalSub(decimalAdd(gross, vat), discount)),
   };
