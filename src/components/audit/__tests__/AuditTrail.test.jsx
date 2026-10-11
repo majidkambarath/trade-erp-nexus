@@ -214,4 +214,41 @@ describe("a voucher's audit trail", () => {
     expect(section("Set against").textContent).toMatch(/500\.00 was left on account/);
     expect(screen.queryByRole("heading", { name: "Cheque" })).not.toBeInTheDocument();
   });
+
+  // opening balances, opening stock and year-end closing entries have no voucher behind them: the
+  // server answers in this shape with a `source` block, and the screen must not print a payment mode
+  // or an "on account" figure for them.
+  it("describes a posting that has no voucher by what it is made of, not by a payment mode", async () => {
+    v.audit.mockResolvedValue({
+      ...VOUCHER,
+      voucher: { ...VOUCHER.voucher, voucherNo: "OBV-2025-0001", voucherType: "opening", typeLabel: "Opening balance", status: "posted", totalAmount: 5000, paymentMode: null, onAccountAmount: 0 },
+      source: {
+        kind: "opening", label: "Opening balance",
+        facts: [
+          { label: "Accounts", value: 2, type: "number" },
+          { label: "Total debit", value: 5000, type: "money" },
+          { label: "Balancing figure to Opening Balance Equity (credit)", value: 2000, type: "money" },
+        ],
+      },
+      allocations: [], onAccount: 0, cheque: null,
+    });
+    render(<VoucherAuditTrail id="ob1" voucherNo="OBV-2025-0001" onClose={() => {}} />);
+
+    const facts = await waitFor(() => section("Opening balance"));
+    expect(within(facts).getByText("Accounts").nextElementSibling.textContent).toBe("2");
+    expect(within(facts).getByText("Balancing figure to Opening Balance Equity (credit)").nextElementSibling.textContent).toMatch(/2,000\.00/);
+    expect(screen.getByText("Posted")).toBeInTheDocument();
+    expect(screen.queryByText("Paid by")).not.toBeInTheDocument();
+    expect(screen.queryByText("On account")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Set against" })).not.toBeInTheDocument();
+    expect(within(section("Financial effect")).getByText("Debits equal credits")).toBeInTheDocument();
+  });
+
+  it("an ordinary voucher still shows who paid and what is on account", async () => {
+    v.audit.mockResolvedValue(VOUCHER);
+    openVoucher();
+    await waitFor(() => section("Financial effect"));
+    expect(screen.getByText("Paid by")).toBeInTheDocument();
+    expect(screen.getByText("On account")).toBeInTheDocument();
+  });
 });

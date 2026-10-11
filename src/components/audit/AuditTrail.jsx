@@ -537,10 +537,38 @@ function ChequeSection({ cheque }) {
   );
 }
 
-// A finance voucher: receipt, payment, journal, contra, expense, debit or credit note.
+// What an opening balance, opening stock or year-end closing entry is made of. These have no
+// payment mode or invoices to show, so the facts the server found for that kind stand in for them.
+function SourceFacts({ source }) {
+  if (!source?.facts?.length) return null;
+  const show = (f) => {
+    if (f.type === "money") return `${CURRENCY} ${amount(f.value)}`;
+    if (f.type === "number") return formatNumber(f.value, 0);
+    if (f.type === "datetime") return formatDateTime(f.value);
+    if (f.type === "date") return formatDate(f.value);
+    return String(f.value);
+  };
+  return (
+    <Section title={source.label}>
+      <dl className="grid gap-x-6 gap-y-3 rounded-xl border border-border px-4 py-3 text-sm sm:grid-cols-3">
+        {source.facts.map((f) => (
+          <div key={f.label}>
+            <dt className="text-muted-foreground">{f.label}</dt>
+            <dd className="mt-0.5 tabular-nums">{show(f)}</dd>
+          </div>
+        ))}
+      </dl>
+    </Section>
+  );
+}
+
+// A finance voucher: receipt, payment, journal, contra, expense, debit or credit note. Also the
+// screen for a posting that has no voucher (`data.source`): opening balances, opening stock and
+// year-end closing entries, which the server describes in the same shape.
 export function VoucherAuditTrail({ id, voucherNo, onClose }) {
   const { data, loading, error, reload } = useAsync(() => vouchers.audit(id), [id]);
   const v = data?.voucher;
+  const fromVoucher = !data?.source;
 
   return (
     <Modal
@@ -564,17 +592,21 @@ export function VoucherAuditTrail({ id, voucherNo, onClose }) {
               <dt className="text-muted-foreground">Amount</dt>
               <dd className="mt-0.5 font-semibold tabular-nums">{CURRENCY} {amount(v.totalAmount)}</dd>
             </div>
-            <div>
-              <dt className="text-muted-foreground">Paid by</dt>
-              <dd className="mt-0.5">
-                {v.paymentMode ? titleCase(v.paymentMode) : "-"}
-                {v.paymentAccountName && <span className="block text-xs text-muted-foreground">{v.paymentAccountName}</span>}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">On account</dt>
-              <dd className="mt-0.5 tabular-nums">{amount(v.onAccountAmount)}</dd>
-            </div>
+            {fromVoucher && (
+              <>
+                <div>
+                  <dt className="text-muted-foreground">Paid by</dt>
+                  <dd className="mt-0.5">
+                    {v.paymentMode ? titleCase(v.paymentMode) : "-"}
+                    {v.paymentAccountName && <span className="block text-xs text-muted-foreground">{v.paymentAccountName}</span>}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">On account</dt>
+                  <dd className="mt-0.5 tabular-nums">{amount(v.onAccountAmount)}</dd>
+                </div>
+              </>
+            )}
             {v.currency && v.currency !== CURRENCY && (
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Foreign currency</dt>
@@ -591,6 +623,7 @@ export function VoucherAuditTrail({ id, voucherNo, onClose }) {
             )}
           </dl>
 
+          <SourceFacts source={data.source} />
           <LedgerSection ledger={data.ledger} />
           <AllocationSection allocations={data.allocations} onAccount={data.onAccount} />
           <ChequeSection cheque={data.cheque} />
