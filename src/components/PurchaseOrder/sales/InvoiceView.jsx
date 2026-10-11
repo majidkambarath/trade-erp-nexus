@@ -5,6 +5,7 @@ import { ApprovalBanner } from "../../shell/Approval";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
 import { orgCurrency } from "../../../utils/orgLocale";
+import { paymentStatus } from "../../../lib/paymentStatus";
 
 // A stable stand-in while the party is not found (a new {} each render would rebuild the document).
 const NO_PARTY = {};
@@ -40,6 +41,7 @@ const SaleInvoiceView = ({
       sheet={doc.sheet}
       fileName={doc.fileName}
       status={doc.status}
+      payment={paymentStatus(so)}
       missingTrn={doc.missingTrn}
       auditId={so.id || so._id}
       send={send}

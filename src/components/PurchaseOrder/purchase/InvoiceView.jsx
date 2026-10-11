@@ -5,6 +5,7 @@ import { ApprovalBanner } from "../../shell/Approval";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildPurchaseDocument } from "../shared/invoiceDocuments";
 import { orgCurrency } from "../../../utils/orgLocale";
+import { paymentStatus } from "../../../lib/paymentStatus";
 
 // A stable stand-in while the vendor is not found (a new {} each render would rebuild the document).
 const NO_PARTY = {};
@@ -30,6 +31,7 @@ const PurchaseInvoiceView = ({
       sheet={doc.sheet}
       fileName={doc.fileName}
       status={doc.status}
+      payment={paymentStatus(po)}
       missingTrn={doc.missingTrn}
       auditId={po.id || po._id}
       banner={<ApprovalBanner doc={po} permission="purchase.approve" />}

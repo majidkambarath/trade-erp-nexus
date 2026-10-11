@@ -11,6 +11,7 @@ import { readAccent } from "./invoiceModel";
 import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup, sheetsPdfFile } from "./documentPdf";
 import { cn } from "../../../lib/utils";
 import { statusClasses } from "../../../lib/status";
+import { formatNumber } from "../../../utils/format";
 
 const COPIES = ["Customer copy", "Internal copy"];
 
@@ -26,7 +27,7 @@ const COPIES = ["Customer copy", "Internal copy"];
 // `send` is what lets the document go to a customer (components/send): a descriptor { kind, id, number,
 // title, companyName, party, notice, sourceType, lastSend }. A document that cannot be sent passes none and
 // shows no Send button at all, not a disabled one.
-export default function InvoiceScreen({ sheet, fileName, status, statusLabel, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer, send }) {
+export default function InvoiceScreen({ sheet, fileName, status, statusLabel, payment, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer, send }) {
   const [copy, setCopy] = useState(copies[0]);
   const [auditOpen, setAuditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,7 +78,7 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
   return (
     <div className="mx-auto max-w-[1000px] space-y-5 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={onBack} className={button}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to list
@@ -85,6 +86,15 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
           {status && (
             <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", statusClasses(status))}>
               {statusLabel ?? status}
+            </span>
+          )}
+          {payment && (
+            <span
+              data-payment-status={payment.key}
+              title={payment.paid === null ? payment.label : `${formatNumber(payment.paid, 2)} of ${formatNumber(payment.total, 2)} settled`}
+              className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", statusClasses(payment.key))}
+            >
+              {payment.label}
             </span>
           )}
           {send && sent && <SendStatusPill send={sent} />}
@@ -145,8 +155,8 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, on
 
       {missingTrn && (
         <p className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-foreground">
-          Your TRN is not set. A tax invoice must show it, so add it in{" "}
-          <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue this invoice.
+          Your TRN is not set, so this prints as an Invoice, not a Tax invoice. If you are VAT-registered, add your TRN in{" "}
+          <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue it.
         </p>
       )}
 

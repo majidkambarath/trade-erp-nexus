@@ -6,7 +6,7 @@ import StatCard from "../ui/stat-card";
 import { ConfirmDialog, EmptyState, ErrorNote, Pill, Spinner, useAsync, useToasts } from "../accounting/kit";
 import { documentFlow, orderClose } from "../../lib/salesDocumentsApi";
 import { CLOCK_TONE, clockText } from "../../lib/salesDocuments";
-import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, sendPill, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
+import { FLOW_FILTERS, STAGE_LABEL, STAGE_TONE, canCloseShort, canReopenShort, dealGroup, paymentPill, sendPill, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction } from "../../lib/documentFlow";
 import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Note, PillTabs } from "./parts";
@@ -66,8 +66,10 @@ function Deal({ deal, notify, reload, canSend }) {
   const steps = dealSteps(deal);
   const next = nextAction(deal, Date.now(), { canSend });
   const pill = sendPill(deal, Date.now(), { canSend });
+  const money = paymentPill(deal);
   const group = dealGroup(deal);
-  const grid = steps.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
+  // literal class names: Tailwind only builds the ones it can read
+  const grid = steps.length === 5 ? "md:grid-cols-5" : steps.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
   const cs = deal.closeShort;
   const offerClose = canCloseShort(deal);
   const closeDialog = () => {
@@ -89,6 +91,7 @@ function Deal({ deal, notify, reload, canSend }) {
           {pill && <Pill tone={pill.tone}>{pill.text}</Pill>}
           {cs && <Pill tone="warning">Closed short</Pill>}
           <Pill tone={STAGE_TONE[deal.stage]}>{STAGE_LABEL[deal.stage]}</Pill>
+          {money && <Pill tone={money.tone}>{money.text}</Pill>}
           <span className="text-sm font-semibold tabular-nums text-foreground">{formatNumber(deal.amount, 2)} <span className="text-xs font-normal text-muted-foreground">{CURRENCY}</span></span>
         </div>
       </header>

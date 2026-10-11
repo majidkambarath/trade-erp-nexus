@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo, sendPill } from "../documentFlow";
+import { INVOICE_QUEUE, canCloseShort, canReopenShort, dealGroup, dealSteps, dealTitle, defaultFilter, filterDeals, flowCounts, leftText, nextAction, orderTo, paymentPill, sendPill } from "../documentFlow";
 import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 
 const quote = (over = {}) => ({ _id: "q1", quotationNo: "QT-2026-0007", status: "SENT", expired: false, daysLeft: 12, validUntil: "2026-11-05T00:00:00.000Z", totalAmount: 210, ...over });
@@ -10,14 +10,39 @@ const state = (c) => Object.fromEntries(dealSteps(c).map((s) => [s.key, s.state]
 const step = (c, key) => dealSteps(c).find((s) => s.key === key);
 
 describe("steps of a deal", () => {
-  it("a finished deal is four done steps with every document linked", () => {
+  it("an invoiced deal is done up to the invoice, with every document linked, and the money step says where it stands", () => {
     const c = deal({ stage: "invoiced", mode: "order_first", quotation: quote({ status: "CONVERTED" }), order: order({ status: "APPROVED", outstandingAmount: 100 }), notes: [note()] });
-    expect(state(c)).toEqual({ quotation: "done", order: "done", delivery: "done", invoice: "done" });
-    expect(dealSteps(c).map((s) => s.label)).toEqual(["Quotation", "Sales order", "Delivery", "Invoice"]);
+    // 100 of the 210 is outstanding, so 110 has been received: the last step is in hand
+    expect(state(c)).toEqual({ quotation: "done", order: "done", delivery: "done", invoice: "done", paid: "doing" });
+    expect(dealSteps(c).map((s) => s.label)).toEqual(["Quotation", "Sales order", "Delivery", "Invoice", "Paid"]);
     expect(step(c, "quotation").docs[0].to).toBe("/quotations?open=q1");
     expect(step(c, "delivery").docs[0].to).toBe("/delivery-notes?open=n1");
     expect(step(c, "invoice").docs[0]).toMatchObject({ no: "SO-2026-0031", status: "Invoiced", meta: "AED 100.00 outstanding" });
-    expect(dealSteps(c).some((s) => s.current)).toBe(false);
+    // what is left to do on an invoiced deal is the money, and nothing before it is "current"
+    expect(dealSteps(c).filter((s) => s.current).map((s) => s.key)).toEqual(["paid"]);
+  });
+
+  it("the Paid step is read from the invoice's amounts: unpaid, partly paid, paid, and not yet invoiced", () => {
+    const unpaid = deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 0, outstandingAmount: 210 }) });
+    expect(step(unpaid, "paid")).toMatchObject({ state: "todo", hint: "Nothing received yet: AED 210.00 due", docs: [] });
+    const partly = deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 60, outstandingAmount: 150 }) });
+    expect(step(partly, "paid")).toMatchObject({ state: "doing", hint: "AED 150.00 of 210.00 still to receive" });
+    const paid = deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 210, outstandingAmount: 0 }) });
+    expect(step(paid, "paid")).toMatchObject({ state: "done", hint: "Settled in full" });
+    expect(dealSteps(paid).some((s) => s.current)).toBe(false);
+    // a draft has nothing to pay yet
+    expect(step(deal({ stage: "ordered", order: order() }), "paid")).toMatchObject({ state: "todo", hint: "" });
+    // an approved order whose amounts did not arrive says nothing about money, never "paid"
+    const unknown = deal({ stage: "invoiced", order: { _id: "o9", transactionNo: "SO-9", status: "APPROVED", totalAmount: 210 } });
+    expect(step(unknown, "paid")).toMatchObject({ state: "todo", hint: "" });
+  });
+
+  it("the pill on an invoiced deal names the money state, and a deal that is not invoiced has none", () => {
+    expect(paymentPill(deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 210, outstandingAmount: 0 }) }))).toMatchObject({ text: "Paid", tone: "success" });
+    expect(paymentPill(deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 60, outstandingAmount: 150 }) }))).toMatchObject({ text: "Partly paid", tone: "warning" });
+    expect(paymentPill(deal({ stage: "invoiced", order: order({ status: "APPROVED", paidAmount: 0, outstandingAmount: 210 }) }))).toMatchObject({ text: "Unpaid" });
+    expect(paymentPill(deal({ stage: "ordered", order: order() }))).toBeNull();
+    expect(paymentPill(deal({ quotation: quote() }))).toBeNull();
   });
 
   it("amounts are written in the organisation's currency, read when the step is built", () => {
@@ -40,7 +65,7 @@ describe("steps of a deal", () => {
 
   it("an offer nobody has answered: the quotation is in hand, the rest is still to come", () => {
     const c = deal({ quotation: quote() });
-    expect(state(c)).toEqual({ quotation: "doing", order: "todo", delivery: "todo", invoice: "todo" });
+    expect(state(c)).toEqual({ quotation: "doing", order: "todo", delivery: "todo", invoice: "todo", paid: "todo" });
     expect(dealSteps(c).find((s) => s.current).key).toBe("quotation");
     expect(step(c, "quotation").docs[0].meta).toBe("valid 12 more days");
     expect(step(c, "order").hint).toBe("Not ordered yet");
@@ -56,13 +81,13 @@ describe("steps of a deal", () => {
   it("a rejected or expired offer stops the deal, and what would have followed is not pending", () => {
     for (const q of [quote({ status: "REJECTED" }), quote({ expired: true, daysLeft: -3 })]) {
       const c = deal({ stage: q.status === "REJECTED" ? "lost" : "lapsed", quotation: q });
-      expect(state(c)).toEqual({ quotation: "stopped", order: "none", delivery: "none", invoice: "none" });
+      expect(state(c)).toEqual({ quotation: "stopped", order: "none", delivery: "none", invoice: "none", paid: "none" });
       expect(dealSteps(c).some((s) => s.current)).toBe(false);
     }
   });
 
   it("an order with nothing delivered, then a delivery on the road, then everything signed for", () => {
-    expect(state(deal({ stage: "ordered", mode: null, order: order() }))).toEqual({ quotation: "none", order: "done", delivery: "todo", invoice: "todo" });
+    expect(state(deal({ stage: "ordered", mode: null, order: order() }))).toEqual({ quotation: "none", order: "done", delivery: "todo", invoice: "todo", paid: "todo" });
     expect(step(deal({ order: order() }), "delivery").hint).toBe("Nothing delivered yet");
     expect(state(deal({ order: order(), mode: "order_first", notes: [note({ status: "DISPATCHED" })] })).delivery).toBe("doing");
     expect(state(deal({ order: order(), mode: "order_first", notes: [note(), note({ _id: "n2", status: "DRAFT" })] })).delivery).toBe("doing");
@@ -74,8 +99,8 @@ describe("steps of a deal", () => {
 
   it("goods first has no separate order step: the delivery leads straight to the invoice", () => {
     const c = deal({ stage: "delivered", mode: "delivery_first", quotation: quote({ status: "CONVERTED" }), notes: [note()], invoiceClock: { clock: "dueSoon", daysToStandard: 2 } });
-    expect(dealSteps(c).map((s) => s.label)).toEqual(["Quotation", "Delivery", "Invoice"]);
-    expect(state(c)).toEqual({ quotation: "done", delivery: "done", invoice: "todo" });
+    expect(dealSteps(c).map((s) => s.label)).toEqual(["Quotation", "Delivery", "Invoice", "Paid"]);
+    expect(state(c)).toEqual({ quotation: "done", delivery: "done", invoice: "todo", paid: "todo" });
     expect(step(c, "invoice").hint).toBe("Invoice due in 2 days");
 
     const draft = deal({ ...c, order: order({ transactionNo: "SO-2026-0040" }) });
@@ -86,7 +111,7 @@ describe("steps of a deal", () => {
 
   it("a note on its own has no quotation and no order", () => {
     const c = deal({ stage: "delivered", mode: "delivery_first", notes: [note()] });
-    expect(state(c)).toEqual({ quotation: "none", delivery: "done", invoice: "todo" });
+    expect(state(c)).toEqual({ quotation: "none", delivery: "done", invoice: "todo", paid: "todo" });
     expect(step(c, "quotation").hint).toBe("No quotation");
   });
 });

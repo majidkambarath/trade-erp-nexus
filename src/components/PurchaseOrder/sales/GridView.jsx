@@ -19,6 +19,7 @@ import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import PaymentBadge from "../../lists/PaymentBadge";
 
 const GridView = ({
   paginatedSOs,
@@ -71,6 +72,7 @@ const GridView = ({
                   {getStatusIcon(so.status)}
                   <span className="ml-1">{so.status}</span>
                 </div>
+                <PaymentBadge doc={so} />
                 {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
                 {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
               </div>

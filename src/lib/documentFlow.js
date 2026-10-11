@@ -8,6 +8,7 @@ import { formatDate, formatNumber } from "../utils/format";
 import { orgCurrency } from "../utils/orgLocale";
 import { statusTone } from "./status";
 import { sendLine, sendStateOf } from "./sendState";
+import { paymentStatus } from "./paymentStatus";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -103,8 +104,30 @@ export function dealSteps(c) {
     docs: invoiced ? [invoiceDoc(o)] : o && goodsFirst ? [orderDoc(o, "Draft invoice")] : [], hint: invoiceHint,
   });
 
+  // The last step is the money: Paid is read from the invoice's amounts (what receipts have settled), never from a stored
+  // status. A deal that never had an order has no invoice to pay.
+  const pay = invoiced ? paymentStatus(o) : null;
+  const payHint =
+    !invoiced ? "" : !pay ? "" : pay.key === "PAID" ? "Settled in full"
+      : pay.key === "PARTIAL" ? `${orgCurrency()} ${formatNumber(pay.outstanding, 2)} of ${formatNumber(pay.total, 2)} still to receive`
+        : `Nothing received yet: ${orgCurrency()} ${formatNumber(pay.outstanding, 2)} due`;
+  steps.push({
+    key: "paid", label: "Paid",
+    state: !invoiced ? (quoteState === "stopped" && !o && !notes.length ? "none" : "todo") : pay?.key === "PAID" ? "done" : pay?.key === "PARTIAL" ? "doing" : "todo",
+    docs: [], hint: payHint,
+  });
+
   const current = steps.find((s) => s.state === "doing") || steps.find((s) => s.state === "todo");
-  return steps.map((s) => ({ ...s, current: s === current && c.stage !== "invoiced" && c.stage !== "lost" && c.stage !== "lapsed" }));
+  // an invoiced deal is no longer "at" an earlier step; what is left to do is the money
+  const live = c.stage !== "lost" && c.stage !== "lapsed";
+  return steps.map((s) => ({ ...s, current: live && s === current && (c.stage !== "invoiced" || s.key === "paid") }));
+}
+
+// The mark on an invoiced deal that says where its money stands, or null when there is nothing to say (not invoiced
+// yet, or the amounts did not arrive).
+export function paymentPill(c) {
+  const p = c.order?.status === "APPROVED" ? paymentStatus(c.order) : null;
+  return p ? { text: p.label, tone: statusTone(p.key), key: p.key } : null;
 }
 
 // ---- sending the invoice ---------------------------------------------------------------------

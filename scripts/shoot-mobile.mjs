@@ -343,6 +343,8 @@ const doc = (i) => ({
   deliveryDate: "2026-10-1" + ((i % 9) + 1), customerName: `Al Noor Trading ${i}`,
   vendorName: `Gulf Supply ${i}`, status: ["APPROVED", "APPROVED", "DRAFT"][i % 3], lastSend: SENDS[i] || null,
   totalAmount: 12480.5 * i,
+  // unpaid, partly paid, paid, and a row whose amounts never arrived: each must fit a phone card (lib/paymentStatus.js)
+  ...[{ paidAmount: 0, outstandingAmount: 12480.5 * i }, { paidAmount: 5000, outstandingAmount: 12480.5 * i - 5000 }, { paidAmount: 12480.5 * i, outstandingAmount: 0 }, {}][i % 4],
   // real lines have names and prices; one is long on purpose, because that is what breaks a card
   items: [
     { description: "Basmati rice 5kg, long grain, premium export pack", qty: 6, rate: 20 },

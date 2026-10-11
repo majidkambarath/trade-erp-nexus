@@ -17,6 +17,7 @@ import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
 import RowMenu from "../../lists/RowMenu";
+import PaymentBadge from "../../lists/PaymentBadge";
 const TableView = ({
   paginatedPOs,
   selectedPOs,
@@ -158,6 +159,7 @@ const TableView = ({
                       {getStatusIcon(po.status)}
                       {po.status}
                     </span>
+                    <PaymentBadge doc={po} />
                     <AwaitingSecondBadge doc={po} state={stateOf(po)} />
                   </div>
                 </td>

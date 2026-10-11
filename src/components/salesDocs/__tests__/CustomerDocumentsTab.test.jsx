@@ -70,9 +70,12 @@ describe("CustomerDocumentsTab", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /^done/i }));
     const deal = screen.getByRole("article", { name: "Tax invoice SO-2026-0009" });
     const steps = within(deal).getByRole("list", { name: "Steps of this deal" });
-    expect(within(steps).getAllByRole("listitem")).toHaveLength(4);
-    for (const label of ["Quotation", "Sales order", "Delivery", "Invoice"]) expect(within(steps).getByText(label)).toBeInTheDocument();
-    expect(within(steps).getAllByText("Done")).toHaveLength(4); // a word for every state, not only a colour
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(5);
+    for (const label of ["Quotation", "Sales order", "Delivery", "Invoice", "Paid"]) expect(within(steps).getByText(label)).toBeInTheDocument();
+    expect(within(steps).getAllByText("Done")).toHaveLength(5); // a word for every state, not only a colour
+    // nothing is owed on it, and the deal says so beside its stage
+    expect(within(steps).getByText("Settled in full")).toBeInTheDocument();
+    expect(within(deal).getAllByText("Paid").length).toBeGreaterThan(1); // the step and the pill
 
     expect(within(steps).getByRole("link", { name: /QT-2026-0003/ })).toHaveAttribute("href", "/quotations?open=q3");
     expect(within(steps).getByRole("link", { name: /DLN-2026-0009/ })).toHaveAttribute("href", "/delivery-notes?open=n9");
@@ -96,7 +99,7 @@ describe("CustomerDocumentsTab", () => {
     show();
     const deal = await screen.findByRole("article", { name: "Delivery note DLN-2026-0012" });
     const steps = within(deal).getByRole("list", { name: "Steps of this deal" });
-    expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(4); // quotation, delivery, invoice, paid
     expect(within(steps).queryByText("Sales order")).not.toBeInTheDocument();
     expect(within(deal).getAllByText("Invoice due in 2 days").length).toBeGreaterThan(0);
     expect(within(deal).getByRole("link", { name: /create the invoice/i })).toHaveAttribute("href", "/delivery-notes?status=UNINVOICED");

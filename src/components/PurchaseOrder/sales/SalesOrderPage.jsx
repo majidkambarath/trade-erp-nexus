@@ -265,6 +265,9 @@ const formatDisplayTransactionNo = (t) => {
       deliveryDate: t.deliveryDate,
       status: t.status,
       totalAmount: parseFloat(t.totalAmount).toFixed(2),
+      // what has been settled, kept as the server sent it: a missing figure must not turn into "0 outstanding" (lib/paymentStatus.js)
+      paidAmount: t.paidAmount,
+      outstandingAmount: t.outstandingAmount,
       items: t.items,
       terms: t.terms || "",
       notes: t.notes || "",

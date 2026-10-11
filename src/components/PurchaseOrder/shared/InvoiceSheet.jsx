@@ -127,6 +127,11 @@ export default function InvoiceSheet({
               <span style={{ fontWeight: 600 }}>TRN</span> {party.trn}
             </div>
           )}
+          {party.vatStatus && (
+            <div style={{ fontSize: 10.5, marginTop: 2 }}>
+              <span style={{ fontWeight: 600 }}>VAT status</span> {party.vatStatus}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 16, rowGap: 5, alignContent: "start" }}>

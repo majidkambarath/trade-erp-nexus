@@ -13,8 +13,25 @@ import {
   withChargesVat,
 } from "./invoiceModel";
 
-// Approved orders are the tax invoices; a draft or pending order is only an order.
+// Approved orders are the invoices; a draft or pending order is only an order.
 const INVOICED = ["APPROVED", "INVOICED"];
+
+// An invoice is a TAX invoice when the SELLER is VAT-registered, which is to say when the company has a TRN (Settings >
+// Business rules > Tax identity, the same TRN the VAT return uses). The buyer's registration does not change the heading;
+// it decides whether the buyer's own TRN is expected on the document (see partyVatStatus). A company with no TRN issues a
+// plain "Invoice": calling it a tax invoice would claim a registration the company has not recorded.
+export const isTaxInvoice = (company) => Boolean(String(company?.vatNumber ?? "").trim());
+
+// How a customer's or vendor's VAT registration reads on a document. The master stores one of registered / unregistered /
+// exempt / designated_zone (and a record saved before that block existed has none, so a TRN decides). A party that was not
+// found says nothing rather than "Unregistered".
+const VAT_STATUS_LABEL = { registered: "Registered", unregistered: "Unregistered", exempt: "Exempt", designated_zone: "Designated zone" };
+export const partyVatStatus = (record, trn, name) => {
+  const stored = record?.vat?.status;
+  if (VAT_STATUS_LABEL[stored]) return VAT_STATUS_LABEL[stored];
+  if (trn) return VAT_STATUS_LABEL.registered;
+  return name ? VAT_STATUS_LABEL.unregistered : "";
+};
 
 export const contactLines = (p) =>
   [p.phone && `Tel: ${p.phone}`, p.email && `Email: ${p.email}`].filter(Boolean);
@@ -60,13 +77,17 @@ export const dateOf = (value) => (value ? formatDateGB(value) : "");
 
 export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);
+  const taxInvoice = invoiced && isTaxInvoice(company);
   const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
+  const customerTrn = customer.trnNumber || customer.vat?.trn || "";
   return {
-    fileName: `${invoiced ? "Tax-invoice" : "Sales-order"}_${number}`,
+    fileName: `${invoiced ? (taxInvoice ? "Tax-invoice" : "Invoice") : "Sales-order"}_${number}`,
     status: so.status,
-    missingTrn: invoiced && !company.vatNumber,
+    // an issued invoice with no company TRN prints as a plain invoice, and the screen says why
+    missingTrn: invoiced && !isTaxInvoice(company),
+    taxInvoice,
     sheet: sheetFor(so, {
-      title: invoiced ? "Tax invoice" : "Sales order",
+      title: invoiced ? (taxInvoice ? "Tax invoice" : "Invoice") : "Sales order",
       numberLabel: invoiced ? "Invoice no." : "Order no.",
       number,
       party: {
@@ -75,7 +96,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         code: customer.customerId || "",
         address: customer.billingAddress || "",
         contact: contactLines(customer),
-        trn: customer.trnNumber || customer.vat?.trn || "",
+        trn: customerTrn,
+        vatStatus: partyVatStatus(customer, customerTrn, customer.customerName),
       },
       meta: [
         ["Date", dateOf(so.date)],
@@ -87,8 +109,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
       company,
       currency,
       notice: invoiced
-        ? "This is a computer-generated tax invoice. No signature is required."
-        : "This is a sales order, not a tax invoice. The tax invoice is issued when the order is approved.",
+        ? `This is a computer-generated ${taxInvoice ? "tax invoice" : "invoice"}. No signature is required.`
+        : `This is a sales order, not ${isTaxInvoice(company) ? "a tax invoice. The tax invoice" : "an invoice. The invoice"} is issued when the order is approved.`,
       receipt: !invoiced,
       reverseChargeSide: "supplier",
     }),
@@ -110,6 +132,7 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => ({
       address: vendor.address || "",
       contact: contactLines(vendor),
       trn: vendor.trnNO || vendor.vat?.trn || "",
+      vatStatus: partyVatStatus(vendor, vendor.trnNO || vendor.vat?.trn || "", vendor.vendorName),
     },
     meta: [
       ["Date", dateOf(po.date)],

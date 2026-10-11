@@ -6,6 +6,10 @@ import '@testing-library/jest-dom';
 
 import SaleInvoiceView from '../InvoiceView.jsx';
 import { buildSalesDocument } from '../../shared/invoiceDocuments';
+import { useCompanyProfile } from '../../shared/useCompanyProfile';
+
+const NO_TRN = { companyName: '', vatNumber: '' };
+const WITH_TRN = { companyName: 'NH Foods', vatNumber: '100000000000003' };
 
 // The Settings profile: an empty company unless a test overrides it.
 vi.mock('../../shared/useCompanyProfile', () => ({ useCompanyProfile: vi.fn(() => ({ companyName: '', vatNumber: '' })) }));
@@ -57,6 +61,7 @@ const baseProps = {
 const renderView = (props) => render(<MemoryRouter><SaleInvoiceView {...props} /></MemoryRouter>);
 
 describe('SaleInvoiceView', () => {
+  beforeEach(() => useCompanyProfile.mockImplementation(() => NO_TRN));
   afterEach(() => {
     vi.clearAllMocks();
     pdfInstances.length = 0;
@@ -104,10 +109,41 @@ describe('SaleInvoiceView', () => {
     expect(screen.getAllByText('SO-1234').length).toBeGreaterThan(0);
   });
 
-  it('shows the TRN warning on an invoice when the company has none', () => {
+  it('an invoice from a company with no TRN is a plain invoice, and the warning says why', () => {
     renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
-    expect(screen.getByText(/Your TRN is not set/)).toBeInTheDocument();
+    expect(screen.getByText(/Your TRN is not set, so this prints as an Invoice/)).toBeInTheDocument();
+    expect(screen.getByText('Invoice', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByText('Tax invoice', { selector: 'div' })).toBeNull();
+    expect(screen.getByText(/computer-generated invoice/)).toBeInTheDocument();
+  });
+
+  it('an invoice from a VAT-registered company is a tax invoice, with no warning', () => {
+    useCompanyProfile.mockImplementation(() => WITH_TRN);
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
     expect(screen.getByText('Tax invoice', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByText(/Your TRN is not set/)).toBeNull();
+    expect(screen.getByText(/computer-generated tax invoice/)).toBeInTheDocument();
+  });
+
+  it("shows the customer's VAT status under their TRN", () => {
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
+    expect(screen.getByText('VAT status')).toBeInTheDocument();
+    expect(screen.getByText('Registered')).toBeInTheDocument(); // the customer has a TRN
+  });
+
+  it('says whether an approved invoice is unpaid, partly paid or paid, from its amounts, and says nothing on a draft', () => {
+    const approved = { ...baseProps.createdSO, status: 'APPROVED', totalAmount: 525 };
+    const first = renderView({ ...baseProps, createdSO: { ...approved, paidAmount: 0, outstandingAmount: 525 } });
+    expect(screen.getByText('Unpaid')).toBeInTheDocument();
+    first.unmount();
+    const partly = renderView({ ...baseProps, createdSO: { ...approved, paidAmount: 200, outstandingAmount: 325 } });
+    expect(screen.getByText('Partly paid')).toBeInTheDocument();
+    partly.unmount();
+    const paid = renderView({ ...baseProps, createdSO: { ...approved, paidAmount: 525, outstandingAmount: 0 } });
+    expect(screen.getByText('Paid', { selector: 'span' })).toBeInTheDocument();
+    paid.unmount();
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, totalAmount: 525, paidAmount: 0, outstandingAmount: 525 } });
+    expect(screen.queryByText('Unpaid')).toBeNull(); // a draft owes nothing yet
   });
 
   it('a draft order is not a tax invoice, so it shows no Send at all (not a disabled one)', () => {
@@ -117,6 +153,7 @@ describe('SaleInvoiceView', () => {
   });
 
   it('an approved invoice has a real Send that opens the dialog with the customer address ready', async () => {
+    useCompanyProfile.mockImplementation(() => WITH_TRN);
     renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED', id: 'so1' } });
     const send = screen.getByRole('button', { name: /^send$/i });
     expect(send).toBeEnabled();
@@ -164,6 +201,30 @@ describe('SaleInvoiceView', () => {
 describe('buildSalesDocument', () => {
   const customer = { customerId: 'CUST-001', customerName: 'Acme', paymentTerms: '' };
   const company = { companyName: 'NH Foods', vatNumber: '100000000000003' };
+
+  it('a company with no TRN issues a plain invoice, not a tax invoice', () => {
+    const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED');
+    expect(approved.sheet.title).toBe('Invoice');
+    expect(approved.fileName).toBe('Invoice_SO-1');
+    expect(approved.taxInvoice).toBe(false);
+    expect(approved.sheet.notice).toMatch(/invoice/);
+    expect(approved.sheet.notice).not.toMatch(/tax invoice/);
+    // the order's notice does not promise a tax invoice it will not issue
+    const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED');
+    expect(draft.sheet.notice).toBe('This is a sales order, not an invoice. The invoice is issued when the order is approved.');
+    // a blank or spaces-only TRN is no TRN
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '   ' }, 'AED').sheet.title).toBe('Invoice');
+  });
+
+  it("prints the party's VAT status from the master, from the TRN when the master has none, and not at all for an unknown party", () => {
+    const status = (c) => buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, c, company, 'AED').sheet.party.vatStatus;
+    expect(status({ customerName: 'A', vat: { status: 'exempt' } })).toBe('Exempt');
+    expect(status({ customerName: 'A', vat: { status: 'designated_zone', trn: '100123456700003' } })).toBe('Designated zone');
+    expect(status({ customerName: 'A', vat: { status: 'unregistered' } })).toBe('Unregistered');
+    expect(status({ customerName: 'A', trnNumber: '100123456700003' })).toBe('Registered');
+    expect(status({ customerName: 'A' })).toBe('Unregistered');
+    expect(status({})).toBe('');
+  });
 
   it('uses the tax invoice title and number only once the order is approved', () => {
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED');
