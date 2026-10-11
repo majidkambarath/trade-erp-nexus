@@ -73,6 +73,7 @@ import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
 import { orgCurrency } from "../../../utils/orgLocale";
+import { paymentStatus } from "../../../lib/paymentStatus";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
@@ -385,16 +386,26 @@ const formatDisplayTransactionNo = (t) => {
     const total = periodRows.length;
     const draft = periodRows.filter((so) => so.status === "DRAFT").length;
     const confirmed = periodRows.filter((so) => so.status === "APPROVED").length;
-    const invoiced = periodRows.filter((so) => so.status === "INVOICED").length;
+    // An approved sale IS its invoice (approval is what issues it and posts it), so "invoiced" is what has been approved.
+    // It used to count a status nothing ever writes, and read 0 beside four approved invoices.
+    const isInvoiced = (so) => so.status === "INVOICED" || (so.status === "APPROVED" && !so.isOpening);
+    const invoiced = periodRows.filter(isInvoiced).length;
     const totalValue = periodRows.reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-    const invoicedValue = periodRows
-      .filter((so) => so.status === "INVOICED")
-      .reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+    const invoicedValue = periodRows.filter(isInvoiced).reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+    // what has been collected, from the amounts (never from a stored status): lib/paymentStatus.js
+    const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
+    for (const so of periodRows) {
+      const p = paymentStatus(so);
+      if (p) payment[p.key] += 1;
+    }
     return {
       total,
       draft,
       confirmed,
       invoiced,
+      paid: payment.PAID,
+      partial: payment.PARTIAL,
+      unpaid: payment.UNPAID,
       totalValue,
       invoicedValue,
       compare: compareCount(total, listInfo.previousTotal, previous?.name),
@@ -425,8 +436,10 @@ const formatDisplayTransactionNo = (t) => {
           has(so.notes) ||
           (so.items || []).some((i) => has(i.description) || has(i.itemName));
 
+        // "PAY:PAID" and friends filter by what has been collected; anything else is the document's own status
         const matchesStatus =
-          statusFilter === "ALL" || so.status === statusFilter;
+          statusFilter === "ALL" ||
+          (statusFilter.startsWith("PAY:") ? paymentStatus(so)?.key === statusFilter.slice(4) : so.status === statusFilter);
         const matchesCustomer =
           customerFilter === "ALL" || so.customerId === customerFilter;
 
@@ -829,6 +842,9 @@ const formatDisplayTransactionNo = (t) => {
               { label: "Draft", value: statistics.draft },
               { label: "Approved", value: statistics.confirmed },
               { label: "Invoiced", value: statistics.invoiced },
+              { label: "Paid", value: statistics.paid },
+              { label: "Partly paid", value: statistics.partial },
+              { label: "Unpaid", value: statistics.unpaid },
             ].map((row) => {
               const value = Number(row.value) || 0;
               const share = statistics.total ? (value / statistics.total) * 100 : 0;
@@ -943,6 +959,9 @@ const formatDisplayTransactionNo = (t) => {
                   <option value="DRAFT">Draft</option>
                   <option value="APPROVED">Approved</option>
                   <option value="INVOICED">Invoiced</option>
+                  <option value="PAY:PAID">Paid</option>
+                  <option value="PAY:PARTIAL">Partly paid</option>
+                  <option value="PAY:UNPAID">Unpaid</option>
                 </select>
                 <select
                   value={customerFilter}

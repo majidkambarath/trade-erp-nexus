@@ -63,6 +63,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { paymentStatus } from "../../../lib/paymentStatus";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const PurchaseOrderManagement = () => {
@@ -331,14 +332,23 @@ const PurchaseOrderManagement = () => {
   const statistics = useMemo(() => {
     const total = periodRows.length;
     const pending = periodRows.filter((po) => po.status === "PENDING").length;
-    const paid = periodRows.filter((po) => po.status === "paid").length;
+    // what has been paid to the vendor, from the amounts (never from a stored status): lib/paymentStatus.js.
+    // This used to count status "paid", which no document ever has.
+    const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
+    for (const po of periodRows) {
+      const p = paymentStatus(po);
+      if (p) payment[p.key] += 1;
+    }
+    const paid = payment.PAID;
+    const partial = payment.PARTIAL;
+    const unpaid = payment.UNPAID;
     const approved = periodRows.filter((po) => po.status === "APPROVED").length;
     const draft = periodRows.filter((po) => po.status === "DRAFT").length;
     const rejected = periodRows.filter((po) => po.status === "REJECTED").length;
     const totalValue = periodRows.reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
     const approvedValue = periodRows.filter((po) => po.status === "APPROVED").reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
     return {
-      total, pending, approved, draft, paid, rejected, totalValue, approvedValue,
+      total, pending, approved, draft, paid, partial, unpaid, rejected, totalValue, approvedValue,
       compare: compareCount(total, listInfo.previousTotal, previous?.name),
     };
   }, [periodRows, listInfo.previousTotal, previous?.name]);
@@ -366,7 +376,9 @@ const PurchaseOrderManagement = () => {
           has(row.notes) ||
           (row.items || []).some((i) => has(i.description) || has(i.itemName));
 
-        const matchesStatus = statusFilter === "ALL" || row.status === statusFilter;
+        const matchesStatus =
+          statusFilter === "ALL" ||
+          (statusFilter.startsWith("PAY:") ? paymentStatus(row)?.key === statusFilter.slice(4) : row.status === statusFilter);
         const matchesParty = vendorFilter === "ALL" || row.vendorId === vendorFilter;
 
         return matchesSearch && matchesStatus && matchesParty;
@@ -643,6 +655,9 @@ const PurchaseOrderManagement = () => {
               { label: "Pending", value: statistics.pending },
               { label: "Approved", value: statistics.approved },
               { label: "Rejected", value: statistics.rejected },
+              { label: "Paid", value: statistics.paid },
+              { label: "Partly paid", value: statistics.partial },
+              { label: "Unpaid", value: statistics.unpaid },
             ].map((row) => {
               const value = Number(row.value) || 0;
               const share = statistics.total ? (value / statistics.total) * 100 : 0;
@@ -891,6 +906,9 @@ const PurchaseOrderManagement = () => {
                   <option value="PENDING">Pending</option>
                   <option value="APPROVED">Approved</option>
                   <option value="REJECTED">Rejected</option>
+                  <option value="PAY:PAID">Paid</option>
+                  <option value="PAY:PARTIAL">Partly paid</option>
+                  <option value="PAY:UNPAID">Unpaid</option>
                 </select>
 
                 <select

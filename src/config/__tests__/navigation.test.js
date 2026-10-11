@@ -105,9 +105,9 @@ describe("what a role may open", () => {
 
   it("drops individual tabs the role cannot open, keeping the module", () => {
     const sales = getVisibleModules(SALES).find((m) => m.id === "sales");
-    // Quotations, orders, delivery notes, returns and customers are sales paperwork; the receivables tab is the books,
+    // Quotations, orders, delivery notes, invoices, returns and customers are sales paperwork; the receivables tab is the books,
     // which a sales executive does not hold, so it is not offered.
-    expect(sales.tabs.map((t) => t.label)).toEqual(["Quotations", "Orders", "Delivery notes", "Returns", "Customers"]);
+    expect(sales.tabs.map((t) => t.label)).toEqual(["Quotations", "Orders", "Delivery notes", "Invoices", "Returns", "Customers"]);
   });
 
   it("a role that holds nothing still keeps the open pages", () => {

@@ -21,6 +21,8 @@ const UsersPage = lazy(() => import("../components/users/UsersPage.jsx"));
 const Settings = lazy(() => import("../components/Settings/Settings.jsx"));
 const PurchaseOrderPage = lazy(() => import("../components/PurchaseOrder/purchase/PurchaseOrderPage.jsx"));
 const SalesOrderPage = lazy(() => import("../components/PurchaseOrder/sales/SalesOrderPage.jsx"));
+const SalesInvoices = lazy(() => import("../components/invoices/InvoiceRegister.jsx").then((m) => ({ default: m.SalesInvoices })));
+const PurchaseInvoices = lazy(() => import("../components/invoices/InvoiceRegister.jsx").then((m) => ({ default: m.PurchaseInvoices })));
 const InventoryManagement = lazy(() => import("../components/Inventory/InventoryManagement.jsx"));
 const PurchaseReturnPage = lazy(() => import("../components/PurchaseOrder/purchaseReturn/PurchaseOrderPage.jsx"));
 const SalesReturnPage = lazy(() => import("../components/PurchaseOrder/salesReturn/SalesOrderPage.jsx"));
@@ -97,6 +99,8 @@ export default function AdminRouter() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />
         <Route path="/sales-order" element={<SalesOrderPage />} />
+        <Route path="/sales-invoices" element={<SalesInvoices />} />
+        <Route path="/purchase-invoices" element={<PurchaseInvoices />} />
         <Route path="/quotations" element={<QuotationsPage />} />
         <Route path="/delivery-notes" element={<DeliveryNotesPage />} />
         <Route path="/inventory" element={<InventoryManagement />} />
