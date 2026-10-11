@@ -7,14 +7,25 @@ import { deliveryNotes } from "../../lib/salesDocumentsApi";
 import { orderPayload, orderRows, validateOrderRows } from "../../lib/salesDocuments";
 import { formatDate, formatNumber, formatQty, todayInput, toInputDate } from "../../utils/format";
 import { Note } from "./parts";
+import { tradeOrders } from "../../lib/orderDocumentsApi";
 
 const numInput = "h-11 w-full rounded-lg border border-input bg-background px-3 text-end text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-[invalid=true]:border-status-danger disabled:opacity-50 lg:h-9";
 
 // Orders a note can be made against: still a draft, or already approved (the goods go out after the invoice).
+// A choice is "trade:<id>" for a sales order document and "tx:<id>" for a draft or approved invoice.
 const loadOrders = async (customerId) => {
-  const r = await axiosInstance.get("/transactions/transactions", { params: { type: "sales_order", partyId: customerId, limit: 200 } });
-  return (r.data?.data || []).filter((t) => ["DRAFT", "APPROVED"].includes(t.status) && !t.isOpening && !t.closedShort?.at);
+  const [docs, tx] = await Promise.all([
+    tradeOrders.list({ kind: "sales", status: "CONFIRMED", partyId: customerId, limit: 200 }).then((r) => r.rows).catch(() => []),
+    axiosInstance.get("/transactions/transactions", { params: { type: "sales_order", partyId: customerId, limit: 200 } }).then((r) => r.data?.data || []).catch(() => []),
+  ]);
+  return [
+    ...docs.map((o) => ({ value: `trade:${o._id}`, label: o.orderNo, hint: `${formatDate(o.date)} · order · ${formatNumber(o.totalAmount, 2)}`, status: o.status, date: o.date })),
+    ...tx
+      .filter((t) => ["DRAFT", "APPROVED"].includes(t.status) && !t.isOpening && !t.closedShort?.at)
+      .map((t) => ({ value: `tx:${t._id}`, label: t.transactionNo, hint: `${formatDate(t.date)} · ${t.status === "APPROVED" ? "approved invoice" : "draft invoice"} · ${formatNumber(t.totalAmount, 2)}` })),
+  ];
 };
+const parse = (v) => (String(v).startsWith("trade:") ? { trade: true, id: String(v).slice(6) } : { trade: false, id: String(v).replace(/^tx:/, "") });
 
 const headerFrom = (dn) => ({
   date: dn ? toInputDate(dn.date) : todayInput(),
@@ -25,9 +36,13 @@ const headerFrom = (dn) => ({
 // A delivery note against a sales order. The lines are the order's: the form shows what has been ordered,
 // delivered and promised on other notes, and takes only how much goes on THIS one. Price, discount and tax
 // stay the order's, so the note can never disagree with the invoice it belongs to.
-export default function DeliveryFromOrder({ orderId, editing, customers, onBack, onSaved, notify }) {
+export default function DeliveryFromOrder({ orderId, editing, customers, onBack, onSaved, notify, tradeLink = false }) {
   const [customerId, setCustomerId] = useState(editing?.partyId || "");
-  const [chosen, setChosen] = useState(orderId || editing?.source?.id || "");
+  // arrives as a bare id (a link) or already tagged; an edited note knows which kind of order it is against
+  const initial = orderId || editing?.source?.id || "";
+  const [chosen, setChosen] = useState(
+    !initial ? "" : String(initial).includes(":") ? initial : `${editing?.source?.kind === "trade_order" || tradeLink ? "trade" : "tx"}:${initial}`
+  );
   const [header, setHeader] = useState(() => headerFrom(editing));
   const [rows, setRows] = useState([]);
   const [errors, setErrors] = useState(null);
@@ -36,7 +51,11 @@ export default function DeliveryFromOrder({ orderId, editing, customers, onBack,
 
   const fixed = Boolean(orderId || editing); // the order is already decided
   const orders = useAsync(() => (customerId && !fixed ? loadOrders(customerId) : Promise.resolve([])), [customerId, fixed]);
-  const prefill = useAsync(() => (chosen ? deliveryNotes.fromOrder(chosen) : Promise.resolve(null)), [chosen]);
+  const picked = chosen ? parse(chosen) : null;
+  const prefill = useAsync(
+    () => (picked ? (picked.trade ? deliveryNotes.fromTradeOrder(picked.id) : deliveryNotes.fromOrder(picked.id)) : Promise.resolve(null)),
+    [chosen]
+  );
 
   // What this note already holds on each line, when it is being edited.
   const own = useMemo(() => (editing ? Object.fromEntries(editing.items.map((l) => [String(l.sourceLineId), l.qty])) : null), [editing]);
@@ -52,9 +71,7 @@ export default function DeliveryFromOrder({ orderId, editing, customers, onBack,
   }, [prefill.data, own, editing]);
 
   const customerOptions = useMemo(() => customers.map((c) => ({ value: c._id, label: c.customerName, hint: c.customerId })), [customers]);
-  const orderOptions = (orders.data || []).map((o) => ({
-    value: o._id, label: o.transactionNo, hint: `${formatDate(o.date)} · ${o.status === "APPROVED" ? "approved" : "draft"} · ${formatNumber(o.totalAmount, 2)}`,
-  }));
+  const orderOptions = orders.data || [];
   const setField = (k) => (e) => setHeader((h) => ({ ...h, [k]: e.target.value }));
   const setQty = (i, qty) => { setRows((rs) => rs.map((r, j) => (j === i ? { ...r, qty } : r))); setErrors(null); };
 
@@ -65,7 +82,7 @@ export default function DeliveryFromOrder({ orderId, editing, customers, onBack,
     setSaving(true);
     setProblem(null);
     try {
-      const body = orderPayload(chosen, rows, header);
+      const body = orderPayload(picked.id, rows, header, { tradeOrder: picked.trade });
       const saved = editing ? await deliveryNotes.update(editing._id, body) : await deliveryNotes.create(body);
       notify(`${saved.deliveryNoteNo} ${editing ? "updated" : "created"}`);
       onSaved(saved._id);
@@ -98,13 +115,14 @@ export default function DeliveryFromOrder({ orderId, editing, customers, onBack,
             <Field label="Customer" required>
               <SearchSelect options={customerOptions} value={customerId} onChange={(v) => { setCustomerId(v); setChosen(""); }} placeholder="Choose a customer" />
             </Field>
-            <Field label="Sales order" required hint={customerId && !orders.loading && !orderOptions.length ? "This customer has no draft or approved sales order." : undefined}>
+            <Field label="Sales order" required hint={customerId && !orders.loading && !orderOptions.length ? "This customer has no confirmed sales order, and no draft or approved invoice, to deliver against." : undefined}>
               <SearchSelect options={orderOptions} value={chosen} onChange={setChosen} loading={orders.loading} disabled={!customerId} placeholder={customerId ? "Choose an order" : "Choose a customer first"} />
             </Field>
           </div>
         )}
-        {p?.order.status === "APPROVED" && <Note className="mt-3">This order is already invoiced and its stock has moved. The note is the paper that goes with the goods.</Note>}
-        {p?.order.status === "DRAFT" && <Note className="mt-3">This order is not approved yet. Stock leaves when it is approved; until then these goods count as promised.</Note>}
+        {picked?.trade && p && <Note className="mt-3">This is a sales order. The note posts nothing and moves no stock; the invoice made from what is delivered does both when it is approved.</Note>}
+        {!picked?.trade && p?.order.status === "APPROVED" && <Note className="mt-3">This order is already invoiced and its stock has moved. The note is the paper that goes with the goods.</Note>}
+        {!picked?.trade && p?.order.status === "DRAFT" && <Note className="mt-3">This order is not approved yet. Stock leaves when it is approved; until then these goods count as promised.</Note>}
         {prefill.error && <div className="mt-3"><ErrorNote error={prefill.error} onRetry={prefill.reload} /></div>}
       </Panel>
 

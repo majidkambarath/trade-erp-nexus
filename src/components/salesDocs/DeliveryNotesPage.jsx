@@ -19,9 +19,10 @@ import { useOrderLookups } from "./hooks";
 //   ?status=UNINVOICED   opens the list on the notes waiting for an invoice
 export default function DeliveryNotesPage() {
   const [params] = useSearchParams();
-  const [view, setView] = useState(() => (params.get("open") ? "view" : params.get("order") ? "order" : "list")); // list | view | order | create | edit
+  const [view, setView] = useState(() => (params.get("open") ? "view" : params.get("order") || params.get("tradeOrder") ? "order" : "list")); // list | view | order | create | edit
   const [openId, setOpenId] = useState(() => params.get("open"));
-  const [orderId, setOrderId] = useState(() => params.get("order")); // only until the user moves on from the link they arrived by
+  const [orderId, setOrderId] = useState(() => params.get("order") || params.get("tradeOrder")); // only until the user moves on from the link they arrived by
+  const tradeLink = Boolean(params.get("tradeOrder")); // the link names a sales order DOCUMENT
   const [editing, setEditing] = useState(null); // the saved note being edited
   const [form, setForm] = useState(newDeliveryNoteForm);
   const [choosing, setChoosing] = useState(false);
@@ -40,7 +41,7 @@ export default function DeliveryNotesPage() {
     try {
       const id = typeof noteOrId === "string" ? noteOrId : noteOrId._id;
       const note = await deliveryNotes.get(id);
-      if (note.source?.kind === "sales_order") {
+      if (note.source?.kind === "sales_order" || note.source?.kind === "trade_order") {
         setEditing(note);
         setView("order");
       } else {
@@ -64,7 +65,7 @@ export default function DeliveryNotesPage() {
       {view === "view" && openId && <DeliveryNoteView id={openId} notify={notify} onBack={toList} onEdit={edit} onChanged={bump} />}
       {view === "order" && (
         <DeliveryFromOrder
-          orderId={editing ? null : orderId} editing={editing} customers={customers} notify={notify}
+          orderId={editing ? null : orderId} editing={editing} customers={customers} notify={notify} tradeLink={tradeLink}
           onBack={editing ? () => open(editing._id) : toList} onSaved={(id) => { bump(); open(id); }}
         />
       )}

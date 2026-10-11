@@ -42,7 +42,7 @@ export const MODULES = [
     icon: ShoppingBag,
     tabs: [
       { label: "Quotations", to: "/quotations", permission: "sales.view", feature: "quotations", keywords: ["quote", "offer", "proposal", "estimate", "rfq", "validity"] },
-      { label: "Orders", to: "/sales-order", permission: "sales.view", keywords: ["sales order", "invoice"] },
+      { label: "Orders", to: "/sales-orders", permission: "sales.view", keywords: ["sales order", "customer order", "confirmed", "delivered", "left to deliver", "progress"] },
       {
         label: "Delivery notes",
         to: "/delivery-notes",
@@ -50,7 +50,7 @@ export const MODULES = [
         feature: "deliveryNotes",
         keywords: ["delivery order", "dispatch", "proof of delivery", "pod", "pick list", "not invoiced", "14 days", "driver"],
       },
-      { label: "Invoices", to: "/sales-invoices", permission: "sales.view", keywords: ["sales invoice", "tax invoice", "paid", "unpaid", "outstanding", "collected", "receivable", "confirmed"] },
+      { label: "Invoices", to: "/sales-order", permission: "sales.view", keywords: ["sales invoice", "tax invoice", "paid", "unpaid", "outstanding", "collected", "receivable", "confirmed", "approved"] },
       { label: "Returns", to: "/sales-return", permission: "sales.view", keywords: ["sales return"] },
       { label: "Customers", to: "/customer-creation", permission: ["sales.view", "accounts.view"], keywords: ["clients", "parties"] },
       {
@@ -67,8 +67,9 @@ export const MODULES = [
     label: "Purchase",
     icon: Truck,
     tabs: [
-      { label: "Orders", to: "/purchase-order", permission: "purchase.view", keywords: ["purchase order", "po", "grn"] },
-      { label: "Invoices", to: "/purchase-invoices", permission: "purchase.view", keywords: ["purchase invoice", "bill", "paid", "unpaid", "outstanding", "payable", "confirmed"] },
+      { label: "Orders", to: "/purchase-orders", permission: "purchase.view", keywords: ["purchase order", "po", "vendor order", "confirmed", "left to receive", "progress"] },
+      { label: "Goods received", to: "/goods-received", permission: "purchase.view", keywords: ["grn", "goods receipt", "receiving", "received not invoiced", "vendor delivery", "short", "3-way"] },
+      { label: "Invoices", to: "/purchase-order", permission: "purchase.view", keywords: ["purchase invoice", "bill", "vendor invoice", "paid", "unpaid", "outstanding", "payable", "confirmed", "approved"] },
       { label: "Returns", to: "/purchase-return", permission: "purchase.view", keywords: ["purchase return"] },
       { label: "Vendors", to: "/vendor-creation", permission: ["purchase.view", "accounts.view"], keywords: ["suppliers", "parties"] },
       {

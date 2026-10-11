@@ -46,6 +46,8 @@ export const deliveryNotes = {
   availability: (itemIds, excludeId) => api.get("/delivery-notes/availability", { itemIds: [].concat(itemIds).join(","), excludeId }),
   // what can still be delivered on each line of a sales order
   fromOrder: (orderId) => api.get(`/delivery-notes/from-order/${orderId}`),
+  // the same for a sales order DOCUMENT (a commitment that posts nothing; /trade-orders)
+  fromTradeOrder: (orderId) => api.get(`/delivery-notes/from-trade-order/${orderId}`),
   get: (id) => api.get(`/delivery-notes/${id}`),
   pickList: (id) => api.get(`/delivery-notes/${id}/pick-list`),
   activity: (id) => api.get(`/delivery-notes/${id}/activity`),

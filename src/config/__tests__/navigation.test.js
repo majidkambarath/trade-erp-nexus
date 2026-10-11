@@ -58,6 +58,12 @@ describe("findActive", () => {
     ["/stock-detail/abc123", "inventory", "Stock Items"],
     ["/debit-accounts/vendor/v1", "purchase", "Payables"],
     ["/credit-accounts/customer/c1", "sales", "Receivables"],
+    ["/sales-orders", "sales", "Orders"],
+    ["/sales-order", "sales", "Invoices"],
+    ["/delivery-notes", "sales", "Delivery notes"],
+    ["/purchase-orders", "purchase", "Orders"],
+    ["/goods-received", "purchase", "Goods received"],
+    ["/purchase-order", "purchase", "Invoices"],
     ["/settings", "settings", "Settings"],
   ])("%s -> %s / %s", (url, moduleId, tabLabel) => {
     const active = findActive(url);
@@ -236,7 +242,7 @@ describe("what the plan includes", () => {
     for (const t of ["Cheques@/cheques", "Banks@/banks", "Card types@/card-types", "Cards@/cards"]) expect(shown).not.toContain(t);
     expect(shown).toContain("Quotations@/quotations");
     expect(shown).toContain("Cash & bank@/cash-and-bank"); // chart-based, not the banking feature
-    expect(shown).toContain("Orders@/sales-order");
+    expect(shown).toContain("Orders@/sales-orders");
   });
 
   it("drops every tab of a switched-off feature but keeps the module while it has others", () => {

@@ -572,4 +572,106 @@ VARIANTS.deliveryNote = {
   })),
 };
 
-export { salesReturnItem, itemPayload, DELIVERY_FIELDS };
+// ---- orders and goods received ---------------------------------------------------------
+// Orders are commitments and goods received is the paper that says what arrived: neither is a Transaction, each has its own
+// endpoint, and the SERVER prices it, so the payload carries inputs only (see pricedPayload above).
+
+// A vendor-side line as an input. The unit price is what the vendor charges (currentPurchasePrice); batch and expiry travel
+// with it because a receipt is where they are first known.
+const vendorLineInput = (row) => {
+  const out = {
+    itemId: row.itemId,
+    itemCode: row.itemCode || "",
+    description: row.description || "",
+    qty: num(row.qty),
+    price: num(row.currentPurchasePrice),
+    vatPercent: num(row.vatPercent),
+    batchNumber: row.batchNumber || "",
+    expiryDate: row.expiryDate || null,
+  };
+  const discount = num(row.discountPercent);
+  if (discount > 0) out.discountPercent = Math.min(100, discount);
+  if (row.taxCodeId) out.taxCodeId = row.taxCodeId;
+  return out;
+};
+const vendorPayload = (header) => (V, f, rows, _stock, { charges } = {}) => ({
+  partyId: f.partyId,
+  date: f.date,
+  items: rows.filter((r) => r.itemId && num(r.qty) > 0).map(vendorLineInput),
+  charges: chargesPayload(charges ?? f.charges),
+  discount: V.discount ? num(f.discount) : 0,
+  notes: f.notes || "",
+  ...header(f),
+});
+
+// What a customer has asked for. Nothing is posted: goods are delivered against it and an invoice is raised from what was.
+VARIANTS.salesOrderDoc = {
+  ...customerSide,
+  key: "salesOrderDoc",
+  noun: "Sales order",
+  endpoint: "/trade-orders",
+  numberField: "orderNo",
+  labels: { doc: "Order no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Delivery date", reference: "Customer LPO" },
+  title: { create: "Create sales order", edit: "Edit sales order", save: "Save sales order", saveEdit: "Update sales order", items: "Ordered items" },
+  referenceKey: "reference",
+  hasSecondDate: true,
+  secondDateKey: "expectedDate",
+  secondDateRequired: false,
+  terms: true,
+  buildPayload: pricedPayload((f) => ({ kind: "sales", expectedDate: f.expectedDate || "", reference: f.reference || "", terms: f.terms || "" })),
+};
+
+// What we have asked a vendor for.
+VARIANTS.purchaseOrderDoc = purchaseLike(null, {
+  key: "purchaseOrderDoc",
+  noun: "Purchase order",
+  endpoint: "/trade-orders",
+  numberField: "orderNo",
+  labels: { doc: "Order no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Expected delivery", reference: "Vendor reference" },
+  title: { create: "Create purchase order", edit: "Edit purchase order", save: "Save purchase order", saveEdit: "Update purchase order", items: "Ordered items" },
+  referenceKey: "reference",
+  referenceRequired: false,
+  hasSecondDate: true,
+  secondDateKey: "expectedDate",
+  secondDateRequired: false,
+  terms: true,
+  priority: false,
+  sourceDocument: null,
+  discount: true,
+  numberMode: false,
+  attachments: false,
+  statusOptions: null,
+  totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
+  buildPayload: vendorPayload((f) => ({ kind: "purchase", expectedDate: f.expectedDate || "", reference: f.reference || "", terms: f.terms || "" })),
+});
+
+// The paper that says what a vendor's goods turned out to be on arrival. For goods that came with no order; one against an order
+// is made from the order's own lines (components/orderDocs/ReceiptFromOrder.jsx).
+const RECEIPT_FIELDS = [
+  { key: "vendorDeliveryNo", label: "Vendor delivery note / invoice no." },
+  { key: "vehicleNo", label: "Vehicle" },
+  { key: "driverName", label: "Driver" },
+];
+VARIANTS.goodsReceived = purchaseLike(null, {
+  key: "goodsReceived",
+  noun: "Goods receipt",
+  endpoint: "/goods-receipts",
+  numberField: "receiptNo",
+  labels: { doc: "GRN no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: null, reference: "Our reference" },
+  title: { create: "Create goods receipt", edit: "Edit goods receipt", save: "Save goods receipt", saveEdit: "Update goods receipt", items: "Goods received" },
+  referenceKey: "reference",
+  referenceRequired: false,
+  hasSecondDate: false,
+  terms: false,
+  priority: false,
+  sourceDocument: null,
+  discount: false,
+  numberMode: false,
+  attachments: false,
+  statusOptions: null,
+  extraFields: RECEIPT_FIELDS,
+  totalAmount: (t) => t.total,
+  buildPayload: vendorPayload((f) => ({ reference: f.reference || "", ...Object.fromEntries(RECEIPT_FIELDS.map((d) => [d.key, f[d.key] || ""])) })),
+});
+
+export { salesReturnItem, itemPayload, DELIVERY_FIELDS, RECEIPT_FIELDS };

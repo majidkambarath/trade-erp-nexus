@@ -182,9 +182,10 @@ export function validateOrderRows(rows) {
   return Object.keys(errors).length ? errors : null;
 }
 
-export function orderPayload(orderId, rows, header) {
+// `tradeOrder`: the order is a sales order DOCUMENT (sent as sourceTradeOrderId), not an invoice-to-be.
+export function orderPayload(orderId, rows, header, { tradeOrder = false } = {}) {
   return {
-    sourceTransactionId: orderId,
+    ...(tradeOrder ? { sourceTradeOrderId: orderId } : { sourceTransactionId: orderId }),
     date: header.date,
     reference: header.reference || "",
     deliveryAddress: header.deliveryAddress || "",

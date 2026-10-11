@@ -20,6 +20,8 @@ const STATUS_TONES = {
   PARTIAL: "warning",
   UNPAID: "warning",
   CONFIRMED: "info",
+  RECEIVED: "success", // goods received: signed for
+  CLOSED: "neutral", // an order finished early
   INVOICED: "info",
   FINALIZED: "info",
   APPROVED: "success",

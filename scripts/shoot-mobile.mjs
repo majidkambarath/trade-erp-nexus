@@ -98,6 +98,22 @@ const DEEP = {
     // the shared order form, configured as a quotation (valid until, terms, reference)
     { name: "form", page: true, clicks: ["^New quotation"], settle: 1500 },
   ],
+  // Orders: the list, one order with its progress panel, and the dialog that makes the invoice from what has arrived
+  "sales-orders": [
+    { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    { name: "form", page: true, clicks: ["^New sales order"], settle: 1500 },
+  ],
+  "purchase-orders": [
+    { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    { name: "invoice", clicks: ["^View$", "Create invoice"], settle: 1300 },
+  ],
+  "purchase-goods-received": [
+    { name: "new", clicks: ["New goods receipt"], settle: 900 },
+    { name: "from-order", page: true, clicks: ["New goods receipt", "against a purchase order"], settle: 1500 },
+    { name: "own-form", page: true, clicks: ["New goods receipt", "on its own"], settle: 1500 },
+    { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    { name: "receive", clicks: ["^View$", "Confirm goods received"], settle: 1300 },
+  ],
   "sales-delivery-notes": [
     { name: "new", clicks: ["New delivery note"], settle: 900 },
     // both ways to make one: against a sales order (its own form), and on its own (the shared order form)
@@ -108,22 +124,22 @@ const DEEP = {
   ],
   // The sales order list and the invoice behind a row. Send is a VISIBLE control on the row and the card, and
   // on the document screen; the dialog behind it is a form someone fills in on a phone.
-  // The page opens on its dashboard, so the first tap is "View all orders". A row's View is the eye (labelled
+  // The page opens on its dashboard, so the first tap is "View all invoices". A row's View is the eye (labelled
   // with the number) on a wide screen and the word View on a card, so the match is "View" then a number or the end.
-  "sales-orders": [
-    { name: "list", page: true, clicks: ["^View all orders"], settle: 1200 },
-    { name: "document", page: true, clicks: ["^View all orders", "^View( [0-9]|$)"], settle: 1600 },
-    { name: "send", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
-    { name: "send-row", clicks: ["^View all orders", "^Send (SO|[0-9])"], settle: 1600 },
-    { name: "history", clicks: ["^View all orders", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
+  "sales-invoices": [
+    { name: "list", page: true, clicks: ["^View all invoices"], settle: 1200 },
+    { name: "document", page: true, clicks: ["^View all invoices", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "send", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
+    { name: "send-row", clicks: ["^View all invoices", "^Send (SO|[0-9])"], settle: 1600 },
+    { name: "history", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
     // the audit trail, from the button on a card
-    { name: "audit", cards: true, clicks: ["^View all orders", "^Audit trail$"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all invoices", "^Audit trail$"], settle: 1600 },
   ],
   // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
-  "purchase-orders": [
-    { name: "list", page: true, clicks: ["^View all purchase orders"], settle: 1200 },
-    { name: "document", cards: true, page: true, clicks: ["^View all purchase orders", "^View( [0-9]|$)"], settle: 1600 },
-    { name: "audit", cards: true, clicks: ["^View all purchase orders", "^Audit trail$"], settle: 1600 },
+  "purchase-invoices": [
+    { name: "list", page: true, clicks: ["^View all purchase invoices"], settle: 1200 },
+    { name: "document", cards: true, page: true, clicks: ["^View all purchase invoices", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^View all purchase invoices", "^Audit trail$"], settle: 1600 },
   ],
   "sales-returns": [
     { name: "list", page: true, clicks: ["^View all sales returns"], settle: 1200 },
@@ -147,11 +163,12 @@ const DEEP = {
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 DEEP["accounting-setup"] = DEEP["accounts-setup"]; // check:mobile -- /accounting-setup
-DEEP["sales-order"] = DEEP["sales-orders"]; // a single-page run (check:mobile -- /sales-order)
+DEEP["sales-order"] = DEEP["sales-invoices"]; // a single-page run (check:mobile -- /sales-order): the sales INVOICE list
 DEEP["quotations"] = DEEP["sales-quotations"]; // check:mobile -- /quotations
-DEEP["purchase-order"] = DEEP["purchase-orders"]; // ... and likewise for the other three order modules
+DEEP["purchase-order"] = DEEP["purchase-invoices"]; // ... and likewise for the other three order modules
 DEEP["sales-return"] = DEEP["sales-returns"];
 DEEP["purchase-return"] = DEEP["purchase-returns"];
+DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
@@ -426,6 +443,44 @@ const deliveryNoteDoc = () => ({
   fulfilment: Object.fromEntries(n(docLine, 3).map((l) => [l._id, { ordered: l.qty * 2, pending: l.qty, delivered: 0, remaining: l.qty, over: false }])),
 });
 const activityRows = () => n((i) => ({ _id: `act${i}`, at: `2026-10-0${i}T09:3${i}:00.000Z`, action: ["QUOTATION_CREATED", "QUOTATION_SENT", "QUOTATION_ACCEPTED"][i - 1], summary: "Quotation QT-2026-0003 - 2646.00 saved", username: "admin@test.uae" }), 3);
+
+// Orders (non-posting commitments) and goods received (the vendor-side twin of a delivery note)
+const ORDER_STATES = ["DRAFT", "CONFIRMED", "CONFIRMED", "CLOSED", "CANCELLED", "CONFIRMED"];
+const tradeOrder = (kind) => (i) => {
+  const status = ORDER_STATES[i - 1];
+  const sales = kind === "sales";
+  return {
+    _id: `to${i}`, orderNo: `${sales ? "SORD" : "PORD"}-2026-000${i}`, kind, partyId: `p${i}`, status, date: `${THIS_MONTH}-0${i}`, totalAmount: 2646 * i,
+    party: sales ? { customerName: `Al Noor Trading ${i}`, customerId: `C00${i}` } : { vendorName: `Gulf Mill ${i}`, vendorId: `V00${i}` },
+    items: n(docLine, 2).map((l) => ({ ...l, sourceLineId: l._id })), reference: "LPO-77",
+    progress: { label: status === "DRAFT" ? "Not started" : i === 2 ? (sales ? "Partly delivered" : "Partly received") : "Not " + (sales ? "delivered" : "received"), lines: {} },
+    actions: { edit: status === "DRAFT", delete: status === "DRAFT", confirm: status === "DRAFT", receive: status === "CONFIRMED", invoice: i === 2, close: status === "CONFIRMED", cancel: status === "DRAFT" || status === "CONFIRMED", reopen: status === "CLOSED" },
+  };
+};
+const tradeOrderDoc = (kind) => ({
+  ...tradeOrder(kind)(2), pricing: docPricing, charges: [], discount: 0, terms: "", notes: "",
+  party: kind === "sales"
+    ? { customerName: "Al Noor Trading 2", customerId: "C002", billingAddress: "Deira, Dubai", trnNumber: "100123456700003", vat: { status: "registered" } }
+    : { vendorName: "Gulf Mill 2", vendorId: "V002", address: "Jebel Ali", trnNO: "100456783400003", vat: { status: "registered" } },
+  progress: { label: kind === "sales" ? "Partly delivered" : "Partly received", lines: Object.fromEntries(n(docLine, 2).map((l) => [l._id, { ordered: l.qty, received: l.qty / 2, onTheWay: 0, invoiced: 0, toReceive: l.qty / 2 }])) },
+});
+const RSTATES = ["DRAFT", "RECEIVED", "RECEIVED", "RECEIVED", "CANCELLED"];
+const goodsReceipt = (i) => {
+  const status = RSTATES[i - 1];
+  const invoiceStatus = i === 4 ? "INVOICED" : "NONE";
+  return {
+    _id: `gr${i}`, receiptNo: `GRN-2026-000${i}`, partyId: `p${i}`, party: { _id: `p${i}`, name: `Gulf Mill ${i}`, code: `V00${i}` },
+    date: `${THIS_MONTH}-0${i}`, receivedAt: status === "RECEIVED" ? `${THIS_MONTH}-0${i}` : null, status, invoiceStatus, totalAmount: 2646 * i, vendorDeliveryNo: `VD-${i}`,
+    source: i % 2 ? { kind: "purchase_order", id: "to2", no: "PORD-2026-0002" } : { kind: "manual" }, items: [{}, {}],
+    invoice: i === 4 ? { kind: "purchase_order", id: "t9", no: "PO-2026-0049" } : undefined,
+    actions: { edit: status !== "CANCELLED", delete: status === "DRAFT", receive: status === "DRAFT", cancel: status !== "CANCELLED" && invoiceStatus === "NONE", invoice: status === "RECEIVED" && invoiceStatus === "NONE" },
+  };
+};
+const goodsReceiptDoc = () => ({
+  ...goodsReceipt(1), items: n(docLine, 3).map((l) => ({ ...l, sourceLineId: l._id })), pricing: docPricing, charges: [], discount: 0,
+  party: { vendorName: "Gulf Mill 2", vendorId: "V002", address: "Jebel Ali", trnNO: "100456783400003", vat: { status: "registered" } },
+  sourceOrder: { id: "to2", no: "PORD-2026-0002", status: "CONFIRMED", lines: [] },
+});
 
 const batch = (i) => ({
   _id: `bt${i}`, batchNumber: `B-20260${i}`, itemName: `Basmati Rice ${i}`, sku: `SKU-00${i}`,
@@ -725,6 +780,29 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/quotations\/[^/]+$/.test(p)) return quotationDoc();
     return n(quotation);
+  }
+
+  // Orders: a list (rows, pagination beside), a summary by status, one order with its progress, its activity
+  if (p.includes("/trade-orders")) {
+    const kind = /kind=purchase/.test(p) || p.includes("purchase") ? "purchase" : "sales";
+    if (p.endsWith("/summary")) return { DRAFT: { count: 1, value: 2646 }, CONFIRMED: { count: 3, value: 33075 }, CLOSED: { count: 1, value: 10584 }, CANCELLED: { count: 1, value: 13230 } };
+    if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
+    if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
+    return n(tradeOrder(kind), 6);
+  }
+
+  // Goods received: the same, plus the not-invoiced worklist and what is left to receive on an order
+  if (p.includes("/goods-receipts")) {
+    if (p.endsWith("/summary")) return { byStatus: { DRAFT: 1, RECEIVED: 3, CANCELLED: 1 }, uninvoiced: { count: 2, value: 18522 } };
+    if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
+    if (p.includes("/from-order/")) {
+      return {
+        order: { id: "to2", no: "PORD-2026-0002", status: "CONFIRMED", date: "2026-10-02", reference: "LPO-1" }, party: { vendorName: "Gulf Mill 2", vendorId: "V002" },
+        lines: n(docLine, 3).map((l) => ({ sourceLineId: l._id, itemId: l.itemId, itemCode: l.itemCode, description: l.description, stockDetails, price: 42, ordered: l.qty * 2, received: l.qty / 2, onTheWay: 0, toReceive: l.qty * 1.5 })),
+      };
+    }
+    if (/\/goods-receipts\/[^/]+$/.test(p)) return goodsReceiptDoc();
+    return n(goodsReceipt, 5);
   }
 
   // Delivery notes: the same, plus the report of what is delivered and not invoiced, and stock availability
