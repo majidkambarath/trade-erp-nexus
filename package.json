@@ -17,6 +17,9 @@
     "e2e": "node e2e/run.mjs",
     "icons": "node scripts/make-icons.mjs"
   },
+  "engines": {
+    "node": ">=22 <23"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-dialog": "^1.1.23",
