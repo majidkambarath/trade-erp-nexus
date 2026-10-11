@@ -109,12 +109,12 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
             </CardContent>
           </Card>
 
-          <Card data-anim="bento" className={cn("flex-1", cardClass)}>
+          <Card data-anim="bento" className={cn("flex flex-1 flex-col", cardClass)}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold">Ops status</CardTitle>
               <CardDescription className="text-xs">Orders and customers {at}; stock as of today</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="flex flex-1 flex-col justify-between gap-3">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9" />)}
               {c && opsRows(c.ops).map((row) => (
                 <Link key={row.key} to={row.to} className="flex min-h-11 items-center justify-between gap-2 rounded-lg hover:bg-secondary/60 lg:min-h-0">
@@ -199,9 +199,9 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Card data-anim="bento" className={cardClass}>
-              <CardContent className="p-5">
+          <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+            <Card data-anim="bento" className={cn("flex flex-col", cardClass)}>
+              <CardContent className="flex flex-1 flex-col p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-sm font-bold">Top product</p>
                   {c?.topProduct?.changePct > 0 && (
@@ -219,20 +219,22 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
                       {formatCurrencyAED(c.topProduct.revenue)}
                       {c.topProduct.changePct !== null && ` · ${signed(c.topProduct.changePct)}`}
                     </p>
-                    <div className="mt-3 h-14" role="img" aria-label={`${c.topProduct.name} sales for each of the ${trail(7, "months")}`}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={c.topProduct.spark}>
-                          <Line type="monotone" dataKey="revenue" stroke="var(--chart-2)" strokeWidth={2.5} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="relative mt-3 min-h-14 flex-1" role="img" aria-label={`${c.topProduct.name} sales for each of the ${trail(7, "months")}`}>
+                      <div className="absolute inset-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={c.topProduct.spark}>
+                            <Line type="monotone" dataKey="revenue" stroke="var(--chart-2)" strokeWidth={2.5} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   </>
                 )}
               </CardContent>
             </Card>
 
-            <Card data-anim="bento" className={cardClass}>
-              <CardContent className="p-5">
+            <Card data-anim="bento" className={cn("flex flex-col", cardClass)}>
+              <CardContent className="flex flex-1 flex-col p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">{scope.current ? "VAT this quarter" : `VAT ${vatQuarter}`}</Link>
                   {c?.vat?.hasActivity && c.vat.position !== "nil" && (
@@ -252,12 +254,14 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
                         {c.vat.unclassifiedLines} {c.vat.unclassifiedLines === 1 ? "line has" : "lines have"} no tax treatment
                       </p>
                     )}
-                    <div className="mt-3 h-14" role="img" aria-label={`Output VAT for each of the ${trail(6, "months")}`}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={c.vat.spark}>
-                          <Line type="monotone" dataKey="outputVat" stroke={ink} strokeWidth={2.5} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="relative mt-3 min-h-14 flex-1" role="img" aria-label={`Output VAT for each of the ${trail(6, "months")}`}>
+                      <div className="absolute inset-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={c.vat.spark}>
+                            <Line type="monotone" dataKey="outputVat" stroke={ink} strokeWidth={2.5} dot={false} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   </>
                 )}
@@ -296,7 +300,7 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
             </CardContent>
           </Card>
 
-          <Card data-anim="bento" className={cn("flex-1", cardClass)}>
+          <Card data-anim="bento" className={cn("flex flex-1 flex-col", cardClass)}>
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold">Recent activity</CardTitle>
@@ -304,16 +308,16 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
               </div>
               <CardDescription className="text-xs">The latest vouchers, whichever period is shown</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {!c && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
               {c && c.recent.length === 0 && <Empty height={120}>No activity yet</Empty>}
-              {c?.recent?.map((r) => (
-                <Link key={r.voucherId} to={recentLink(r.voucherType)} className="flex gap-3 rounded-lg hover:bg-secondary/60">
+              {c?.recent?.map((r, i) => (
+                <Link key={r.voucherId} to={recentLink(r.voucherType)} className={cn("flex gap-3 rounded-lg hover:bg-secondary/60", i >= 5 && "xl:hidden")}>
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary">
                     <CheckCircle2 className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-snug">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug" title={`${r.typeLabel} ${r.voucherNo}${r.party || r.narration ? ` \u00b7 ${r.party || r.narration}` : ""}`}>
                       {r.typeLabel} {r.voucherNo}
                       {(r.party || r.narration) && ` · ${r.party || r.narration}`}
                     </p>

@@ -9,6 +9,7 @@ import { FE as WEB_DIR, BE as NODE_DIR, OUT as OUT_ROOT } from "./paths.mjs";
 const OUT = `${OUT_ROOT}/sales-docs`;
 mkdirSync(OUT, { recursive: true });
 
+process.env.TENANT_LEGACY_DEFAULT = "1"; // this process makes its first records through the models, as the test suites do
 const requireWeb = createRequire(`${WEB_DIR}/package.json`);
 const requireNode = createRequire(`${NODE_DIR}/package.json`);
 const puppeteer = requireWeb("puppeteer");
@@ -35,7 +36,9 @@ const step = async (name, fn) => {
     console.log(`PASS  ${name}${note ? `  (${note})` : ""}  ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   } catch (e) {
     results.push({ name, ok: false, error: e.message });
-    console.log(`FAIL  ${name}\n      ${String(e.message).split("\n")[0]}`);
+    // the script's own lines from the stack say which wait or click gave up (a bare "Waiting failed: 30000ms" does not)
+    const where = String(e.stack || "").split("\n").filter((l) => l.includes("sales-docs.mjs")).slice(0, 2).map((l) => l.trim().replace(/^at /, "").replace(/file:\/\/\/.*\/e2e\//, "")).join(" <- ");
+    console.log(`FAIL  ${name}\n      ${String(e.message).split("\n")[0]}${where ? `\n      at ${where}` : ""}`);
     throw e;
   }
 };
@@ -89,7 +92,7 @@ async function findButton(label, { scope = "document" } = {}) {
 // A person's eye waits for the button to appear (the screen refreshes just after a toast); so does this.
 async function click(label, opts) {
   let el, last;
-  for (let i = 0; i < 40 && !el; i++) {
+  for (let i = 0; i < 160 && !el; i++) {
     try { el = await findButton(label, opts); } catch (e) { last = e; await wait(250); }
   }
   if (!el) throw last;
@@ -107,7 +110,13 @@ async function pick(inputSelector, text) {
   await page.waitForSelector(inputSelector, { visible: true, timeout: 20000 });
   await page.click(inputSelector);
   await page.type(inputSelector, text);
-  await page.waitForSelector('[class*="option"], [id*="-option-"]', { visible: true, timeout: 20000 });
+  // the menu's "No options" notice also has "option" in its class: wait for a real option that shows what was typed,
+  // because the list behind it may still be loading (the first call on a new database is slow)
+  await page.waitForFunction(
+    (t) => [...document.querySelectorAll('[class*="option"], [id*="-option-"]')].some((el) => !/menu-notice|no-options/i.test(el.className) && el.getBoundingClientRect().height > 0 && el.innerText.toLowerCase().includes(t.toLowerCase())),
+    { timeout: 40000 },
+    text,
+  );
   await wait(250);
   await page.keyboard.press("Enter");
   await wait(300);
@@ -116,7 +125,7 @@ const dialogText = () => page.evaluate(() => ([...document.querySelectorAll('[ro
 
 // ---- start everything ----------------------------------------------------------------------
 async function boot() {
-  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
+  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
   backend.stdout.on("data", (d) => (logs.api += d));
   backend.stderr.on("data", (d) => (logs.api += d));
   children.push(backend);
@@ -130,12 +139,16 @@ async function boot() {
   };
   await mongoose.connection.syncIndexes();
   for (let i = 0; ; i++) {
-    try { if ((await fetch(`${API}/health`)).ok) break; } catch { /* not up */ }
-    if (i > 150) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
+    // `ready` is false while the server builds a fresh database and adopts its first organisation (30 s or more on a new one):
+    // a sign-in in that window is refused, so wait for it rather than for the first answer.
+    try { const h = await fetch(`${API}/health`); if (h.ok && (await h.json().catch(() => ({}))).ready !== false) break; } catch { /* not up */ }
+    if (i > 300) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
     await wait(400);
   }
   await new M.Admin({ name: "Boss", email: "boss@test.uae", password: "12312312", type: "super_admin", status: "active", isActive: true }).save();
   const login = await api("POST", "/login", { email: "boss@test.uae", password: "12312312" });
+  // say what the server answered when it did not sign the first person in (a wrong server on the port, an organisation not adopted)
+  if (!login.body?.tokens?.accessToken) throw new Error(`the first sign-in failed: ${login.status} ${JSON.stringify(login.raw).slice(0, 300)}`);
   token = login.body.tokens.accessToken;
   await api("GET", "/accounting/chart");
   const cat = new mongoose.Types.ObjectId();
@@ -193,7 +206,8 @@ try {
   // ======================================= quotation =======================================
   await step("quotations: the empty list loads from the real server", async () => {
     await page.goto(`${WEB}/quotations`, { waitUntil: "networkidle2" });
-    await waitForText("No quotations yet");
+    // an empty list reads "No quotations in this month" now that a list opens on a period; "No quotations yet" when none was asked for
+    await waitForText("No quotations");
     await shot("01-quotations-empty");
   });
 
@@ -477,6 +491,13 @@ try {
     const flow = (await api("GET", `/document-flow/customer/${S.fx.customer._id}`)).body;
     const deal = flow.chains.find((c) => c.order?._id === S.order._id);
     if (!deal.delivery.complete || deal.delivery.remaining.length) throw new Error(`still not complete: ${JSON.stringify(deal.delivery)}`);
+    // Everything is delivered and invoiced, but a deal is only Done once its invoice has gone to the customer: an approved
+    // invoice that was never sent is "Send the invoice" under Needs action.
+    await page.goto(`${WEB}/credit-accounts/customer/${S.fx.customer._id}?tab=documents`, { waitUntil: "networkidle2" });
+    await waitForText("Send the invoice");
+    // ...so hand it over the way the dialog's WhatsApp button does, and the deal is finished.
+    r = await api("POST", "/messaging/handoff", { docType: "tax_invoice", sourceId: S.order._id });
+    if (r.status >= 300) throw new Error(`hand-off ${r.status} ${JSON.stringify(r.raw).slice(0, 200)}`);
     await page.goto(`${WEB}/credit-accounts/customer/${S.fx.customer._id}?tab=documents`, { waitUntil: "networkidle2" });
     await waitForText("Needs action");
     await click("^done");
@@ -526,6 +547,7 @@ try {
   console.log("\nstopped:", String(e.message).split("\n")[0]);
   try { await shot("zz-failure"); console.log("page text at failure:\n" + (await textOf()).slice(0, 700)); } catch (e2) { console.log("could not capture the page:", String(e2.message).split("\n")[0]); }
   if (page?.__bad?.length) console.log("browser/API problems:", [...new Set(page.__bad)].join(" | "));
+  if (page?.__console?.length) console.log("browser console (last 12):\n  " + page.__console.slice(-12).join("\n  "));
   if (logs.api) console.log("backend tail:\n" + logs.api.slice(-600));
 } finally {
   await shutdown();

@@ -90,7 +90,11 @@ try {
   browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
   const WEB = `http://localhost:${WEB_PORT}`;
 
+  // Everyone added on the Users and roles screen arrives with a password somebody else chose, and the product holds them on
+  // "Choose your own password" until they pick one. This script is about what each role is OFFERED, so they are let past it
+  // (rbac.mjs covers the forced change itself).
   const signIn = async (email) => {
+    await ctx.runUnscoped("test: a person who has already chosen their own password", async () => { await Admin.updateOne({ email }, { $set: { mustChangePassword: false } }); });
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
     await page.setViewport({ width: 1440, height: 900 });
@@ -117,15 +121,29 @@ try {
       return re.test(label) && b.offsetParent !== null;
     });
   }, re.source);
-  const clickText = async (page, re) => {
-    const ok = await page.evaluate((src) => {
-      const re = new RegExp(src, "i");
-      const el = [...document.querySelectorAll("button, a, [role=tab]")].find((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && b.offsetParent !== null);
-      if (el) el.click();
-      return Boolean(el);
-    }, re.source);
+  // A person waits for a button to arrive (what a screen offers depends on the sign-in status and the lists it fetches); so does this.
+  const clickText = async (page, re, patience = 20000) => {
+    let ok = false;
+    for (const end = Date.now() + patience; !ok; ) {
+      ok = await page.evaluate((src) => {
+        const re = new RegExp(src, "i");
+        const el = [...document.querySelectorAll("button, a, [role=tab]")].find((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && b.offsetParent !== null);
+        if (el) el.click();
+        return Boolean(el);
+      }, re.source);
+      if (ok || Date.now() > end) break;
+      await sleep(400);
+    }
     if (!ok) throw new Error(`nothing to click for ${re}`);
     await sleep(700);
+  };
+  // Press a button that opens a dialog and wait for something in it; a page still arriving can rebuild itself under the first press,
+  // and a person presses again.
+  const openDialog = async (page, re, selector) => {
+    for (let attempt = 1; ; attempt++) {
+      await clickText(page, re);
+      try { await page.waitForSelector(selector, { timeout: 8000 }); return; } catch (e) { if (attempt >= 4) throw e; }
+    }
   };
   const tick = async (page, label) => {
     const ok = await page.evaluate((l) => { const el = document.querySelector(`input[aria-label="${l}"]`); if (!el || el.disabled) return false; el.click(); return true; }, label);
@@ -139,8 +157,7 @@ try {
   await owner.screenshot({ path: `${SHOTS}/01-roles-list.png` });
 
   const makeRole = async (name, ticks) => {
-    await clickText(owner, /^New role$/);
-    await owner.waitForSelector('input[aria-label="Sales: View"]', { timeout: 10000 });
+    await openDialog(owner, /^New role$/, 'input[aria-label="Sales: View"]');
     await owner.type('[role=dialog] input:not([type=checkbox])', name);
     for (const t of ticks) await tick(owner, t);
     return name;
@@ -163,21 +180,25 @@ try {
 
   const addPerson = async (name, email, roleName) => {
     await go(owner, "/users");
-    await clickText(owner, /Add a person/);
-    await owner.waitForSelector("[role=dialog] input", { timeout: 10000 });
+    await openDialog(owner, /Add a person/, "[role=dialog] input");
     const inputs = await owner.$$("[role=dialog] input");
     await inputs[0].type(name);
     await inputs[1].type(email);
     await inputs[2].type(PASSWORD);
-    const picked = await owner.evaluate((roleName) => {
-      const sel = [...document.querySelectorAll("[role=dialog] select")].find((s) => [...s.options].some((o) => o.textContent.trim() === roleName));
-      if (!sel) return false;
-      const opt = [...sel.options].find((o) => o.textContent.trim() === roleName);
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
-      setter.call(sel, opt.value);
-      sel.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    }, roleName);
+    // the Role box fills when the roles have come back from the server: wait for the one wanted, as a person would
+    let picked = false;
+    for (const end = Date.now() + 30000; !picked && Date.now() < end; ) {
+      picked = await owner.evaluate((roleName) => {
+        const sel = [...document.querySelectorAll("[role=dialog] select")].find((s) => [...s.options].some((o) => o.textContent.trim() === roleName));
+        if (!sel) return false;
+        const opt = [...sel.options].find((o) => o.textContent.trim() === roleName);
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
+        setter.call(sel, opt.value);
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+      }, roleName);
+      if (!picked) await sleep(500);
+    }
     if (!picked) throw new Error(`role ${roleName} is not offered in the person dialog`);
     await clickText(owner, /^Add person$/);
     await sleep(1500);

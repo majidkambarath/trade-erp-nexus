@@ -9,6 +9,7 @@ import { FE as WEB_DIR, BE as NODE_DIR, OUT as OUT_ROOT } from "./paths.mjs";
 const OUT = `${OUT_ROOT}/send`;
 mkdirSync(OUT, { recursive: true });
 
+process.env.TENANT_LEGACY_DEFAULT = "1"; // this process makes its first records through the models, as the test suites do
 const requireWeb = createRequire(`${WEB_DIR}/package.json`);
 const requireNode = createRequire(`${NODE_DIR}/package.json`);
 const puppeteer = requireWeb("puppeteer");
@@ -90,7 +91,8 @@ async function findButton(label, { scope = "document" } = {}) {
 async function click(label, opts) {
   // a page that re-renders between finding a button and pressing it detaches the button: look again
   let last;
-  for (let i = 0; i < 40; i++) {
+  // up to 40 s: the first list of a page on a fresh throwaway database can take longer than 10
+  for (let i = 0; i < 160; i++) {
     try {
       const el = await findButton(label, opts);
       await el.evaluate((n) => n.scrollIntoView({ block: "center" }));
@@ -111,7 +113,13 @@ async function pick(inputSelector, text) {
   await page.waitForSelector(inputSelector, { visible: true, timeout: 20000 });
   await page.click(inputSelector);
   await page.type(inputSelector, text);
-  await page.waitForSelector('[class*="option"], [id*="-option-"]', { visible: true, timeout: 20000 });
+  // the menu's "No options" notice also has "option" in its class: wait for a real option that shows what was typed,
+  // because the list behind it may still be loading (the first call on a new database is slow)
+  await page.waitForFunction(
+    (t) => [...document.querySelectorAll('[class*="option"], [id*="-option-"]')].some((el) => !/menu-notice|no-options/i.test(el.className) && el.getBoundingClientRect().height > 0 && el.innerText.toLowerCase().includes(t.toLowerCase())),
+    { timeout: 40000 },
+    text,
+  );
   await wait(250);
   await page.keyboard.press("Enter");
   await wait(300);
@@ -120,7 +128,7 @@ const dialogText = () => page.evaluate(() => ([...document.querySelectorAll('[ro
 
 // ---- start everything ----------------------------------------------------------------------
 async function boot() {
-  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), CORS_ORIGINS: `http://localhost:${WEB_PORT}`, PUBLIC_APP_URL: WEB }, stdio: ["ignore", "pipe", "pipe"] });
+  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}`, PUBLIC_APP_URL: WEB }, stdio: ["ignore", "pipe", "pipe"] });
   backend.stdout.on("data", (d) => (logs.api += d));
   backend.stderr.on("data", (d) => (logs.api += d));
   children.push(backend);
@@ -134,12 +142,16 @@ async function boot() {
   };
   await mongoose.connection.syncIndexes();
   for (let i = 0; ; i++) {
-    try { if ((await fetch(`${API}/health`)).ok) break; } catch { /* not up */ }
-    if (i > 150) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
+    // `ready` is false while the server builds a fresh database and adopts its first organisation (30 s or more on a new one):
+    // a sign-in in that window is refused, so wait for it rather than for the first answer.
+    try { const h = await fetch(`${API}/health`); if (h.ok && (await h.json().catch(() => ({}))).ready !== false) break; } catch { /* not up */ }
+    if (i > 300) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
     await wait(400);
   }
   await new M.Admin({ name: "Boss", email: "boss@test.uae", password: "12312312", type: "super_admin", status: "active", isActive: true, companyInfo: { companyName: "Harbour Trading LLC", addressLine1: "Al Quoz, Dubai", phoneNumber: "04 123 4567", emailAddress: "accounts@harbour.ae", vatNumber: "100123456700003" } }).save();
   const login = await api("POST", "/login", { email: "boss@test.uae", password: "12312312" });
+  // say what the server answered when it did not sign the first person in (a wrong server on the port, an organisation not adopted)
+  if (!login.body?.tokens?.accessToken) throw new Error(`the first sign-in failed: ${login.status} ${JSON.stringify(login.raw).slice(0, 300)}`);
   token = login.body.tokens.accessToken;
   await api("GET", "/accounting/chart");
   const cat = new mongoose.Types.ObjectId();
@@ -244,11 +256,12 @@ try {
     return S.pdfLine;
   });
 
-  await step("press Send email: it goes, the dialog closes, the list says Emailed", async () => {
+  await step("press Send email: it goes, the dialog closes, the list says Recorded only (the console provider sends nothing)", async () => {
     await click("^send email$", { scope: "dialog" });
-    await waitForText("emailed to ali@alnoor.ae");
+    // With no email service connected the product must never say "Emailed": the toast and the list both say it was only recorded.
+    await waitForText("recorded, but NOT emailed");
     await waitGone("Send tax invoice");
-    await waitForText("Emailed ");
+    await waitForText("Recorded only ");
     await shot("44-orders-list-emailed");
     const sent = page.__sends.find((s) => s.body?.data?.send);
     if (!sent || sent.status !== 201) throw new Error("the send did not answer 201: " + JSON.stringify(page.__sends));

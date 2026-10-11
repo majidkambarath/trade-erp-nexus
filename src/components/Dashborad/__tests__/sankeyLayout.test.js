@@ -63,12 +63,13 @@ describe("sankeyLayout", () => {
   };
   const healthy = { revenue: 1000, directCosts: 700, otherIncome: 30, operatingExpenses: 80 };
 
-  it("puts the first column at the left edge and the last at the right, cards of one width", () => {
+  it("puts the first bar at the left edge and the last one a caption's width in from the right", () => {
     const l = layoutOf(healthy);
     const xs = [...new Set(l.nodes.map((n) => n.x))].sort((a, b) => a - b);
     expect(xs[0]).toBe(0);
-    expect(xs.at(-1) + l.nodes[0].w).toBe(W);
+    expect(xs.at(-1) + l.nodes[0].w).toBe(W - 150); // padRight
     expect(new Set(l.nodes.map((n) => n.w)).size).toBe(1);
+    expect(l.nodes[0].w).toBeLessThanOrEqual(16); // a bar, not a box
   });
 
   it("keeps every column inside the height and no two cards of a column overlapping", () => {
@@ -81,29 +82,63 @@ describe("sankeyLayout", () => {
     }
   });
 
-  it("never makes a card too short to hold its name and amount, however small the figure", () => {
+  it("gives every bar a caption zone above it, however small the figure: a small amount is written outside its bar", () => {
     const l = layoutOf({ ...healthy, otherIncome: 1 });
-    expect(Math.min(...l.nodes.map((n) => n.h))).toBeGreaterThanOrEqual(58);
+    for (const n of l.nodes) {
+      expect(n.barY - n.y).toBeCloseTo(46, 6);
+      expect(n.barH).toBeGreaterThanOrEqual(6);
+      expect(n.h).toBeCloseTo(46 + n.barH, 6);
+    }
   });
 
-  it("draws a ribbon as thick as its amount at one scale, inside both of its cards", () => {
+  it("puts what is kept first: gross profit above the cost of goods, net profit above the expenses", () => {
+    const l = layoutOf(healthy);
+    const by = new Map(l.nodes.map((n) => [n.id, n]));
+    expect(by.get("gross").barY).toBeLessThan(by.get("cogs").barY);
+    expect(by.get("net").barY).toBeLessThan(by.get("opex").barY);
+  });
+
+  it("captions a bar that sends money on to the left of its right edge, so no ribbon crosses its caption", () => {
+    const l = layoutOf(healthy);
+    const align = Object.fromEntries(l.nodes.map((n) => [n.id, n.align]));
+    // the first bar and every bar where the money stops are captioned from the bar's left; the others end at its right edge
+    expect(align).toEqual({ revenue: "start", gross: "end", other: "end", cogs: "start", net: "start", opex: "start" });
+  });
+
+  it("a bar is as tall as its amount at one scale", () => {
+    const l = layoutOf(healthy);
+    for (const n of l.nodes.filter((x) => x.value * l.scale > 6)) expect(n.barH).toBeCloseTo(n.value * l.scale, 6);
+  });
+
+  it("levels the flow: the last column sits level with the block that feeds it, not at the top of the chart", () => {
+    const l = layoutOf({ revenue: 302451, directCosts: 264305, otherIncome: 0, operatingExpenses: 14051 });
+    const by = new Map(l.nodes.map((n) => [n.id, n]));
+    const middle = (id) => by.get(id).barY + by.get(id).barH / 2;
+    const spread = (ids) => (Math.min(...ids.map((id) => by.get(id).barY)) + Math.max(...ids.map((id) => by.get(id).barY + by.get(id).barH))) / 2;
+    // nearer to the block that feeds it than the centre of the chart (where an unlevelled column would sit)
+    expect(Math.abs(spread(["opex", "net"]) - middle("gross"))).toBeLessThan(Math.abs(H / 2 - middle("gross")));
+    // and inside the chart
+    for (const id of ["opex", "net"]) expect(by.get(id).y + by.get(id).h).toBeLessThanOrEqual(H + 0.001);
+  });
+
+  it("draws a ribbon as thick as its amount at one scale, inside both of its bars", () => {
     const l = layoutOf(healthy);
     const byId = new Map(l.nodes.map((n) => [n.id, n]));
     for (const r of l.links) {
       expect(r.thickness).toBeCloseTo(Math.max(1, r.value * l.scale), 6);
       const a = byId.get(r.from);
       const b = byId.get(r.to);
-      expect(r.sy - r.thickness / 2).toBeGreaterThanOrEqual(a.y - 0.001);
-      expect(r.sy + r.thickness / 2).toBeLessThanOrEqual(a.y + a.h + 0.001);
-      expect(r.ty - r.thickness / 2).toBeGreaterThanOrEqual(b.y - 0.001);
-      expect(r.ty + r.thickness / 2).toBeLessThanOrEqual(b.y + b.h + 0.001);
+      expect(r.sy - r.thickness / 2).toBeGreaterThanOrEqual(a.barY - 0.001);
+      expect(r.sy + r.thickness / 2).toBeLessThanOrEqual(a.barY + a.barH + 0.001);
+      expect(r.ty - r.thickness / 2).toBeGreaterThanOrEqual(b.barY - 0.001);
+      expect(r.ty + r.thickness / 2).toBeLessThanOrEqual(b.barY + b.barH + 0.001);
       expect(r.sx).toBe(a.x + a.w);
       expect(r.tx).toBe(b.x);
       expect(r.d).toMatch(/^M[\d.]+,[\d.]+ C/);
     }
   });
 
-  it("leaves out a card with nothing through it and any ribbon to a missing card", () => {
+  it("leaves out a bar with nothing through it and any ribbon to a missing bar", () => {
     const l = sankeyLayout({
       nodes: [{ id: "a", col: 0 }, { id: "b", col: 1 }, { id: "c", col: 1 }],
       links: [{ from: "a", to: "b", value: 5 }, { from: "a", to: "ghost", value: 3 }, { from: "a", to: "c", value: 0 }],

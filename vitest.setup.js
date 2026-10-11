@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom';
+import { configure } from '@testing-library/react';
+
+// findBy* and waitFor give up after one second by default. A screen that renders in 0.3 s alone takes several seconds when 179 test
+// files share the machine, and a full run failed a different, correct, test each time. Five seconds still fails a screen that never
+// shows what it should.
+configure({ asyncUtilTimeout: 5000 });
 
 // Mock window.open to avoid popup blockers in tests
 window.open = vi.fn(() => ({

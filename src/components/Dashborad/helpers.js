@@ -129,10 +129,30 @@ export const flowNumber = (value) => {
 };
 export const flowAmount = (value) => `${CURRENCY} ${flowNumber(value)}`;
 
+// The profit and loss as the steps of a waterfall: what came in, what it cost to sell, what it cost to run, what is left.
+export const profitSteps = (s) => [
+  { key: "revenue", label: "Revenue", value: s.revenue, kind: "total" },
+  { key: "cogs", label: "Cost of goods sold", value: -s.directCosts, kind: "change" },
+  { key: "gross", label: "Gross profit", value: s.grossProfit, kind: "total" },
+  { key: "opex", label: "Operating expenses", value: -s.operatingExpenses, kind: "change" },
+  { key: "other", label: "Other income", value: s.otherIncome, kind: "change" },
+  { key: "net", label: "Net profit", value: s.netProfit, kind: "total" },
+];
+
 // +1.2k / -600: an amount with its direction, for a bar that adds or takes away.
 export const signedCompact = (value) => {
   const n = Number(value) || 0;
   return `${n < 0 ? "−" : n > 0 ? "+" : ""}${compactAmount(Math.abs(n))}`;
+};
+
+// ---------------------------------------------------------------- where revenue goes
+
+// The three parts revenue is cut into, in one colour each wherever they appear (the ring, the columns, the key): the goods
+// you sold and the cost of running the business are the same rose at two strengths, what is left is the accent.
+export const SPLIT = {
+  goods: { colour: "var(--chart-5)", opacity: 0.5 },
+  running: { colour: "var(--chart-5)", opacity: 0.85 },
+  profit: { colour: "var(--chart-2)", opacity: 1 },
 };
 
 // ---------------------------------------------------------------- the cash cycle

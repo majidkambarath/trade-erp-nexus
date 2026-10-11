@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { ChartArea, Skeleton } from "./widgets";
 import { RankedBars, Waterfall } from "./FlowCharts";
-import { DECREASE, gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, tip } from "./helpers";
+import { DECREASE, gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, profitSteps, tip } from "./helpers";
 import { quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
 
@@ -33,16 +33,7 @@ export default function ReportsTab({ state, scope }) {
   const ageing = (d?.ageing || []).map((b) => ({ bucket: b.label, receivables: b.receivables, payables: b.payables }));
   // the profit and loss as a walk: what came in, what it cost to sell, what it cost to run, what is left
   const flow = d?.profitFlow;
-  const flowSteps = flow
-    ? [
-        { key: "revenue", label: "Revenue", value: flow.revenue, kind: "total" },
-        { key: "cogs", label: "Cost of goods sold", value: -flow.directCosts, kind: "change" },
-        { key: "gross", label: "Gross profit", value: flow.grossProfit, kind: "total" },
-        { key: "opex", label: "Operating expenses", value: -flow.operatingExpenses, kind: "change" },
-        { key: "other", label: "Other income", value: flow.otherIncome, kind: "change" },
-        { key: "net", label: "Net profit", value: flow.netProfit, kind: "total" },
-      ]
-    : [];
+  const flowSteps = flow ? profitSteps(flow) : [];
   const expenses = (d?.expenses?.rows || []).map((r) => ({ key: r.key, name: r.name, value: r.amount, sharePct: r.sharePct, muted: r.key === "others" }));
   const vat = d?.vat;
   const vatRows = vat
@@ -188,7 +179,8 @@ export default function ReportsTab({ state, scope }) {
         </Card>
       </div>
 
-      <p className="-mb-2 text-sm text-muted-foreground">Vouchers posted {at}</p>
+      {/* a gap of its own: the old -mb-2 pulled the voucher cards up over this line */}
+      <p className="mb-3 text-sm font-medium text-muted-foreground">Vouchers posted {at}</p>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {!d && VOUCHERS.map((v) => <Skeleton key={v.type} className="h-16 rounded-[1.5rem]" />)}
         {d?.vouchers?.map((v) => {

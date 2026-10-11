@@ -179,7 +179,12 @@ function Dashboard() {
           {/* Four pills with icons are ~510px. Centring that in a 390px screen made the whole
               page 450px wide and scrolled every card's left edge out of view. The row scrolls
               on its own instead, and only centres once it fits. */}
-          <div className="sticky top-0 z-20 bg-background/90 py-1 backdrop-blur-md" data-anim="hero">
+          {/* Opaque, with a soft fade under it. At 90% with a blur the charts scrolling beneath showed through as ghosts and
+              were cut by a hard line under the bar. */}
+          <div
+            className="sticky top-0 z-20 bg-background py-1 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:content-[''] after:[background:linear-gradient(to_bottom,var(--background),transparent)]"
+            data-anim="hero"
+          >
             <div className="scrollbar-none -mx-4 flex overflow-x-auto px-4 sm:mx-0 sm:justify-center sm:px-0">
               <TabsList className="h-12 shrink-0 gap-1 rounded-full bg-secondary/90 px-1.5 shadow-inner">
                 <TabsTrigger ref={tabRef("overview")} value="overview" className="rounded-full px-3.5 sm:px-5">

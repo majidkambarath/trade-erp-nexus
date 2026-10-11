@@ -132,16 +132,35 @@ try {
   };
   const go = async (page, path) => { await page.goto(`${WEB}${path}`, { waitUntil: "domcontentloaded" }); await sleep(1800); };
   const labelOf = `(b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()`;
-  const offers = (page, re) => page.evaluate((src) => { const re = new RegExp(src, "i"); return [...document.querySelectorAll("button, a")].some((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && b.offsetParent !== null); }, re.source);
-  const click = async (page, re, scope = "button, a, [role=tab]") => {
-    const ok = await page.evaluate((src, scope) => {
-      const re = new RegExp(src, "i");
-      const el = [...document.querySelectorAll(scope)].find((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && b.offsetParent !== null);
-      if (el) el.click();
-      return Boolean(el);
-    }, re.source, scope);
+  // "Offered" means a person can get to it: on the page, or in a row's "more" menu (RowMenu keeps its items in the DOM under
+  // `display: none` until the menu opens on hover or focus, and `position: fixed` once open: neither has an offsetParent).
+  const SHOWN = `const shown = (b) => b.offsetParent !== null || b.getClientRects().length > 0 || Boolean(b.parentElement?.previousElementSibling?.matches?.('button[aria-haspopup="true"]'));`;
+  const offers = (page, re) => page.evaluate((src, SHOWN) => { const shown = new Function(`${SHOWN} return shown;`)(); const re = new RegExp(src, "i"); return [...document.querySelectorAll("button, a")].some((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && shown(b)); }, re.source, SHOWN);
+  // A person waits for a button to arrive (what a screen offers depends on the sign-in status and the lists it fetches, which are
+  // slow on a fresh database); so does this, for up to `patience` ms, before saying there is nothing to click.
+  const click = async (page, re, scope = "button, a, [role=tab]", patience = 20000) => {
+    let ok = false;
+    for (const end = Date.now() + patience; !ok; ) {
+      ok = await page.evaluate((src, scope, SHOWN) => {
+        const shown = new Function(`${SHOWN} return shown;`)();
+        const re = new RegExp(src, "i");
+        const el = [...document.querySelectorAll(scope)].find((b) => re.test((b.getAttribute("aria-label") || b.getAttribute("title") || b.textContent || "").trim()) && shown(b));
+        if (el) el.click();
+        return Boolean(el);
+      }, re.source, scope, SHOWN);
+      if (ok || Date.now() > end) break;
+      await sleep(400);
+    }
     if (!ok) throw new Error(`nothing to click for ${re}`);
     await sleep(700);
+  };
+  // Press a button that opens a dialog, and wait for something in it. A page that is still arriving can rebuild itself under the
+  // first press (the list lands and the dialog's state goes with the old tree): a person presses again, so does this.
+  const openDialog = async (page, re, selector) => {
+    for (let attempt = 1; ; attempt++) {
+      await click(page, re);
+      try { await page.waitForSelector(selector, { timeout: 8000 }); return; } catch (e) { if (attempt >= 4) throw e; }
+    }
   };
   const clickInRow = async (page, rowText, re) => {
     await ready(page, rowText);
@@ -194,13 +213,13 @@ try {
   const owner = await openPage("owner@acc.test");
   await go(owner, "/users?tab=roles");
   const makeRole = async (name, ticks) => {
-    await click(owner, /^New role$/);
-    await owner.waitForSelector('input[aria-label="Sales: View"]', { timeout: 10000 });
+    await openDialog(owner, /^New role$/, 'input[aria-label="Sales: View"]');
     await owner.type("[role=dialog] input:not([type=checkbox])", name);
     for (const t of ticks) await tick(owner, t);
     await click(owner, /^Create role$/);
-    await sleep(1500);
-    check(`role "${name}" is saved and listed`, (await text(owner)).includes(name));
+    // the save and the list's reload take as long as the server takes (slow on a fresh database): wait for the role to be listed
+    check(`role "${name}" is saved and listed`, await ready(owner, name, 30000));
+    await gone(owner, "Create role", 15000);
   };
   await step("roles", async () => {
     await makeRole("Order clerk", ["Sales: Add"]);
@@ -211,13 +230,18 @@ try {
   });
   const addPerson = async (name, email, roleName) => {
     await go(owner, "/users");
-    await click(owner, /Add a person/);
-    await owner.waitForSelector("[role=dialog] input", { timeout: 10000 });
+    await openDialog(owner, /Add a person/, "[role=dialog] input");
     const inputs = await owner.$$("[role=dialog] input");
     await inputs[0].type(name);
     await inputs[1].type(email);
     await inputs[2].type(PASSWORD);
-    if (!(await chooseOption(owner, roleName))) throw new Error(`role "${roleName}" is not offered`);
+    // the Role box fills when the roles have come back from the server: wait for the one wanted, as a person would
+    let picked = false;
+    for (const end = Date.now() + 30000; !picked && Date.now() < end; ) {
+      picked = await chooseOption(owner, roleName);
+      if (!picked) await sleep(500);
+    }
+    if (!picked) throw new Error(`role "${roleName}" is not offered`);
     await click(owner, /^Add person$/);
     await sleep(1500);
   };
@@ -389,8 +413,7 @@ try {
     check("pam cannot change the owner", (await http("pam@acc.test", "PATCH", `/access/users/${(await as(() => M.Admin.findOne({ email: "owner@acc.test" }).lean()))._id}`, { name: "Hacked" })).status === 403);
     check("pam cannot open Finance", refused(await http("pam@acc.test", "GET", "/vouchers/vouchers")));
     await go(pam, "/users?tab=roles");
-    await click(pam, /^New role$/);
-    await pam.waitForSelector('input[aria-label="Sales: View"]', { timeout: 10000 });
+    await openDialog(pam, /^New role$/, 'input[aria-label="Sales: View"]');
     await pam.screenshot({ path: `${SHOTS}/08-people-manager-editor.png` });
     const approve = await box(pam, "Sales: Approve");
     check("pam's role editor: Sales: Approve is disabled (she does not hold it)", approve?.disabled === true, JSON.stringify(approve));
@@ -495,8 +518,11 @@ try {
     await wes.screenshot({ path: `${SHOTS}/12-after-choosing.png` });
     check("the right current password and a good new one: the gate lifts, with no second sign-in", !(await wes.evaluate(() => /Choose your own password/.test(document.body.innerText))) && (await wes.evaluate(() => location.pathname)) !== "/");
     check("the mark is cleared in the database", (await flag()) === false, String(await flag()));
+    // Changing a password ends every OTHER sign-in of the person (authAttackHttp pins it). The token this script holds came from
+    // an API sign-in, a different session from the browser that made the change, so it is ended - the browser, which made the
+    // change, carries on (the gate lifted above with no second sign-in).
     const open = await http("wes@acc.test", "GET", "/customers/customers");
-    check("the same token now works (a viewer can read customers)", open.status === 200, `${open.status} ${open.code || ""}`);
+    check("his other sign-in (the API token) was ended by the change: 401 SESSION_REVOKED", open.status === 401 && (open.raw?.error === "SESSION_REVOKED" || open.code === "SESSION_REVOKED"), `${open.status} ${open.raw?.error || open.code || ""} ${open.message || ""}`);
 
     const signIn = async (password) => (await fetch(`${API}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "wes@acc.test", password }) })).status;
     check("the new password signs in, and the one pam chose no longer does", (await signIn(NEW_PASSWORD)) === 200 && (await signIn(PASSWORD)) === 401);
@@ -521,8 +547,7 @@ try {
 
     // a role with an approval limit, made on the real role editor
     await go(owner, "/users?tab=roles");
-    await click(owner, /^New role$/);
-    await owner.waitForSelector('input[aria-label="Sales: View"]', { timeout: 10000 });
+    await openDialog(owner, /^New role$/, 'input[aria-label="Sales: View"]');
     await owner.type("[role=dialog] input:not([type=checkbox])", "Junior approver");
     await tick(owner, "Sales: Approve");
     await owner.waitForSelector('[role=dialog] input[placeholder="No limit"]', { timeout: 10000 });

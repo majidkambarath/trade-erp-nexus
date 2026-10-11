@@ -18,6 +18,7 @@ import Dashboard from "../index";
 import { ThemeProvider } from "../../theme-provider";
 import { ago, compactAmount, dayLabel, monthYearLabel, opsRows, recentLink } from "../helpers";
 import { formatDate } from "../../../utils/format";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const show = (url = "/dashboard") => render(<ThemeProvider><MemoryRouter initialEntries={[url]}><Dashboard /></MemoryRouter></ThemeProvider>);
 const openTab = async (name) => {
@@ -30,6 +31,7 @@ const plain = (text) => text.replace(/\u00a0/g, " "); // Intl puts a no-break sp
 
 let errors;
 beforeEach(() => {
+  clearPageSessions();
   Object.values(m).forEach((f) => f.mockReset());
   errors = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -76,7 +78,7 @@ const ANALYTICS = {
   weekly: ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"].map((date, i) => ({ date, orders: [0, 1, 0, 0, 2, 0, 3][i], returns: [0, 0, 0, 0, 0, 0, 1][i] })),
   customerMix: { total: 640, rows: [{ key: "c1", name: "Al Noor", value: 510, sharePct: 79.7 }, { key: "c2", name: "Bin Zayed", value: 130, sharePct: 20.3 }] },
   performance: { collectionRatePct: 14.2, grossMarginPct: 46.9, stockAvailabilityPct: 100, itemsInStock: 2, activeItems: 2 },
-  monthly: MONTHS.map((month, i) => ({ month, sales: [0, 0, 0, 0, 180, 450, 300, 640][i], purchases: [0, 0, 0, 0, 500, 2000, 440, 100][i], grossProfit: [0, 0, 0, 0, 30, 150, 100, 300][i] })),
+  monthly: MONTHS.map((month, i) => ({ month, sales: [0, 0, 0, 0, 180, 450, 300, 640][i], purchases: [0, 0, 0, 0, 500, 2000, 440, 100][i], grossProfit: [0, 0, 0, 0, 30, 150, 100, 300][i], netProfit: [0, 0, 0, 0, 10, 60, -20, 250][i] })),
   categorySales: { currentMonth: "2026-10", previousMonth: "2026-09", rows: [{ name: "Grains", current: 640, previous: 300 }] },
   categoryMonths: { months: ["2026-08", "2026-09", "2026-10"], rows: [{ name: "Grains", values: [150, 300, 640] }, { name: "Oils", values: [300, 0, 0] }] },
   cashFlow: { accounts: 2, months: MONTHS.map((month, i) => ({ month, inflow: i === 7 ? 5100 : 0, outflow: i === 7 ? 300 : 0 })) },
@@ -105,7 +107,7 @@ const ANALYTICS = {
   // 20 + 45 - 25.7 = 39.3 days
   businessFlow: {
     statement: { revenue: 1000, directCosts: 700, grossProfit: 300, operatingExpenses: 80, otherIncome: 30, netProfit: 250 },
-    previous: { revenue: 800, netProfit: 100, revenueChangePct: 25 },
+    previous: { revenue: 800, netProfit: 100, revenueChangePct: 25, statement: { revenue: 800, directCosts: 560, grossProfit: 240, operatingExpenses: 140, otherIncome: 0, netProfit: 100 } },
     stages: { bought: 500, stock: 2050, sold: 1000, collected: 400, owedByCustomers: 1547, owedToVendors: 2000 },
     cycle: { from: "2026-07-08", to: "2026-10-05", days: 90, minDays: 14, enough: true, dso: 20, dpo: 25.7, dio: 45, cycleDays: 39.3, receivables: 1547, payables: 2000, stockValue: 2050, invoiced: 945, purchased: 525, cogs: 600 },
   },
@@ -587,7 +589,12 @@ describe("the other tabs", () => {
     expect(within(section).getByText("Bought").closest("a")).toHaveAttribute("href", "/purchase-order");
     expect(within(section).getByText("Sold").closest("a")).toHaveTextContent("+25.0% on the period before");
     expect(within(section).getByText("Customers still owe you").closest("a")).toHaveTextContent("AED 1,547");
-    expect(widget("Where the revenue went").querySelectorAll("[data-node]")).toHaveLength(6);
+    // opens on the split (a ring and its key); the flow diagram is one tab away
+    const where = widget("Where the revenue went");
+    expect(within(where).getByRole("radio", { name: "Split" })).toHaveAttribute("aria-checked", "true");
+    expect(where.querySelectorAll("[data-node]")).toHaveLength(0);
+    fireEvent.click(within(where).getByRole("radio", { name: "Flow" }));
+    expect(where.querySelectorAll("[data-node]")).toHaveLength(6);
     expect(widget("Cash cycle")).toHaveTextContent("39.3 days");
     expect(widget("Cash cycle")).toHaveTextContent("Your cash is tied up for 39.3 days");
   });

@@ -156,25 +156,33 @@ DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (che
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 
-/** The first visible, enabled control whose text or label matches. */
-async function findByText(page, label) {
-  // a radio option is a label around the input, not a button: the Sending setup's "how email is sent"
-  const handles = await page.$$("button, a[href], [role='button'], label:has(input[type='radio'])");
-  for (const h of handles) {
-    const ok = await page.evaluate(
-      (el, want) => {
-        const r = el.getBoundingClientRect();
-        if (r.width < 2 || r.height < 2) return false;
-        if (el.disabled) return false;
-        const text = `${el.getAttribute("aria-label") || ""} ${el.textContent || ""}`.trim();
-        return new RegExp(want, "i").test(text);
-      },
-      h,
-      label
-    );
-    if (ok) return h;
+/**
+ * The first visible, enabled control whose text or label matches. It looks again for up to `patience` ms: the first viewport of
+ * a cold run can be reloaded by Vite when it finds a new dependency in a lazy chunk, and a control that is not there YET is not a
+ * control that is missing (the approvals step was skipped on the phone, and only on the phone, for exactly that).
+ */
+async function findByText(page, label, patience = 4000) {
+  const until = Date.now() + patience;
+  for (;;) {
+    // a radio option is a label around the input, not a button: the Sending setup's "how email is sent"
+    const handles = await page.$$("button, a[href], [role='button'], label:has(input[type='radio'])");
+    for (const h of handles) {
+      const ok = await page.evaluate(
+        (el, want) => {
+          const r = el.getBoundingClientRect();
+          if (r.width < 2 || r.height < 2) return false;
+          if (el.disabled) return false;
+          const text = `${el.getAttribute("aria-label") || ""} ${el.textContent || ""}`.trim();
+          return new RegExp(want, "i").test(text);
+        },
+        h,
+        label
+      );
+      if (ok) return h;
+    }
+    if (Date.now() >= until) return null;
+    await new Promise((r) => setTimeout(r, 250));
   }
-  return null;
 }
 
 /**
@@ -803,19 +811,23 @@ function stubFor(pathname) {
       return {
         period, monthly: months(),
         daily: Array.from({ length: 7 }, (_, i) => ({ date: `2026-10-0${i + 1}`, revenue: 12000 + i * 900, orders: 3 + i })),
-        topCustomers: n(party, 5).map((x) => ({ name: x.name, netRevenue: 42000 })),
-        bestSellers: n(batch, 5).map((b, i) => ({ name: b.itemName, qty: 120 - i * 8, revenue: 24000 - i * 1500, stockId: b._id })),
+        topCustomers: n(party, 5).map((x) => ({ partyId: x._id, name: x.name, netRevenue: 42000 })),
+        // the server's shape (dashboardService): the tile is keyed by itemId, and a null change is drawn as no figure at all
+        bestSellers: n(batch, 5).map((b, i) => ({ itemId: `IT00${i + 1}`, name: b.itemName, revenue: 24000 - i * 1500, changePct: i === 2 ? null : 6 - i * 3, fillPct: 100 - i * 14 })),
         orders: { count: 142, changePct: 8.2 }, averageOrder: change(1250),
         approvedShare: { pct: 0, changePct: null }, returns: { count: 2, value: 3400 },
       };
     }
     if (p.includes("/inventory")) {
       return {
-        period, stockValueTrend: { months: months(6), total: 480000 },
-        categories: n(batch, 4).map((b, i) => ({ name: `Category ${i + 1}`, value: 60000 - i * 8000 })),
-        mix: n(batch, 4).map((b, i) => ({ name: b.itemName, value: 40000 - i * 6000 })),
-        lowStock: n(batch, 3).map((b) => ({ ...b, currentStock: 4, reorderLevel: 20 })),
-        batches: n(batch, 3), totals: { value: 480000, items: 128, lowStock: 3, expiring: 2 },
+        // the server's shapes (dashboardService.inventory): the tiles, the mix and both alert lists are keyed by `key`, `stockId`
+        // and `batchId`, and the trend draws only when `available`
+        period, stockValueTrend: { available: true, months: months(6) },
+        categories: n(batch, 4).map((b, i) => ({ key: `c${i}`, name: `Category ${i + 1}`, items: 12 - i * 2, value: 60000 - i * 8000, sharePct: 38 - i * 6 })),
+        mix: n(batch, 4).map((b, i) => ({ key: `c${i}`, name: b.itemName, value: 40000 - i * 6000, sharePct: 34 - i * 6 })),
+        lowStock: n(batch, 3).map((b) => ({ stockId: b._id, itemName: b.itemName, qty: 4, unit: "kg", reorderLevel: 20, status: "below" })),
+        batches: n(batch, 3).map((b) => ({ batchId: b._id, stockId: `s${b._id}`, itemName: b.itemName, batchNumber: b.batchNumber, qtyOnHand: b.qtyOnHand, unit: "kg", expiryDate: b.expiryDate, daysToExpiry: 12, expired: false })),
+        totals: { value: 480000, items: 128, reorderItems: 3, expiring: 2, expired: 0, agreesWithLedger: true },
         stockFlow: { from: "2026-10-01", to: "2026-10-31", opening: 410000, purchases: 260000, salesReturns: 6000, adjustments: -4000, purchaseReturns: 9000, sales: 168000, writeOffs: 15000, closing: 480000 },
       };
     }
@@ -834,19 +846,32 @@ function stubFor(pathname) {
       };
     }
     if (p.includes("/analytics")) {
-      const named = (labels) => labels.map((label, i) => ({ label, name: label, value: 40 - i * 8 }));
       return {
-        period, monthly: months(),
+        period,
+        // net profit with every month, as the server sends it (the month-by-month view needs it)
+        monthly: months().map((m, i) => ({ ...m, grossProfit: Math.round(m.sales * 0.16), netProfit: [-9000, 4200, 6100, 5300, 9800, 7400, 11200, 13100][i] ?? 6000 })),
         weekly: Array.from({ length: 7 }, (_, i) => ({ date: `2026-10-0${i + 1}`, revenue: 12000 + i * 800, orders: 3 + i })),
         performance: { collectionRatePct: 72.4, grossMarginPct: 18.4, stockAvailabilityPct: 94.1 },
-        customerMix: { rows: n(party, 4).map((x) => ({ name: x.name, value: 40000 })) },
+        // every list below carries the `key` the server gives it: the screens key their rows by it, and a stub without it
+        // makes React warn about every list (which then hides a real warning among the noise)
+        customerMix: { total: 160000, rows: n(party, 4).map((x) => ({ key: x._id, name: x.name, value: 40000, sharePct: 25 })) },
         categorySales: { rows: [{ name: "Rice", current: 82000, previous: 74000 }, { name: "Oil", current: 61000, previous: 65000 }] },
         categoryMonths: { months: ["2026-08", "2026-09", "2026-10"], rows: [{ name: "Rice", values: [24000, 28000, 30000] }, { name: "Oil", values: [19000, 21000, 21000] }] },
         cashFlow: { months: months(6).map((m) => ({ month: m.month, inflow: m.revenue, outflow: m.purchases })), accounts: n(account, 3) },
-        pipeline: named(["Draft", "Approved", "Invoiced", "Paid"]),
-        settlement: named(["Cash", "Bank", "Cheque", "Card"]),
-        topCustomers: n(party, 5).map((x) => ({ name: x.name, netRevenue: 42000 })),
-        radar: { categories: [{ name: "Rice", value: 80 }, { name: "Oil", value: 62 }, { name: "Sugar", value: 45 }] },
+        kpis: [
+          { key: "open-sales", label: "Open sales orders", value: 186000, count: 7, to: "/sales-order" },
+          { key: "open-purchases", label: "Open purchase orders", value: 94000, count: 3, to: "/purchase-order" },
+          { key: "receipts-week", label: "Receipts this week", value: 41200, previous: 36800, changePct: 12, to: "/receipt-voucher" },
+          { key: "payments-week", label: "Payments this week", value: 18700, previous: 21000, changePct: -11, to: "/payment-voucher" },
+        ],
+        pipeline: [["created", "Created"], ["approved", "Approved"], ["paid-in-part", "Part-paid or paid"], ["paid", "Fully paid"]].map(([key, label], i) => ({ key, label, value: 40 - i * 8 })),
+        settlement: [["paid", "Paid"], ["part-paid", "Part-paid"], ["overdue", "Unpaid, overdue"], ["not-due", "Unpaid, not yet due"]].map(([key, label], i) => ({ key, label, count: 12 - i * 3, amount: 48000 - i * 9000 })),
+        topCustomers: n(party, 5).map((x) => ({ partyId: x._id, name: x.name, netRevenue: 42000 })),
+        // categories and metrics go together: a radar with categories and no metrics draws empty polygons (`<path d="Z">`)
+        radar: {
+          categories: [{ key: "c0", name: "Rice" }, { key: "c1", name: "Oil" }, { key: "c2", name: "Sugar" }],
+          metrics: ["Volume", "Revenue", "Margin", "Stock value", "Customers served"].map((metric, i) => ({ metric, c0: 100 - i * 6, c1: 70 - i * 4, c2: 45 + i * 5 })),
+        },
         ageing: AGEING,
         topVendors: [{ partyId: "v2", name: "Delta Foods", purchases: 100000, previous: 80000, changePct: 25 }, { partyId: "v1", name: "Gulf Mills", purchases: 50000, previous: 0, changePct: null }],
         collections: ["2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"].map((weekStart, i) => ({ weekStart, receipts: i * 10000, invoiced: i * 20000 })),
@@ -856,8 +881,8 @@ function stubFor(pathname) {
           ["Toor Dal - 25kg Bag", 210000], ["White Long Grain Basmati Rice - 5kg", 120000], ["Pure Ghee - 1kg Tin", 90000], ["Whole Wheat Atta - 10kg Bag", 70000],
         ].map(([name, size], i) => ({ itemId: "SKU" + i, name, size })),
         businessFlow: {
-          statement: { revenue: 1284000, directCosts: 820000, grossProfit: 464000, operatingExpenses: 196000, otherIncome: 16000, netProfit: 284000 },
-          previous: { revenue: 1140000, netProfit: 241000, revenueChangePct: 12.6 },
+          statement: { revenue: 302451, directCosts: 264305, grossProfit: 38146, operatingExpenses: 14051, otherIncome: 0, netProfit: 24095 },
+          previous: { revenue: 1140000, netProfit: 241000, revenueChangePct: 12.6, statement: { revenue: 1140000, directCosts: 760000, grossProfit: 380000, operatingExpenses: 140000, otherIncome: 1000, netProfit: 241000 } },
           stages: { bought: 760000, stock: 480000, sold: 1284000, collected: 930000, owedByCustomers: 372000, owedToVendors: 210000 },
           cycle: { from: "2026-07-14", to: "2026-10-10", days: 89, minDays: 14, enough: true, dso: 38.4, dpo: 24.1, dio: 52.7, cycleDays: 67, receivables: 372000, payables: 210000, stockValue: 480000, invoiced: 870000, purchased: 775000, cogs: 810000 },
         },
@@ -885,7 +910,7 @@ function stubFor(pathname) {
         lowStock: { count: 3, total: 128 },
         newCustomers: { count: 4, total: 42 },
       },
-      attention: [], recent: n(doc, 5),
+      attention: [], recent: [{"voucherId":"rv0","voucherType":"payment","typeLabel":"Payment","voucherNo":"PV-2026-0068","party":"Al Safa Edible Oils Trading FZCO","narration":"","amount":1000,"status":"Posted","date":"2026-10-08"},{"voucherId":"rv1","voucherType":"contra","typeLabel":"Contra","voucherNo":"CV-2026-0033","party":"Transfer to Emirates NBD - Current Account (AED)","narration":"","amount":1150,"status":"Posted","date":"2026-10-07"},{"voucherId":"rv2","voucherType":"sales_order","typeLabel":"Sales invoice","voucherNo":"SO-2026-0096","party":"Bright Star Wholesale LLC","narration":"","amount":1300,"status":"Unpaid","date":"2026-10-06"},{"voucherId":"rv3","voucherType":"receipt","typeLabel":"Receipt","voucherNo":"RV-2026-0106","party":"Al Madina Fresh Supermarket LLC","narration":"","amount":1450,"status":"Posted","date":"2026-10-05"},{"voucherId":"rv4","voucherType":"receipt","typeLabel":"Receipt","voucherNo":"RV-2026-0105","party":"Al Reef Trading Co. LLC","narration":"","amount":1600,"status":"Posted","date":"2026-10-04"},{"voucherId":"rv5","voucherType":"purchase_order","typeLabel":"Purchase order","voucherNo":"PO-2026-0071","party":"Gulf Mills & Edible Commodities Trading LLC","narration":"","amount":1750,"status":"Unpaid","date":"2026-10-03"},{"voucherId":"rv6","voucherType":"sales_order","typeLabel":"Sales invoice","voucherNo":"SO-2026-0095","party":"Noor Al Sham Cash & Carry Wholesale","narration":"","amount":1900,"status":"Paid","date":"2026-10-02"},{"voucherId":"rv7","voucherType":"journal","typeLabel":"Journal","voucherNo":"JV-2026-0019","party":"Month-end accrual: warehouse rent and utilities","narration":"","amount":2050,"status":"Posted","date":"2026-10-01"}],
       counts: { customers: 42, vendors: 18, items: 128 },
     };
   }
@@ -1037,8 +1062,9 @@ function stubFor(pathname) {
   // ---- reports: each returns its own summary object, so each gets its own shape ----
 
   const grp = (name) => ({
-    _id: `g-${name}`, name, code: "1000", category: "Assets", children: [], ungrouped: [],
-    accounts: n(account, 3).map((a) => ({ ...a, isActive: true, opening: 1000, debit: 500, credit: 200, closing: 1300 })),
+    _id: `g-${name}`, groupId: `g-${name}`, name, code: "1000", category: "Assets", children: [], ungrouped: [],
+    // the general ledger keys its rows by `accountId` / `groupId`, as the server sends them
+    accounts: n(account, 3).map((a) => ({ ...a, accountId: a._id, isActive: true, opening: 1000, debit: 500, credit: 200, closing: 1300 })),
     totals: { opening: 3000, debit: 1500, credit: 600, closing: 3900 },
   });
 
@@ -1189,15 +1215,17 @@ function stubFor(pathname) {
   }
 
   if (p.includes("ageing")) {
+    // the server's bucket keys (ageingService.js): the screen tones the older buckets by them, and keys that match nothing
+    // would leave that styling unexercised
     const buckets = [
-      { key: "current", label: "Current" }, { key: "d30", label: "1-30" },
-      { key: "d60", label: "31-60" }, { key: "d90", label: "61-90" }, { key: "d90p", label: "90+" },
+      { key: "current", label: "Current" }, { key: "d1_30", label: "1-30 days" },
+      { key: "d31_60", label: "31-60 days" }, { key: "d61_90", label: "61-90 days" }, { key: "d90plus", label: "Over 90 days" },
     ];
-    const amounts = { current: 1000, d30: 2000, d60: 500, d90: 0, d90p: 250 };
+    const amounts = { current: 1000, d1_30: 2000, d31_60: 500, d61_90: 0, d90plus: 250 };
     return {
       buckets,
-      rows: n(party).map((x) => ({ ...x, buckets: amounts, total: 3750, paymentTerms: "30 days", invoices: [] })),
-      totals: { current: 6000, d30: 12000, d60: 3000, d90: 0, d90p: 1500, total: 22500 },
+      rows: n(party).map((x) => ({ ...x, partyId: x._id, buckets: amounts, total: 3750, paymentTerms: "30 days", invoices: [] })),
+      totals: { current: 6000, d1_30: 12000, d31_60: 3000, d61_90: 0, d90plus: 1500, total: 22500 },
       reconciliation: { ledger: 21300, ageing: 22500, unapplied: -1200 },
     };
   }
@@ -1253,8 +1281,10 @@ function stubFor(pathname) {
   }
 
   if (p.includes("valuation") || p.includes("stock-report")) {
+    // a valuation row is keyed by its stock id (StockReports.jsx `rowKey`)
+    const valued = n(batch).map((b) => ({ ...b, stockId: b._id, itemId: b.itemCode }));
     return {
-      rows: n(batch), items: n(batch), negativeItems: [], expiring: n(batch, 2), slowMoving: [],
+      rows: valued, items: valued, negativeItems: [], expiring: n(batch, 2), slowMoving: [],
       totals: { quantity: 1200, value: 196000, cost: 180000, margin: 8.9 },
     };
   }
@@ -1563,8 +1593,9 @@ for (const vp of VIEWPORTS) {
                 const scope = dlg || document;
                 return {
                   dialogs: document.querySelectorAll('[role="dialog"]').length,
+                  // the shell's own controls come first (a dozen on a phone), so the page's are behind them
                   inScope: [...scope.querySelectorAll("button, a[href], [role='button']")]
-                    .slice(0, 12)
+                    .slice(0, 40)
                     .map((el) => (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 20)),
                 };
               });

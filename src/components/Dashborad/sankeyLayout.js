@@ -36,13 +36,15 @@ export function statementGraph(s) {
 
   const tone = { revenue: "total", cogs: "loss", gross: "gain", other: "gain", opex: "loss", net: "gain" };
   const to = "/financial-statements?tab=pl";
+  // Order is the order down the page: what is KEPT first (gross profit, other income, net profit), what is spent beneath it,
+  // so the profit path runs along the top and the eye meets it before the big cost.
   const nodes = [
     { id: "revenue", label: "Revenue", col: 0 },
-    { id: "cogs", label: "Cost of goods sold", col: 1 },
     { id: "gross", label: "Gross profit", col: 1 },
     { id: "other", label: "Other income", col: 1 },
-    { id: "opex", label: "Operating expenses", col: 2 },
+    { id: "cogs", label: "Cost of goods sold", col: 1 },
     { id: "net", label: "Net profit", col: 2 },
+    { id: "opex", label: "Operating expenses", col: 2 },
   ].map((n) => ({ ...n, tone: tone[n.id], to }));
   const links = [
     { from: "revenue", to: "cogs", value: toCost },
@@ -58,11 +60,18 @@ export function statementGraph(s) {
 
 // ---------------------------------------------------------------- positions
 
+// As tall as the width earns: a wide card gets a chart that fills it, a phone a compact one.
+export const sankeyHeight = (width) => Math.round(Math.min(420, Math.max(320, width * 0.38)));
+
 // nodes: [{ id, col }] (order within a column is the order given), links: [{ from, to, value }].
-// A node is a card of fixed width whose height follows its value but never drops below `minNodeHeight` (the card has to
-// hold its name and amount), so the scale is the largest one at which every column still fits `height`. A ribbon is as
-// thick as its value at that scale and is stacked inside the card it leaves and the one it enters.
-export function sankeyLayout({ nodes, links, width, height, nodeWidth = 112, minNodeHeight = 58, gap = 14 }) {
+//
+// A node is a THIN BAR whose height is its amount, with a caption zone of `captionHeight` above it (name and amount are
+// written there, outside the bar, so a small amount is never squeezed into a small box). The scale is the largest one at
+// which every column - captions, bars and gaps - still fits `height`. A ribbon is as thick as its value at that scale and
+// is stacked inside the bar it leaves and the bar it enters. `padRight` is the room the last column's captions need.
+//
+// A node comes back with its slot (`y`, `h`: caption zone plus bar), and its bar (`barY`, `barH`, `w`).
+export function sankeyLayout({ nodes, links, width, height, barWidth = 14, captionHeight = 46, padRight = 150, minBar = 6, gap = 14 }) {
   const live = links.filter((l) => l.value > 0);
   const flow = new Map(nodes.map((n) => [n.id, { into: 0, out: 0 }]));
   for (const l of live) {
@@ -79,7 +88,8 @@ export function sankeyLayout({ nodes, links, width, height, nodeWidth = 112, min
 
   const cols = Math.max(...kept.map((n) => n.col)) + 1;
   const columns = Array.from({ length: cols }, (_, c) => kept.filter((n) => n.col === c));
-  const heightsAt = (scale) => columns.map((col) => col.reduce((t, n) => t + Math.max(minNodeHeight, n.value * scale), 0) + gap * Math.max(0, col.length - 1));
+  const barOf = (n, scale) => Math.max(minBar, n.value * scale);
+  const heightsAt = (scale) => columns.map((col) => col.reduce((t, n) => t + captionHeight + barOf(n, scale), 0) + gap * Math.max(0, col.length - 1));
   const fits = (scale) => Math.max(...heightsAt(scale)) <= height;
 
   let lo = 0;
@@ -91,19 +101,49 @@ export function sankeyLayout({ nodes, links, width, height, nodeWidth = 112, min
   }
   const scale = lo;
 
-  const stepX = cols > 1 ? (width - nodeWidth) / (cols - 1) : 0;
+  const stepX = cols > 1 ? (width - padRight - barWidth) / (cols - 1) : 0;
   const placed = new Map();
   columns.forEach((col, c) => {
-    const total = col.reduce((t, n) => t + Math.max(minNodeHeight, n.value * scale), 0) + gap * Math.max(0, col.length - 1);
+    const total = col.reduce((t, n) => t + captionHeight + barOf(n, scale), 0) + gap * Math.max(0, col.length - 1);
     let y = (height - total) / 2;
     for (const n of col) {
-      const h = Math.max(minNodeHeight, n.value * scale);
-      placed.set(n.id, { ...n, x: c * stepX, y, w: nodeWidth, h, out: 0, into: 0 });
-      y += h + gap;
+      const barH = barOf(n, scale);
+      placed.set(n.id, { ...n, x: c * stepX, y, w: barWidth, h: captionHeight + barH, barY: y + captionHeight, barH });
+      y += captionHeight + barH + gap;
     }
   });
 
-  // stack each node's ribbons inside it, centred, in the order of the node they connect to
+  // Level the flow: from the second column on, each bar moves toward the middle of the bars that feed it (weighted by what
+  // they send), as near as the order and the gaps allow, so a stream runs straight across instead of zig-zagging to
+  // wherever the column happened to stack. A node with nothing feeding it keeps its place.
+  const middle = (p) => p.barY + p.barH / 2;
+  const move = (p, y) => {
+    p.y = y;
+    p.barY = y + captionHeight;
+  };
+  for (let c = 1; c < cols; c += 1) {
+    const col = columns[c];
+    let cursor = 0;
+    for (const n of col) {
+      const p = placed.get(n.id);
+      const feeding = used.filter((l) => l.to === n.id);
+      const sent = feeding.reduce((t, l) => t + l.value, 0);
+      const want = sent > 0 ? feeding.reduce((t, l) => t + l.value * middle(placed.get(l.from)), 0) / sent - p.barH / 2 - captionHeight : p.y;
+      move(p, Math.max(cursor, want));
+      cursor = p.y + p.h + gap;
+    }
+    const last = placed.get(col[col.length - 1].id);
+    const overflow = last.y + last.h - height;
+    if (overflow > 0) {
+      const room = Math.min(...col.map((n) => placed.get(n.id).y));
+      for (const n of col) {
+        const p = placed.get(n.id);
+        move(p, p.y - Math.min(overflow, room));
+      }
+    }
+  }
+
+  // stack each node's ribbons inside its bar, centred, in the order of the node they connect to
   const order = new Map(kept.map((n, i) => [n.id, i]));
   const ribbons = used.map((l) => ({ ...l, thickness: Math.max(1, l.value * scale) }));
   const outgoing = (id) => ribbons.filter((r) => r.from === id).sort((a, b) => order.get(a.to) - order.get(b.to));
@@ -111,12 +151,12 @@ export function sankeyLayout({ nodes, links, width, height, nodeWidth = 112, min
   for (const n of placed.values()) {
     const outs = outgoing(n.id);
     const ins = incoming(n.id);
-    let y = n.y + (n.h - outs.reduce((t, r) => t + r.thickness, 0)) / 2;
+    let y = n.barY + (n.barH - outs.reduce((t, r) => t + r.thickness, 0)) / 2;
     for (const r of outs) {
       r.sy = y + r.thickness / 2;
       y += r.thickness;
     }
-    y = n.y + (n.h - ins.reduce((t, r) => t + r.thickness, 0)) / 2;
+    y = n.barY + (n.barH - ins.reduce((t, r) => t + r.thickness, 0)) / 2;
     for (const r of ins) {
       r.ty = y + r.thickness / 2;
       y += r.thickness;
@@ -131,5 +171,25 @@ export function sankeyLayout({ nodes, links, width, height, nodeWidth = 112, min
     return { ...r, sx: x0, tx: x1, d: `M${x0},${r.sy} C${mid},${r.sy} ${mid},${r.ty} ${x1},${r.ty}` };
   });
 
-  return { nodes: [...placed.values()], links: out, scale };
+  // the room a caption has to its right: the gap to the next column, or `padRight` for the last
+  // A caption sits above its bar, left-aligned at the bar when the money stops there (or it is the first bar), and ending at
+  // the bar's right edge when the money goes on: its ribbons then leave to the right, below the caption, and never cross it.
+  const nodesOut = [...placed.values()].map((p) => ({
+    ...p,
+    align: p.col === 0 || flow.get(p.id).out === 0 ? "start" : "end",
+    captionWidth: (p.col === cols - 1 ? padRight : stepX) - 14,
+  }));
+  return { nodes: nodesOut, links: out, scale };
+}
+
+// The amount at each node of a graph (a node is as large as what goes through it), by id: the period before's figures
+// for the tooltip's comparison.
+export function graphValues(graph) {
+  const into = new Map();
+  const out = new Map();
+  for (const l of graph.links) {
+    out.set(l.from, (out.get(l.from) || 0) + l.value);
+    into.set(l.to, (into.get(l.to) || 0) + l.value);
+  }
+  return new Map(graph.nodes.map((n) => [n.id, Math.max(into.get(n.id) || 0, out.get(n.id) || 0)]));
 }

@@ -9,6 +9,7 @@ import { FE as WEB_DIR, BE as NODE_DIR, OUT as OUT_ROOT } from "./paths.mjs";
 const OUT = `${OUT_ROOT}/bank-recon-2`;
 mkdirSync(OUT, { recursive: true });
 
+process.env.TENANT_LEGACY_DEFAULT = "1"; // this process makes its first records through the models, as the test suites do
 const requireWeb = createRequire(`${WEB_DIR}/package.json`);
 const requireNode = createRequire(`${NODE_DIR}/package.json`);
 const puppeteer = requireWeb("puppeteer");
@@ -89,7 +90,7 @@ async function findButton(label, { scope = "document" } = {}) {
 // A person's eye waits for the button to appear (the screen refreshes just after a toast); so does this.
 async function click(label, opts) {
   let el, last;
-  for (let i = 0; i < 40 && !el; i++) {
+  for (let i = 0; i < 160 && !el; i++) {
     try { el = await findButton(label, opts); } catch (e) { last = e; await wait(250); }
   }
   if (!el) throw last;
@@ -107,7 +108,13 @@ async function pick(inputSelector, text) {
   await page.waitForSelector(inputSelector, { visible: true, timeout: 20000 });
   await page.click(inputSelector);
   await page.type(inputSelector, text);
-  await page.waitForSelector('[class*="option"], [id*="-option-"]', { visible: true, timeout: 20000 });
+  // the menu's "No options" notice also has "option" in its class: wait for a real option that shows what was typed,
+  // because the list behind it may still be loading (the first call on a new database is slow)
+  await page.waitForFunction(
+    (t) => [...document.querySelectorAll('[class*="option"], [id*="-option-"]')].some((el) => !/menu-notice|no-options/i.test(el.className) && el.getBoundingClientRect().height > 0 && el.innerText.toLowerCase().includes(t.toLowerCase())),
+    { timeout: 40000 },
+    text,
+  );
   await wait(250);
   await page.keyboard.press("Enter");
   await wait(300);
@@ -143,7 +150,7 @@ const XLSX_FILE = join(OUT, "alpha-statement.xlsx");
 const STA_FILE = join(OUT, "beta-statement.sta");
 
 async function boot() {
-  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
+  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
   backend.stdout.on("data", (d) => (logs.api += d));
   backend.stderr.on("data", (d) => (logs.api += d));
   children.push(backend);
@@ -156,12 +163,16 @@ async function boot() {
   };
   await mongoose.connection.syncIndexes();
   for (let i = 0; ; i++) {
-    try { if ((await fetch(`${API}/health`)).ok) break; } catch { /* not up */ }
-    if (i > 150) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
+    // `ready` is false while the server builds a fresh database and adopts its first organisation (30 s or more on a new one):
+    // a sign-in in that window is refused, so wait for it rather than for the first answer.
+    try { const h = await fetch(`${API}/health`); if (h.ok && (await h.json().catch(() => ({}))).ready !== false) break; } catch { /* not up */ }
+    if (i > 300) throw new Error(`backend did not start\n${logs.api.slice(-800)}`);
     await wait(400);
   }
   await new M.Admin({ name: "Boss", email: "boss@test.uae", password: "12312312", type: "super_admin", status: "active", isActive: true }).save();
   const login = await api("POST", "/login", { email: "boss@test.uae", password: "12312312" });
+  // say what the server answered when it did not sign the first person in (a wrong server on the port, an organisation not adopted)
+  if (!login.body?.tokens?.accessToken) throw new Error(`the first sign-in failed: ${login.status} ${JSON.stringify(login.raw).slice(0, 300)}`);
   token = login.body.tokens.accessToken;
   await api("GET", "/accounting/chart");
 
