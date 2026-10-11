@@ -1177,6 +1177,30 @@ function stubFor(pathname) {
       moneyIn: 45200.5, moneyOut: 15550.75, movedBetweenAccounts: 2000, hadActivity: true, closingPerLedger: 442600, reconciles: true,
     };
   }
+  // trade reports: sales / purchases by party, item, party and item, month; the line register; receivables movement
+  if (p.includes("/trade-reports/summary")) {
+    const by = (new URL(p, "http://x").searchParams.get("groupBy")) || "party";
+    const mo = (net) => ({ "2026-09": { quantity: 20, net: net * 0.4 }, "2026-10": { quantity: 30, net: net * 0.6 } });
+    const row = (k, over) => ({ key: k, documents: 3, quantity: 50, soldQty: 56, returnedQty: 6, gross: 6500, returns: 500, net: 6000, vat: 300, total: 6300, avgPrice: 120, sharePct: 60, firstDate: "2026-09-02T00:00:00.000Z", lastDate: "2026-10-04T00:00:00.000Z", monthly: mo(6000), ...over });
+    const party = { partyId: "p1", partyName: "Al Noor Trading Company LLC", partyCode: "CUST2026001", vatStatus: "registered", trn: "100123456700003" };
+    const item = { itemId: "i1", itemName: "Basmati rice 5kg, long grain, premium export pack", itemCode: "RICE-5KG", category: "Grains" };
+    const rows = by === "item" ? [row("i1", { ...item, parties: 3 })] : by === "party_item" ? [row("p1|i1", { ...party, ...item })] : by === "month" ? [row("2026-10", { month: "2026-10" })] : [row("p1", { ...party, items: 4 })];
+    return { direction: "sales", groupBy: by, from: "2026-09-01", to: "2026-10-04", months: ["2026-09", "2026-10"], monthly: true, partyLabel: "Customer", rows, totals: { quantity: 50, gross: 6500, returns: 500, net: 6000, vat: 300, total: 6300, documents: 3, parties: 1, items: 1 }, truncated: false };
+  }
+  if (p.includes("/trade-reports/register")) {
+    return {
+      direction: "sales", from: "2026-09-01", to: "2026-10-04", partyLabel: "Customer",
+      rows: [{ date: "2026-10-04T00:00:00.000Z", documentNo: "SO-2026-0041", kind: "invoice", reference: "LPO-7", partyId: "p1", partyName: "Al Noor Trading Company LLC", itemId: "i1", itemName: "Basmati rice 5kg, long grain, premium export pack", itemCode: "RICE-5KG", category: "Grains", quantity: 24, price: 120, net: 2880, vat: 144, total: 3024 }],
+      totals: { lines: 1, quantity: 24, net: 2880, vat: 144, total: 3024 }, pagination: { page: 1, pages: 1, limit: 100, total: 1 }, truncated: false,
+    };
+  }
+  if (p.includes("/trade-reports/party-movement")) {
+    return {
+      type: "customer", from: "2026-09-01", to: "2026-10-04",
+      rows: [{ partyId: "p1", partyName: "Al Noor Trading Company LLC", partyCode: "CUST2026001", vatStatus: "registered", trn: "100123456700003", paymentTerms: "Net 30", opening: 1000, invoiced: 6300, returns: 525, settled: 2000, other: 0, closing: 4775, overdue: 900 }],
+      totals: { opening: 1000, invoiced: 6300, returns: 525, settled: 2000, other: 0, closing: 4775, overdue: 900, parties: 1 },
+    };
+  }
   if (p.includes("/stock-reports/sales-analysis")) {
     return {
       from: "2026-10-01", to: "2026-10-04", groupBy: "item", direction: "sales",

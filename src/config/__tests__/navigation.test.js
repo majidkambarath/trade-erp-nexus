@@ -100,7 +100,7 @@ describe("what a role may open", () => {
     // the one Accounts page that follows the sales and purchase documents (customer and vendor paperwork), and nothing of the chart
     expect(modules.find((m) => m.id === "accounts").tabs.map((t) => t.label)).toEqual(["KYC documents"]);
     // (the e-invoicing page is open to whoever may see sales documents, as the server's own list of it is)
-    expect(modules.find((m) => m.id === "reports").tabs.map((t) => t.label)).toEqual(["Ageing", "Account statement", "Stock", "e-Invoicing"]);
+    expect(modules.find((m) => m.id === "reports").tabs.map((t) => t.label)).toEqual(["Analysis", "Ageing", "Account statement", "Stock", "e-Invoicing"]);
   });
 
   it("drops individual tabs the role cannot open, keeping the module", () => {

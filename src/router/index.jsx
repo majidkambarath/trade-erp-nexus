@@ -46,6 +46,7 @@ const BankReconciliation = lazy(() => import("../components/banking/BankReconcil
 const AccountingSetup = lazy(() => import("../components/accounting/AccountingSetup.jsx"));
 const LedgerReports = lazy(() => import("../components/Reports/LedgerReports.jsx"));
 const PartyBalances = lazy(() => import("../components/Reports/PartyBalances.jsx"));
+const TradeReports = lazy(() => import("../components/Reports/TradeReports.jsx"));
 const VatReturn = lazy(() => import("../components/Reports/VatReturn.jsx"));
 const StockReports = lazy(() => import("../components/Reports/StockReports.jsx"));
 const IfrsStatements = lazy(() => import("../components/Reports/IfrsStatements.jsx"));
@@ -140,6 +141,7 @@ export default function AdminRouter() {
         <Route path="/financial-statements" element={<FinancialStatements />} />
         <Route path="/ledger-reports" element={<LedgerReports />} />
         <Route path="/party-balances" element={<PartyBalances />} />
+        <Route path="/trade-reports" element={<TradeReports />} />
         <Route path="/stock-reports" element={<StockReports />} />
         <Route path="/ifrs-statements" element={<IfrsStatements />} />
         <Route path="/opening-balances" element={<OpeningBalances />} />
