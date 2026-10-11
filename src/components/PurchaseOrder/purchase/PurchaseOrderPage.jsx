@@ -67,10 +67,14 @@ import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
+// Other screens link here with ?search=<number> (the purchase invoice made from goods received, or from an order): the list
+// opens already narrowed to that document, over all time.
+const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
+
 const PurchaseOrderManagement = () => {
   const { canAny } = useOrganisation();
   const { stateOf, me } = useApproval();
-  const [activeView, setActiveView] = useState("dashboard");
+  const [activeView, setActiveView] = useState(() => (linkedSearch() ? "list" : "dashboard"));
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
   const wide = useMediaQuery(WIDE);
@@ -78,7 +82,7 @@ const PurchaseOrderManagement = () => {
   const [selectedPO, setSelectedPO] = useState(null);
   // The document whose audit trail is open, or null.
   const [auditPO, setAuditPO] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [vendorFilter, setVendorFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
@@ -87,7 +91,7 @@ const PurchaseOrderManagement = () => {
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
   // The list opens on this calendar month. Only a change of period asks the server again: search, status and party are
   // applied here, to the whole period, and the pages are cut here.
-  const periodFilter = usePeriodFilter({ initial: DEFAULT_LIST_PERIOD });
+  const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
   const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
@@ -218,7 +222,9 @@ const PurchaseOrderManagement = () => {
         // Enrich each item with stock details (FIX: Preserve itemCode, fallback sku)
         const enrichedItems = (t.items || []).map((item) => {
           const stock = item.stockDetails || stockItems.find(s => String(s._id) === String(item.itemId)) || {};
-          const normalizedItemCode = item.itemCode || stock.itemId || stock.itemCode || item.sku || item.itemId || "-";
+          // a stored code that is only the item's database id is no code: prefer the item's own
+          const isId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
+          const normalizedItemCode = [item.itemCode, stock.itemId, stock.itemCode, stock.sku, item.sku].find((v) => v && !isId(v)) || "-";
 
           return {
             // Preserve backend fields
@@ -227,9 +233,18 @@ const PurchaseOrderManagement = () => {
             description: item.description || "",
             qty: item.qty || 0,
             rate: item.rate || 0,
+            // the server's own figures for the line: the sheet reads the value from taxableAmount (a line's `rate` is not always
+            // its value), and a reverse-charge line is recognised by its kind
+            price: item.price,
+            taxableAmount: item.taxableAmount,
+            grossAmount: item.grossAmount,
+            discountAmount: item.discountAmount,
+            discountPercent: item.discountPercent,
+            taxKind: item.taxKind,
+            rcmVat: item.rcmVat,
             lineTotal: item.lineTotal || 0,
             vatAmount: item.vatAmount || 0,
-            vatPercent: item.vatPercent || 5,
+            vatPercent: item.vatPercent ?? 5,
 
             // Enriched from stock or backend
             itemName: stock.itemName || "Unknown Item",
@@ -494,7 +509,7 @@ const PurchaseOrderManagement = () => {
           return;
         }
         askDelete({
-          title: `Delete ${plan.deletable.length} purchase orders?`,
+          title: `Delete ${plan.deletable.length} purchase invoices?`,
           text: ["Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.", plan.posted ? postedDeleteText(plan.posted) : "", left].filter(Boolean).join(" "),
           onConfirm: async () => {
             try {
@@ -602,13 +617,13 @@ const PurchaseOrderManagement = () => {
       <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Recent purchase orders</h3>
+            <h3 className="text-sm font-semibold text-foreground">Recent purchase invoices</h3>
             <span className="text-xs text-muted-foreground">{periodRows.length} {period.all ? "in total" : `· ${period.label}`}</span>
           </header>
           <div className="px-5">
             {periodRows.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                {period.all ? "No purchase orders yet. Create one to see it here." : `No purchase orders in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
+                {period.all ? "No purchase invoices yet. Create one to see it here." : `No purchase invoices in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -651,7 +666,7 @@ const PurchaseOrderManagement = () => {
                 onClick={() => setActiveView("list")}
                 className="text-sm font-medium text-foreground hover:opacity-80"
               >
-                View all purchase orders →
+                View all purchase invoices →
               </button>
             </footer>
           )}
@@ -830,14 +845,14 @@ const PurchaseOrderManagement = () => {
             <div className="min-w-0">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                  Purchase orders
+                  Purchase invoices
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Orders to your vendors, from draft to goods received.
+                  Vendors' invoices. Approving one posts the books.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <Can permission="purchase.create">
                 <button
                   onClick={() => {
@@ -849,7 +864,7 @@ const PurchaseOrderManagement = () => {
                   className="erp-btn-primary"
                 >
                   <Plus className="w-5 h-5" />
-                  <span>New purchase order</span>
+                  <span>New purchase invoice</span>
                 </button>
               </Can>
               <button
@@ -1018,11 +1033,11 @@ const PurchaseOrderManagement = () => {
             {activeView === "list" && filteredPOs.length === 0 && (
               <ListEmpty
                 filter={periodFilter}
-                noun="purchase orders"
+                noun="purchase invoices"
                 inPeriod={periodRows.length}
                 filtered={filtersOn}
                 onClearFilters={clearFilters}
-                createText="Create the first one with New purchase order."
+                createText="Create the first one with New purchase invoice."
               />
             )}
             {activeView === "list" && filteredPOs.length > 0 && (

@@ -1,7 +1,7 @@
 // Pure helpers for the printed order and invoice. No React here, so the rules that decide what
 // appears on the paper (VAT rates, the breakdown, empty fields) are tested without rendering.
 
-import { amountInWords, decimalAdd, decimalRound } from "../../../utils/format";
+import { amountInWords, decimalAdd, decimalRound, lineValueOf } from "../../../utils/format";
 import { orgCurrency } from "../../../utils/orgLocale";
 import { isReverseCharge } from "../../../lib/reverseCharge";
 
@@ -25,14 +25,24 @@ export const tint = (hex, share = 0.12) => {
 
 // One printed row per saved line. `rate` holds the line value (quantity x unit price, before VAT)
 // and `vatAmount` the VAT on it: the same contract the server prices with (utils/pricing.js).
+// A line saved without an item code was given the item's database id as its code (24 hex characters): nobody can read that
+// off a sheet, so the item's own code or SKU is shown instead when the line knows it.
+const looksLikeId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
+export const readableCode = (it) => {
+  const own = it.itemCode;
+  if (own && !looksLikeId(own)) return own;
+  const alt = [it.stockDetails?.itemId, it.stockDetails?.sku, it.sku].find((v) => v && !looksLikeId(v));
+  return alt || (looksLikeId(own) ? "" : own || "");
+};
+
 export const invoiceLines = (items = []) =>
   items.map((it, i) => {
     const qty = num(it.qty);
-    const value = num(it.rate);
+    const value = lineValueOf(it);
     const vat = num(it.vatAmount);
     return {
       no: i + 1,
-      code: it.itemCode || "",
+      code: readableCode(it),
       description: it.description || "",
       qty,
       unitPrice: qty ? value / qty : 0,

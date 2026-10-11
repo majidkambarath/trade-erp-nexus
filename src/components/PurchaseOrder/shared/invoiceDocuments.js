@@ -20,6 +20,10 @@ const INVOICED = ["APPROVED", "INVOICED"];
 // Business rules > Tax identity, the same TRN the VAT return uses). The buyer's registration does not change the heading;
 // it decides whether the buyer's own TRN is expected on the document (see partyVatStatus). A company with no TRN issues a
 // plain "Invoice": calling it a tax invoice would claim a registration the company has not recorded.
+//
+// The heading does not wait for approval. This screen's document IS the invoice (the sales / purchase ORDER is a separate,
+// non-posting document with its own heading), so a draft reads "Tax invoice" too and says in its number label and its
+// notice that it is a draft: a title of "Sales order" on the invoice page told people the wrong thing.
 export const isTaxInvoice = (company) => Boolean(String(company?.vatNumber ?? "").trim());
 
 // How a customer's or vendor's VAT registration reads on a document. The master stores one of registered / unregistered /
@@ -77,18 +81,19 @@ export const dateOf = (value) => (value ? formatDateGB(value) : "");
 
 export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);
-  const taxInvoice = invoiced && isTaxInvoice(company);
+  const registered = isTaxInvoice(company); // the heading, whatever the status
+  const taxInvoice = invoiced && registered; // an ISSUED tax invoice (what sending and the e-invoice look at)
   const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
   const customerTrn = customer.trnNumber || customer.vat?.trn || "";
   return {
-    fileName: `${invoiced ? (taxInvoice ? "Tax-invoice" : "Invoice") : "Sales-order"}_${number}`,
+    fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Invoice"}_${number}`,
     status: so.status,
-    // an issued invoice with no company TRN prints as a plain invoice, and the screen says why
-    missingTrn: invoiced && !isTaxInvoice(company),
+    // an invoice with no company TRN prints as a plain invoice, and the screen says why
+    missingTrn: !registered,
     taxInvoice,
     sheet: sheetFor(so, {
-      title: invoiced ? (taxInvoice ? "Tax invoice" : "Invoice") : "Sales order",
-      numberLabel: invoiced ? "Invoice no." : "Order no.",
+      title: registered ? "Tax invoice" : "Invoice",
+      numberLabel: invoiced ? "Invoice no." : "Draft invoice no.",
       number,
       party: {
         heading: "Bill to",
@@ -110,20 +115,29 @@ export const buildSalesDocument = (so, customer, company, currency) => {
       currency,
       notice: invoiced
         ? `This is a computer-generated ${taxInvoice ? "tax invoice" : "invoice"}. No signature is required.`
-        : `This is a sales order, not ${isTaxInvoice(company) ? "a tax invoice. The tax invoice" : "an invoice. The invoice"} is issued when the order is approved.`,
+        : `This is a draft ${registered ? "tax invoice" : "invoice"}. Nothing is posted and no stock moves until it is approved.`,
       receipt: !invoiced,
       reverseChargeSide: "supplier",
     }),
   };
 };
 
-export const buildPurchaseDocument = (po, vendor, company, currency) => ({
-  fileName: `Purchase-order_${po.transactionNo}`,
+// A purchase invoice: the supplier's invoice as it is recorded in our books (the purchase ORDER is its own document). A registered
+// supplier's reads "Tax invoice", which is what it is and what input VAT is claimed on; an unregistered supplier's is a plain
+// "Purchase invoice" and says that no input VAT can be recovered on it.
+export const buildPurchaseDocument = (po, vendor, company, currency) => {
+  const invoiced = INVOICED.includes(po.status);
+  const vendorTrn = vendor.trnNO || vendor.vat?.trn || "";
+  const vatStatus = partyVatStatus(vendor, vendorTrn, vendor.vendorName);
+  const registered = vatStatus === "Registered";
+  const kind = registered ? "tax invoice" : "purchase invoice";
+  return {
+  fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-invoice"}_${po.transactionNo}`,
   status: po.status,
   missingTrn: false,
   sheet: sheetFor(po, {
-    title: "Purchase order",
-    numberLabel: "PO no.",
+    title: registered ? "Tax invoice" : "Purchase invoice",
+    numberLabel: invoiced ? "Invoice no." : "Draft invoice no.",
     number: po.transactionNo,
     party: {
       heading: "Supplier",
@@ -131,8 +145,8 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => ({
       code: vendor.vendorId || "",
       address: vendor.address || "",
       contact: contactLines(vendor),
-      trn: vendor.trnNO || vendor.vat?.trn || "",
-      vatStatus: partyVatStatus(vendor, vendor.trnNO || vendor.vat?.trn || "", vendor.vendorName),
+      trn: vendorTrn,
+      vatStatus,
     },
     meta: [
       ["Date", dateOf(po.date)],
@@ -142,11 +156,14 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => ({
     ],
     company,
     currency,
-    notice: "This is a computer-generated purchase order. No signature is required.",
+    notice: `${invoiced ? "This is a computer-generated" : "This is a draft"} ${kind}, recorded from the supplier's invoice.${
+      registered ? "" : " The supplier is not VAT-registered, so no input VAT can be recovered on it."
+    }${invoiced ? " No signature is required." : " Nothing is posted and no stock comes in until it is approved."}`,
     receipt: true,
     reverseChargeSide: "recipient",
   }),
-});
+  };
+};
 
 // A sales return: goods coming back from the customer. It is a credit, not a sale, so it is never
 // titled as a tax invoice.

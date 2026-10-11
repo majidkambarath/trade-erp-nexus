@@ -46,10 +46,77 @@ describe("purchase return", () => {
   });
 });
 
-describe("purchase order", () => {
-  it("uses the purchase order title and number", () => {
-    const doc = buildPurchaseDocument({ transactionNo: "PO-1", status: "DRAFT", items: [] }, {}, company, "AED");
-    expect(doc.sheet.title).toBe("Purchase order");
-    expect(doc.fileName).toBe("Purchase-order_PO-1");
+describe("purchase invoice", () => {
+  const registered = { vendorName: "Al Safa", trnNO: "100456783400003", vat: { status: "registered" } };
+  const unregistered = { vendorName: "Corner Shop", vat: { status: "unregistered" } };
+
+  it("a registered supplier's invoice is a tax invoice, drafts included", () => {
+    const draft = buildPurchaseDocument({ transactionNo: "PO-1", status: "DRAFT", items: [] }, registered, company, "AED");
+    expect(draft.sheet.title).toBe("Tax invoice");
+    expect(draft.sheet.number.label).toBe("Draft invoice no.");
+    expect(draft.fileName).toBe("Draft-Tax-invoice_PO-1");
+    expect(draft.sheet.notice).toMatch(/draft tax invoice/);
+
+    const approved = buildPurchaseDocument({ transactionNo: "PO-1", status: "APPROVED", items: [] }, registered, company, "AED");
+    expect(approved.sheet.title).toBe("Tax invoice");
+    expect(approved.sheet.number.label).toBe("Invoice no.");
+    expect(approved.fileName).toBe("Tax-invoice_PO-1");
+    expect(approved.sheet.party.vatStatus).toBe("Registered");
+  });
+
+  it("an unregistered supplier's is a purchase invoice and says no input VAT can be recovered", () => {
+    const doc = buildPurchaseDocument({ transactionNo: "PO-2", status: "APPROVED", items: [] }, unregistered, company, "AED");
+    expect(doc.sheet.title).toBe("Purchase invoice");
+    expect(doc.fileName).toBe("Purchase-invoice_PO-2");
+    expect(doc.sheet.notice).toMatch(/no input VAT can be recovered/);
+  });
+
+  it("a supplier with only a TRN on file reads as registered", () => {
+    const doc = buildPurchaseDocument({ transactionNo: "PO-3", status: "APPROVED", items: [] }, { vendorName: "X", trnNO: "100000000000003" }, company, "AED");
+    expect(doc.sheet.title).toBe("Tax invoice");
+  });
+
+  it("is never titled as an order: the order is its own document", () => {
+    const doc = buildPurchaseDocument({ transactionNo: "PO-4", status: "DRAFT", items: [] }, {}, company, "AED");
+    expect(doc.sheet.title).not.toMatch(/order/i);
+  });
+});
+
+describe("a line's value", () => {
+  // Some paths stored the UNIT PRICE in `rate`; the server's own figures are what the sheet must print.
+  const items = [
+    { itemCode: "OIL", description: "Sunflower Oil", qty: 585, price: 150.74, rate: 150.74, taxableAmount: 88182.9, vatPercent: 5, vatAmount: 4409.15, lineTotal: 92592.05 },
+  ];
+
+  it("prints the taxable amount as the value, and the unit price follows from it", () => {
+    const doc = buildPurchaseDocument({ transactionNo: "PO-5", status: "APPROVED", items }, { vendorName: "Al Safa", trnNO: "1" }, company, "AED");
+    const line = doc.sheet.lines[0];
+    expect(line.value).toBe(88182.9);
+    expect(line.unitPrice).toBeCloseTo(150.74, 2);
+    expect(line.total).toBeCloseTo(92592.05, 2);
+    expect(doc.sheet.totals.gross).toBeCloseTo(88182.9, 2);
+    expect(doc.sheet.totals.grandTotal).toBeCloseTo(92592.05, 2);
+  });
+
+  it("a line saved before taxableAmount existed keeps reading rate as its value", () => {
+    const old = [{ description: "Rice", qty: 10, rate: 200, vatPercent: 5, vatAmount: 10 }];
+    const doc = buildPurchaseDocument({ transactionNo: "PO-6", status: "APPROVED", items: old }, {}, company, "AED");
+    expect(doc.sheet.lines[0].value).toBe(200);
+    expect(doc.sheet.lines[0].unitPrice).toBe(20);
+  });
+});
+
+describe("a line's item code", () => {
+  const id = "6aca205ef01c0ca159fd8d19";
+  const code = (it) => buildPurchaseDocument({ transactionNo: "PO-7", status: "APPROVED", items: [{ qty: 1, rate: 10, ...it }] }, {}, company, "AED").sheet.lines[0].code;
+
+  it("prints the item's own code, never its database id", () => {
+    expect(code({ itemCode: "OIL-18" })).toBe("OIL-18");
+    expect(code({ itemCode: id, stockDetails: { itemId: "SUN7443", sku: "OIL-SUN-18" } })).toBe("SUN7443");
+    expect(code({ itemCode: id, sku: "OIL-SUN-18" })).toBe("OIL-SUN-18");
+  });
+
+  it("leaves the code blank when only the id is known", () => {
+    expect(code({ itemCode: id })).toBe("");
   });
 });

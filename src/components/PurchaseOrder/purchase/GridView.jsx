@@ -132,7 +132,7 @@ const GridView = ({
                       {item.description || item.itemName || item.stockDetails?.itemName || "Item"}
                     </span>
                     <span className="text-foreground font-medium ml-2 shrink-0 whitespace-nowrap">
-                      {item.qty} × {item.rate}
+                      {item.qty} × {item.price ?? item.rate}
                     </span>
                   </div>
                 ))}

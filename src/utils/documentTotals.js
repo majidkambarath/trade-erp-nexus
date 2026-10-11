@@ -1,4 +1,4 @@
-import { decimalAdd, decimalSub, decimalSum } from "./format";
+import { decimalAdd, decimalSub, decimalSum, lineValueOf } from "./format";
 
 // Totals for a printed document. The server prices every document (utils/pricing.js on the backend)
 // and stores the result in `pricing`, so the printout must show those figures: summing the lines here
@@ -22,7 +22,12 @@ export function documentTotals(doc) {
       grandTotal: Number(p.grandTotal) || 0,
     };
   }
-  const gross = decimalSum(items.map((it) => it.rate));
+  // An opening invoice (a balance brought forward) has no lines: its figure is the document's own total, with no VAT.
+  if (!items.length && Number(doc?.totalAmount) > 0) {
+    const total = Number(doc.totalAmount);
+    return { priced: false, gross: total, lineDiscount: 0, charges: [], chargesNet: 0, vat: 0, rcmVat: 0, headerDiscount: 0, roundOff: 0, grandTotal: total };
+  }
+  const gross = decimalSum(items.map(lineValueOf));
   const vat = decimalSum(items.map((it) => it.vatAmount));
   const discount = parseFloat(doc?.discount || 0) || 0;
   return {

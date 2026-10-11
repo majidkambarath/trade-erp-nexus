@@ -323,7 +323,7 @@ const formatDisplayTransactionNo = (t) => {
     setSelectedSO(newSO);
     setActiveView("invoice");
     addNotification(
-      "Sales Order saved successfully! Showing invoice...",
+      "Sales invoice saved successfully! Showing invoice...",
       "success"
     );
     setTimeout(resetForm, 0);
@@ -566,7 +566,7 @@ const formatDisplayTransactionNo = (t) => {
           return;
         }
         askDelete({
-          title: `Delete ${plan.deletable.length} sales orders?`,
+          title: `Delete ${plan.deletable.length} sales invoices?`,
           text: ["Each order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.", plan.posted ? postedDeleteText(plan.posted) : "", left].filter(Boolean).join(" "),
           onConfirm: async () => {
             try {
@@ -663,7 +663,7 @@ const formatDisplayTransactionNo = (t) => {
       const response = await processTransaction(id, "approve");
       // Above the organisation's second-approver amount this only records the first approval: say so, not "approved"
       if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
-      else addNotification("Sales Order approved successfully", "success");
+      else addNotification("Sales invoice approved successfully", "success");
       fetchTransactions();
     } catch (error) {
       addNotification(
@@ -720,12 +720,12 @@ const formatDisplayTransactionNo = (t) => {
       return;
     }
     askDelete({
-      title: "Delete this sales order?",
+      title: "Delete this sales invoice?",
       text: posted ? "This order is approved: deleting it REVERSES its stock and ledger postings, then removes it. The deletion is written to the activity log." : "The order is removed. An approved order is reversed in stock and in the ledger first. The deletion is written to the activity log.",
       onConfirm: async () => {
         try {
           await axiosInstance.delete(`/transactions/transactions/${id}`);
-          addNotification("Sales Order deleted", "success");
+          addNotification("Sales invoice deleted", "success");
           fetchTransactions();
         } catch (error) {
           addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
@@ -791,7 +791,7 @@ const formatDisplayTransactionNo = (t) => {
       <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
         <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
           <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Recent sales orders</h3>
+            <h3 className="text-sm font-semibold text-foreground">Recent sales invoices</h3>
             <span className="text-xs text-muted-foreground">
               {periodRows.length} {period.all ? "in total" : `· ${period.label}`}
             </span>
@@ -799,7 +799,7 @@ const formatDisplayTransactionNo = (t) => {
           <div className="px-5">
             {periodRows.length === 0 ? (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                {period.all ? "No sales orders yet. Create one to see it here." : `No sales orders in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
+                {period.all ? "No sales invoices yet. Create one to see it here." : `No sales invoices in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -842,7 +842,7 @@ const formatDisplayTransactionNo = (t) => {
                 onClick={() => setActiveView("list")}
                 className="text-sm font-medium text-foreground hover:opacity-80"
               >
-                View all orders →
+                View all invoices →
               </button>
             </footer>
           )}
@@ -881,13 +881,13 @@ const formatDisplayTransactionNo = (t) => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                Sales orders
+                Sales invoices
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Orders and tax invoices to your customers, from draft to approved.
+                Invoices to your customers. Approving one posts the books.
               </p>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <Can permission="sales.create">
                 <button
                   onClick={() => {
@@ -899,7 +899,7 @@ const formatDisplayTransactionNo = (t) => {
                   className="erp-btn-primary"
                 >
                   <Plus className="w-5 h-5" />
-                  <span>New sales order</span>
+                  <span>New sales invoice</span>
                 </button>
               </Can>
               <button
@@ -1070,11 +1070,11 @@ const formatDisplayTransactionNo = (t) => {
             {activeView === "list" && filteredSOs.length === 0 && (
               <ListEmpty
                 filter={periodFilter}
-                noun="sales orders"
+                noun="sales invoices"
                 inPeriod={periodRows.length}
                 filtered={filtersOn}
                 onClearFilters={clearFilters}
-                createText="Create the first one with New sales order."
+                createText="Create the first one with New sales invoice."
               />
             )}
             {activeView === "list" && filteredSOs.length > 0 && (

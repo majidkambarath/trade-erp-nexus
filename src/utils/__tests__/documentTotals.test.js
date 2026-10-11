@@ -20,6 +20,19 @@ describe("documentTotals", () => {
   });
 });
 
+describe("documentTotals: what the sheet must not get wrong", () => {
+  it("reads a line's value from the server's taxable amount, not from a rate that may hold the unit price", () => {
+    // 585 units at 150.74: `rate` held the unit price, which printed 150.74 of value and 4,409.15 of VAT
+    const t = documentTotals({ items: [{ qty: 585, price: 150.74, rate: 150.74, taxableAmount: 88182.9, vatAmount: 4409.15 }] });
+    expect(t).toMatchObject({ gross: 88182.9, vat: 4409.15, grandTotal: 92592.05 });
+  });
+
+  it("an opening invoice has no lines and keeps the total it was entered with", () => {
+    const t = documentTotals({ items: [], totalAmount: 4860 });
+    expect(t).toMatchObject({ gross: 4860, vat: 0, grandTotal: 4860 });
+  });
+});
+
 describe("documentTotals: reverse charge", () => {
   it("reads the VAT the buyer assesses from the server's pricing, apart from the VAT and the total", () => {
     const t = documentTotals({

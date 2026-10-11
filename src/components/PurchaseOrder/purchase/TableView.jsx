@@ -69,7 +69,7 @@ const TableView = ({
                 onClick={() => handleSort("transactionNo")}
                 className="px-4 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-muted transition-colors"
               >
-                PO #
+                Invoice no.
               </th>
               <th
                 onClick={() => handleSort("vendor")}

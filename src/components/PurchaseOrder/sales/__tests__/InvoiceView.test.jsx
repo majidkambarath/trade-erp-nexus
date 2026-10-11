@@ -67,10 +67,11 @@ describe('SaleInvoiceView', () => {
     pdfInstances.length = 0;
   });
 
-  it('shows a draft as a sales order, with the customer copy selected', () => {
+  it('shows a draft under the invoice heading, never as a sales order, with the customer copy selected', () => {
     renderView(baseProps);
 
-    expect(screen.getByText('Sales order', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByText('Invoice', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByText('Sales order', { selector: 'div' })).toBeNull();
     expect(screen.getByText('Bill to')).toBeInTheDocument();
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Customer copy' })).toHaveAttribute('aria-pressed', 'true');
@@ -102,10 +103,10 @@ describe('SaleInvoiceView', () => {
     expect(screen.queryByText(/admin@test/)).toBeNull();
   });
 
-  it('does not invent an invoice number for a sales order', () => {
+  it('does not invent an invoice number for a draft', () => {
     renderView(baseProps);
     expect(screen.queryByText('0000')).toBeNull();
-    expect(screen.getByText('Order no.')).toBeInTheDocument();
+    expect(screen.getByText('Draft invoice no.')).toBeInTheDocument();
     expect(screen.getAllByText('SO-1234').length).toBeGreaterThan(0);
   });
 
@@ -182,7 +183,7 @@ describe('SaleInvoiceView', () => {
     fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
 
     await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Sales-order_SO-1234.pdf'));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Draft-Invoice_SO-1234.pdf'));
     // the second copy starts a new page
     expect(pdfInstances[0].addPage).toHaveBeenCalled();
   });
@@ -211,7 +212,8 @@ describe('buildSalesDocument', () => {
     expect(approved.sheet.notice).not.toMatch(/tax invoice/);
     // the order's notice does not promise a tax invoice it will not issue
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED');
-    expect(draft.sheet.notice).toBe('This is a sales order, not an invoice. The invoice is issued when the order is approved.');
+    expect(draft.sheet.notice).toBe('This is a draft invoice. Nothing is posted and no stock moves until it is approved.');
+    expect(draft.sheet.title).toBe('Invoice');
     // a blank or spaces-only TRN is no TRN
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '   ' }, 'AED').sheet.title).toBe('Invoice');
   });
@@ -226,13 +228,17 @@ describe('buildSalesDocument', () => {
     expect(status({})).toBe('');
   });
 
-  it('uses the tax invoice title and number only once the order is approved', () => {
+  it('a registered company issues a tax invoice from the draft on, and only an approved one has an invoice number', () => {
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED');
     const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED');
-    expect(draft.sheet.title).toBe('Sales order');
+    expect(draft.sheet.title).toBe('Tax invoice');
+    expect(draft.sheet.number.label).toBe('Draft invoice no.');
+    expect(draft.fileName).toBe('Draft-Tax-invoice_SO-1');
+    expect(draft.taxInvoice).toBe(false); // not issued yet: sending and e-invoicing look at this
     expect(approved.sheet.title).toBe('Tax invoice');
     expect(approved.sheet.number).toEqual({ label: 'Invoice no.', value: 'SO-1' });
     expect(approved.fileName).toBe('Tax-invoice_SO-1');
+    expect(approved.taxInvoice).toBe(true);
   });
 
   it('shows the receipt block only on the order, not on the tax invoice', () => {
@@ -251,9 +257,9 @@ describe('buildSalesDocument', () => {
     expect(doc.sheet.breakdown).toEqual([{ rate: 0, taxable: 100, vat: 0 }]);
   });
 
-  it('flags a missing TRN only on an invoice', () => {
+  it('flags a missing TRN on the invoice, draft or approved', () => {
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
-    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(false);
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
     // and the other way round: a company that HAS a TRN is not told it is missing (this flag once looked for a field
     // the company object does not have, so every invoice carried the warning)
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '100123456700003' }, 'AED').missingTrn).toBe(false);

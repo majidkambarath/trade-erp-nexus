@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, act } from "@testing-library/react";
+import { render, within, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import OrderForm from "../OrderForm";

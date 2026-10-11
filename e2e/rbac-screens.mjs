@@ -230,7 +230,7 @@ try {
   check("edit-only: the quantity box is read-only on the item form (no stock adjustment)", qty?.disabled === true && qty?.value === "25", JSON.stringify(qty));
   await carla.screenshot({ path: `${SHOTS}/05-edit-only-item-form.png` });
   await go(carla, "/sales-order");
-  check("edit-only: no New sales order button", !(await buttonNamed(carla, /New sales order/)));
+  check("edit-only: no New sales invoice button", !(await buttonNamed(carla, /New sales invoice/)));
   await go(carla, "/vouchers/payment");
   await go(carla, "/chart-of-accounts");
   check("edit-only: Accounts is not theirs - the not-allowed page says so", await carla.evaluate(() => document.body.innerText.includes("You do not have access to this page")));
@@ -244,7 +244,7 @@ try {
   check("add-only: no Edit button", !(await buttonNamed(cyrus, /Edit customer/)));
   check("add-only: no Delete button", !(await buttonNamed(cyrus, /Delete customer/)));
   await go(cyrus, "/sales-order");
-  check("add-only: the New sales order button is offered", await buttonNamed(cyrus, /New sales order/));
+  check("add-only: the New sales invoice button is offered", await buttonNamed(cyrus, /New sales invoice/));
   await go(cyrus, "/users");
   check("add-only: the people screen is theirs to look at? no - it is refused", await cyrus.evaluate(() => document.body.innerText.includes("You do not have access to this page")));
 

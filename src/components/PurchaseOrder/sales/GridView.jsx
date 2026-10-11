@@ -107,7 +107,7 @@ const GridView = ({
                 {so.items.slice(0, 2).map((item, index) => (
                   <div key={index} className="flex justify-between text-xs">
                     <span className="text-muted-foreground truncate">{item.description || item.itemName || item.stockDetails?.itemName || "Item"}</span>
-                    <span className="text-foreground font-medium ml-2 shrink-0 whitespace-nowrap">{item.qty} × {item.rate}</span>
+                    <span className="text-foreground font-medium ml-2 shrink-0 whitespace-nowrap">{item.qty} × {item.price ?? item.rate}</span>
                   </div>
                 ))}
                 {so.items.length > 2 && (

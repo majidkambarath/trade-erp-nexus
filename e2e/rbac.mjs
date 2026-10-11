@@ -200,7 +200,7 @@ try {
     while (Date.now() < until && !loaded) {
       loaded = await rowLoaded(page, 1500);
       if (loaded) break;
-      try { await click(page, /^View all orders/); } catch { /* the page is still arriving */ }
+      try { await click(page, /^View all invoices/); } catch { /* the page is still arriving */ }
       await sleep(800);
     }
     check(`${who}: the order LIST is open with a row on it (so "no such button" means something)`, loaded);
@@ -288,7 +288,7 @@ try {
     await openOrders(cyrus, "clerk");
     await cyrus.screenshot({ path: `${SHOTS}/02-clerk-orders.png` });
     check("clerk's screen: the order is listed", (await text(cyrus)).includes("Al Noor"));
-    check("clerk's screen: New sales order is offered", await offers(cyrus, /New sales order/));
+    check("clerk's screen: New sales invoice is offered", await offers(cyrus, /New sales invoice/));
     check("clerk's screen: no Edit, no Confirm", !(await offers(cyrus, /^Edit$/)) && !(await offers(cyrus, /^Confirm$/)));
     check("clerk's screen: no Delete", !(await offers(cyrus, /^Delete$/)));
   });
@@ -304,7 +304,7 @@ try {
     await openOrders(vera, "viewer");
     await vera.screenshot({ path: `${SHOTS}/03-viewer-orders.png` });
     check("viewer's screen: the order is listed", (await text(vera)).includes("Al Noor"));
-    check("viewer's screen: no New, Edit, Confirm or Delete", !(await offers(vera, /New sales order/)) && !(await offers(vera, /^Edit$/)) && !(await offers(vera, /^Confirm$/)) && !(await offers(vera, /^Delete$/)));
+    check("viewer's screen: no New, Edit, Confirm or Delete", !(await offers(vera, /New sales invoice/)) && !(await offers(vera, /^Edit$/)) && !(await offers(vera, /^Confirm$/)) && !(await offers(vera, /^Delete$/)));
   });
 
   // ============================================================ 4. the corrector edits
@@ -324,7 +324,7 @@ try {
     check("the quantity is still 50", (await dbStock()) === 50);
     await openOrders(carla, "corrector");
     await carla.screenshot({ path: `${SHOTS}/04-corrector-orders.png` });
-    check("corrector's screen: Edit offered; no New, no Confirm, no Delete", (await offers(carla, /^Edit$/)) && !(await offers(carla, /New sales order/)) && !(await offers(carla, /^Confirm$/)) && !(await offers(carla, /^Delete$/)));
+    check("corrector's screen: Edit offered; no New, no Confirm, no Delete", (await offers(carla, /^Edit$/)) && !(await offers(carla, /New sales invoice/)) && !(await offers(carla, /^Confirm$/)) && !(await offers(carla, /^Delete$/)));
   });
 
   // ============================================================ 5. the approver approves on the real screen
@@ -334,7 +334,7 @@ try {
     const stockBefore = await dbStock();
     const balanceBefore = await dbCustomer();
     await openOrders(arun, "approver");
-    check("approver's screen: Confirm offered; no Edit, no New, no Delete", (await offers(arun, /^Confirm$/)) && !(await offers(arun, /^Edit$/)) && !(await offers(arun, /New sales order/)) && !(await offers(arun, /^Delete$/)));
+    check("approver's screen: Confirm offered; no Edit, no New, no Delete", (await offers(arun, /^Confirm$/)) && !(await offers(arun, /^Edit$/)) && !(await offers(arun, /New sales invoice/)) && !(await offers(arun, /^Delete$/)));
     await arun.screenshot({ path: `${SHOTS}/05-approver-before.png` });
     await click(arun, /^Confirm$/);
     await until(async () => (await dbOrder(so1))?.status === "APPROVED");
@@ -361,7 +361,7 @@ try {
     check("the clerk adds a second draft", draft.status === 201);
     await openOrders(dina, "cleaner");
     await dina.screenshot({ path: `${SHOTS}/07-cleaner-orders.png` });
-    check("cleaner's screen: Delete offered on the draft; no Edit, no Confirm, no New", (await offers(dina, /^Delete$/)) && !(await offers(dina, /^Edit$/)) && !(await offers(dina, /^Confirm$/)) && !(await offers(dina, /New sales order/)));
+    check("cleaner's screen: Delete offered on the draft; no Edit, no Confirm, no New", (await offers(dina, /^Delete$/)) && !(await offers(dina, /^Edit$/)) && !(await offers(dina, /^Confirm$/)) && !(await offers(dina, /New sales invoice/)));
     await click(dina, /^Delete$/);
     await dina.waitForSelector("[role=dialog] input", { timeout: 10000 });
     await dina.type("[role=dialog] input", "delete");
@@ -663,7 +663,7 @@ try {
     const vera = await openPage("vera@acc.test");
     const veraToken = tokens["vera@acc.test"];
     await openOrders(vera, "viewer at head office");
-    check("at head office vera (a viewer) is not offered New sales order", !(await offers(vera, /New sales order/)));
+    check("at head office vera (a viewer) is not offered New sales invoice", !(await offers(vera, /New sales invoice/)));
     await vera.click('button[aria-label^="Branch:"]');
     await vera.waitForSelector("[role=menuitem]", { timeout: 10000 });
     const items = await vera.$$eval("[role=menuitem]", (els) => els.map((e) => e.textContent.trim()));
@@ -671,9 +671,9 @@ try {
     for (const handle of await vera.$$("[role=menuitem]")) {
       if (/Sharjah/.test(await handle.evaluate((e) => e.textContent))) { await handle.click(); break; }
     }
-    const offered = await until(async () => offers(vera, /New sales order/), 40000);
+    const offered = await until(async () => offers(vera, /New sales invoice/), 40000);
     await vera.screenshot({ path: `${SHOTS}/17-vera-in-sharjah.png` });
-    check("in Sharjah she holds the clerk role: New sales order is offered", offered);
+    check("in Sharjah she holds the clerk role: New sales invoice is offered", offered);
     check("the choice is remembered for the tab", (await vera.evaluate(() => sessionStorage.getItem("zarvia.branch"))) === "shj");
 
     const postAs = (branch) => fetch(`${API}/transactions/transactions`, { method: "POST", headers: { Authorization: `Bearer ${veraToken}`, "Content-Type": "application/json", ...(branch ? { "X-Branch": branch } : {}) }, body: JSON.stringify(order(1)) });

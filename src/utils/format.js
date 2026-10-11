@@ -285,10 +285,19 @@ export const lineTotals = ({ qty, price, rate, vatPercent } = {}) => {
   return { lineValue, vatAmount, lineTotal: decimalAdd(lineValue, vatAmount) };
 };
 
+// The VAT-exclusive value of a saved line, after its discount. The server writes taxableAmount on every line it prices; `rate` is only
+// the fallback for a line saved before that. (Some paths stored the unit price in `rate`, and a sheet that trusted it printed
+// the unit price as the line's value and charged 5% of qty x value as VAT.)
+export const lineValueOf = (it) => {
+  const taxable = it?.taxableAmount;
+  if (taxable !== undefined && taxable !== null && taxable !== "" && Number.isFinite(Number(taxable))) return Number(taxable);
+  return Number(it?.rate) || 0;
+};
+
 // Weighted VAT rate for a set of lines. A plain mean of the per-line percentages is
 // wrong: a 0%/5% mix must not report 2.5%.
 export const weightedVatPercent = (items = []) => {
-  const base = decimalSum(items.map((i) => i.lineValue ?? i.rate ?? 0));
+  const base = decimalSum(items.map((i) => i.lineValue ?? lineValueOf(i)));
   if (!base) return 0;
   const vat = decimalSum(items.map((i) => i.vatAmount ?? 0));
   return decimalRound((vat / base) * 100);
