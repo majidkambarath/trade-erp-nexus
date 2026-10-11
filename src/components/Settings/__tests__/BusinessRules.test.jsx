@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 const m = vi.hoisted(() => ({ settings: vi.fn(), saveSettings: vi.fn() }));
 vi.mock("../../../lib/accountingApi", () => ({ accounting: m }));
@@ -9,6 +9,9 @@ import BusinessRules, { taxIdentityFrom } from "../BusinessRules";
 
 const SETTINGS = { creditControl: { mode: "off", overdueBlockDays: 0 }, returnWindowDays: 0, requireReturnLink: false, profile: { legalName: "Harbour Trading LLC", trn: "" } };
 const notify = vi.fn();
+// The sub-forms re-seed themselves in an effect that runs just after they mount. Changing a field the instant it exists lets that
+// effect land AFTER the change and put the saved value back over it (a person cannot type that fast; a test can). Flush it first.
+const ready = async (found) => { const el = await found; await act(async () => {}); return el; };
 const show = (props = {}) => render(<BusinessRules notify={notify} {...props} />);
 beforeEach(() => {
   notify.mockReset();
@@ -19,7 +22,7 @@ beforeEach(() => {
 describe("business rules", () => {
   it("saves credit control with the chosen mode and overdue limit", async () => {
     show();
-    fireEvent.click(await screen.findByRole("radio", { name: /Warn/ }));
+    fireEvent.click(await ready(screen.findByRole("radio", { name: /Warn/ })));
     fireEvent.change(screen.getByLabelText(/overdue by more than/), { target: { value: "30" } });
     fireEvent.click(screen.getByRole("button", { name: "Save credit control" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ creditControl: { mode: "warn", overdueBlockDays: 30 } }));
@@ -28,7 +31,7 @@ describe("business rules", () => {
 
   it("saves the return rules", async () => {
     show();
-    fireEvent.click(await screen.findByLabelText(/Every return must name its original invoice/));
+    fireEvent.click(await ready(screen.findByLabelText(/Every return must name its original invoice/)));
     fireEvent.change(screen.getByLabelText(/Accept returns within/), { target: { value: "14" } });
     fireEvent.click(screen.getByRole("button", { name: "Save return rules" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ returnWindowDays: 14, requireReturnLink: true }));
@@ -36,7 +39,7 @@ describe("business rules", () => {
 
   it("rejects a TRN that is not 15 digits before calling the server", async () => {
     show();
-    fireEvent.change(await screen.findByLabelText(/Tax registration number/), { target: { value: "12345" } });
+    fireEvent.change(await ready(screen.findByLabelText(/Tax registration number/)), { target: { value: "12345" } });
     fireEvent.click(screen.getByRole("button", { name: "Save tax identity" }));
     expect(await screen.findByText("A UAE TRN is exactly 15 digits")).toBeInTheDocument();
     expect(m.saveSettings).not.toHaveBeenCalled();
@@ -79,7 +82,7 @@ describe("approvals", () => {
 
   it("saves both rules through the settings call, and says so", async () => {
     show();
-    fireEvent.click(await screen.findByLabelText(/The person who prepared a document cannot approve it/));
+    fireEvent.click(await ready(screen.findByLabelText(/The person who prepared a document cannot approve it/)));
     fireEvent.change(screen.getByLabelText(/Ask for a second approver on documents above/), { target: { value: "5000" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: 5000 } }));
@@ -89,14 +92,14 @@ describe("approvals", () => {
   it("switches the second approver off with an empty amount (null), leaving the other rule as it is", async () => {
     m.settings.mockResolvedValue({ ...SETTINGS, approvals: { separateApprover: true, secondApprovalAbove: 5000 } });
     show();
-    fireEvent.change(await screen.findByLabelText(/Ask for a second approver on documents above/), { target: { value: "" } });
+    fireEvent.change(await ready(screen.findByLabelText(/Ask for a second approver on documents above/)), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: null } }));
   });
 
   it("will not send an amount that is not an amount, and says so beside the field", async () => {
     show();
-    fireEvent.change(await screen.findByLabelText(/Ask for a second approver on documents above/), { target: { value: "plenty" } });
+    fireEvent.change(await ready(screen.findByLabelText(/Ask for a second approver on documents above/)), { target: { value: "plenty" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
     expect(await screen.findByText("Enter an amount of 0 or more, or leave it empty")).toBeInTheDocument();
     expect(m.saveSettings).not.toHaveBeenCalled();
@@ -106,7 +109,7 @@ describe("approvals", () => {
   it("shows the server's own sentence when it refuses, and does not say it was saved", async () => {
     m.saveSettings.mockRejectedValue(refusal("The second approver amount must be 0 or more"));
     show();
-    fireEvent.change(await screen.findByLabelText(/Ask for a second approver on documents above/), { target: { value: "10" } });
+    fireEvent.change(await ready(screen.findByLabelText(/Ask for a second approver on documents above/)), { target: { value: "10" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
     expect(await screen.findByText("The second approver amount must be 0 or more")).toBeInTheDocument();
     expect(screen.queryByText(/Request failed with status code/)).toBeNull();
@@ -115,7 +118,7 @@ describe("approvals", () => {
 
   it("keeps the other groups' saves as they were", async () => {
     show();
-    fireEvent.click(await screen.findByRole("radio", { name: /Warn/ }));
+    fireEvent.click(await ready(screen.findByRole("radio", { name: /Warn/ })));
     fireEvent.click(screen.getByRole("button", { name: "Save credit control" }));
     await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ creditControl: { mode: "warn", overdueBlockDays: 0 } }));
     expect(m.saveSettings.mock.calls[0][0]).not.toHaveProperty("approvals");
