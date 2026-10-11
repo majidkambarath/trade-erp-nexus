@@ -17,6 +17,8 @@ import { availabilityWarning } from "../../lib/salesDocuments";
 import { ITEM_TYPES, pickerLabel, rowIsService, stockedItemIds } from "../../lib/itemTypes";
 import { isReverseCharge, taxCodeLabel } from "../../lib/reverseCharge";
 import { cn } from "../../lib/utils";
+import { partyVat, vatAdvice } from "../../lib/partyVat";
+import { statusClasses } from "../../lib/status";
 
 import { DateInput } from "../accounting/kit";
 const num = (v) => parseFloat(v) || 0;
@@ -91,6 +93,46 @@ const selectStyles = (invalid) => ({
     color: s.isSelected ? "var(--primary-foreground)" : "var(--foreground)",
   }),
 });
+
+// The party's VAT registration under their details: the status as a labelled pill (never colour alone), the TRN, and a note
+// when it matters for this document (lib/partyVat.js). Nothing here changes what can be saved.
+function PartyVat({ party, partyType, vatAmount }) {
+  const v = partyVat(party);
+  if (!v) return null;
+  const notes = vatAdvice({ partyType, party, vatAmount });
+  return (
+    <div className="space-y-2 pt-1" data-party-vat={v.status}>
+      <dl className="space-y-1.5">
+        <div className="flex gap-3">
+          <dt className="w-28 shrink-0 text-muted-foreground">VAT status</dt>
+          <dd>
+            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", statusClasses(v.tone === "success" ? "APPROVED" : v.tone === "info" ? "INVOICED" : "DRAFT"))}>
+              {v.label}
+            </span>
+          </dd>
+        </div>
+        {v.trn && (
+          <div className="flex gap-3">
+            <dt className="w-28 shrink-0 text-muted-foreground">TRN</dt>
+            <dd className="min-w-0 break-words font-mono text-foreground">{v.trn}</dd>
+          </div>
+        )}
+      </dl>
+      {notes.map((n) => (
+        <p
+          key={n.text}
+          role="note"
+          className={cn(
+            "rounded-lg border px-3 py-2 text-xs leading-relaxed",
+            n.tone === "warning" ? "border-status-warning/40 bg-status-warning-soft text-foreground" : "border-border bg-secondary/40 text-muted-foreground"
+          )}
+        >
+          {n.text}
+        </p>
+      ))}
+    </div>
+  );
+}
 
 function Field({ id, label, error, hint, className, children }) {
   return (
@@ -739,6 +781,7 @@ export default function OrderForm({
                       </div>
                     ))}
                   </dl>
+                  <PartyVat party={party} partyType={V.partyType} vatAmount={num(totals.tax)} />
                   {formData[refKey] && <p className="pt-1 text-muted-foreground">Reference: {formData[refKey]}</p>}
                 </div>
               ) : (

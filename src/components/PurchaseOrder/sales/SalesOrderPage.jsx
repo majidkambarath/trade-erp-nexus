@@ -73,7 +73,8 @@ import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
 import { orgCurrency } from "../../../utils/orgLocale";
-import { paymentStatus } from "../../../lib/paymentStatus";
+import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
+import StatusOverview from "../../lists/StatusOverview";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
@@ -269,6 +270,8 @@ const formatDisplayTransactionNo = (t) => {
       // what has been settled, kept as the server sent it: a missing figure must not turn into "0 outstanding" (lib/paymentStatus.js)
       paidAmount: t.paidAmount,
       outstandingAmount: t.outstandingAmount,
+      dueDate: t.dueDate || null,
+      paymentTerms: t.party?.paymentTerms || "",
       items: t.items,
       terms: t.terms || "",
       notes: t.notes || "",
@@ -394,9 +397,18 @@ const formatDisplayTransactionNo = (t) => {
     const invoicedValue = periodRows.filter(isInvoiced).reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
     // what has been collected, from the amounts (never from a stored status): lib/paymentStatus.js
     const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
+    let open = 0;
+    let overdue = 0;
+    let overdueValue = 0;
     for (const so of periodRows) {
       const p = paymentStatus(so);
-      if (p) payment[p.key] += 1;
+      if (!p) continue;
+      payment[p.key] += 1;
+      open += p.outstanding ?? 0;
+      if (isPastDue(so)) {
+        overdue += 1;
+        overdueValue += p.outstanding ?? 0;
+      }
     }
     return {
       total,
@@ -406,6 +418,9 @@ const formatDisplayTransactionNo = (t) => {
       paid: payment.PAID,
       partial: payment.PARTIAL,
       unpaid: payment.UNPAID,
+      open,
+      overdue,
+      overdueValue,
       totalValue,
       invoicedValue,
       compare: compareCount(total, listInfo.previousTotal, previous?.name),
@@ -833,45 +848,26 @@ const formatDisplayTransactionNo = (t) => {
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-card shadow-card">
-          <header className="border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Status overview</h3>
-          </header>
-          <div className="space-y-4 px-5 py-4">
-            {[
-              { label: "Draft", value: statistics.draft },
-              { label: "Approved", value: statistics.confirmed },
-              { label: "Invoiced", value: statistics.invoiced },
-              { label: "Paid", value: statistics.paid },
-              { label: "Partly paid", value: statistics.partial },
-              { label: "Unpaid", value: statistics.unpaid },
-            ].map((row) => {
-              const value = Number(row.value) || 0;
-              const share = statistics.total ? (value / statistics.total) * 100 : 0;
-              return (
-                <div key={row.label}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <span className="text-sm text-foreground">{row.label}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {value} · {share.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
-                      style={{ width: `${share}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            {statistics.total === 0 && (
-              <p className="pt-1 text-xs text-muted-foreground">
-                Nothing to show until the first order is created.
-              </p>
-            )}
-          </div>
-        </section>
+        <StatusOverview
+          noun="order"
+          document={{
+            total: statistics.total,
+            rows: [
+              { label: "Draft", value: statistics.draft, hint: "not in the accounts" },
+              { label: "Approved", value: statistics.confirmed, hint: "invoiced, in the accounts" },
+            ],
+          }}
+          payment={{
+            base: statistics.paid + statistics.partial + statistics.unpaid,
+            open: statistics.open,
+            rows: [
+              { label: "Unpaid", value: statistics.unpaid, tone: "warning" },
+              { label: "Partly paid", value: statistics.partial, tone: "warning" },
+              { label: "Paid", value: statistics.paid, tone: "success" },
+              { label: "Past due", value: statistics.overdue, amount: statistics.overdueValue, tone: "danger" },
+            ],
+          }}
+        />
       </div>
     </div>
   );

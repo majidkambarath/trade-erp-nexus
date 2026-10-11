@@ -282,7 +282,6 @@ const vendorPreview = (p) => [
   ["Address", p.address],
   ["Phone", p.phone],
   ["Email", p.email],
-  ["VAT no.", p.vatNumber],
   ["Terms", p.paymentTerms],
 ];
 
@@ -291,7 +290,6 @@ const customerPreview = (p) => [
   ["Billing address", p.billingAddress],
   ["Phone", p.phone],
   ["Email", p.email],
-  ["TRN", p.trnNumber],
   ["Terms", p.paymentTerms],
 ];
 

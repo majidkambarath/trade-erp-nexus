@@ -63,7 +63,8 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
-import { paymentStatus } from "../../../lib/paymentStatus";
+import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
+import StatusOverview from "../../lists/StatusOverview";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const PurchaseOrderManagement = () => {
@@ -263,6 +264,8 @@ const PurchaseOrderManagement = () => {
           // a figure the server did not send stays missing: "0.00 outstanding" would read as paid (lib/paymentStatus.js)
           outstandingAmount: t.outstandingAmount == null ? null : Number(t.outstandingAmount).toFixed(2),
           paidAmount: t.paidAmount == null ? null : Number(t.paidAmount).toFixed(2),
+          dueDate: t.dueDate || null,
+          paymentTerms: t.party?.paymentTerms || "",
           items: enrichedItems,
           terms: t.terms || "",
           notes: t.notes || "",
@@ -335,9 +338,18 @@ const PurchaseOrderManagement = () => {
     // what has been paid to the vendor, from the amounts (never from a stored status): lib/paymentStatus.js.
     // This used to count status "paid", which no document ever has.
     const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
+    let open = 0;
+    let overdue = 0;
+    let overdueValue = 0;
     for (const po of periodRows) {
       const p = paymentStatus(po);
-      if (p) payment[p.key] += 1;
+      if (!p) continue;
+      payment[p.key] += 1;
+      open += p.outstanding ?? 0;
+      if (isPastDue(po)) {
+        overdue += 1;
+        overdueValue += p.outstanding ?? 0;
+      }
     }
     const paid = payment.PAID;
     const partial = payment.PARTIAL;
@@ -348,7 +360,7 @@ const PurchaseOrderManagement = () => {
     const totalValue = periodRows.reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
     const approvedValue = periodRows.filter((po) => po.status === "APPROVED").reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
     return {
-      total, pending, approved, draft, paid, partial, unpaid, rejected, totalValue, approvedValue,
+      total, pending, approved, draft, paid, partial, unpaid, open, overdue, overdueValue, rejected, totalValue, approvedValue,
       compare: compareCount(total, listInfo.previousTotal, previous?.name),
     };
   }, [periodRows, listInfo.previousTotal, previous?.name]);
@@ -645,46 +657,28 @@ const PurchaseOrderManagement = () => {
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-card shadow-card">
-          <header className="border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Status overview</h3>
-          </header>
-          <div className="space-y-4 px-5 py-4">
-            {[
-              { label: "Draft", value: statistics.draft },
-              { label: "Pending", value: statistics.pending },
-              { label: "Approved", value: statistics.approved },
+        <StatusOverview
+          noun="purchase order"
+          document={{
+            total: statistics.total,
+            rows: [
+              { label: "Draft", value: statistics.draft, hint: "not in the accounts" },
+              { label: "Pending", value: statistics.pending, hint: "waiting for approval" },
+              { label: "Approved", value: statistics.approved, hint: "received, in the accounts" },
               { label: "Rejected", value: statistics.rejected },
-              { label: "Paid", value: statistics.paid },
-              { label: "Partly paid", value: statistics.partial },
-              { label: "Unpaid", value: statistics.unpaid },
-            ].map((row) => {
-              const value = Number(row.value) || 0;
-              const share = statistics.total ? (value / statistics.total) * 100 : 0;
-              return (
-                <div key={row.label}>
-                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                    <span className="text-sm text-foreground">{row.label}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {value} · {share.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className="h-full rounded-full bg-brand transition-all duration-500 ease-out"
-                      style={{ width: `${share}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            {statistics.total === 0 && (
-              <p className="pt-1 text-xs text-muted-foreground">
-                Nothing to show until the first purchase order is created.
-              </p>
-            )}
-          </div>
-        </section>
+            ],
+          }}
+          payment={{
+            base: statistics.paid + statistics.partial + statistics.unpaid,
+            open: statistics.open,
+            rows: [
+              { label: "Unpaid", value: statistics.unpaid, tone: "warning" },
+              { label: "Partly paid", value: statistics.partial, tone: "warning" },
+              { label: "Paid", value: statistics.paid, tone: "success" },
+              { label: "Past due", value: statistics.overdue, amount: statistics.overdueValue, tone: "danger" },
+            ],
+          }}
+        />
       </div>
     </div>
   );

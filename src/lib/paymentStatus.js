@@ -47,3 +47,26 @@ export function paymentStatus(doc) {
 
 /** True when a posted document has been settled in full. */
 export const isPaid = (doc) => paymentStatus(doc)?.key === "PAID";
+
+// ---- when it falls due -----------------------------------------------------------------------------------------------
+// The date stored on the document, else its date plus the days in the party's payment terms ("Net 30", "45 days"; no number
+// means due on the day). This is the rule the ageing report uses (services/financial/ageingService.js), so a register, an
+// overview and the ageing cannot disagree. Almost no document stores a due date (opening invoices do), hence the terms.
+const DAY = 86400000;
+export const termDays = (terms) => {
+  const m = /(\d+)/.exec(String(terms || ""));
+  return m ? Number(m[1]) : 0;
+};
+export function dueDateOf(doc) {
+  if (!doc) return null;
+  if (doc.dueDate) return new Date(doc.dueDate);
+  if (!doc.date) return null;
+  const terms = doc.paymentTerms ?? doc.party?.paymentTerms;
+  return new Date(new Date(doc.date).getTime() + termDays(terms) * DAY);
+}
+/** Past due once a whole day has gone by since it fell due, and only while something is still owed. */
+export function isPastDue(doc, now = Date.now()) {
+  const p = paymentStatus(doc);
+  const due = dueDateOf(doc);
+  return Boolean(p && p.key !== "PAID" && due && Math.floor((now - due.getTime()) / DAY) > 0);
+}

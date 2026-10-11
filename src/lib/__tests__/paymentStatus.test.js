@@ -59,3 +59,33 @@ describe("paymentStatus", () => {
     expect(isPaid(invoice({ status: "DRAFT", paidAmount: 1000, outstandingAmount: 0 }))).toBe(false);
   });
 });
+
+import { dueDateOf, isPastDue, termDays } from "../paymentStatus";
+
+describe("when an invoice falls due", () => {
+  const DAY = 86400000;
+  const now = Date.parse("2026-10-11T12:00:00Z");
+  const inv = (over = {}) => ({ status: "APPROVED", totalAmount: 100, paidAmount: 0, outstandingAmount: 100, date: "2026-09-01T00:00:00.000Z", ...over });
+
+  it("reads the number of days in the party's terms", () => {
+    expect(termDays("Net 30")).toBe(30);
+    expect(termDays("45 days")).toBe(45);
+    expect(termDays("COD")).toBe(0);
+    expect(termDays(undefined)).toBe(0);
+  });
+
+  it("uses the stored date, else the invoice date plus the terms (on the row or on its party)", () => {
+    expect(dueDateOf(inv({ dueDate: "2026-12-01T00:00:00.000Z" })).toISOString().slice(0, 10)).toBe("2026-12-01");
+    expect(dueDateOf(inv({ paymentTerms: "Net 30" })).toISOString().slice(0, 10)).toBe("2026-10-01");
+    expect(dueDateOf(inv({ party: { paymentTerms: "Net 45" } })).toISOString().slice(0, 10)).toBe("2026-10-16");
+    expect(dueDateOf(inv({ date: undefined }))).toBeNull();
+  });
+
+  it("is past due only after a whole day, and only while something is owed", () => {
+    expect(isPastDue(inv({ paymentTerms: "Net 30" }), now)).toBe(true); // fell due 1 Oct
+    expect(isPastDue(inv({ paymentTerms: "Net 45" }), now)).toBe(false); // falls due 16 Oct
+    expect(isPastDue(inv({ paymentTerms: "Net 30", paidAmount: 100, outstandingAmount: 0 }), now)).toBe(false); // paid
+    expect(isPastDue(inv({ status: "DRAFT", paymentTerms: "Net 30" }), now)).toBe(false); // a draft owes nothing
+    expect(isPastDue(inv({ paymentTerms: "Net 30", dueDate: new Date(now - DAY / 2).toISOString() }), now)).toBe(false); // due earlier today
+  });
+});

@@ -15,7 +15,7 @@ import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { fetchAllTransactions } from "../../lib/transactionList";
 import { DEFAULT_LIST_PERIOD, inPeriod } from "../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../lib/pagination";
-import { paymentStatus } from "../../lib/paymentStatus";
+import { dueDateOf, isPastDue, paymentStatus } from "../../lib/paymentStatus";
 import { formatDate, formatNumber, toInputDate, CURRENCY } from "../../utils/format";
 
 // The invoice register: every invoice of the period, what has been collected (or paid) against it, and what is still open.
@@ -59,27 +59,6 @@ const INVOICE_TABS = [["CONFIRMED", "Confirmed"], ["DRAFT", "Draft"], ["ALL", "A
 const PAYMENT_OPTIONS = [["PAID", "Paid"], ["PARTIAL", "Partly paid"], ["UNPAID", "Unpaid"]];
 const TOLERANCE = 0.005;
 const money = (n) => formatNumber(Number(n) || 0, 2);
-const DAY = 86400000;
-
-// When an invoice falls due: the date stored on it, else its date plus the days in the party's payment terms ("Net 30",
-// "45 days"; no number means due on the day). It is the rule the ageing report uses, so the two cannot disagree. Most documents
-// carry no stored due date (only opening invoices do), which is why the terms are needed.
-const termDays = (terms) => {
-  const m = /(\d+)/.exec(String(terms || ""));
-  return m ? Number(m[1]) : 0;
-};
-const dueOf = (t) => {
-  if (t.dueDate) return new Date(t.dueDate);
-  if (!t.date) return null;
-  return new Date(new Date(t.date).getTime() + termDays(t.party?.paymentTerms) * DAY);
-};
-// past due once a whole day has gone by since it fell due, and only while something is still owed
-const isPastDue = (t, now = Date.now()) => {
-  const p = paymentStatus(t);
-  const due = dueOf(t);
-  return Boolean(p && p.key !== "PAID" && due && Math.floor((now - due.getTime()) / DAY) > 0);
-};
-
 // An invoice that counts (the register's totals ignore drafts, rejections and cancellations).
 const isConfirmed = (t) => ["APPROVED", "INVOICED", "PAID", "PARTIAL", "UNPAID"].includes(String(t.status).toUpperCase());
 const isDraft = (t) => ["DRAFT", "PENDING"].includes(String(t.status).toUpperCase());
@@ -212,7 +191,7 @@ export function InvoiceRegister({ side }) {
               {
                 key: "due", header: "Due", card: "meta", className: "whitespace-nowrap text-muted-foreground",
                 cell: (r) => {
-                  const due = dueOf(r);
+                  const due = dueDateOf(r);
                   const late = isPastDue(r);
                   return due ? <span className={late ? "font-medium text-status-danger" : undefined}>{formatDate(due)}{late ? " · past due" : ""}</span> : "-";
                 },
