@@ -279,6 +279,7 @@ const PurchaseOrderManagement = () => {
           // a figure the server did not send stays missing: "0.00 outstanding" would read as paid (lib/paymentStatus.js)
           outstandingAmount: t.outstandingAmount == null ? null : Number(t.outstandingAmount).toFixed(2),
           paidAmount: t.paidAmount == null ? null : Number(t.paidAmount).toFixed(2),
+          creditedAmount: t.creditedAmount == null ? null : Number(t.creditedAmount).toFixed(2),
           dueDate: t.dueDate || null,
           paymentTerms: t.party?.paymentTerms || "",
           items: enrichedItems,

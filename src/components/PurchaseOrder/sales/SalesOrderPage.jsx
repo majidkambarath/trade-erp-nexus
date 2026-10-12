@@ -270,6 +270,7 @@ const formatDisplayTransactionNo = (t) => {
       // what has been settled, kept as the server sent it: a missing figure must not turn into "0 outstanding" (lib/paymentStatus.js)
       paidAmount: t.paidAmount,
       outstandingAmount: t.outstandingAmount,
+      creditedAmount: t.creditedAmount,
       dueDate: t.dueDate || null,
       paymentTerms: t.party?.paymentTerms || "",
       items: t.items,

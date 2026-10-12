@@ -41,8 +41,14 @@ export function paymentStatus(doc) {
   if (Number.isNaN(outstanding)) outstanding = total - paid;
   if (Number.isNaN(paid)) paid = total - outstanding;
 
-  const key = outstanding <= TOLERANCE ? "PAID" : paid > TOLERANCE ? "PARTIAL" : "UNPAID";
-  return { key, label: PAYMENT_LABEL[key], total, paid: Math.max(0, paid), outstanding: Math.max(0, outstanding) };
+  // Returns set against the invoice (creditedAmount) come off what is owed like a payment, but they are not a payment: an invoice
+  // settled only by credit reads "Credited", one part-settled by credit alone "Partly credited"; money paid decides Paid / Partly paid.
+  const creditedRaw = amountOf(doc.creditedAmount);
+  const credited = Number.isNaN(creditedRaw) ? 0 : Math.max(0, creditedRaw);
+  const key = outstanding <= TOLERANCE ? "PAID" : paid > TOLERANCE || credited > TOLERANCE ? "PARTIAL" : "UNPAID";
+  let label = PAYMENT_LABEL[key];
+  if (credited > TOLERANCE && paid <= TOLERANCE) label = key === "PAID" ? "Credited" : "Partly credited";
+  return { key, label, total, paid: Math.max(0, paid), credited, outstanding: Math.max(0, outstanding) };
 }
 
 /** True when a posted document has been settled in full. */

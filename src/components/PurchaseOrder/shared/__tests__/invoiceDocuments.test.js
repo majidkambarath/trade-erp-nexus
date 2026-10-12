@@ -33,8 +33,10 @@ describe("purchase return", () => {
   const vendor = { vendorId: "VEND-1", vendorName: "Al Maya", trnNO: "200000000000003", paymentTerms: "" };
   const doc = buildPurchaseReturnDocument({ transactionNo: "PR-1", status: "PENDING", items, vendorReference: "VR-7" }, vendor, company, "AED");
 
-  it("is titled as a return against the vendor", () => {
-    expect(doc.sheet.title).toBe("Purchase return");
+  it("is a debit note for a registered supplier, and says which party it is for", () => {
+    expect(doc.sheet.title).toBe("Debit note");
+    expect(doc.sheet.number.label).toBe("Debit note no.");
+    expect(doc.fileName).toBe("Debit-note_PR-1");
     expect(doc.sheet.party.heading).toBe("Supplier");
     expect(doc.sheet.party.trn).toBe("200000000000003");
     expect(doc.sheet.meta).toContainEqual(["Vendor reference", "VR-7"]);
@@ -118,5 +120,38 @@ describe("a line's item code", () => {
 
   it("leaves the code blank when only the id is known", () => {
     expect(code({ itemCode: id })).toBe("");
+  });
+});
+
+describe("returns: the heading follows the party's registration, and the invoice returned is named", () => {
+  const customer = { customerId: "C1", customerName: "Al Noor", trnNumber: "100123456700003", vat: { status: "registered" } };
+  const walkIn = { customerName: "Walk-in", vat: { status: "unregistered" } };
+  const ret = (over = {}) => ({ transactionNo: "SR-1", status: "APPROVED", items: [], returnOf: { transactionId: "i1", transactionNo: "SO-2026-0042" }, ...over });
+
+  it("a registered customer's sales return is a tax credit note against the invoice", () => {
+    const doc = buildSalesReturnDocument(ret(), customer, company, "AED");
+    expect(doc.sheet.title).toBe("Tax credit note");
+    expect(doc.sheet.number).toEqual({ label: "Credit note no.", value: "SR-1" });
+    expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
+    expect(doc.sheet.notice).toMatch(/tax credit note.*against SO-2026-0042/);
+    expect(doc.fileName).toBe("Tax-credit-note_SR-1");
+  });
+
+  it("an unregistered customer's stays a sales return, and is never a tax invoice", () => {
+    const doc = buildSalesReturnDocument(ret(), walkIn, company, "AED");
+    expect(doc.sheet.title).toBe("Sales return");
+    expect(doc.sheet.number.label).toBe("Return no.");
+  });
+
+  it("a draft return says nothing is posted yet", () => {
+    const doc = buildSalesReturnDocument(ret({ status: "DRAFT" }), customer, company, "AED");
+    expect(doc.sheet.notice).toMatch(/draft/);
+    expect(doc.sheet.notice).toMatch(/Nothing is posted and no stock moves until it is approved/);
+  });
+
+  it("a purchase return from an unregistered supplier stays a purchase return", () => {
+    const doc = buildPurchaseReturnDocument(ret({ transactionNo: "PR-2" }), { vendorName: "Corner Shop", vat: { status: "unregistered" } }, company, "AED");
+    expect(doc.sheet.title).toBe("Purchase return");
+    expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
   });
 });

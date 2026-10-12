@@ -63,7 +63,7 @@ const TableView = ({
                   onClick={() => handleSort("id")}
                   className="flex items-center space-x-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
                 >
-                  <span>PO Number</span>
+                  <span>Return no.</span>
                   {sortBy === "id" &&
                     (sortOrder === "asc" ? (
                       <ChevronUp className="w-4 h-4" />
@@ -159,7 +159,11 @@ const TableView = ({
                       <p className="font-medium text-slate-900">
                         {po.transactionNo}
                       </p>
-                      <p className="text-xs text-slate-500">{po.createdBy}</p>
+                      {po.returnOf?.transactionNo ? (
+                        <p className="text-xs text-slate-500">Against {po.returnOf.transactionNo}</p>
+                      ) : (
+                        po.createdBy && !/^[a-f0-9]{24}$/i.test(String(po.createdBy)) && <p className="text-xs text-slate-500">{po.createdBy}</p>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -168,7 +172,7 @@ const TableView = ({
                     <p className="font-medium text-slate-900">
                       {po.vendorName}
                     </p>
-                    <p className="text-xs text-slate-500">{po.vendorId}</p>
+                    {po.vendorId && !/^[a-f0-9]{24}$/i.test(String(po.vendorId)) && <p className="text-xs text-slate-500">{po.vendorId}</p>}
                   </div>
                 </td>
                 <td className="px-4 py-4">

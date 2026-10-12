@@ -58,7 +58,7 @@ const TableView = ({
                   onClick={() => handleSort("id")}
                   className="flex items-center space-x-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
                 >
-                  <span>SO Number</span>
+                  <span>Return no.</span>
                   {sortBy === "id" &&
                     (sortOrder === "asc" ? (
                       <ChevronUp className="w-4 h-4" />
@@ -139,14 +139,18 @@ const TableView = ({
                     <div className={`w-2 h-8 rounded-full ${getPriorityColor(so.priority)}`}></div>
                     <div>
                       <p className="font-medium text-slate-900">{so.transactionNo}</p>
-                      <p className="text-xs text-slate-500">{so.createdBy}</p>
+                      {so.returnOf?.transactionNo ? (
+                        <p className="text-xs text-slate-500">Against {so.returnOf.transactionNo}</p>
+                      ) : (
+                        so.createdBy && !/^[a-f0-9]{24}$/i.test(String(so.createdBy || "")) && <p className="text-xs text-slate-500">{so.createdBy}</p>
+                      )}
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-4">
                   <div>
                     <p className="font-medium text-slate-900">{so.customerName || "Unknown"}</p>
-                    <p className="text-xs text-slate-500">{so.customerId}</p>
+                    {so.customerId && !/^[a-f0-9]{24}$/i.test(String(so.customerId)) && <p className="text-xs text-slate-500">{so.customerId}</p>}
                   </div>
                 </td>
                 <td className="px-4 py-4">

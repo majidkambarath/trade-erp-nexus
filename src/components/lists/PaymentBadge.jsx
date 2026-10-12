@@ -15,7 +15,7 @@ export default function PaymentBadge({ doc, className }) {
   const title =
     p.paid === null || p.total === null
       ? p.label
-      : `${p.label}: ${formatNumber(p.paid, 2)} of ${formatNumber(p.total, 2)} settled${p.outstanding > 0.005 ? `, ${formatNumber(p.outstanding, 2)} outstanding` : ""}`;
+      : `${p.label}: ${formatNumber(p.paid, 2)} of ${formatNumber(p.total, 2)} paid${p.credited > 0.005 ? `, ${formatNumber(p.credited, 2)} credited by returns` : ""}${p.outstanding > 0.005 ? `, ${formatNumber(p.outstanding, 2)} outstanding` : ""}`;
   return (
     <span
       title={title}

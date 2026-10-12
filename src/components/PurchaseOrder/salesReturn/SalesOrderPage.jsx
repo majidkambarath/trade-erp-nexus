@@ -227,6 +227,8 @@ const SalesReturnOrderManagement = () => {
             createdAt: transaction.createdAt,
             invoiceGenerated: transaction.invoiceGenerated,
             priority: transaction.priority,
+            // the invoice this return is against (its credit is set against it when approved)
+            returnOf: transaction.returnOf?.transactionId ? transaction.returnOf : null,
             reason: transaction.reason || "",
           };
         })

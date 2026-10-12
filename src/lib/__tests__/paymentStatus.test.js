@@ -53,6 +53,18 @@ describe("paymentStatus", () => {
     expect(Object.keys(PAYMENT_LABEL).sort()).toEqual(["PAID", "PARTIAL", "UNPAID"]);
   });
 
+  it("an invoice that returns have part-settled is partly credited, and one they settled in full is credited", () => {
+    const part = paymentStatus(invoice({ creditedAmount: 300, outstandingAmount: 700 }));
+    expect(part).toMatchObject({ key: "PARTIAL", label: "Partly credited", paid: 0, credited: 300, outstanding: 700 });
+    const full = paymentStatus(invoice({ creditedAmount: 1000, outstandingAmount: 0 }));
+    expect(full).toMatchObject({ key: "PAID", label: "Credited" });
+    // money paid still decides the plain words
+    expect(paymentStatus(invoice({ paidAmount: 600, creditedAmount: 400, outstandingAmount: 0 })).label).toBe("Paid");
+    expect(paymentStatus(invoice({ paidAmount: 500, creditedAmount: 100, outstandingAmount: 400 })).label).toBe("Partly paid");
+    // a row that carries no creditedAmount reads exactly as before
+    expect(paymentStatus(invoice()).credited).toBe(0);
+  });
+
   it("isPaid is true only for a settled posted invoice", () => {
     expect(isPaid(invoice({ paidAmount: 1000, outstandingAmount: 0 }))).toBe(true);
     expect(isPaid(invoice())).toBe(false);

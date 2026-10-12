@@ -165,63 +165,83 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
   };
 };
 
-// A sales return: goods coming back from the customer. It is a credit, not a sale, so it is never
-// titled as a tax invoice.
-export const buildSalesReturnDocument = (so, customer, company, currency) => ({
-  fileName: `Sales-return_${so.transactionNo}`,
-  status: so.status,
-  missingTrn: false,
-  sheet: sheetFor(so, {
-    title: "Sales return",
-    numberLabel: "Return no.",
-    number: so.transactionNo,
-    party: {
-      heading: "Customer",
-      name: customer.customerName || so.customerName || "",
-      code: customer.customerId || "",
-      address: customer.billingAddress || "",
-      contact: contactLines(customer),
-      trn: customer.trnNumber || customer.vat?.trn || "",
-    },
-    meta: [
-      ["Date", dateOf(so.date)],
-      ["Return date", dateOf(so.deliveryDate)],
-      ["Original invoice", so.refNo ?? so.lpono ?? ""],
-    ],
-    company,
-    currency,
-    notice: "This is a sales return note. It credits the goods returned to the customer.",
-    receipt: true,
-    reverseChargeSide: "supplier",
-  }),
-});
+// A sales return: goods coming back from the customer. It is a credit, never a sale, so it is never titled as a tax invoice. For a
+// registered customer it reads "Tax credit note" (what the customer is given for the goods), for any other a plain "Sales return".
+// The invoice it returns is named, and an approved return is set against it (the invoice owes that much less).
+export const buildSalesReturnDocument = (so, customer, company, currency) => {
+  const trn = customer.trnNumber || customer.vat?.trn || "";
+  const name = customer.customerName || so.customerName || "";
+  const vatStatus = partyVatStatus(customer, trn, name);
+  const registered = vatStatus === "Registered";
+  const original = so.returnOf?.transactionNo || so.refNo || so.lpono || "";
+  const issued = INVOICED.includes(so.status);
+  return {
+    fileName: `${registered ? "Tax-credit-note" : "Sales-return"}_${so.transactionNo}`,
+    status: so.status,
+    missingTrn: false,
+    sheet: sheetFor(so, {
+      title: registered ? "Tax credit note" : "Sales return",
+      numberLabel: registered ? "Credit note no." : "Return no.",
+      number: so.transactionNo,
+      party: {
+        heading: "Customer",
+        name,
+        code: customer.customerId || "",
+        address: customer.billingAddress || "",
+        contact: contactLines(customer),
+        trn,
+        vatStatus,
+      },
+      meta: [
+        ["Date", dateOf(so.date)],
+        ["Return date", dateOf(so.deliveryDate)],
+        ["Original invoice", original],
+      ],
+      company,
+      currency,
+      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "tax credit note" : "sales return note"}. It credits the goods returned${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
+      receipt: true,
+      reverseChargeSide: "supplier",
+    }),
+  };
+};
 
-// A purchase return: goods sent back to the vendor.
-export const buildPurchaseReturnDocument = (po, vendor, company, currency) => ({
-  fileName: `Purchase-return_${po.transactionNo}`,
-  status: po.status,
-  missingTrn: false,
-  sheet: sheetFor(po, {
-    title: "Purchase return",
-    numberLabel: "Return no.",
-    number: po.transactionNo,
-    party: {
-      heading: "Supplier",
-      name: vendor.vendorName || "",
-      code: vendor.vendorId || "",
-      address: vendor.address || "",
-      contact: contactLines(vendor),
-      trn: vendor.trnNO || vendor.vat?.trn || "",
-    },
-    meta: [
-      ["Date", dateOf(po.date)],
-      ["Return date", dateOf(po.deliveryDate)],
-      ["Vendor reference", po.vendorReference ?? ""],
-    ],
-    company,
-    currency,
-    notice: "This is a purchase return note. It records the goods sent back to the vendor.",
-    receipt: true,
-    reverseChargeSide: "recipient",
-  }),
-});
+// A purchase return: goods sent back to the vendor. For a registered supplier it reads "Debit note" (what the supplier is asked to
+// credit us for the goods), for any other a plain "Purchase return". An approved return is set against the invoice it returns.
+export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
+  const trn = vendor.trnNO || vendor.vat?.trn || "";
+  const vatStatus = partyVatStatus(vendor, trn, vendor.vendorName);
+  const registered = vatStatus === "Registered";
+  const original = po.returnOf?.transactionNo || "";
+  const issued = INVOICED.includes(po.status);
+  return {
+    fileName: `${registered ? "Debit-note" : "Purchase-return"}_${po.transactionNo}`,
+    status: po.status,
+    missingTrn: false,
+    sheet: sheetFor(po, {
+      title: registered ? "Debit note" : "Purchase return",
+      numberLabel: registered ? "Debit note no." : "Return no.",
+      number: po.transactionNo,
+      party: {
+        heading: "Supplier",
+        name: vendor.vendorName || "",
+        code: vendor.vendorId || "",
+        address: vendor.address || "",
+        contact: contactLines(vendor),
+        trn,
+        vatStatus,
+      },
+      meta: [
+        ["Date", dateOf(po.date)],
+        ["Return date", dateOf(po.deliveryDate)],
+        ["Original invoice", original],
+        ["Vendor reference", po.vendorReference ?? ""],
+      ],
+      company,
+      currency,
+      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "debit note" : "purchase return note"}. It records the goods sent back to the vendor${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
+      receipt: true,
+      reverseChargeSide: "recipient",
+    }),
+  };
+};

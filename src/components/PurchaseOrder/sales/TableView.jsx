@@ -74,7 +74,7 @@ const TableView = ({
                   onClick={() => handleSort("id")}
                   className="flex items-center space-x-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
                 >
-                  <span>SO Number</span>
+                  <span>Invoice no.</span>
                   {sortBy === "id" &&
                     (sortOrder === "asc" ? (
                       <ChevronUp className="w-4 h-4" />
@@ -167,13 +167,8 @@ const TableView = ({
                       )}`}
                     ></div>
                     <div>
-                      <p className="font-medium text-foreground">
-  {so.status === "APPROVED"
-    ? (so.displayTransactionNo ?? so.transactionNo)
-    : so.transactionNo}
-</p>
-
-                      <p className="text-xs text-muted-foreground">{so.createdBy}</p>
+                      <p className="font-medium text-foreground">{so.transactionNo}</p>
+                      {so.createdBy && !/^[a-f0-9]{24}$/i.test(String(so.createdBy || "")) && <p className="text-xs text-muted-foreground">{so.createdBy}</p>}
                     </div>
                   </div>
                 </td>
