@@ -124,8 +124,22 @@ export function validateDeveloper(form, { needPassword = true } = {}) {
   return errors;
 }
 
+// A real random source, not Math.random: these passwords are handed to an organisation's first administrator
+// and, since the Developers screen, to a console account that can reach every organisation. V8's PRNG is not
+// meant to be unguessable. Falls back where crypto is absent (an old WebView, some test environments) so a
+// password is still produced; the tests pass their own `random` and are unaffected either way.
+const secureRandom = () => {
+  const c = typeof globalThis !== "undefined" ? globalThis.crypto : null;
+  if (c?.getRandomValues) {
+    const buf = new Uint32Array(1);
+    c.getRandomValues(buf);
+    return buf[0] / 2 ** 32;
+  }
+  return Math.random();
+};
+
 /** A password to hand over once, which the person is told to change. Twelve characters, letters and digits. */
-export function suggestPassword(random = Math.random) {
+export function suggestPassword(random = secureRandom) {
   const letters = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";
   const digits = "23456789";
   const pick = (set) => set[Math.floor(random() * set.length)];

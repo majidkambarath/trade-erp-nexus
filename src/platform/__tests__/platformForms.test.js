@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { MIN_CONSOLE_PASSWORD, roleLabel, roleOptions, validateDeveloper } from "../platformForms";
+import { describe, it, expect, vi } from "vitest";
+import { MIN_CONSOLE_PASSWORD, roleLabel, roleOptions, suggestPassword, validateDeveloper } from "../platformForms";
 
 // How the console words a person's role and which roles it offers when giving one.
 const ROLES = [
@@ -77,5 +77,34 @@ describe("a developer console account", () => {
   it("on an edit an empty password means keep the one it has, but anything typed is still checked", () => {
     expect(validateDeveloper({ ...ok, password: "" }, { needPassword: false })).toEqual({});
     expect(validateDeveloper({ ...ok, password: "weak" }, { needPassword: false }).password).toBeTruthy();
+  });
+});
+
+// These passwords are handed to a client's first administrator and to a console account that can reach every
+// organisation, so where the randomness comes from is the point - Math.random is not meant to be unguessable.
+describe("the password the console suggests", () => {
+  it("takes its randomness from crypto, not Math.random", () => {
+    const fromCrypto = vi.spyOn(globalThis.crypto, "getRandomValues");
+    const fromMath = vi.spyOn(Math, "random");
+    try {
+      suggestPassword();
+      expect(fromCrypto).toHaveBeenCalled();
+      expect(fromMath).not.toHaveBeenCalled();
+    } finally {
+      fromCrypto.mockRestore();
+      fromMath.mockRestore();
+    }
+  });
+
+  it("is twelve characters with letters and digits, and passes the rule the server enforces", () => {
+    for (let i = 0; i < 50; i += 1) {
+      const p = suggestPassword();
+      expect(p).toHaveLength(MIN_CONSOLE_PASSWORD);
+      expect(validateDeveloper({ name: "A", email: "a@b.test", password: p })).toEqual({});
+    }
+  });
+
+  it("does not repeat itself", () => {
+    expect(new Set(Array.from({ length: 50 }, () => suggestPassword())).size).toBe(50);
   });
 });
