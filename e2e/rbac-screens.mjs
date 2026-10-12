@@ -62,7 +62,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 try {
   // ---- the throwaway backend, an organisation, an owner, one customer and one item
-  api = spawn(process.execPath, ["server.js"], { cwd: BE, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: "ignore" });
+  api = spawn(process.execPath, ["server.js"], { cwd: BE, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", ATTACHMENT_STORAGE: "disk", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: "ignore" });
   await mongoose.connect(uri);
   const Admin = rqBE(`${BE}/models/core/adminModel`);
   const Customer = rqBE(`${BE}/models/modules/customerModel`);

@@ -90,7 +90,7 @@ const settle = async (email) => {
 
 try {
   // ============================================================ the company, on throwaway servers
-  api = spawn(process.execPath, ["server.js"], { cwd: BE, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: WEB }, stdio: "ignore" });
+  api = spawn(process.execPath, ["server.js"], { cwd: BE, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", ATTACHMENT_STORAGE: "disk", CORS_ORIGINS: WEB }, stdio: "ignore" });
   await mongoose.connect(uri);
   M = {
     Admin: rqBE(`${BE}/models/core/adminModel`), Customer: rqBE(`${BE}/models/modules/customerModel`), Stock: rqBE(`${BE}/models/modules/stockModel`),

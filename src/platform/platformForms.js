@@ -103,6 +103,27 @@ export function toCreatePayload(form) {
   };
 }
 
+// ---- the console's own people
+
+// A console account is not a customer's: there is no organisation behind it, and it opens every organisation,
+// so the server asks for a longer password than the product does (PlatformAuthService.assertStrongPassword:
+// 12+ characters with letters and digits). Saying so here means nobody types a form and is then refused.
+export const MIN_CONSOLE_PASSWORD = 12;
+
+export function validateDeveloper(form, { needPassword = true } = {}) {
+  const errors = {};
+  if (!String(form.name || "").trim()) errors.name = "Enter a name";
+  const email = String(form.email || "").trim();
+  if (!EMAIL.test(email)) errors.email = "Enter a valid email address";
+  const password = String(form.password || "");
+  // on an edit the box is left empty to keep the password it has; anything typed is still checked
+  if (needPassword || password) {
+    if (password.length < MIN_CONSOLE_PASSWORD) errors.password = `A console password needs at least ${MIN_CONSOLE_PASSWORD} characters`;
+    else if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) errors.password = "Use both letters and digits";
+  }
+  return errors;
+}
+
 /** A password to hand over once, which the person is told to change. Twelve characters, letters and digits. */
 export function suggestPassword(random = Math.random) {
   const letters = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ";

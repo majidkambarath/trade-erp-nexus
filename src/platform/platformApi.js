@@ -55,6 +55,13 @@ export const platform = {
   me: async () => data(await client.get("/me")),
   catalog: async () => data(await client.get("/catalog")),
 
+  // The console's own people. The routes existed from the start; until now nothing called them, so one lost
+  // phone or one forgotten password shut the console for good.
+  developers: async () => data(await client.get("/users")),
+  createDeveloper: async (body) => data(await client.post("/users", body)),
+  updateDeveloper: async (id, body) => data(await client.patch(`/users/${id}`, body)),
+  resetDeveloperTwoFactor: async (id) => data(await client.post(`/users/${id}/2fa/reset`)),
+
   organisations: async (params) => data(await client.get("/organisations", { params })),
   createOrganisation: async (body) => data(await client.post("/organisations", body)),
   organisation: async (code) => data(await client.get(`/organisations/${code}`)),

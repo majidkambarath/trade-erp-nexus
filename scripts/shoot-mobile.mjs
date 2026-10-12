@@ -316,6 +316,7 @@ const EXTRA_PAGES = [
   ["console-new-organisation", "/platform/new"],
   ["console-organisation", "/platform/organisations/gulf-fresh"],
   ["console-activity", "/platform/activity"],
+  ["console-developers", "/platform/developers"],
   ["console-security", "/platform/security"],
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
@@ -665,6 +666,8 @@ function stubFor(pathname) {
       };
     }
     if (p.endsWith("/audit")) return { total: 3, rows: n((i) => ({ _id: `pa${i}`, at: `2026-10-0${i}T09:30:00.000Z`, action: ["ORGANISATION_CREATED", "SUBSCRIPTION_EXTENDED", "USER_CREATED"][i - 1], organisation: "gulf-fresh", summary: ["Organisation created on the standard plan, books in AED", "Subscription now ends 2026-12-31", "Account created for owner@gulffresh.example (super_admin)"][i - 1], by: "dev@zarvia.test" }), 3) };
+    // the console's own developers, not an organisation's staff - both paths end in /users, so this one first
+    if (p.endsWith("/platform/users")) return n((i) => ({ _id: `p${i}`, name: ["Dev One", "Dev Two", "Dev Three"][i - 1], email: `dev${i}@zarvia.test`, status: i === 3 ? "inactive" : "active", twoFactor: { enabled: i === 1 }, lastLogin: i === 3 ? null : "2026-10-10T07:15:00.000Z" }), 3);
     if (p.endsWith("/users")) return n((i) => ({ _id: `u${i}`, name: ["Owner One", "Sara Khan", "Imran Ali", "Lina Haddad"][i - 1], email: `user${i}@gulffresh.example`, type: ["super_admin", "admin", "operator", "viewer"][i - 1], status: i === 4 ? "inactive" : "active", isActive: i !== 4, branchId: "main", lastLogin: "2026-10-06T08:00:00.000Z" }), 4);
     if (p.endsWith("/branches")) return [{ code: "main", name: "Head office", isHeadOffice: true, isActive: true, address: { city: "Dubai" } }, { code: "shj", name: "Sharjah Warehouse", isHeadOffice: false, isActive: true, address: { city: "Sharjah" } }];
     const orgTail = p.split("/organisations/")[1]; // one organisation: .../organisations/<code>

@@ -112,7 +112,7 @@ const near = (a, b, tol = 0.011) => Math.abs(a - b) <= tol;
 // ---- start everything ----------------------------------------------------------------------
 const S = {};
 async function boot() {
-  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: WEB }, stdio: ["ignore", "pipe", "pipe"] });
+  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), LOG_SILENT: "1", TENANT_LEGACY_DEFAULT: "0", ATTACHMENT_STORAGE: "disk", CORS_ORIGINS: WEB }, stdio: ["ignore", "pipe", "pipe"] });
   backend.stdout.on("data", (d) => (logs.api += d));
   backend.stderr.on("data", (d) => (logs.api += d));
   children.push(backend);
