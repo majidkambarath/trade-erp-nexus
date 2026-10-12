@@ -462,7 +462,12 @@ const tradeOrderDoc = (kind) => ({
   party: kind === "sales"
     ? { customerName: "Al Noor Trading 2", customerId: "C002", billingAddress: "Deira, Dubai", trnNumber: "100123456700003", vat: { status: "registered" } }
     : { vendorName: "Gulf Mill 2", vendorId: "V002", address: "Jebel Ali", trnNO: "100456783400003", vat: { status: "registered" } },
-  progress: { label: kind === "sales" ? "Partly delivered" : "Partly received", lines: Object.fromEntries(n(docLine, 2).map((l) => [l._id, { ordered: l.qty, received: l.qty / 2, onTheWay: 0, invoiced: 0, toReceive: l.qty / 2 }])) },
+  progress: { label: kind === "sales" ? "Partly delivered" : "Partly received", lines: Object.fromEntries(n(docLine, 2).map((l) => [l._id, { ordered: l.qty, received: l.qty / 2, onTheWay: 0, invoiced: l.qty / 4, toReceive: l.qty / 2 }])) },
+  // the invoices made from what arrived: one still a draft (offers Approve), one approved and unpaid (offers the payment)
+  invoices: [
+    { id: "inv1", no: kind === "sales" ? "SO-2026-0201" : "PO-2026-0201", status: "DRAFT", date: `${THIS_MONTH}-03T00:00:00.000Z`, totalAmount: 1323, paidAmount: 0, outstandingAmount: 1323, creditedAmount: 0 },
+    { id: "inv2", no: kind === "sales" ? "SO-2026-0202" : "PO-2026-0202", status: "APPROVED", date: `${THIS_MONTH}-02T00:00:00.000Z`, totalAmount: 1323, paidAmount: 300, outstandingAmount: 1023, creditedAmount: 0 },
+  ],
 });
 const RSTATES = ["DRAFT", "RECEIVED", "RECEIVED", "RECEIVED", "CANCELLED"];
 const goodsReceipt = (i) => {

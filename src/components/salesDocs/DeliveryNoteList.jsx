@@ -8,6 +8,7 @@ import { CLOCK_TONE, DELIVERY_TABS, clockText, invoiceBlocker, invoiceText, stat
 import { statusTone } from "../../lib/status";
 import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { InvoiceDialog } from "./DeliveryDialogs";
+import { createThenApprove, invoiceNote } from "../../lib/invoiceFlow";
 import { Note, PillTabs } from "./parts";
 import { useDebounced, useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -64,7 +65,10 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
   const overdue = (s?.clock?.pastStandard || 0) + (s?.clock?.overdue || 0);
 
   const createInvoice = async (body) => {
-    const out = await action.run(() => deliveryNotes.invoice(body), (r) => `${r.salesOrder.transactionNo} created from ${r.deliveryNotes.length} delivery note${r.deliveryNotes.length === 1 ? "" : "s"}`);
+    const out = await action.run(
+      () => createThenApprove((payload) => deliveryNotes.invoice(payload), body, (r) => r.salesOrder),
+      (r) => invoiceNote(r.salesOrder.transactionNo, `${r.deliveryNotes.length} delivery note${r.deliveryNotes.length === 1 ? "" : "s"}`, r.approval)
+    );
     if (out && out !== true) { setDialog(null); setPicked({}); onInvoiced?.(out.salesOrder); }
   };
   const remove = async () => {

@@ -14,7 +14,7 @@ import axiosInstance from "../../../axios/axios";
 
 vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({ useCompanyProfile: vi.fn(() => ({ companyName: "Zarvia", vatNumber: "100123456700003" })) }));
 vi.mock("../../accounting/AttachmentPanel", () => ({ default: () => <div />, linkPending: vi.fn(async () => []) }));
-vi.mock("../../../axios/axios", () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
+vi.mock("../../../axios/axios", () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn() } }));
 vi.mock("../../../lib/orderDocumentsApi", () => ({
   tradeOrders: { list: vi.fn(), summary: vi.fn(), get: vi.fn(), activity: vi.fn(), remove: vi.fn(), confirm: vi.fn(), cancel: vi.fn(), close: vi.fn(), reopen: vi.fn(), invoice: vi.fn() },
   goodsReceipts: { list: vi.fn(), summary: vi.fn(), fromOrder: vi.fn(), get: vi.fn(), activity: vi.fn(), remove: vi.fn(), create: vi.fn(), update: vi.fn(), receive: vi.fn(), cancel: vi.fn(), invoice: vi.fn() },
@@ -126,7 +126,7 @@ describe("TradeOrdersPage", () => {
     const row = within(table).getByText("Rice").closest("tr");
     const cells = within(row).getAllByRole("cell").map((c) => c.textContent);
     expect(cells.slice(1)).toEqual(["10", "4", "1", "2", "5"]);
-    expect(screen.getByText("Partly received")).toBeInTheDocument();
+    expect(screen.getAllByText("Partly received").length).toBeGreaterThan(0);
   });
 
   it("creating the invoice from an order asks for the vendor's invoice number and reports the number it made", async () => {
@@ -136,9 +136,66 @@ describe("TradeOrdersPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /create invoice/i }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText(/vendor's invoice number/i), { target: { value: "INV-77" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /create purchase invoice/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /create and approve invoice|create draft invoice/i }));
     await waitFor(() => expect(tradeOrders.invoice).toHaveBeenCalledWith("o1", expect.objectContaining({ vendorInvoiceNo: "INV-77" })));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/purchase-order?search=PO-2026-0044"));
+    // the person stays on the order, where the new invoice is listed with where it stands
+    await waitFor(() => expect(tradeOrders.get.mock.calls.length).toBeGreaterThan(1));
+    expect(screen.getByTestId("where")).toHaveTextContent("/purchase-orders?open=o1");
+  });
+
+  it("Create and approve makes the invoice and approves it in one step", async () => {
+    tradeOrders.get.mockResolvedValue(order({ status: "CONFIRMED", actions: { invoice: true } }));
+    tradeOrders.invoice.mockResolvedValue({ invoice: { _id: "t1", transactionNo: "PO-2026-0044" }, documents: [] });
+    axiosInstance.patch.mockResolvedValue({ data: { success: true, data: { status: "APPROVED" } } });
+    at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
+    fireEvent.click(await screen.findByRole("button", { name: /create invoice/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("checkbox", { name: /approve the invoice now/i })).toBeChecked();
+    fireEvent.click(within(dialog).getByRole("button", { name: /create and approve invoice/i }));
+    await waitFor(() => expect(tradeOrders.invoice).toHaveBeenCalled());
+    // the flag is for the screen: the server is never sent it
+    expect(tradeOrders.invoice.mock.calls[0][1]).not.toHaveProperty("approveNow");
+    await waitFor(() => expect(axiosInstance.patch).toHaveBeenCalledWith("/transactions/transactions/t1/process", { action: "approve" }));
+  });
+
+  it("Create draft only leaves the invoice to be approved later", async () => {
+    tradeOrders.get.mockResolvedValue(order({ status: "CONFIRMED", actions: { invoice: true } }));
+    tradeOrders.invoice.mockResolvedValue({ invoice: { _id: "t1", transactionNo: "PO-2026-0044" }, documents: [] });
+    at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
+    fireEvent.click(await screen.findByRole("button", { name: /create invoice/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /approve the invoice now/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /create draft invoice/i }));
+    await waitFor(() => expect(tradeOrders.invoice).toHaveBeenCalled());
+    expect(axiosInstance.patch).not.toHaveBeenCalled();
+  });
+
+  it("the order's own screen lists its invoices and approves a draft with one press", async () => {
+    tradeOrders.get.mockResolvedValue(
+      order({
+        status: "CONFIRMED", actions: {}, progress: progress({ label: "Fully received", lines: { l1: { ordered: 10, received: 10, onTheWay: 0, invoiced: 10, toReceive: 0 } } }),
+        invoices: [{ id: "t7", no: "PO-2026-0077", status: "DRAFT", date: "2026-10-05T00:00:00.000Z", totalAmount: 1050, paidAmount: 0, outstandingAmount: 1050, creditedAmount: 0 }],
+      })
+    );
+    axiosInstance.patch.mockResolvedValue({ data: { success: true, data: { status: "APPROVED" } } });
+    at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
+    expect(await screen.findByText("PO-2026-0077")).toBeInTheDocument();
+    expect(screen.getByText(/Draft: not in the books yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Next:/)).toHaveTextContent("Approve PO-2026-0077");
+    fireEvent.click(screen.getByRole("button", { name: /^approve$/i }));
+    await waitFor(() => expect(axiosInstance.patch).toHaveBeenCalledWith("/transactions/transactions/t7/process", { action: "approve" }));
+  });
+
+  it("an approved, unpaid invoice offers Make payment with the party and amount filled in", async () => {
+    tradeOrders.get.mockResolvedValue(
+      order({
+        status: "CONFIRMED", actions: {}, progress: progress({ label: "Fully received", lines: {} }),
+        invoices: [{ id: "t8", no: "PO-2026-0078", status: "APPROVED", date: "2026-10-05T00:00:00.000Z", totalAmount: 1050, paidAmount: 0, outstandingAmount: 1050, creditedAmount: 0 }],
+      })
+    );
+    at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
+    fireEvent.click(await screen.findByRole("button", { name: /make payment/i }));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/payment-voucher?party=v1&amount=1050"));
   });
 
   it("the server's refusal is shown in the dialog, not swallowed", async () => {
@@ -147,7 +204,7 @@ describe("TradeOrdersPage", () => {
     at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
     fireEvent.click(await screen.findByRole("button", { name: /create invoice/i }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: /create purchase invoice/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /create and approve invoice|create draft invoice/i }));
     expect(await within(dialog).findByText(/not invoiced yet/i)).toBeInTheDocument();
   });
 });
@@ -274,7 +331,7 @@ describe("GoodsReceivedPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /create purchase invoice/i }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText(/vendor's invoice number/i)).toHaveValue("VD-5");
-    fireEvent.click(within(dialog).getByRole("button", { name: /create purchase invoice/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /create and approve invoice|create draft invoice/i }));
     await waitFor(() => expect(goodsReceipts.invoice).toHaveBeenCalledWith(expect.objectContaining({ receiptIds: ["g1"], vendorInvoiceNo: "VD-5" })));
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/purchase-order?search=PO-2026-0044"));
   });

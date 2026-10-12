@@ -3,6 +3,8 @@ import { DateInput, Field, Textarea, TextInput } from "../accounting/kit";
 import { ActionModal, Note } from "../salesDocs/parts";
 import { formatDate, formatNumber, formatQty, todayInput, CURRENCY } from "../../utils/format";
 import { receiptInvoiceBlocker, receivePayload, receiveRows, validateReceive } from "../../lib/orderDocuments";
+import { invoiceConfirmLabel } from "../../lib/invoiceFlow";
+import ApproveNow from "./ApproveNow";
 
 const numInput = "h-11 w-full rounded-lg border border-input bg-background px-3 text-end text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-[invalid=true]:border-status-danger lg:h-9";
 
@@ -94,14 +96,15 @@ export function CancelReceiptDialog({ receipt, busy, problem, onClose, onConfirm
 // One purchase invoice for received goods of the same vendor, at the quantity received and the price agreed.
 export function ReceiptInvoiceDialog({ receipts, busy, problem, onClose, onConfirm }) {
   const [date, setDate] = useState(todayInput());
+  const [approveNow, setApproveNow] = useState(true);
   const [vendorInvoiceNo, setVendorInvoiceNo] = useState([...new Set(receipts.map((r) => r.vendorDeliveryNo).filter(Boolean))].join(", "));
   const blocker = receiptInvoiceBlocker(receipts);
   const total = receipts.reduce((t, r) => t + (Number(r.totalAmount) || 0), 0);
   return (
     <ActionModal
-      size="md" title="Create the purchase invoice" confirmLabel="Create purchase invoice" busy={busy} disabled={Boolean(blocker)} problem={problem} onClose={onClose}
-      description="One draft invoice for the goods below. It posts nothing until you approve it, and it cannot bill more than was received."
-      onConfirm={() => onConfirm({ receiptIds: receipts.map((r) => r._id), date, vendorInvoiceNo })}
+      size="md" title="Create the purchase invoice" confirmLabel={invoiceConfirmLabel(approveNow)} busy={busy} disabled={Boolean(blocker)} problem={problem} onClose={onClose}
+      description="One purchase invoice for the goods below. It cannot bill more than was received."
+      onConfirm={() => onConfirm({ receiptIds: receipts.map((r) => r._id), date, vendorInvoiceNo, approveNow })}
     >
       <ul className="divide-y divide-border rounded-lg border border-border text-sm">
         {receipts.map((r) => (
@@ -119,6 +122,7 @@ export function ReceiptInvoiceDialog({ receipts, busy, problem, onClose, onConfi
           <TextInput value={vendorInvoiceNo} onChange={(e) => setVendorInvoiceNo(e.target.value)} />
         </Field>
       </div>
+      <ApproveNow value={approveNow} onChange={setApproveNow} />
     </ActionModal>
   );
 }

@@ -98,8 +98,8 @@ describe("InvoiceDialog", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText("Invoice 2 delivery notes")).toBeInTheDocument();
     expect(within(dialog).getByText(/summary invoice/i)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: /create sales order/i }));
-    expect(onConfirm).toHaveBeenCalledWith({ deliveryNoteIds: ["1", "2"], date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    fireEvent.click(within(dialog).getByRole("button", { name: /create and approve invoice/i }));
+    expect(onConfirm).toHaveBeenCalledWith({ deliveryNoteIds: ["1", "2"], date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), approveNow: true });
   });
 
   it("will not mix customers, and says why", () => {
@@ -107,7 +107,7 @@ describe("InvoiceDialog", () => {
     render(<InvoiceDialog notes={[delivered("1", "p1"), delivered("2", "p2")]} busy={false} problem={null} onClose={vi.fn()} onConfirm={onConfirm} />);
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("alert")).toHaveTextContent(/different customers/);
-    expect(within(dialog).getByRole("button", { name: /create sales order/i })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: /create and approve invoice/i })).toBeDisabled();
   });
 
   it("a note against a sales order is invoiced by approving that order", () => {

@@ -9,6 +9,7 @@ import { statusTone } from "../../lib/status";
 import { formatDate, formatNumber, CURRENCY } from "../../utils/format";
 import { Note, PillTabs } from "../salesDocs/parts";
 import { ReceiptInvoiceDialog } from "./ReceiptDialogs";
+import { createThenApprove, invoiceNote } from "../../lib/invoiceFlow";
 import { useDebounced, useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
@@ -60,7 +61,10 @@ export default function GoodsReceivedList({ onOpen, onNew, onEdit, onInvoiced, n
   const changeTab = (v) => { setStatus(v); setPicked({}); };
 
   const createInvoice = async (body) => {
-    const out = await action.run(() => goodsReceipts.invoice(body), (r) => `${r.purchaseInvoice.transactionNo} created from ${r.goodsReceipts.length} goods receipt${r.goodsReceipts.length === 1 ? "" : "s"}`);
+    const out = await action.run(
+      () => createThenApprove((payload) => goodsReceipts.invoice(payload), body, (r) => r.purchaseInvoice),
+      (r) => invoiceNote(r.purchaseInvoice.transactionNo, `${r.goodsReceipts.length} goods receipt${r.goodsReceipts.length === 1 ? "" : "s"}`, r.approval)
+    );
     if (out && out !== true) { setDialog(null); setPicked({}); onInvoiced?.(out.purchaseInvoice); }
   };
   const remove = async () => {

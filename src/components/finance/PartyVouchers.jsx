@@ -28,6 +28,17 @@ const CONFIG = {
   },
 };
 
+// An invoice's screen links here with ?party=<id>&amount=<outstanding>: the form opens with the party and the amount filled in, so
+// receiving or making the payment for an invoice that was just approved is one more click, not a search.
+const prefillFromAddress = () => {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search);
+  const partyId = q.get("party");
+  if (!partyId) return null;
+  const amount = Number(q.get("amount"));
+  return { partyId, amount: Number.isFinite(amount) && amount > 0 ? String(amount) : "" };
+};
+
 export const ReceiptVouchers = () => <PartyVouchers direction="receipt" />;
 export const PaymentVouchers = () => <PartyVouchers direction="payment" />;
 
@@ -35,7 +46,8 @@ function PartyVouchers({ direction }) {
   const cfg = CONFIG[direction];
   const list = useVoucherList(cfg.voucherType);
   const { notify, toastNode } = useToasts();
-  const [form, setForm] = useState(false);
+  const [initial] = useState(prefillFromAddress);
+  const [form, setForm] = useState(Boolean(initial));
   const [viewing, setViewing] = useState(null);
 
   return (
@@ -69,7 +81,7 @@ function PartyVouchers({ direction }) {
           />
         </ListBody>
       </Panel>
-      {form && <PartyVoucherForm cfg={cfg} direction={direction} onClose={() => setForm(false)} onSaved={(msg) => { setForm(false); notify(msg); list.reload(); }} />}
+      {form && <PartyVoucherForm cfg={cfg} direction={direction} initial={initial} onClose={() => setForm(false)} onSaved={(msg) => { setForm(false); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title={cfg.one[0].toUpperCase() + cfg.one.slice(1) + " voucher"} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} deleted and reversed`); list.reload(); }} />}
       {toastNode}
     </div>
@@ -90,11 +102,11 @@ export function allocateOldestFirst(invoices, amountCents) {
   return out;
 }
 
-export function PartyVoucherForm({ cfg, direction, onClose, onSaved }) {
+export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = null }) {
   const { data: opts, error: optsError } = useBankingOptions();
-  const [partyId, setPartyId] = useState("");
+  const [partyId, setPartyId] = useState(initial?.partyId || "");
   const [date, setDate] = useState(todayInput());
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initial?.amount || "");
   const [alloc, setAlloc] = useState({});
   const [narration, setNarration] = useState("");
   const [payment, setPayment] = useState(emptyPayment());

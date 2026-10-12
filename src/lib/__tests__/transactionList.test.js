@@ -106,7 +106,7 @@ describe("how many documents the previous period holds", () => {
     };
     const r = await fetchAllTransactions(http, { type: "sales_order", period: MONTH, compare: { from: "2026-09-01", to: "2026-09-30" } });
     expect(r.previousTotal).toBe(37);
-    const second = http.get.mock.calls[1][1].params;
+    const second = http.get.mock.calls.map((c) => c[1].params).find((p) => p.limit === 1); // asked beside the first page
     expect(second).toMatchObject({ limit: 1, startDate: "2026-09-01T00:00:00.000Z", endDate: "2026-09-30T23:59:59.999Z" });
   });
 
@@ -116,5 +116,25 @@ describe("how many documents the previous period holds", () => {
     const http = server(docs(1, 2));
     await fetchAllTransactions(http, { type: "sales_return", period: MONTH, serverDates: false, compare: { from: "2026-09-01", to: "2026-09-30" } });
     expect(http.get).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reading pages together", () => {
+  it("asks for the remaining pages at the same moment and keeps the server's order", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const http = {
+      get: vi.fn(async (_u, { params }) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight -= 1;
+        return { data: { data: [doc(params.page * 10), doc(params.page * 10 + 1)], pagination: { pages: 4, total: 8 } } };
+      }),
+    };
+    const r = await fetchAllTransactions(http, { type: "sales_order", period: MONTH, pageSize: 2 });
+    expect(r.rows.map((x) => x._id)).toEqual(["d10", "d11", "d20", "d21", "d30", "d31", "d40", "d41"]);
+    expect(http.get).toHaveBeenCalledTimes(4);
+    expect(peak).toBeGreaterThanOrEqual(3); // pages 2..4 were in flight together
   });
 });

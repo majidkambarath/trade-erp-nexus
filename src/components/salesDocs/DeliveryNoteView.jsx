@@ -8,6 +8,7 @@ import { CLOCK_TONE, clockText, statusLabel } from "../../lib/salesDocuments";
 import { formatDate, formatQty } from "../../utils/format";
 import { buildDeliveryNoteDocument, buildPickListDocument } from "./documents";
 import { CancelDialog, DeliverDialog, DispatchDialog, InvoiceDialog } from "./DeliveryDialogs";
+import { createThenApprove, invoiceNote } from "../../lib/invoiceFlow";
 import { ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -181,7 +182,7 @@ export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvo
       {dialog === "invoice" && (
         <InvoiceDialog
           notes={[{ ...dn, party: dn.party }]} busy={action.busy} problem={action.problem} onClose={close}
-          onConfirm={(body) => finish(() => deliveryNotes.invoice(body), (r) => `${r.salesOrder.transactionNo} created from ${dn.deliveryNoteNo}`, (r) => onInvoiced?.(r.salesOrder))}
+          onConfirm={(body) => finish(() => createThenApprove((payload) => deliveryNotes.invoice(payload), body, (r) => r.salesOrder), (r) => invoiceNote(r.salesOrder.transactionNo, dn.deliveryNoteNo, r.approval), (r) => onInvoiced?.(r.salesOrder))}
         />
       )}
       {dialog === "delete" && (

@@ -4,6 +4,8 @@ import { deliverForm, deliverPayload, invoiceBlocker, shortBy, validateDeliver }
 import { formatDate, formatNumber, todayInput, toInputDate } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { ActionModal, Note } from "./parts";
+import ApproveNow from "../orderDocs/ApproveNow";
+import { invoiceConfirmLabel } from "../../lib/invoiceFlow";
 
 // The four things done to a delivery note that need a few answers first.
 
@@ -117,14 +119,15 @@ export function CancelDialog({ note, busy, problem, onClose, onConfirm }) {
 // accepted, at the tax rates of the invoice date. It is approved like any other sales order.
 export function InvoiceDialog({ notes, busy, problem, onClose, onConfirm }) {
   const [date, setDate] = useState(todayInput());
+  const [approveNow, setApproveNow] = useState(true);
   const blocker = invoiceBlocker(notes);
   const total = notes.reduce((t, n) => t + (n.totalAmount || 0), 0);
   const oldest = [...notes].sort((a, b) => new Date(a.deliveredAt) - new Date(b.deliveredAt))[0];
   return (
     <ActionModal
-      size="md" title={notes.length === 1 ? `Invoice ${notes[0].deliveryNoteNo}` : `Invoice ${notes.length} delivery notes`} confirmLabel="Create sales order"
-      busy={busy} disabled={Boolean(blocker)} problem={problem} onClose={onClose} onConfirm={() => onConfirm({ deliveryNoteIds: notes.map((n) => n._id), date })}
-      description="A draft sales order is made with the goods that were delivered. Stock and ledger move when you approve it."
+      size="md" title={notes.length === 1 ? `Invoice ${notes[0].deliveryNoteNo}` : `Invoice ${notes.length} delivery notes`} confirmLabel={invoiceConfirmLabel(approveNow)}
+      busy={busy} disabled={Boolean(blocker)} problem={problem} onClose={onClose} onConfirm={() => onConfirm({ deliveryNoteIds: notes.map((n) => n._id), date, approveNow })}
+      description="The sales invoice is made from the goods that were delivered, at the quantity accepted."
     >
       {blocker ? (
         <Note tone="danger">{blocker}</Note>
@@ -143,6 +146,7 @@ export function InvoiceDialog({ notes, busy, problem, onClose, onConfirm }) {
             <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           {notes.length > 1 && <Note>One summary invoice for several deliveries is allowed within 14 days of the end of the month in which they were made.</Note>}
+          <ApproveNow value={approveNow} onChange={setApproveNow} />
         </>
       )}
     </ActionModal>

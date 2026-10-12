@@ -12,6 +12,11 @@ import { ActionModal, ActivityList, Note } from "../salesDocs/parts";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { orgCurrency } from "../../utils/orgLocale";
+import { applyAfterSave } from "../../lib/processTransaction";
+import { createThenApprove, invoiceConfirmLabel, invoiceNote, orderSteps } from "../../lib/invoiceFlow";
+import ApproveNow from "./ApproveNow";
+import OrderProgress from "./OrderProgress";
+import OrderInvoices from "./OrderInvoices";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -21,20 +26,21 @@ const PRIMARY = "erp-btn-primary";
 export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, notify }) {
   const sales = kind === "sales";
   const navigate = useNavigate();
-  const { me } = useOrganisation();
+  const { me, can } = useOrganisation();
   const company = useCompanyProfile();
   const currency = orgCurrency();
   const { data: order, loading, error, reload } = useAsync(() => tradeOrders.get(id), [id]);
   const activity = useAsync(() => tradeOrders.activity(id), [id]);
   const [dialog, setDialog] = useState(null); // confirm | cancel | close | reopen | invoice | delete
-  const [form, setForm] = useState({ reason: "", date: todayInput(), vendorInvoiceNo: "" });
+  const [form, setForm] = useState({ reason: "", date: todayInput(), vendorInvoiceNo: "", approveNow: true });
+  const [approving, setApproving] = useState(null);
 
   const refresh = async () => {
     await Promise.all([reload(), activity.reload()]);
     onChanged?.();
   };
   const action = useDocumentAction({ notify, reload: refresh });
-  const open = (name) => { setForm({ reason: "", date: todayInput(), vendorInvoiceNo: "" }); action.clear(); setDialog(name); };
+  const open = (name) => { setForm({ reason: "", date: todayInput(), vendorInvoiceNo: "", approveNow: true }); action.clear(); setDialog(name); };
   const close = () => { setDialog(null); action.clear(); };
 
   const doc = useMemo(() => (order ? buildTradeOrderDocument(order, order.party || {}, company, currency) : null), [order, company, currency]);
@@ -57,7 +63,20 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
       {label}
     </button>
   );
-  const invoicePage = (no) => navigate(`/${sales ? "sales-order" : "purchase-order"}?search=${encodeURIComponent(no)}`);
+  const mayApprove = can(sales ? "sales.approve" : "purchase.approve");
+  // approve a draft invoice from here: one press, the same call the invoice page makes (credit warnings and limits still apply)
+  const approveInvoice = async (inv) => {
+    setApproving(inv.id);
+    const r = await applyAfterSave(inv.id, "approve");
+    setApproving(null);
+    if (r.done) notify(`${inv.no} approved`);
+    else if (r.awaitingSecond) notify(`${inv.no}: your approval is recorded; a second person must approve it before it posts.`);
+    else if (!r.cancelled) notify(r.message || `${inv.no} could not be approved`, "error");
+    await refresh();
+  };
+  const payInvoice = (inv) =>
+    navigate(`/${sales ? "receipt-voucher" : "payment-voucher"}?party=${order.partyId}&amount=${Number(inv.outstandingAmount) || ""}`);
+  const model = orderSteps(order);
 
   const actions = (
     <>
@@ -78,6 +97,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   const got = sales ? "Delivered" : "Received";
   const banner = (
     <div className="space-y-2">
+      <OrderProgress model={model} />
       {order.status === "DRAFT" && <Note>A draft order posts nothing and cannot be {sales ? "delivered against" : "received against"} until it is confirmed.</Note>}
       {["CONFIRMED", "CLOSED"].includes(order.status) && (
         <Note>
@@ -92,6 +112,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
 
   const footer = (
     <div className="space-y-5">
+      <OrderInvoices invoices={order.invoices} sales={sales} canApprove={mayApprove} approving={approving} onApprove={approveInvoice} onPay={payInvoice} />
       {["CONFIRMED", "CLOSED"].includes(order.status) && (
         <Panel title="Progress" description={`What has been ${got.toLowerCase()} and invoiced against each line.`} bodyClassName="p-0">
           <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -151,13 +172,18 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
       )}
       {dialog === "invoice" && (
         <ActionModal
-          title={`Create the invoice for ${order.orderNo}?`} confirmLabel={sales ? "Create sales invoice" : "Create purchase invoice"} busy={action.busy} problem={action.problem} onClose={close}
-          description={`One draft invoice for everything ${sales ? "delivered" : "received"} on this order and not yet invoiced. It posts nothing until you approve it.`}
+          title={`Create the invoice for ${order.orderNo}?`} confirmLabel={invoiceConfirmLabel(form.approveNow)} busy={action.busy} problem={action.problem} onClose={close}
+          description={`One invoice for everything ${sales ? "delivered" : "received"} on this order and not yet invoiced.`}
           onConfirm={() =>
             finish(
-              () => tradeOrders.invoice(order._id, { date: form.date, ...(sales ? {} : { vendorInvoiceNo: form.vendorInvoiceNo }) }),
-              (r) => `${r.invoice.transactionNo} created from ${order.orderNo}`,
-              (r) => { onChanged?.(); invoicePage(r.invoice.transactionNo); }
+              () =>
+                createThenApprove(
+                  (body) => tradeOrders.invoice(order._id, body),
+                  { date: form.date, approveNow: form.approveNow, ...(sales ? {} : { vendorInvoiceNo: form.vendorInvoiceNo }) },
+                  (r) => r.invoice
+                ),
+              (r) => invoiceNote(r.invoice.transactionNo, order.orderNo, r.approval),
+              () => { onChanged?.(); refresh(); }
             )
           }
         >
@@ -167,6 +193,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
               <TextInput value={form.vendorInvoiceNo} onChange={(e) => setForm((f) => ({ ...f, vendorInvoiceNo: e.target.value }))} />
             </Field>
           )}
+          <ApproveNow value={form.approveNow} onChange={(approveNow) => setForm((f) => ({ ...f, approveNow }))} />
         </ActionModal>
       )}
       {(dialog === "close" || dialog === "cancel") && (

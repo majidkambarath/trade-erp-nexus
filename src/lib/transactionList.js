@@ -49,11 +49,7 @@ export async function fetchAllTransactions(http, { type, period, serverDates = t
   const base = { type, ...(serverDates ? dateParams(period) : {}) };
   const rows = [];
   const seen = new Set();
-  let page = 1;
-  let pages = 1;
-  let total = 0;
-  while (page <= Math.min(pages, maxPages)) {
-    const res = await http.get("/transactions/transactions", { params: { ...base, page, limit: pageSize }, signal });
+  const take = (res) => {
     const batch = Array.isArray(res?.data?.data) ? res.data.data : [];
     for (const row of batch) {
       const id = String(row?._id ?? row?.id ?? "");
@@ -61,16 +57,31 @@ export async function fetchAllTransactions(http, { type, period, serverDates = t
       if (id) seen.add(id);
       rows.push(row);
     }
-    pages = Number(res?.data?.pagination?.pages) || 1;
-    total = Number(res?.data?.pagination?.total) || rows.length;
-    if (!batch.length) break;
-    page += 1;
+    return batch.length;
+  };
+  const pageOf = (page) => http.get("/transactions/transactions", { params: { ...base, page, limit: pageSize }, signal });
+
+  // What the previous period holds is asked at the same moment as the first page, and the remaining pages together, once the first
+  // says how many there are: the wait is the slowest request, not the sum of them (each is a round trip to the database).
+  const wantsPrevious = serverDates && compare && (compare.from || compare.to);
+  const previousRequest = wantsPrevious
+    ? http.get("/transactions/transactions", { params: { type, ...dateParams(compare, { slack: 0 }), page: 1, limit: 1 }, signal }).catch(() => null)
+    : null;
+
+  const first = await pageOf(1);
+  const firstCount = take(first);
+  const pages = Number(first?.data?.pagination?.pages) || 1;
+  let total = Number(first?.data?.pagination?.total) || rows.length;
+  const last = Math.min(pages, maxPages);
+  if (last > 1 && firstCount > 0) {
+    const rest = await Promise.all(Array.from({ length: last - 1 }, (_, i) => pageOf(i + 2)));
+    rest.forEach(take); // in page order, so the list keeps the server's order
+    total = Number(rest[rest.length - 1]?.data?.pagination?.total) || total;
   }
 
   let previousTotal = null;
-  if (serverDates && compare && (compare.from || compare.to)) {
-    const res = await http.get("/transactions/transactions", { params: { type, ...dateParams(compare, { slack: 0 }), page: 1, limit: 1 }, signal });
-    const n = res?.data?.pagination?.total;
+  if (previousRequest) {
+    const n = (await previousRequest)?.data?.pagination?.total;
     previousTotal = Number.isFinite(Number(n)) && n !== undefined && n !== null ? Number(n) : null;
   }
 
