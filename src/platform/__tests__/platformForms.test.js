@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { roleLabel, roleOptions } from "../platformForms";
+import { MIN_CONSOLE_PASSWORD, roleLabel, roleOptions, validateDeveloper } from "../platformForms";
 
 // How the console words a person's role and which roles it offers when giving one.
 const ROLES = [
@@ -49,5 +49,33 @@ describe("a person's role in words", () => {
   it("copes with nothing", () => {
     expect(roleLabel(undefined)).toBe("");
     expect(roleLabel({})).toBe("");
+  });
+});
+
+// A console account opens every organisation, so the server asks for more of its password than the product
+// does. The form says so before it is sent, or the person types it twice for nothing.
+describe("a developer console account", () => {
+  const ok = { name: "Dev Two", email: "dev2@zarvia.test", password: "a-long-passphrase-123" };
+
+  it("accepts a name, an address and a password of twelve characters with letters and digits", () => {
+    expect(validateDeveloper(ok)).toEqual({});
+    expect(MIN_CONSOLE_PASSWORD).toBe(12);
+  });
+
+  it("asks for the name and a real address", () => {
+    expect(validateDeveloper({ ...ok, name: "   " }).name).toBeTruthy();
+    expect(validateDeveloper({ ...ok, email: "dev2" }).email).toBeTruthy();
+    expect(validateDeveloper({ ...ok, email: "" }).email).toBeTruthy();
+  });
+
+  it("refuses a password the server would refuse, saying which way it is short", () => {
+    expect(validateDeveloper({ ...ok, password: "short-1" }).password).toMatch(/12/);
+    expect(validateDeveloper({ ...ok, password: "alllettersnodigits" }).password).toMatch(/letters and digits/);
+    expect(validateDeveloper({ ...ok, password: "123456789012" }).password).toMatch(/letters and digits/);
+  });
+
+  it("on an edit an empty password means keep the one it has, but anything typed is still checked", () => {
+    expect(validateDeveloper({ ...ok, password: "" }, { needPassword: false })).toEqual({});
+    expect(validateDeveloper({ ...ok, password: "weak" }, { needPassword: false }).password).toBeTruthy();
   });
 });
