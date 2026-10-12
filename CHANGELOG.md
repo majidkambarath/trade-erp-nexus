@@ -21,6 +21,10 @@ Released alongside backend 1.2.0.0, which makes it safe to put two paying client
 - **The new console screen is in `check:mobile`.** Its page list is written by hand, so the screen would have
   gone unswept. The sweep then caught what a tablet would: the row buttons were 36px where a touch target is
   44. They are `h-11 lg:h-10` now, like the rest of the app.
+- **Suggested passwords come from `crypto`, not `Math.random`.** `suggestPassword` already handed a password
+  to a client's first administrator; since the Developers screen it also hands one to an account that can
+  reach every organisation. A test pins the source, not just the shape. Raised as hardening by the security
+  review of this release, which found nothing exploitable.
 - **The e2e runs can no longer write to the live Cloudinary account.** They spawn the real server with the
   real `.env` and do not go through `utils/testSetup.js`, so a flow that stored a file would have put it among
   the clients' own documents. Nothing uploads one today — a trap closed before it was stepped in.
