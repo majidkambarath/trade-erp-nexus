@@ -81,19 +81,26 @@ export const dateOf = (value) => (value ? formatDateGB(value) : "");
 
 export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);
-  const registered = isTaxInvoice(company); // the heading, whatever the status
-  const taxInvoice = invoiced && registered; // an ISSUED tax invoice (what sending and the e-invoice look at)
-  const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
   const customerTrn = customer.trnNumber || customer.vat?.trn || "";
+  const vatStatus = partyVatStatus(customer, customerTrn, customer.customerName);
+  // The heading follows who the document is for. A VAT-registered customer is given a "Tax invoice" (which needs the company's own
+  // TRN: without one it is a plain "Invoice" and the screen says why). Any other customer is given a "Sales order", as asked for.
+  const customerRegistered = vatStatus === "Registered";
+  const companyRegistered = isTaxInvoice(company);
+  const kind = customerRegistered ? (companyRegistered ? "Tax invoice" : "Invoice") : "Sales order";
+  const taxInvoice = invoiced && kind === "Tax invoice"; // an ISSUED tax invoice (what sending and the e-invoice look at)
+  const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
+  const isOrder = kind === "Sales order";
+  const noun = kind.toLowerCase();
   return {
-    fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Invoice"}_${number}`,
+    fileName: `${invoiced ? "" : "Draft-"}${kind.replace(/ /g, "-")}_${number}`,
     status: so.status,
-    // an invoice with no company TRN prints as a plain invoice, and the screen says why
-    missingTrn: !registered,
+    // a registered customer with no company TRN gets a plain invoice, and the screen says why
+    missingTrn: customerRegistered && !companyRegistered,
     taxInvoice,
     sheet: sheetFor(so, {
-      title: registered ? "Tax invoice" : "Invoice",
-      numberLabel: invoiced ? "Invoice no." : "Draft invoice no.",
+      title: kind,
+      numberLabel: `${invoiced ? "" : "Draft "}${isOrder ? "order" : "invoice"} no.`.replace(/^./, (c) => c.toUpperCase()),
       number,
       party: {
         heading: "Bill to",
@@ -102,7 +109,7 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         address: customer.billingAddress || "",
         contact: contactLines(customer),
         trn: customerTrn,
-        vatStatus: partyVatStatus(customer, customerTrn, customer.customerName),
+        vatStatus,
       },
       meta: [
         ["Date", dateOf(so.date)],
@@ -114,30 +121,30 @@ export const buildSalesDocument = (so, customer, company, currency) => {
       company,
       currency,
       notice: invoiced
-        ? `This is a computer-generated ${taxInvoice ? "tax invoice" : "invoice"}. No signature is required.`
-        : `This is a draft ${registered ? "tax invoice" : "invoice"}. Nothing is posted and no stock moves until it is approved.`,
+        ? `This is a computer-generated ${noun}. No signature is required.`
+        : `This is a draft ${noun}. Nothing is posted and no stock moves until it is approved.`,
       receipt: !invoiced,
       reverseChargeSide: "supplier",
     }),
   };
 };
 
-// A purchase invoice: the supplier's invoice as it is recorded in our books (the purchase ORDER is its own document). A registered
-// supplier's reads "Tax invoice", which is what it is and what input VAT is claimed on; an unregistered supplier's is a plain
-// "Purchase invoice" and says that no input VAT can be recovered on it.
+// A purchase document as it is recorded in our books. For a VAT-registered supplier it reads "Tax invoice" (that is what it is, and
+// what input VAT is claimed on); for any other supplier it reads "Purchase order", as asked for, and says that no input VAT can be
+// recovered on it. (The non-posting order in front of it is its own document, under Orders.)
 export const buildPurchaseDocument = (po, vendor, company, currency) => {
   const invoiced = INVOICED.includes(po.status);
   const vendorTrn = vendor.trnNO || vendor.vat?.trn || "";
   const vatStatus = partyVatStatus(vendor, vendorTrn, vendor.vendorName);
   const registered = vatStatus === "Registered";
-  const kind = registered ? "tax invoice" : "purchase invoice";
+  const kind = registered ? "tax invoice" : "purchase order";
   return {
-  fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-invoice"}_${po.transactionNo}`,
+  fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-order"}_${po.transactionNo}`,
   status: po.status,
   missingTrn: false,
   sheet: sheetFor(po, {
-    title: registered ? "Tax invoice" : "Purchase invoice",
-    numberLabel: invoiced ? "Invoice no." : "Draft invoice no.",
+    title: registered ? "Tax invoice" : "Purchase order",
+    numberLabel: `${invoiced ? "" : "Draft "}${registered ? "invoice" : "order"} no.`.replace(/^./, (c) => c.toUpperCase()),
     number: po.transactionNo,
     party: {
       heading: "Supplier",

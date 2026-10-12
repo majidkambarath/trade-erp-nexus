@@ -200,22 +200,37 @@ describe('SaleInvoiceView', () => {
 });
 
 describe('buildSalesDocument', () => {
-  const customer = { customerId: 'CUST-001', customerName: 'Acme', paymentTerms: '' };
+  // a VAT-registered customer (a TRN is on file); the unregistered one is `walkIn`
+  const customer = { customerId: 'CUST-001', customerName: 'Acme', paymentTerms: '', trnNumber: '100123456700003', vat: { status: 'registered' } };
+  const walkIn = { customerId: 'CUST-002', customerName: 'Walk-in', paymentTerms: '', vat: { status: 'unregistered' } };
   const company = { companyName: 'NH Foods', vatNumber: '100000000000003' };
 
-  it('a company with no TRN issues a plain invoice, not a tax invoice', () => {
+  it('a company with no TRN gives a registered customer a plain invoice, not a tax invoice', () => {
     const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED');
     expect(approved.sheet.title).toBe('Invoice');
     expect(approved.fileName).toBe('Invoice_SO-1');
     expect(approved.taxInvoice).toBe(false);
     expect(approved.sheet.notice).toMatch(/invoice/);
     expect(approved.sheet.notice).not.toMatch(/tax invoice/);
-    // the order's notice does not promise a tax invoice it will not issue
+    // the draft's notice does not promise a tax invoice it will not issue
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED');
     expect(draft.sheet.notice).toBe('This is a draft invoice. Nothing is posted and no stock moves until it is approved.');
     expect(draft.sheet.title).toBe('Invoice');
     // a blank or spaces-only TRN is no TRN
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '   ' }, 'AED').sheet.title).toBe('Invoice');
+  });
+
+  it('an unregistered customer is given a Sales order, whatever the company holds', () => {
+    const approved = buildSalesDocument({ transactionNo: 'SO-2', status: 'APPROVED', items: [] }, walkIn, company, 'AED');
+    expect(approved.sheet.title).toBe('Sales order');
+    expect(approved.sheet.number).toEqual({ label: 'Order no.', value: 'SO-2' });
+    expect(approved.fileName).toBe('Sales-order_SO-2');
+    expect(approved.taxInvoice).toBe(false);
+    expect(approved.sheet.notice).toMatch(/sales order/);
+    expect(approved.missingTrn).toBe(false); // nothing is claimed that the company's TRN would have to back
+    const draft = buildSalesDocument({ transactionNo: 'SO-2', status: 'DRAFT', items: [] }, walkIn, company, 'AED');
+    expect(draft.sheet.title).toBe('Sales order');
+    expect(draft.sheet.number.label).toBe('Draft order no.');
   });
 
   it("prints the party's VAT status from the master, from the TRN when the master has none, and not at all for an unknown party", () => {
@@ -228,7 +243,7 @@ describe('buildSalesDocument', () => {
     expect(status({})).toBe('');
   });
 
-  it('a registered company issues a tax invoice from the draft on, and only an approved one has an invoice number', () => {
+  it('a registered customer is given a tax invoice from the draft on, and only an approved one has an invoice number', () => {
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED');
     const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED');
     expect(draft.sheet.title).toBe('Tax invoice');
@@ -257,7 +272,7 @@ describe('buildSalesDocument', () => {
     expect(doc.sheet.breakdown).toEqual([{ rate: 0, taxable: 100, vat: 0 }]);
   });
 
-  it('flags a missing TRN on the invoice, draft or approved', () => {
+  it('flags a missing company TRN when the customer is registered, draft or approved', () => {
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED').missingTrn).toBe(true);
     // and the other way round: a company that HAS a TRN is not told it is missing (this flag once looked for a field

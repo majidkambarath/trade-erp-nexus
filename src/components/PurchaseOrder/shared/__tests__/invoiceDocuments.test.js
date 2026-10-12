@@ -66,11 +66,13 @@ describe("purchase invoice", () => {
     expect(approved.sheet.party.vatStatus).toBe("Registered");
   });
 
-  it("an unregistered supplier's is a purchase invoice and says no input VAT can be recovered", () => {
+  it("an unregistered supplier's is a purchase order and says no input VAT can be recovered", () => {
     const doc = buildPurchaseDocument({ transactionNo: "PO-2", status: "APPROVED", items: [] }, unregistered, company, "AED");
-    expect(doc.sheet.title).toBe("Purchase invoice");
-    expect(doc.fileName).toBe("Purchase-invoice_PO-2");
+    expect(doc.sheet.title).toBe("Purchase order");
+    expect(doc.sheet.number).toEqual({ label: "Order no.", value: "PO-2" });
+    expect(doc.fileName).toBe("Purchase-order_PO-2");
     expect(doc.sheet.notice).toMatch(/no input VAT can be recovered/);
+    expect(buildPurchaseDocument({ transactionNo: "PO-2", status: "DRAFT", items: [] }, unregistered, company, "AED").sheet.number.label).toBe("Draft order no.");
   });
 
   it("a supplier with only a TRN on file reads as registered", () => {
@@ -78,9 +80,9 @@ describe("purchase invoice", () => {
     expect(doc.sheet.title).toBe("Tax invoice");
   });
 
-  it("is never titled as an order: the order is its own document", () => {
+  it("a party that is not known at all is not claimed to be registered", () => {
     const doc = buildPurchaseDocument({ transactionNo: "PO-4", status: "DRAFT", items: [] }, {}, company, "AED");
-    expect(doc.sheet.title).not.toMatch(/order/i);
+    expect(doc.sheet.title).toBe("Purchase order");
   });
 });
 
