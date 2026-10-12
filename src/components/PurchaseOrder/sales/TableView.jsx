@@ -1,3 +1,4 @@
+import PayAction from "../../lists/PayAction";
 import React from "react";
 import {
   ChevronUp,
@@ -239,6 +240,7 @@ const TableView = ({
                         </button>
                       </Can>
                     )}
+                    <PayAction doc={so} sales partyId={so.customerId} />
                     <button
                       onClick={() => {
                         setSelectedSO(so);

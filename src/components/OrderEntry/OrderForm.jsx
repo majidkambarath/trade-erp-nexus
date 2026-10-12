@@ -582,7 +582,7 @@ export default function OrderForm({
               {editing ? V.title.edit : V.title.create}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Ctrl+Enter saves · Alt+N adds a line · Arrow keys move between line cells
+              Ctrl+S or Ctrl+Enter saves · Ctrl+Shift+S saves and opens a new one · Alt+N adds a line · ? lists every shortcut
             </p>
           </div>
         </div>

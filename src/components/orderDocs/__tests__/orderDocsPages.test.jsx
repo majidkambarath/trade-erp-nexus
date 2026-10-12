@@ -195,7 +195,7 @@ describe("TradeOrdersPage", () => {
     );
     at(<TradeOrdersPage kind="purchase" />, "/purchase-orders?open=o1");
     fireEvent.click(await screen.findByRole("button", { name: /make payment/i }));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/payment-voucher?party=v1&amount=1050"));
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/payment-voucher?party=v1&invoice=t8&amount=1050"));
   });
 
   it("the server's refusal is shown in the dialog, not swallowed", async () => {

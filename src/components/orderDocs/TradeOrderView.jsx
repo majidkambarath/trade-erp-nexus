@@ -15,6 +15,7 @@ import { orgCurrency } from "../../utils/orgLocale";
 import { applyAfterSave } from "../../lib/processTransaction";
 import { createThenApprove, invoiceConfirmLabel, invoiceNote, orderSteps } from "../../lib/invoiceFlow";
 import ApproveNow from "./ApproveNow";
+import { payHref } from "../lists/PayAction";
 import OrderProgress from "./OrderProgress";
 import OrderInvoices from "./OrderInvoices";
 
@@ -75,7 +76,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
     await refresh();
   };
   const payInvoice = (inv) =>
-    navigate(`/${sales ? "receipt-voucher" : "payment-voucher"}?party=${order.partyId}&amount=${Number(inv.outstandingAmount) || ""}`);
+    navigate(payHref({ sales, partyId: order.partyId, invoiceId: inv.id, outstanding: inv.outstandingAmount }));
   const model = orderSteps(order);
 
   const actions = (

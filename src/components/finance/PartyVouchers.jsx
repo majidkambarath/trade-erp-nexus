@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axiosInstance from "../../axios/axios";
 import { AlertTriangle, Eye, Plus, Wand2 } from "lucide-react";
 import { Button } from "../ui/button";
@@ -36,7 +36,7 @@ const prefillFromAddress = () => {
   const partyId = q.get("party");
   if (!partyId) return null;
   const amount = Number(q.get("amount"));
-  return { partyId, amount: Number.isFinite(amount) && amount > 0 ? String(amount) : "" };
+  return { partyId, amount: Number.isFinite(amount) && amount > 0 ? String(amount) : "", invoiceId: q.get("invoice") || "" };
 };
 
 export const ReceiptVouchers = () => <PartyVouchers direction="receipt" />;
@@ -125,6 +125,21 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   const partyOptions = useMemo(() => (parties.data || []).map((p) => ({ value: p._id, label: p[cfg.nameKey], hint: p[cfg.idKey] })), [parties.data, cfg]);
   const party = (parties.data || []).find((p) => p._id === partyId);
   const open = invoices.data || [];
+
+  // Opened from an invoice's own "Receive payment" / "Make payment": that invoice is already chosen, with what is owed on it (or
+  // the amount asked for, if less) set against it, so the person only has to pick how it was paid and save.
+  const appliedInitial = useRef(false);
+  useEffect(() => {
+    if (appliedInitial.current || !initial?.invoiceId || !invoices.data?.length) return;
+    const inv = invoices.data.find((d) => String(d._id) === String(initial.invoiceId));
+    if (!inv) return;
+    appliedInitial.current = true;
+    const owed = toCents(inv.outstandingAmount);
+    const asked = toCents(initial.amount || "0");
+    const take = asked > 0 ? Math.min(asked, owed) : owed;
+    setAmount(String(fromCents(take)));
+    setAlloc({ [inv._id]: String(fromCents(take)) });
+  }, [invoices.data, initial]);
 
   // Foreign currency. The ledger, the invoices and the allocation below stay in the base currency: a foreign
   // amount is converted once, at the exchange rate shown, and `total` is that base-currency value.

@@ -1,3 +1,4 @@
+import PayAction from "../../lists/PayAction";
 import React from "react";
 import {
   Eye,
@@ -166,6 +167,7 @@ const GridView = ({
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap gap-2">
+                <PayAction doc={po} partyId={po.vendorId} variant="card" />
                 <button
                   onClick={() => {
                     setSelectedPO(po);

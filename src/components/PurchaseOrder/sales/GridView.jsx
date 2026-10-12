@@ -1,3 +1,4 @@
+import PayAction from "../../lists/PayAction";
 import React from "react";
 import {
   ChevronUp,
@@ -152,6 +153,7 @@ const GridView = ({
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">Customer copy</span>
                 </button>
+                <PayAction doc={so} sales partyId={so.customerId} variant="card" />
                 {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
                   <Can permission="sales.send">
                     <button

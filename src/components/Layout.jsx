@@ -7,6 +7,7 @@ import AppRail from "./shell/AppRail";
 import TopBar from "./shell/TopBar";
 import ModuleTabs from "./shell/ModuleTabs";
 import CommandPalette from "./shell/CommandPalette";
+import KeyboardShortcuts from "./shell/KeyboardShortcuts";
 import BottomNav from "./shell/BottomNav";
 import MoreSheet from "./shell/MoreSheet";
 import { UpdateNotice } from "./shell/InstallApp";
@@ -228,6 +229,7 @@ const LayoutShell = () => {
       </div>
 
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} modules={modules} />
+      <KeyboardShortcuts />
       <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} modules={rest} active={active} />
       {applyUpdate && (
         <UpdateNotice onApply={applyUpdate} onDismiss={() => setApplyUpdate(null)} />

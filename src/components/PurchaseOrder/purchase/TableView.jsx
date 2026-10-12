@@ -1,3 +1,4 @@
+import PayAction from "../../lists/PayAction";
 import React from "react";
 import {
   Eye,
@@ -165,6 +166,7 @@ const TableView = ({
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-center space-x-2">
+                    <PayAction doc={po} partyId={po.vendorId} />
                     <button
                       onClick={() => {
                         setSelectedPO(po);

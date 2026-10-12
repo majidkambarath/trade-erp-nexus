@@ -741,7 +741,7 @@ const PurchaseReturnOrderManagement = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3 [&>button:first-child]:flex-1 sm:[&>button:first-child]:flex-none">
               <Can permission="purchase.create">
                 <button
                   onClick={() => {
