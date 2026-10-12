@@ -125,7 +125,7 @@ const dialogText = () => page.evaluate(() => ([...document.querySelectorAll('[ro
 
 // ---- start everything ----------------------------------------------------------------------
 async function boot() {
-  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), TENANT_LEGACY_DEFAULT: "0", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
+  backend = spawn(process.execPath, ["server.js"], { cwd: NODE_DIR, env: { ...process.env, MONGO_URI: uri, PORT: String(API_PORT), TENANT_LEGACY_DEFAULT: "0", ATTACHMENT_STORAGE: "disk", CORS_ORIGINS: `http://localhost:${WEB_PORT}` }, stdio: ["ignore", "pipe", "pipe"] });
   backend.stdout.on("data", (d) => (logs.api += d));
   backend.stderr.on("data", (d) => (logs.api += d));
   children.push(backend);
