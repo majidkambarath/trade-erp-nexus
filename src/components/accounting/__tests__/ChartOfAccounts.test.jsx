@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   attachments: vi.fn(),
   uploadAttachment: vi.fn(),
   linkAttachment: vi.fn(),
+  documentAudit: vi.fn(),
+  voucherAudit: vi.fn(),
 }));
 
 vi.mock("../../../lib/accountingApi", () => ({
@@ -29,7 +31,10 @@ vi.mock("../../../lib/accountingApi", () => ({
   uploadAttachment: mocks.uploadAttachment,
   linkAttachment: mocks.linkAttachment,
   downloadAttachment: vi.fn(),
+  documents: { audit: mocks.documentAudit },
 }));
+// only the audit call is replaced: the rest of the banking api stays real
+vi.mock("../../../lib/bankingApi", async (importOriginal) => ({ ...(await importOriginal()), vouchers: { audit: mocks.voucherAudit } }));
 
 import ChartOfAccounts from "../ChartOfAccounts";
 
@@ -226,6 +231,64 @@ describe("chart of accounts", () => {
     expect(within(row).getByText("1,200.00")).toBeInTheDocument();
     expect(within(row).getByTitle("Credit balance")).toBeInTheDocument();
     expect(within(within(dialog).getByText("OB-BANK0001").closest("tr")).getByTitle("Debit balance")).toBeInTheDocument();
+  });
+
+  // The ledger prints a number for every posting and the number opens that posting's audit trail.
+  // An opening balance voucher, opening stock and a year-end closing entry are not vouchers, and a
+  // customer's opening invoice is a trade document that posts as "opening": each must reach the
+  // trail that can read it.
+  describe("the audit trail behind a ledger row", () => {
+    const ledgerWith = (row) => mocks.accountLedger.mockResolvedValue({
+      opening: 0, openingNet: 0, closing: 5000, closingNet: 5000, totals: { debit: 5000, credit: 0 },
+      rows: [{ _id: "e1", date: "2026-10-01T08:00:00Z", narration: "x", debit: 5000, credit: 0, balance: 5000, net: 5000, ...row }],
+    });
+    const openLedger = async () => {
+      render(<ChartOfAccounts />);
+      await screen.findByText("Emirates NBD");
+      fireEvent.click(screen.getByRole("button", { name: "Ledger of Emirates NBD" }));
+      return screen.findByRole("dialog", { name: /BANK0001/ });
+    };
+    const VOUCHER_TRAIL = {
+      voucher: { _id: "ob1", voucherNo: "OBV-2025-0001", voucherType: "opening", typeLabel: "Opening balance", date: "2025-01-01T00:00:00.000Z", status: "posted", totalAmount: 5000 },
+      source: { kind: "opening", label: "Opening balance", facts: [{ label: "Accounts", value: 1, type: "number" }] },
+      ledger: { posted: true, entries: [], reversals: [], totals: { debit: 5000, credit: 5000 }, balanced: true, note: null },
+      allocations: [], onAccount: 0, cheque: null, activity: [],
+    };
+
+    it("opens an opening balance voucher through the voucher trail, and shows what it found", async () => {
+      ledgerWith({ voucherId: "ob1", voucherNo: "OBV-2025-0001", voucherType: "opening", referenceType: "opening" });
+      mocks.voucherAudit.mockResolvedValue(VOUCHER_TRAIL);
+      const dialog = await openLedger();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "OBV-2025-0001" }));
+
+      expect(await screen.findByRole("heading", { name: "Audit trail - OBV-2025-0001" })).toBeInTheDocument();
+      expect(mocks.voucherAudit).toHaveBeenCalledWith("ob1");
+      expect(mocks.documentAudit).not.toHaveBeenCalled();
+      expect(await screen.findByText("Accounts")).toBeInTheDocument();
+    });
+
+    it("opens a year-end closing entry through the voucher trail too", async () => {
+      ledgerWith({ voucherId: "yc1", voucherNo: "YEC-2025-0001", voucherType: "closing", referenceType: "closing" });
+      mocks.voucherAudit.mockResolvedValue({ ...VOUCHER_TRAIL, voucher: { ...VOUCHER_TRAIL.voucher, voucherNo: "YEC-2025-0001", voucherType: "closing", typeLabel: "Year-end closing" } });
+      const dialog = await openLedger();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "YEC-2025-0001" }));
+      await waitFor(() => expect(mocks.voucherAudit).toHaveBeenCalledWith("yc1"));
+      expect(mocks.documentAudit).not.toHaveBeenCalled();
+    });
+
+    it("sends a customer's opening invoice to the document trail, not the voucher trail", async () => {
+      ledgerWith({ voucherId: "t9", voucherNo: "SO-2025-0009", voucherType: "opening", referenceType: "opening_invoice" });
+      mocks.documentAudit.mockResolvedValue({
+        document: { _id: "t9", transactionNo: "SO-2025-0009", typeLabel: "Sales order", status: "APPROVED", date: "2025-01-01T00:00:00.000Z", totalAmount: 100, paidAmount: 0, outstandingAmount: 100 },
+        party: { name: "Al Noor", type: "Customer" },
+        ledger: { posted: true, entries: [], reversals: [], totals: { debit: 100, credit: 100 }, balanced: true, note: null },
+        stock: { movements: [] }, partyBalance: { rows: [] }, settlements: [], einvoice: null, activity: [],
+      });
+      const dialog = await openLedger();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "SO-2025-0009" }));
+      await waitFor(() => expect(mocks.documentAudit).toHaveBeenCalledWith("t9"));
+      expect(mocks.voucherAudit).not.toHaveBeenCalled();
+    });
   });
 
   it("explains an empty chart and offers the first step", async () => {

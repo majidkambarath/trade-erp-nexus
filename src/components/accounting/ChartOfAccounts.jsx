@@ -595,11 +595,15 @@ export function LedgerBody({ account }) {
   );
 }
 
-// A posting's source is either a trade document (the four order types post under their own type)
-// or a finance voucher; each has its own audit trail.
+// A posting's source is either a trade document (the four order types post under their own type,
+// and so does a customer's or vendor's opening invoice, which posts as "opening" with this
+// reference) or a finance voucher; each has its own audit trail. Opening balances, opening stock
+// and year-end closing entries have no voucher either: the server reads those from their own
+// records and answers in the voucher trail's shape.
 const DOCUMENT_TYPES = ["purchase_order", "sales_order", "purchase_return", "sales_return"];
+const isDocumentPosting = (row) => DOCUMENT_TYPES.includes(row.voucherType) || row.referenceType === "opening_invoice";
 function SourceAuditTrail({ row, onClose }) {
-  return DOCUMENT_TYPES.includes(row.voucherType)
+  return isDocumentPosting(row)
     ? <DocumentAuditTrail id={row.voucherId} documentNo={row.voucherNo} onClose={onClose} />
     : <VoucherAuditTrail id={row.voucherId} voucherNo={row.voucherNo} onClose={onClose} />;
 }
