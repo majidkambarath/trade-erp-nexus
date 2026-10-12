@@ -112,14 +112,14 @@ export default function PlatformDevelopers({ user }) {
         const self = String(u._id) === String(user?._id || user?.id);
         return (
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => open(u)} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-sm">Edit</button>
+            <button type="button" onClick={() => open(u)} className="inline-flex h-11 items-center lg:h-10 rounded-full border border-border px-3 text-sm">Edit</button>
             {u.twoFactor?.enabled && !self && (
-              <button type="button" onClick={() => setResetting(u)} className="inline-flex h-9 items-center gap-1 rounded-full border border-border px-3 text-sm">
+              <button type="button" onClick={() => setResetting(u)} className="inline-flex h-11 items-center lg:h-10 gap-1 rounded-full border border-border px-3 text-sm">
                 <KeyRound className="h-4 w-4" aria-hidden="true" /> Reset two-factor
               </button>
             )}
             {!self && (
-              <button type="button" onClick={() => setStatus(u, u.status === "active" ? "inactive" : "active")} className="inline-flex h-9 items-center rounded-full border border-border px-3 text-sm">
+              <button type="button" onClick={() => setStatus(u, u.status === "active" ? "inactive" : "active")} className="inline-flex h-11 items-center lg:h-10 rounded-full border border-border px-3 text-sm">
                 {u.status === "active" ? "Switch off" : "Switch on"}
               </button>
             )}
@@ -148,7 +148,7 @@ export default function PlatformDevelopers({ user }) {
         <Panel className="mb-4" title="Pass this on now">
           <p className="text-sm text-muted-foreground">It is not stored anywhere and will not be shown again. {made.email} should change it after signing in.</p>
           <p className="mt-2 select-all font-mono text-base text-foreground">{made.password}</p>
-          <button type="button" onClick={() => setMade(null)} className="mt-3 inline-flex h-9 items-center rounded-full border border-border px-3 text-sm">Done</button>
+          <button type="button" onClick={() => setMade(null)} className="mt-3 inline-flex h-11 items-center lg:h-10 rounded-full border border-border px-3 text-sm">Done</button>
         </Panel>
       )}
 
@@ -166,12 +166,12 @@ export default function PlatformDevelopers({ user }) {
             </Field>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" data-shortcut="save" disabled={saving} onClick={save} className="inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            <button type="button" data-shortcut="save" disabled={saving} onClick={save} className="inline-flex h-11 items-center lg:h-10 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60">
               {saving ? "Saving..." : isNew ? "Create developer" : "Save"}
             </button>
-            <button type="button" onClick={() => setForm(null)} className="inline-flex h-10 items-center rounded-full border border-border px-4 text-sm">Cancel</button>
+            <button type="button" onClick={() => setForm(null)} className="inline-flex h-11 items-center lg:h-10 rounded-full border border-border px-4 text-sm">Cancel</button>
             {isNew && (
-              <button type="button" onClick={() => set({ password: suggestPassword() })} className="inline-flex h-10 items-center rounded-full border border-border px-4 text-sm">Suggest another</button>
+              <button type="button" onClick={() => set({ password: suggestPassword() })} className="inline-flex h-11 items-center lg:h-10 rounded-full border border-border px-4 text-sm">Suggest another</button>
             )}
           </div>
         </Panel>
