@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.3.0.1 — 13 October 2026
+
+A phone fix on top of 1.3.0.0. Backend unchanged (still 1.3.0.0).
+
+### Fixed
+
+- **The entry form opened from an Add button was unusable on a phone.** Tapping New sales invoice (or purchase
+  invoice, or either return) left the list's own header — title, description and a second **New ...** button —
+  stacked above the form, and the form's header squeezed its title into a third of the screen beside **Back**,
+  under four lines of keyboard shortcuts that no phone has keys for. The list header now stands down while a
+  form or a document is open (Back brings it straight back), the form header stacks, Save runs the full width,
+  and the shortcut line shows only where there is a keyboard.
+
+- **"Please fix the highlighted fields" highlighted nothing on a phone.** Below md each line is a card, and the
+  card read each line's error under the wrong key, so every line-level message — choose an item, enter a
+  quantity, enter a price — was invisible. The messages show, and the cursor now lands in the field that was
+  complained about, as it does on a wide screen.
+
+- **The document number field no longer gets crushed** by the Auto / Manual toggle beside it at 390px and
+  below: the toggle wraps underneath and the number keeps its width.
+
+- **The invoice form said "Create sales order" and "Save SO".** Those pages became the invoice pages on
+  12 October; the form now says invoice, and the number is labelled "Invoice no.", so it no longer reads as the
+  separate Sales order screen next to it.
+
+### Internal
+
+- `npm run check:mobile` never opened the form behind an Add button — which is why none of the above was
+  caught. All six order forms now have `form` and `form-add-line` steps. A page's own figures table, pinned
+  first column and all, no longer reads as a bleed in a deep step (that rule is for dialogs, where there is
+  nowhere to scroll to).
+
 ## 1.3.0.0 — 13 October 2026
 
 Released alongside backend 1.3.0.0, which sells modules per organisation.
