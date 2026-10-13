@@ -4,6 +4,10 @@ import { setOrgLocale } from "../../utils/orgLocale";
 import {
   FEATURE_LABELS,
   blockedFrom,
+  isModuleError,
+  moduleHolds,
+  moduleLabel,
+  tabOutOfPlan,
   branchChoices,
   branchInUse,
   branchLabel,
@@ -270,5 +274,45 @@ describe("working in one branch at a time (canViewAll: false)", () => {
     expect(branchInUse(older, null)).toBe("");
     expect(branchInUse(older, "shj")).toBe("shj");
     expect(branchInUse(null, null)).toBe("");
+  });
+});
+
+// The modules an organisation bought. The navigation already hides what it has not (me.grants is capped by the
+// server); these decide the WORDING when a screen is reached by a typed address or an old bookmark.
+describe("modules the organisation bought", () => {
+  const status = (modules) => ({ modules, features: {} });
+  const ALL = { sales: { on: true, full: true, actions: ["view", "create", "approve"] }, finance: { on: false, full: false, actions: [] }, reports: { on: true, full: false, actions: ["view"] } };
+
+  it("knows whether the organisation holds one permission at all, and fails open while it cannot know", () => {
+    expect(moduleHolds(status(ALL), "sales.approve")).toBe(true);
+    expect(moduleHolds(status(ALL), "finance.create")).toBe(false);
+    expect(moduleHolds(status(ALL), "reports.view")).toBe(true);
+    expect(moduleHolds(status(ALL), "reports.financial")).toBe(false);
+    // not loaded, an older server, or a module this build does not know: shown, and the server refuses it
+    expect(moduleHolds(null, "finance.create")).toBe(true);
+    expect(moduleHolds({}, "finance.create")).toBe(true);
+    expect(moduleHolds(status(ALL), "newthing.view")).toBe(true);
+    expect(moduleHolds(status(ALL), "nonsense")).toBe(true);
+  });
+
+  it("tells a screen nobody here can open from one this person's role does not reach", () => {
+    expect(tabOutOfPlan({ permission: "finance.view" }, status(ALL))).toEqual({ kind: "module", key: "finance" });
+    expect(tabOutOfPlan({ permission: "reports.financial" }, status(ALL))).toEqual({ kind: "module", key: "reports" });
+    // one of several is enough: Customers opens for Sales alone, with Accounts not bought
+    expect(tabOutOfPlan({ permission: ["sales.view", "accounts.view"] }, status(ALL))).toBeNull();
+    // a feature switched off is named as the feature, as it always was, and is tested first
+    expect(tabOutOfPlan({ permission: "sales.view", feature: "quotations" }, { ...status(ALL), features: { quotations: false } })).toEqual({ kind: "feature", key: "quotations" });
+    // a tab that needs nothing, and a status that is not loaded, hide nothing
+    expect(tabOutOfPlan({ open: "preferences" }, status(ALL))).toBeNull();
+    expect(tabOutOfPlan({ permission: "finance.view" }, null)).toBeNull();
+    expect(tabOutOfPlan(null, status(ALL))).toBeNull();
+  });
+
+  it("recognises the server's own refusal and names the module plainly", () => {
+    const error = { response: { status: 403, data: { errorCode: "MODULE_NOT_IN_PLAN", message: "Finance is not included in this organisation's plan.", details: { module: "finance" } } } };
+    expect(isModuleError(error)).toBe(true);
+    expect(isModuleError({ response: { status: 403, data: { errorCode: "PERMISSION_DENIED" } } })).toBe(false);
+    expect(moduleLabel("finance")).toBe("Finance");
+    expect(moduleLabel("whatever")).toBe("whatever");
   });
 });

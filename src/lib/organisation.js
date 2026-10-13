@@ -21,6 +21,8 @@ const detailsOf = (error) => error?.response?.data?.details || {};
 export const isBlockedError = (error) => error?.response?.status === 403 && BLOCKING_CODES.includes(codeOf(error));
 export const isReadOnlyError = (error) => error?.response?.status === 403 && codeOf(error) === "ORGANISATION_READ_ONLY";
 export const isFeatureError = (error) => error?.response?.status === 403 && codeOf(error) === "FEATURE_NOT_IN_PLAN";
+/** The organisation never bought this module: not the person's role, and no administrator of theirs can grant it. */
+export const isModuleError = (error) => error?.response?.status === 403 && codeOf(error) === "MODULE_NOT_IN_PLAN";
 export const isLimitError = (error) => error?.response?.status === 403 && codeOf(error) === "LIMIT_REACHED";
 /** The branch the request named is not one the person may work in. */
 export const isBranchRefusal = (error) => error?.response?.status === 403 && BRANCH_REFUSAL_CODES.includes(codeOf(error));
@@ -43,7 +45,7 @@ export function blockedFrom(error) {
 
 /** Where the server's own words are better than ours: a refusal for the plan, a limit, or a read-only organisation. */
 export function planRefusalMessage(error) {
-  if (isFeatureError(error) || isLimitError(error) || isReadOnlyError(error) || isPermissionError(error)) return error.response.data.message;
+  if (isFeatureError(error) || isModuleError(error) || isLimitError(error) || isReadOnlyError(error) || isPermissionError(error)) return error.response.data.message;
   return null;
 }
 
@@ -74,6 +76,60 @@ export const FEATURE_LABELS = {
   messaging: "Send documents to customers",
   multiBranch: "More than one branch",
 };
+
+// ---- modules: the parts of the product the organisation bought
+//
+// `status.modules` is { [module]: { on, full, actions } } from the server, which has already capped me.grants to
+// it - so the navigation hides what is not bought without knowing any of this. These are for the WORDING: a screen
+// reached by a typed address should read "Finance is not included in your plan", not "your role does not allow it",
+// because no administrator of theirs can open that door.
+
+export const MODULE_LABELS = {
+  sales: "Sales",
+  purchase: "Purchase",
+  inventory: "Inventory",
+  finance: "Finance",
+  banking: "Banking",
+  accounts: "Accounts",
+  reports: "Reports",
+  users: "Users and roles",
+  staff: "Staff records",
+  settings: "Settings",
+  audit: "Activity trail",
+  lookups: "Pick lists",
+};
+
+export const moduleLabel = (key) => MODULE_LABELS[key] || key;
+
+/**
+ * Does the organisation hold this one permission key? Only the server saying so makes it false: while the status is
+ * loading, on an older server that sends no modules, or for a module this build does not know, the answer is yes and
+ * the server's own refusal is the backstop (the same rule as featureOn).
+ */
+export function moduleHolds(status, key) {
+  const modules = status?.modules;
+  if (!modules) return true;
+  const name = String(key ?? "");
+  const dot = name.indexOf(".");
+  if (dot < 1) return true;
+  const module = modules[name.slice(0, dot)];
+  if (!module) return true;
+  return (module.actions || []).includes(name.slice(dot + 1));
+}
+
+/**
+ * Why a screen cannot be opened by ANYONE in this organisation: `{ kind: "feature" | "module", key }`, else null.
+ * A tab is out of plan when its feature is switched off, or when the organisation holds none of the permissions it
+ * accepts (one of several is enough: "Customers" opens for Sales alone, with Accounts not bought).
+ */
+export function tabOutOfPlan(tab, status) {
+  if (!tab) return null;
+  if (tab.feature && !featureOn(status, tab.feature)) return { kind: "feature", key: tab.feature };
+  if (!status?.modules) return null;
+  const needed = [].concat(tab.permission || []).filter((k) => typeof k === "string");
+  if (!needed.length || needed.some((k) => moduleHolds(status, k))) return null;
+  return { kind: "module", key: needed[0].split(".")[0] };
+}
 
 // ---- branches
 

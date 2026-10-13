@@ -37,8 +37,13 @@ vi.mock("../platformApi", () => ({
 
 const CATALOG = {
   plans: [
-    { code: "trial", name: "Trial", trialDays: 14, features: { quotations: true }, limits: { users: 3, branches: 1, documentsPerMonth: 200 } },
-    { code: "standard", name: "Standard", features: { quotations: true, banking: true }, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
+    { code: "trial", name: "Trial", trialDays: 14, features: { quotations: true }, modules: { sales: true, finance: true, reports: true }, limits: { users: 3, branches: 1, documentsPerMonth: 200 } },
+    { code: "standard", name: "Standard", features: { quotations: true, banking: true }, modules: { sales: true, finance: true, reports: true }, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
+  ],
+  modules: [
+    { key: "sales", label: "Sales", hint: "Sales documents and customers", actions: [{ action: "view" }, { action: "create" }, { action: "approve" }], alwaysOn: [] },
+    { key: "finance", label: "Finance", hint: "Vouchers", actions: [{ action: "view" }, { action: "create" }], alwaysOn: [] },
+    { key: "reports", label: "Reports", hint: "The dashboard and reports", actions: [{ action: "view" }, { action: "financial" }], alwaysOn: ["view"] },
   ],
   features: [
     { key: "quotations", label: "Quotations" },
@@ -224,6 +229,24 @@ describe("one organisation", () => {
     renderConsole("/platform/organisations/acme");
     expect(await screen.findByRole("button", { name: "Reopen" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Suspend" })).toBeNull();
+  });
+
+  it("sells a module in part, switches one off, and sends only what changed", async () => {
+    signIn();
+    renderConsole("/platform/organisations/acme?tab=plan");
+    await screen.findByRole("heading", { name: "Modules" });
+    // Finance is not bought at all; Reports is sold as far as looking only (its "view" cannot be switched off)
+    fireEvent.change(screen.getByLabelText("Finance"), { target: { value: "off" } });
+    fireEvent.change(screen.getByLabelText("Reports"), { target: { value: "some" } });
+    const view = screen.getByRole("checkbox", { name: /view \(always on\)/ });
+    expect(view).toBeChecked();
+    expect(view).toBeDisabled();
+    // switching to "chosen actions" keeps what is granted today ticked, so the developer takes away what is not sold
+    fireEvent.click(screen.getByRole("checkbox", { name: "financial" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save modules" }));
+    await waitFor(() => expect(api.updateOrganisation).toHaveBeenCalledTimes(1));
+    // Sales was not touched, so it is not in the body; Reports keeps only what the plan can never take away
+    expect(api.updateOrganisation).toHaveBeenCalledWith("acme", { moduleOverrides: { finance: false, reports: ["view"] } });
   });
 
   it("sends only the features that changed, as an override or a reset", async () => {

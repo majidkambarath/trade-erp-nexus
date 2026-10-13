@@ -174,6 +174,88 @@ export function featurePatch(organisation, choices) {
   return { ...(Object.keys(featureOverrides).length ? { featureOverrides } : {}), ...(resetFeatures.length ? { resetFeatures } : {}) };
 }
 
+// ---- modules: the parts of the product this organisation was sold
+//
+// A module is the organisation's CEILING: what every role in it can be given at most, which is why it is set here
+// and not by the customer. Four choices, because a module is often sold in part: follow the plan, all of it, only
+// the actions ticked, or none. The actions a plan can never take away (the pick lists, the company settings, the
+// first screen) come from the catalogue as `alwaysOn` and are shown ticked and locked.
+
+/** "default" (follow the plan), "all", "some" or "off", for one module of one organisation. */
+export const moduleChoice = (organisation, key) => {
+  const o = organisation?.moduleOverrides;
+  if (!o || !Object.prototype.hasOwnProperty.call(o, key) || o[key] === undefined) return "default";
+  const v = o[key];
+  if (v === true) return "all";
+  if (v === false) return "off";
+  return Array.isArray(v) ? "some" : "default";
+};
+
+/** The actions a module holds right now: its own override, else the plan's own setting. */
+export function moduleActionsOf(organisation, plan, key, allActions = []) {
+  const own = organisation?.moduleOverrides?.[key];
+  const value = own === undefined ? plan?.modules?.[key] : own;
+  if (value === true) return [...allActions];
+  if (Array.isArray(value)) return allActions.filter((a) => value.includes(a));
+  return [];
+}
+
+/** What a choice and its ticks come to: { on, full, actions }, the floor always included (as the server does). */
+export function moduleResult(choice, { planValue, ticked = [], allActions = [], alwaysOn = [] } = {}) {
+  const chosen =
+    choice === "all" ? [...allActions]
+    : choice === "off" ? []
+    : choice === "some" ? allActions.filter((a) => ticked.includes(a))
+    : planValue === true ? [...allActions]
+    : Array.isArray(planValue) ? allActions.filter((a) => planValue.includes(a))
+    : [];
+  const actions = allActions.filter((a) => chosen.includes(a) || alwaysOn.includes(a));
+  return { on: actions.length > 0, full: actions.length === allActions.length && allActions.length > 0, actions };
+}
+
+/** How a module reads beside its control: "All of it", "Only: view, create" or "Not included". */
+export function moduleText(result) {
+  if (!result.on) return "Not included";
+  if (result.full) return "All of it";
+  return `Only: ${result.actions.join(", ")}`;
+}
+
+/**
+ * The PATCH body that moves an organisation from its stored overrides to the chosen ones. `choices` is
+ * { [module]: { choice, actions } }. A module left as it is sends nothing, so Save only ever carries a change.
+ * "some" with nothing ticked is sent as false (off), which is what it means and what the server can store.
+ */
+export function modulePatch(organisation, choices) {
+  const moduleOverrides = {};
+  const resetModules = [];
+  for (const [key, chosen] of Object.entries(choices)) {
+    const choice = chosen?.choice ?? "default";
+    const ticked = chosen?.actions ?? [];
+    const was = moduleChoice(organisation, key);
+    const stored = organisation?.moduleOverrides?.[key];
+    if (choice === "default") {
+      if (was !== "default") resetModules.push(key);
+      continue;
+    }
+    if (choice === "all") {
+      if (stored !== true) moduleOverrides[key] = true;
+      continue;
+    }
+    if (choice === "off") {
+      if (stored !== false) moduleOverrides[key] = false;
+      continue;
+    }
+    const list = [...ticked].sort();
+    if (!list.length) {
+      if (stored !== false) moduleOverrides[key] = false;
+      continue;
+    }
+    const before = Array.isArray(stored) ? [...stored].sort() : null;
+    if (!before || before.join(",") !== list.join(",")) moduleOverrides[key] = list;
+  }
+  return { ...(Object.keys(moduleOverrides).length ? { moduleOverrides } : {}), ...(resetModules.length ? { resetModules } : {}) };
+}
+
 // ---- limits: the plan's number, a number of its own, or none
 
 /** "default", "number" or "unlimited" for one limit of one organisation. */

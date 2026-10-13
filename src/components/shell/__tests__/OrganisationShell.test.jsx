@@ -91,6 +91,28 @@ describe("the organisation in the shell", () => {
     expect(screen.queryByText("the page itself")).toBeNull();
   });
 
+  it("says a whole module is not in the plan, rather than blaming the person's role", async () => {
+    // Finance was not bought: the organisation's own owner cannot open it either, so the words are the plan's.
+    status.modules = {
+      sales: { on: true, full: true, actions: ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"] },
+      finance: { on: false, full: false, actions: [] },
+      reports: { on: true, full: false, actions: ["view"] },
+    };
+    // the server caps a person's grants to the modules too, so the owner here holds no finance permission
+    status.me = { role: { key: "super_admin", name: "Owner", rank: 100 }, grants: ["sales.view", "sales.create", "sales.approve", "reports.view", "lookups.view", "settings.view"] };
+    renderAt("/receipt-voucher");
+    expect(await screen.findByText("Finance is not included in your plan")).toBeInTheDocument();
+    expect(screen.queryByText("the page itself")).toBeNull();
+    // and the Finance tabs are not offered at all
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Receipts" })).toBeNull());
+  });
+
+  it("hides nothing over modules while the status says nothing about them", async () => {
+    // an older server, or one still loading: the page opens and the server's own refusal is the backstop
+    renderAt("/receipt-voucher");
+    expect(await screen.findByText("the page itself")).toBeInTheDocument();
+  });
+
   it("warns when the subscription is about to end, and still shows the page", async () => {
     status.subscription = { ...active, endsAt: new Date(Date.now() + 5 * 86400000).toISOString(), daysLeft: 5 };
     renderAt("/sales-order");

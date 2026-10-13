@@ -22,6 +22,7 @@ const TwoFactorRequired = lazy(() => import("./shell/TwoFactorRequired"));
 import NotInPlan from "./shell/NotInPlan";
 import NotAllowed from "./shell/NotAllowed";
 import { tabAllowed } from "../lib/permissions";
+import { tabOutOfPlan } from "../lib/organisation";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
 import { NavBadgesProvider } from "./shell/NavBadges";
 import { subscriptionNotice } from "../lib/subscriptionText";
@@ -42,7 +43,7 @@ function PageLoading() {
 const LayoutShell = () => {
   const { pathname } = useLocation();
   const { profile, logout } = useSession();
-  const { status, blocked, refresh, featureOn, branchKey, localeKey } = useOrganisation();
+  const { status, blocked, refresh, branchKey, localeKey } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // set by main.jsx when the service worker has a newer build waiting
@@ -61,7 +62,9 @@ const LayoutShell = () => {
   // A page the plan does not include can still be reached by a typed address or an old bookmark: say so,
   // rather than loading a screen whose every request will be refused.
   const requested = useMemo(() => findActive(pathname), [pathname]);
-  const outOfPlan = requested?.tab?.feature && !featureOn(requested.tab.feature) ? requested.tab.feature : null;
+  // Either an add-on the plan leaves out, or a whole module the organisation did not buy: both are "not in your
+  // plan" and neither can be granted by an administrator of theirs, so they are told the same way.
+  const outOfPlan = useMemo(() => tabOutOfPlan(requested?.tab, status), [requested, status]);
   // ...or by a role that does not include it: the same kindness, with a way to somewhere they CAN go
   const notAllowed = requested?.tab && !outOfPlan && !tabAllowed(requested.tab, status?.me) ? requested.tab : null;
   const home = modules[0] ? moduleHref(modules[0]) : null;
@@ -208,7 +211,7 @@ const LayoutShell = () => {
           {/* choosing another branch starts the page afresh, so every list is read again for that branch */}
           <PageErrorBoundary key={`${branchKey}:${localeKey}`} resetKey={pathname}>
             {outOfPlan ? (
-              <NotInPlan feature={outOfPlan} />
+              <NotInPlan feature={outOfPlan.kind === "feature" ? outOfPlan.key : null} module={outOfPlan.kind === "module" ? outOfPlan.key : null} />
             ) : notAllowed ? (
               <NotAllowed me={status?.me} needed={notAllowed.permission} home={home} />
             ) : (

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { MIN_CONSOLE_PASSWORD, roleLabel, roleOptions, suggestPassword, validateDeveloper } from "../platformForms";
+import { MIN_CONSOLE_PASSWORD, moduleActionsOf, moduleChoice, modulePatch, moduleResult, moduleText, roleLabel, roleOptions, suggestPassword, validateDeveloper } from "../platformForms";
 
 // How the console words a person's role and which roles it offers when giving one.
 const ROLES = [
@@ -106,5 +106,55 @@ describe("the password the console suggests", () => {
 
   it("does not repeat itself", () => {
     expect(new Set(Array.from({ length: 50 }, () => suggestPassword())).size).toBe(50);
+  });
+});
+
+// The modules an organisation was sold: the ceiling the developer sets, which no role inside it can exceed.
+describe("modules in the console", () => {
+  const SALES = ["view", "create", "approve"];
+  const REPORTS = ["view", "financial", "vat"];
+  const plan = { modules: { sales: true, reports: true, finance: ["view"] } };
+
+  it("reads what a module holds now: its own override, else the plan's", () => {
+    expect(moduleChoice({}, "sales")).toBe("default");
+    expect(moduleChoice({ moduleOverrides: { sales: true } }, "sales")).toBe("all");
+    expect(moduleChoice({ moduleOverrides: { sales: false } }, "sales")).toBe("off");
+    expect(moduleChoice({ moduleOverrides: { sales: ["view"] } }, "sales")).toBe("some");
+    // a value we cannot make sense of reads as "follow the plan" rather than inventing a setting
+    expect(moduleChoice({ moduleOverrides: { sales: "yes" } }, "sales")).toBe("default");
+
+    expect(moduleActionsOf({}, plan, "sales", SALES)).toEqual(SALES);
+    expect(moduleActionsOf({}, plan, "finance", ["view", "create"])).toEqual(["view"]);
+    expect(moduleActionsOf({ moduleOverrides: { sales: ["approve", "view"] } }, plan, "sales", SALES)).toEqual(["view", "approve"]);
+    expect(moduleActionsOf({ moduleOverrides: { sales: false } }, plan, "sales", SALES)).toEqual([]);
+    expect(moduleActionsOf({}, { modules: {} }, "sales", SALES)).toEqual([], "a plan that does not name it holds none of it");
+  });
+
+  it("says what a choice comes to, with the actions that can never be taken away put back", () => {
+    const of = (choice, ticked = []) => moduleResult(choice, { planValue: true, ticked, allActions: REPORTS, alwaysOn: ["view"] });
+    expect(of("all")).toEqual({ on: true, full: true, actions: REPORTS });
+    expect(of("some", ["financial"])).toEqual({ on: true, full: false, actions: ["view", "financial"] });
+    // "off" cannot remove the floor: the server puts it back, so the console must not promise otherwise
+    expect(of("off")).toEqual({ on: true, full: false, actions: ["view"] });
+    expect(moduleResult("off", { planValue: true, allActions: ["view", "create"], alwaysOn: [] })).toEqual({ on: false, full: false, actions: [] });
+    expect(moduleResult("default", { planValue: ["view"], allActions: REPORTS, alwaysOn: [] }).actions).toEqual(["view"]);
+    expect(moduleText(of("all"))).toBe("All of it");
+    expect(moduleText(of("some", ["financial"]))).toBe("Only: view, financial");
+    expect(moduleText({ on: false, full: false, actions: [] })).toBe("Not included");
+  });
+
+  it("sends only what changed, and nothing at all when nothing did", () => {
+    const org = { moduleOverrides: { finance: false, reports: ["view"] } };
+    const same = { finance: { choice: "off", actions: [] }, reports: { choice: "some", actions: ["view"] } };
+    expect(modulePatch(org, same)).toEqual({});
+    // the same list in another order is not a change
+    expect(modulePatch({ moduleOverrides: { reports: ["view", "financial"] } }, { reports: { choice: "some", actions: ["financial", "view"] } })).toEqual({});
+    expect(modulePatch(org, { finance: { choice: "default" } })).toEqual({ resetModules: ["finance"] });
+    expect(modulePatch(org, { finance: { choice: "all" } })).toEqual({ moduleOverrides: { finance: true } });
+    expect(modulePatch({}, { sales: { choice: "some", actions: ["view", "create"] } })).toEqual({ moduleOverrides: { sales: ["create", "view"] } });
+    // "chosen actions" with nothing ticked means the module is not included, which is what is stored
+    expect(modulePatch({}, { sales: { choice: "some", actions: [] } })).toEqual({ moduleOverrides: { sales: false } });
+    // a module already at the plan's setting needs no reset
+    expect(modulePatch({}, { sales: { choice: "default" } })).toEqual({});
   });
 });

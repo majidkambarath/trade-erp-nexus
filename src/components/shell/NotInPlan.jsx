@@ -1,11 +1,12 @@
 import React from "react";
 import { Lock } from "lucide-react";
-import { featureLabel } from "../../lib/organisation";
+import { featureLabel, moduleLabel } from "../../lib/organisation";
 
 // Shown in the workspace in place of a screen the organisation's plan does not include (reached by a typed address
 // or an old bookmark; the navigation does not offer it).
-export default function NotInPlan({ feature }) {
-  const name = featureLabel(feature);
+export default function NotInPlan({ feature, module }) {
+  // Either an optional add-on (`feature`) or a whole module the organisation did not buy (`module`).
+  const name = feature ? featureLabel(feature) : moduleLabel(module);
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
       <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary text-muted-foreground">
