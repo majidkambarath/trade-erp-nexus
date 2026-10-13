@@ -102,10 +102,13 @@ const DEEP = {
   "sales-orders": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "form", page: true, clicks: ["^New sales order"], settle: 1500 },
+    { name: "form-add-line", page: true, clicks: ["^New sales order", "^Add line"], settle: 1300 },
   ],
   "purchase-orders": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     { name: "invoice", clicks: ["^View$", "Create invoice"], settle: 1300 },
+    { name: "form", page: true, clicks: ["^New purchase order"], settle: 1500 },
+    { name: "form-add-line", page: true, clicks: ["^New purchase order", "^Add line"], settle: 1300 },
   ],
   "purchase-goods-received": [
     { name: "new", clicks: ["New goods receipt"], settle: 900 },
@@ -134,20 +137,29 @@ const DEEP = {
     { name: "history", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
     // the audit trail, from the button on a card
     { name: "audit", cards: true, clicks: ["^View all invoices", "^Audit trail$"], settle: 1600 },
+    // the entry form behind the Add button, and a second line added on it: the form a phone has to fill in
+    { name: "form", page: true, clicks: ["^New sales invoice"], settle: 1600 },
+    { name: "form-add-line", page: true, clicks: ["^New sales invoice", "^Add line"], settle: 1300 },
   ],
   // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
   "purchase-invoices": [
     { name: "list", page: true, clicks: ["^View all purchase invoices"], settle: 1200 },
     { name: "document", cards: true, page: true, clicks: ["^View all purchase invoices", "^View( [0-9]|$)"], settle: 1600 },
     { name: "audit", cards: true, clicks: ["^View all purchase invoices", "^Audit trail$"], settle: 1600 },
+    { name: "form", page: true, clicks: ["^New purchase invoice"], settle: 1600 },
+    { name: "form-add-line", page: true, clicks: ["^New purchase invoice", "^Add line"], settle: 1300 },
   ],
   "sales-returns": [
     { name: "list", page: true, clicks: ["^View all sales returns"], settle: 1200 },
     { name: "audit", cards: true, clicks: ["^View all sales returns", "^Audit trail$"], settle: 1600 },
+    { name: "form", page: true, clicks: ["^New sales return"], settle: 1600 },
+    { name: "form-add-line", page: true, clicks: ["^New sales return", "^Add line"], settle: 1300 },
   ],
   "purchase-returns": [
     { name: "list", page: true, clicks: ["^View all purchase returns"], settle: 1200 },
     { name: "audit", cards: true, clicks: ["^View all purchase returns", "^Audit trail$"], settle: 1600 },
+    { name: "form", page: true, clicks: ["^New purchase return"], settle: 1600 },
+    { name: "form-add-line", page: true, clicks: ["^New purchase return", "^Add line"], settle: 1300 },
   ],
   // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
   "finance-reconcile": [
@@ -278,6 +290,10 @@ async function measureDialog(page) {
       if (el.getAttribute("role") === "tablist" || el.querySelector(":scope > [role='tablist']")) return false;
       // the line-items grid scrolls inside its own card on purpose (below md it becomes a card per line)
       if (el.querySelector(":scope > table[role='grid']")) return false;
+      // On a PAGE (no dialog open), a table of figures that must line up is allowed to scroll sideways under a
+      // pinned first column - that is the house rule. Inside a dialog it is not: there is nowhere to scroll to,
+      // which is why `table-stack` exists. So this exemption applies only when nothing is open over the page.
+      if (!dlg && el.classList.contains("table-pin-first")) return false;
       const st = getComputedStyle(el);
       return st.overflowX === "auto" || st.overflowX === "scroll";
     });

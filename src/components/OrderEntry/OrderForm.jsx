@@ -564,29 +564,30 @@ export default function OrderForm({
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <header className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3 lg:items-center lg:gap-4">
           <button
             type="button"
             onClick={() => {
               setActiveView("list");
               resetForm?.();
             }}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back
           </button>
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-foreground">
+          <div className="min-w-0">
+            <h1 className="text-xl font-extrabold tracking-tight text-foreground lg:text-2xl">
               {editing ? V.title.edit : V.title.create}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            {/* keyboard only: there is no Ctrl key on a phone, and the sentence crowded the title out of the row */}
+            <p className="hidden text-sm text-muted-foreground lg:block">
               Ctrl+S or Ctrl+Enter saves · Ctrl+Shift+S saves and opens a new one · Alt+N adds a line · ? lists every shortcut
             </p>
           </div>
         </div>
-        <button type="submit" form={formId} disabled={saving} className="erp-btn-primary disabled:opacity-60">
+        <button type="submit" form={formId} disabled={saving} className="erp-btn-primary w-full disabled:opacity-60 lg:w-auto">
           <Save className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving…" : editing ? V.title.saveEdit : V.title.save}
         </button>
@@ -614,8 +615,8 @@ export default function OrderForm({
             </h2>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field id={fid("transactionNo")} label={V.labels.doc}>
-                <div className="flex items-center gap-2">
-                  <div className="relative min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative min-w-[11rem] flex-1">
                     <Hash className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                     <input
                       id={fid("transactionNo")}

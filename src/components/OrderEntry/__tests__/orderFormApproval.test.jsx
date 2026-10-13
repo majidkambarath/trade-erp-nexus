@@ -40,7 +40,7 @@ function Harness({ notify, onSuccess }) {
 const save = async (notify, onSuccess) => {
   render(<Harness notify={notify} onSuccess={onSuccess} />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("button", { name: /save so/i }));
+  fireEvent.click(screen.getByRole("button", { name: /save invoice/i }));
   await waitFor(() => expect(applyAfterSave).toHaveBeenCalledTimes(1));
 };
 

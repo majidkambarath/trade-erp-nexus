@@ -120,7 +120,7 @@ describe("the purchase form", () => {
     await show(<Harness variant={VARIANTS.purchase} initial={purchaseForm([rowOf(VARIANTS.purchase)])} parties={vendors} />);
     const select = await screen.findByLabelText(/^Tax code, row 1/);
     await act(async () => { fireEvent.change(select, { target: { value: "tc-rc" } }); });
-    await act(async () => { screen.getByRole("button", { name: /save po/i }).click(); });
+    await act(async () => { screen.getByRole("button", { name: /save invoice/i }).click(); });
     const [url, body] = axiosInstance.post.mock.calls[0];
     expect(url).toBe("/transactions/transactions");
     expect(body.items[0]).toMatchObject({ taxCodeId: "tc-rc", vatAmount: 0, lineTotal: 400 });

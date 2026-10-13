@@ -167,7 +167,7 @@ describe("the sales order it already served", () => {
     expect(screen.queryByLabelText("Valid until")).not.toBeInTheDocument();
     expect(screen.queryByText("Not enough free stock for this delivery note")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /save so/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save invoice/i }));
     await waitFor(() => expect(axiosInstance.post).toHaveBeenCalledTimes(1));
     const [url, body] = axiosInstance.post.mock.calls[0];
     expect(url).toBe("/transactions/transactions");

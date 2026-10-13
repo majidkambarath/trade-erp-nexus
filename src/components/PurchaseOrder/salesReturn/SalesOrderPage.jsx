@@ -734,6 +734,10 @@ const SalesReturnOrderManagement = () => {
     <div className="">
       {deleteDialog}
       <NotificationList />
+      {/* The page's title, Add button and filters belong to the list. While the entry form or a document is open they
+          are hidden: each has its own header, and a second "New ..." button above the form it just opened is a
+          screenful of confusion on a phone. */}
+      {(activeView === "dashboard" || activeView === "list") && (
       <div className="relative bg-card border-b border-border">
         <div className="px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -913,6 +917,7 @@ const SalesReturnOrderManagement = () => {
           </div>
         )}
       </div>
+      )}
 
       <div className="p-4 sm:p-6 lg:p-8">
         {isLoading ? (

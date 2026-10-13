@@ -321,8 +321,8 @@ export const VARIANTS = {
   purchase: purchaseLike("purchase_order", {
     key: "purchase",
     noun: "Purchase order",
-    title: { create: "Create purchase order", edit: "Edit purchase order", save: "Save PO", saveEdit: "Update PO", items: "Purchase items" },
-    labels: { doc: "PO number", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" },
+    title: { create: "Create purchase invoice", edit: "Edit purchase invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Purchase items" },
+    labels: { doc: "Invoice no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" },
     referenceRequired: false,
     hasSecondDate: true,
     priority: false,
@@ -359,8 +359,8 @@ export const VARIANTS = {
     docType: "sales_order",
     partyType: "Customer",
     party: { idKey: "customerId", nameKey: "customerName", idInDoc: "customerId", nameInDoc: "customerName" },
-    labels: { doc: "SO number", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Delivery date", reference: "LPO no." },
-    title: { create: "Create sales order", edit: "Edit sales order", save: "Save SO", saveEdit: "Update SO", items: "Sales items" },
+    labels: { doc: "Invoice no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Delivery date", reference: "LPO no." },
+    title: { create: "Create sales invoice", edit: "Edit sales invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Sales items" },
     fields: { unitPrice: "rate", lineValue: "subtotal", vat: "vatAmount", gross: "lineTotal", vatPercent: "vatPercent" },
     columns: SALES_COLUMNS,
     rowTemplate: () => ({

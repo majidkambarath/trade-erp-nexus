@@ -335,6 +335,13 @@ export default function LineItemsGrid({
               {editable.map((col) => (
                 <label
                   key={col.key}
+                  // the same cell register as the table, so a failed save can put the cursor in the field it
+                  // complained about on a phone too
+                  ref={(el) => {
+                    const c = columns.indexOf(col);
+                    if (el) cells.current.set(`${r}:${c}`, el);
+                    else cells.current.delete(`${r}:${c}`);
+                  }}
                   // the item picker and anything free-text need the full width; figures pair up
                   className={cn(
                     "flex min-w-0 flex-col gap-1",
@@ -343,8 +350,8 @@ export default function LineItemsGrid({
                 >
                   <span className="text-xs font-medium text-muted-foreground">{col.label || col.key}</span>
                   {renderEditor(col, row, r, 0)}
-                  {errors?.[r]?.[col.key] && (
-                    <span className="text-xs font-medium text-status-danger">{errors[r][col.key]}</span>
+                  {errors?.[`${col.key}_${r}`] && (
+                    <span className="text-xs font-medium text-status-danger" role="alert">{errors[`${col.key}_${r}`]}</span>
                   )}
                 </label>
               ))}

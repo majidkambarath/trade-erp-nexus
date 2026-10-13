@@ -96,7 +96,7 @@ describe("the sales order form", () => {
   it("saves a service line like any other: the server decides it is a service", async () => {
     axiosInstance.post.mockResolvedValue({ data: { data: { _id: "t1", partyId: "c1", items: [] } } });
     await show(<Harness variant={VARIANTS.sales} initial={form([row(VARIANTS.sales, install)])} />);
-    const save = screen.getByRole("button", { name: /save so/i });
+    const save = screen.getByRole("button", { name: /save invoice/i });
     await act(async () => { save.click(); });
     const [url, body] = axiosInstance.post.mock.calls[0];
     expect(url).toBe("/transactions/transactions");
