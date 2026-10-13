@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { MIN_CONSOLE_PASSWORD, moduleActionsOf, moduleChoice, modulePatch, moduleResult, moduleText, roleLabel, roleOptions, suggestPassword, validateDeveloper } from "../platformForms";
+import { MIN_CONSOLE_PASSWORD, emptyOrganisation, moduleActionsOf, moduleChoice, moduleOverridesFor, modulePatch, moduleResult, moduleText, roleLabel, roleOptions, suggestPassword, toCreatePayload, validateDeveloper } from "../platformForms";
 
 // How the console words a person's role and which roles it offers when giving one.
 const ROLES = [
@@ -156,5 +156,45 @@ describe("modules in the console", () => {
     expect(modulePatch({}, { sales: { choice: "some", actions: [] } })).toEqual({ moduleOverrides: { sales: false } });
     // a module already at the plan's setting needs no reset
     expect(modulePatch({}, { sales: { choice: "default" } })).toEqual({});
+  });
+});
+
+// Choosing the modules while the organisation is being created: only the difference from the plan is stored.
+describe("modules chosen on a new organisation", () => {
+  const MODULES = [
+    { key: "sales", label: "Sales", actions: [{ action: "view" }, { action: "create" }, { action: "approve" }], alwaysOn: [] },
+    { key: "finance", label: "Finance", actions: [{ action: "view" }, { action: "create" }], alwaysOn: [] },
+    { key: "reports", label: "Reports", actions: [{ action: "view" }, { action: "financial" }], alwaysOn: ["view"] },
+  ];
+  const premium = { code: "premium", modules: { sales: true, finance: true, reports: true } };
+  const trading = { code: "trading", modules: { sales: true, finance: false, reports: ["view"] } };
+
+  it("stores nothing for a module left as the plan has it", () => {
+    expect(moduleOverridesFor(premium, {}, MODULES)).toEqual({});
+    expect(moduleOverridesFor(premium, { sales: { choice: "default" } }, MODULES)).toEqual({});
+    // choosing "All of it" where the plan already gives all of it is not a difference, and must not be stored:
+    // it would stick to the organisation and a later change of plan would not reach it
+    expect(moduleOverridesFor(premium, { sales: { choice: "all" } }, MODULES)).toEqual({});
+    expect(moduleOverridesFor(trading, { finance: { choice: "off" } }, MODULES)).toEqual({});
+    expect(moduleOverridesFor(trading, { reports: { choice: "some", actions: ["view"] } }, MODULES)).toEqual({});
+  });
+
+  it("stores what differs, in the shape the server takes", () => {
+    expect(moduleOverridesFor(premium, { finance: { choice: "off" } }, MODULES)).toEqual({ finance: false });
+    expect(moduleOverridesFor(premium, { reports: { choice: "some", actions: ["view"] } }, MODULES)).toEqual({ reports: ["view"] });
+    expect(moduleOverridesFor(trading, { finance: { choice: "all" } }, MODULES)).toEqual({ finance: true });
+    // an action that can never be taken away comes back whatever is ticked, so "none" of Reports is still its view
+    expect(moduleOverridesFor(premium, { reports: { choice: "off" } }, MODULES)).toEqual({ reports: ["view"] });
+    // several at once
+    expect(moduleOverridesFor(premium, { finance: { choice: "off" }, sales: { choice: "some", actions: ["view", "create"] } }, MODULES)).toEqual({ finance: false, sales: ["create", "view"] });
+  });
+
+  it("puts them in the create payload only when there are any", () => {
+    const form = { ...emptyOrganisation(), legalName: " Gulf Fresh ", country: "ae", adminName: "A", adminEmail: "A@B.COM", adminPassword: "pw" };
+    expect(toCreatePayload(form, { plan: premium, modules: MODULES }).moduleOverrides).toBeUndefined();
+    const sold = { ...form, modules: { finance: { choice: "off" } } };
+    expect(toCreatePayload(sold, { plan: premium, modules: MODULES })).toMatchObject({ legalName: "Gulf Fresh", country: "AE", moduleOverrides: { finance: false } });
+    // and an older console build, or a server with no module catalogue, sends exactly what it always did
+    expect(toCreatePayload(sold).moduleOverrides).toBeUndefined();
   });
 });

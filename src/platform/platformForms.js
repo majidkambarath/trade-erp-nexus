@@ -56,6 +56,8 @@ export const emptyOrganisation = () => ({
   baseCurrency: "AED",
   timezone: "Asia/Dubai",
   planCode: "standard",
+  // module -> { choice, actions }: only what the developer changed; everything else follows the plan
+  modules: {},
   adminName: "",
   adminEmail: "",
   adminPassword: "",
@@ -91,8 +93,10 @@ export function validateNewOrganisation(form, catalog = null) {
 }
 
 /** The body for POST /platform/organisations. */
-export function toCreatePayload(form) {
+export function toCreatePayload(form, { plan = null, modules = [] } = {}) {
+  const moduleOverrides = moduleOverridesFor(plan, form.modules, modules);
   return {
+    ...(Object.keys(moduleOverrides).length ? { moduleOverrides } : {}),
     legalName: form.legalName.trim(),
     ...(form.code.trim() ? { code: form.code.trim().toLowerCase() } : {}),
     country: form.country.toUpperCase(),
@@ -218,6 +222,26 @@ export function moduleText(result) {
   if (!result.on) return "Not included";
   if (result.full) return "All of it";
   return `Only: ${result.actions.join(", ")}`;
+}
+
+/**
+ * The `moduleOverrides` for an organisation being CREATED: what the developer chose, minus anything the plan
+ * already says, so a new organisation carries only what makes it different. (An override that merely repeats the
+ * plan would stick to it afterwards, and a later change of plan would not reach it.)
+ * `choices` is { [module]: { choice, actions } } and `modules` the catalogue.
+ */
+export function moduleOverridesFor(plan, choices = {}, modules = []) {
+  const out = {};
+  for (const m of modules) {
+    const chosen = choices[m.key];
+    if (!chosen || chosen.choice === "default") continue;
+    const allActions = m.actions.map((a) => a.action);
+    const picked = moduleResult(chosen.choice, { planValue: plan?.modules?.[m.key], ticked: chosen.actions || [], allActions, alwaysOn: m.alwaysOn || [] });
+    const fromPlan = moduleResult("default", { planValue: plan?.modules?.[m.key], allActions, alwaysOn: m.alwaysOn || [] });
+    if (picked.actions.join(",") === fromPlan.actions.join(",")) continue; // the same as the plan: not an override
+    out[m.key] = picked.full ? true : picked.actions.length === 0 ? false : [...picked.actions].sort();
+  }
+  return out;
 }
 
 /**

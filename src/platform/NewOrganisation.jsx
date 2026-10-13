@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, AlertTriangle, Wand2 } from "lucide-react";
 import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
 import { consoleError, platform } from "./platformApi";
-import { COUNTRIES, emptyOrganisation, limitText, suggestPassword, toCreatePayload, validateNewOrganisation, withCountry } from "./platformForms";
+import { COUNTRIES, emptyOrganisation, limitText, moduleActionsOf, moduleChoice, moduleOverridesFor, suggestPassword, toCreatePayload, validateNewOrganisation, withCountry } from "./platformForms";
+import ModuleRow from "./ModulesPicker";
 
 const STEP_NAMES = {
   settings: "Company settings and posting accounts",
@@ -63,6 +64,14 @@ function Result({ made, form }) {
   );
 }
 
+// What the modules line says before anything is opened: the plan's own set, or what this customer is getting instead.
+function moduleSummary(plan, choices, modules) {
+  const changed = Object.keys(moduleOverridesFor(plan, choices, modules));
+  if (!changed.length) return "Everything the plan includes.";
+  const named = changed.map((key) => modules.find((m) => m.key === key)?.label || key);
+  return `Different from the plan: ${named.join(", ")}.`;
+}
+
 // Creating an organisation: who the customer is, the books they will keep, the plan, and their first administrator.
 // The server then sets up their masters and accounts and makes their head-office branch.
 export default function NewOrganisation() {
@@ -85,7 +94,7 @@ export default function NewOrganisation() {
     setBusy(true);
     setError("");
     try {
-      setMade(await platform.createOrganisation(toCreatePayload(form)));
+      setMade(await platform.createOrganisation(toCreatePayload(form, { plan, modules: c?.modules || [] })));
     } catch (err) {
       setError(consoleError(err));
     } finally {
@@ -155,6 +164,23 @@ export default function NewOrganisation() {
               </div>
             )}
           </Panel>
+
+          {(c.modules || []).length ? (
+            <Panel title="Modules" description="What this customer is buying. The plan ticks them; untick what they are not getting and only the difference is stored, so a later change of plan still reaches the rest.">
+              <p className="text-sm">{moduleSummary(plan, form.modules, c.modules)}</p>
+              <ul className="mt-2">
+                {c.modules.map((m) => (
+                  <ModuleRow
+                    key={m.key}
+                    module={m}
+                    plan={plan}
+                    state={form.modules[m.key] ?? { choice: moduleChoice(null, m.key), actions: moduleActionsOf(null, plan, m.key, m.actions.map((a) => a.action)) }}
+                    onChange={(next) => setForm((f) => ({ ...f, modules: { ...f.modules, [m.key]: next } }))}
+                  />
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
 
           <Panel title="First administrator" description="The person who signs in first and sets the rest of the organisation up.">
             <div className="grid gap-4 sm:grid-cols-2">

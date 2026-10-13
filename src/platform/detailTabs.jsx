@@ -3,6 +3,7 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
 import { formatDate, formatDateTime } from "../utils/format";
 import { consoleError, platform } from "./platformApi";
+import ModuleRow from "./ModulesPicker";
 import {
   roleLabel,
   roleOptions,
@@ -12,8 +13,6 @@ import {
   moduleActionsOf,
   moduleChoice,
   modulePatch,
-  moduleResult,
-  moduleText,
   isoDay,
   limitChoice,
   limitPatch,
@@ -136,65 +135,20 @@ function LimitRow({ label, planValue, org, limitKey, busy, run }) {
   );
 }
 
-const MODULE_CHOICES = [
-  { value: "default", label: "Follow the plan" },
-  { value: "all", label: "All of it" },
-  { value: "some", label: "Chosen actions" },
-  { value: "off", label: "Not included" },
-];
-
-// One module of the product: what the plan gives, what this organisation is given instead, and - when it is sold
-// in part - which actions. The actions that can never be taken away are ticked and locked, because the server
-// puts them back anyway (utils/plans.js ALWAYS_ON) and a tick that does nothing is worse than none.
-function ModuleRow({ module: m, plan, state, onChange }) {
-  const allActions = m.actions.map((a) => a.action);
-  const result = moduleResult(state.choice, { planValue: plan?.modules?.[m.key], ticked: state.actions, allActions, alwaysOn: m.alwaysOn || [] });
-  const planText = plan?.modules?.[m.key] === true ? "All of it in the plan" : Array.isArray(plan?.modules?.[m.key]) ? `In the plan: ${plan.modules[m.key].join(", ")}` : "Not in the plan";
-  const toggle = (action) => {
-    const on = state.actions.includes(action);
-    onChange({ choice: "some", actions: on ? state.actions.filter((a) => a !== action) : [...state.actions, action] });
-  };
-  return (
-    <li className="border-t border-border py-2.5 first:border-t-0">
-      <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_auto]">
-        <div>
-          <p className="text-sm font-medium">{m.label}</p>
-          <p className="text-xs text-muted-foreground">{m.hint ? `${m.hint}. ` : ""}{planText}</p>
-        </div>
-        <Select aria-label={m.label} value={state.choice} onChange={(e) => onChange({ choice: e.target.value, actions: state.actions })} className="sm:w-44">
-          {MODULE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </Select>
-        <Pill tone={result.full ? "success" : result.on ? "warning" : "neutral"} className="justify-self-start sm:w-28 sm:justify-center">{result.full ? "All" : result.on ? "In part" : "Off"}</Pill>
-      </div>
-      {state.choice === "some" ? (
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 pl-0 sm:pl-4">
-          {m.actions.map((a) => {
-            const locked = (m.alwaysOn || []).includes(a.action);
-            return (
-              <label key={a.action} className="flex items-center gap-2 text-xs">
-                <input type="checkbox" className="h-4 w-4" checked={locked || state.actions.includes(a.action)} disabled={locked} onChange={() => toggle(a.action)} />
-                <span className={locked ? "text-muted-foreground" : ""}>{a.action}{locked ? " (always on)" : ""}</span>
-              </label>
-            );
-          })}
-        </div>
-      ) : null}
-      {state.choice !== "some" && !result.full && result.on ? <p className="mt-1 text-xs text-muted-foreground">{moduleText(result)}</p> : null}
-    </li>
-  );
-}
-
 export function PlanTab({ detail, catalog, run, busy }) {
   const org = detail.organisation;
   const plan = planOf(catalog, org);
   const [planCode, setPlanCode] = useState(org.planCode);
   const [choices, setChoices] = useState({});
   const [modules, setModules] = useState({});
+  // Keyed on WHICH organisation, not on the object: the detail is read again after every save (and on a refresh),
+  // and keying on identity threw away ticks the developer had made but not yet saved. Choices that have been saved
+  // need no clearing - they then equal what is stored, so the patch is empty and Save is disabled by itself.
   useEffect(() => {
     setPlanCode(org.planCode);
     setChoices({});
     setModules({});
-  }, [org]);
+  }, [org.code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!catalog) return <Spinner label="Loading plans" />;
   // An older server sends no module catalogue: the panel is simply absent rather than drawn empty.

@@ -191,6 +191,32 @@ describe("creating an organisation", () => {
     expect(screen.getByRole("link", { name: /Open Gulf Fresh Foods LLC/ })).toHaveAttribute("href", "/platform/organisations/gulf-fresh");
   });
 
+  it("chooses the modules while creating, and sends only what differs from the plan", async () => {
+    signIn();
+    api.createOrganisation.mockResolvedValue({
+      organisation: { ...ORG, legalName: "Barakat Trading LLC", code: "barakat" },
+      provisioning: { complete: true, steps: { chart: { state: "done" } } },
+      firstAdmin: { id: "1", email: "owner@barakat.example", type: "super_admin" },
+    });
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    expect(await screen.findByText("Everything the plan includes.")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Finance" }));
+    // the line above the list says what this customer is getting instead, before anything is sent
+    expect(await screen.findByText("Different from the plan: Finance.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Legal name/), { target: { value: "Barakat Trading LLC" } });
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "Owner Two" } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "owner@barakat.example" } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "a-long-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create organisation" }));
+
+    await waitFor(() => expect(api.createOrganisation).toHaveBeenCalledTimes(1));
+    // Sales and Reports were left alone, so the organisation carries nothing about them
+    expect(api.createOrganisation.mock.calls[0][0].moduleOverrides).toEqual({ finance: false });
+  });
+
   it("says plainly when the organisation exists but its first administrator could not be made", async () => {
     signIn();
     api.createOrganisation.mockResolvedValue({
@@ -235,14 +261,16 @@ describe("one organisation", () => {
     signIn();
     renderConsole("/platform/organisations/acme?tab=plan");
     await screen.findByRole("heading", { name: "Modules" });
-    // Finance is not bought at all; Reports is sold as far as looking only (its "view" cannot be switched off)
-    fireEvent.change(screen.getByLabelText("Finance"), { target: { value: "off" } });
-    fireEvent.change(screen.getByLabelText("Reports"), { target: { value: "some" } });
-    const view = screen.getByRole("checkbox", { name: /view \(always on\)/ });
+    // Finance is not bought at all: one tick
+    fireEvent.click(screen.getByRole("checkbox", { name: "Finance" }));
+    expect(screen.getByRole("checkbox", { name: "Finance" })).not.toBeChecked();
+    // Reports is sold as far as looking only, which is the rarer answer and lives behind its own line
+    const reports = screen.getByRole("checkbox", { name: "Reports" }).closest("li");
+    fireEvent.click(within(reports).getByRole("button", { name: "Choose what they can do" }));
+    const view = within(reports).getByRole("checkbox", { name: /view \(always on\)/ });
     expect(view).toBeChecked();
-    expect(view).toBeDisabled();
-    // switching to "chosen actions" keeps what is granted today ticked, so the developer takes away what is not sold
-    fireEvent.click(screen.getByRole("checkbox", { name: "financial" }));
+    expect(view).toBeDisabled(); // the server puts it back whatever is ticked, so the tick cannot pretend otherwise
+    fireEvent.click(within(reports).getByRole("checkbox", { name: "financial" }));
     fireEvent.click(screen.getByRole("button", { name: "Save modules" }));
     await waitFor(() => expect(api.updateOrganisation).toHaveBeenCalledTimes(1));
     // Sales was not touched, so it is not in the body; Reports keeps only what the plan can never take away
