@@ -299,7 +299,8 @@ export function SearchSelect({
       isLoading={loading}
       autoFocus={autoFocus}
       placeholder={placeholder}
-      noOptionsMessage={() => noOptionsText}
+      // a function is given what was typed, so the message can tell "no match for that" from "nothing to choose"
+      noOptionsMessage={({ inputValue }) => (typeof noOptionsText === "function" ? noOptionsText(inputValue || "") : noOptionsText)}
       filterOption={matches}
       menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
       menuPosition="fixed"

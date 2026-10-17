@@ -222,7 +222,9 @@ export function ProductionForm({ production, onClose, onSaved }) {
               return (
                 <div key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_8rem_10rem_auto] sm:items-start sm:border-0 sm:p-0">
                   <Field label="Material" labelClassName="sm:sr-only" error={errors[`materials.${i}.stockId`]} className="col-span-2 sm:col-span-1">
-                    <SearchSelect value={m.stockId} onChange={(v) => setLine("materials", i, { stockId: v })} options={masters.itemOptions.filter((o) => String(o.value) !== form.finishedId)} loading={masters.loading} placeholder="Choose a material" aria-label={`Material ${i + 1}`} noOptionsText={masters.items.length ? "No other stock items. Add the raw material under Inventory > Stock Items (it must be a different item from the one made)." : "No stock items yet. Add them under Inventory > Stock Items first."} />
+                    <SearchSelect value={m.stockId} onChange={(v) => setLine("materials", i, { stockId: v })} options={masters.itemOptions.filter((o) => String(o.value) !== form.finishedId)} loading={masters.loading} placeholder="Choose a material" aria-label={`Material ${i + 1}`} noOptionsText={(typed) => typed.trim()
+                      ? `No stock item matches "${typed.trim()}". A cost you paid by expense voucher (coating powder, packing, travelling) goes under Costs moved in below; a material you keep in stock is added under Inventory > Stock Items.`
+                      : masters.items.length ? "No other stock items. Add the raw material under Inventory > Stock Items (it must be a different item from the one made)." : "No stock items yet. Add them under Inventory > Stock Items first."} />
                   </Field>
                   <Field label="Quantity" labelClassName="sm:sr-only" error={errors[`materials.${i}.qty`]}>
                     <TextInput type="number" min="0" step="any" inputMode="decimal" value={m.qty} onChange={(e) => setLine("materials", i, { qty: e.target.value })} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
@@ -251,7 +253,7 @@ export function ProductionForm({ production, onClose, onSaved }) {
             {form.costs.map((c, i) => (
               <div key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)_auto] sm:items-start sm:border-0 sm:p-0">
                 <Field label="Expense" labelClassName="sm:sr-only" error={errors[`costs.${i}.accountId`]} className="col-span-2 sm:col-span-1">
-                  <SearchSelect value={c.accountId} onChange={(v) => setLine("costs", i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="Choose the expense" aria-label={`Cost ${i + 1} expense`} noOptionsText="No expense accounts. Add one (e.g. Travelling) under Accounts > Chart of accounts." />
+                  <SearchSelect value={c.accountId} onChange={(v) => setLine("costs", i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="Choose the expense" aria-label={`Cost ${i + 1} expense`} noOptionsText={(typed) => (typed.trim() ? `No expense account matches "${typed.trim()}". Add it under Accounts > Chart of accounts (as an expense).` : "No expense accounts. Add one (e.g. Travelling) under Accounts > Chart of accounts.")} />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only" error={errors[`costs.${i}.amount`]}>
                   <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setLine("costs", i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={CURRENCY} />
