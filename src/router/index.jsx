@@ -58,6 +58,7 @@ const FinancialStatements = lazy(() => import("../components/Reports/FinancialSt
 const AgeingReport = lazy(() => import("../components/Reports/AgeingReport.jsx"));
 const StatementOfAccount = lazy(() => import("../components/Reports/StatementOfAccount.jsx"));
 const BatchManagement = lazy(() => import("../components/Inventory/BatchManagement.jsx"));
+const ProductionPage = lazy(() => import("../components/Inventory/ProductionPage.jsx"));
 const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
 const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
@@ -152,6 +153,7 @@ export default function AdminRouter() {
         <Route path="/ageing" element={<AgeingReport />} />
         <Route path="/statement" element={<StatementOfAccount />} />
         <Route path="/batches" element={<BatchManagement />} />
+        <Route path="/production" element={<ProductionPage />} />
       </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

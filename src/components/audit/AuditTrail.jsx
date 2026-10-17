@@ -37,6 +37,8 @@ const EVENT_LABEL = {
   DAMAGED_STOCK: "Damaged",
   TRANSFER_IN: "Transfer in",
   TRANSFER_OUT: "Transfer out",
+  PRODUCTION_ISSUE: "Used in production",
+  PRODUCTION_RECEIPT: "Made in production",
 };
 
 const LOG_LABEL = {

@@ -119,6 +119,9 @@ const InventoryManagement = () => {
     { value: "DAMAGED_STOCK", label: "Damaged Stock", color: "red" },
     { value: "TRANSFER_IN", label: "Transfer In", color: "blue" },
     { value: "TRANSFER_OUT", label: "Transfer Out", color: "gray" },
+    // written by a production (Inventory > Production), never typed in here
+    { value: "PRODUCTION_ISSUE", label: "Used in Production", color: "orange", system: true },
+    { value: "PRODUCTION_RECEIPT", label: "Made in Production", color: "teal", system: true },
   ];
 
   useEffect(() => {
@@ -814,7 +817,7 @@ const InventoryManagement = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
                   >
-                    {eventTypes.map((type) => (
+                    {eventTypes.filter((type) => !type.system).map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}
                       </option>

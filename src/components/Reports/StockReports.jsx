@@ -374,6 +374,8 @@ const MOVES = [
   { key: "sales", label: "Sales", sign: -1 },
   { key: "writeOffs", label: "Write-offs", sign: -1 },
   { key: "adjustments", label: "Adjustments", sign: 1 },
+  // signed: the item made in, less the materials used (what a production adds is the expenses moved into stock)
+  { key: "production", label: "Production", sign: 1 },
 ];
 
 const SIGN = Object.fromEntries(MOVES.map((m) => [m.key, m.sign]));
@@ -400,11 +402,14 @@ function Movement({ f, set, lookups }) {
 function MovementBody({ d, view }) {
   const isQty = view === "qty";
   const fmt = isQty ? qty : money;
-  const pick = (x, key) => x[key][isQty ? "qty" : "value"];
+  // an older server sends no production column: read it as nothing
+  const pick = (x, key) => x[key]?.[isQty ? "qty" : "value"] ?? 0;
+  // the Production column only where something was produced (an item's in and out can net to nothing in the total)
+  const moves = MOVES.filter((m) => m.key !== "production" || d.rows.some((r) => r.production?.qty || r.production?.value));
   const columns = [
     { key: "item", header: "Item", cell: (r) => <ItemCell r={r} />, total: "Total" },
     { key: "opening", header: "Opening", align: "end", cell: (r) => fmt(pick(r, "opening")), total: fmt(pick(d.totals, "opening")) },
-    ...MOVES.map((m) => ({
+    ...moves.map((m) => ({
       key: m.key, header: m.label, align: "end",
       cell: (r) => { const v = pick(r, m.key) * m.sign; return v === 0 ? "–" : fmt(v); },
       total: fmt(pick(d.totals, m.key) * m.sign),
@@ -413,10 +418,10 @@ function MovementBody({ d, view }) {
   ];
 
   function exportCsv() {
-    const keys = ["opening", ...MOVES.map((m) => m.key), "closing"];
-    const names = ["Opening", ...MOVES.map((m) => m.label), "Closing"];
+    const keys = ["opening", ...moves.map((m) => m.key), "closing"];
+    const names = ["Opening", ...moves.map((m) => m.label), "Closing"];
     const heads = ["Code", "Item", "Category", ...names.map((n) => `${n} qty`), ...names.map((n) => `${n} value`)];
-    const cells = (x) => [...keys.map((k) => x[k].qty * (SIGN[k] ?? 1) || 0), ...keys.map((k) => x[k].value * (SIGN[k] ?? 1) || 0)];
+    const cells = (x) => [...keys.map((k) => (x[k]?.qty ?? 0) * (SIGN[k] ?? 1) || 0), ...keys.map((k) => (x[k]?.value ?? 0) * (SIGN[k] ?? 1) || 0)];
     downloadCSV(`stock-movement-${d.from}-${d.to}.csv`, heads, [
       ...d.rows.map((r) => [r.sku || r.itemId, r.itemName, r.categoryName, ...cells(r)]),
       ["", "Total", "", ...cells(d.totals)],

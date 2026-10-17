@@ -72,6 +72,12 @@ const DEEP = {
     { name: "add-item", clicks: ["^Add Stock Item"], settle: 900 },
     { name: "add-service", clicks: ["^Add Stock Item", "^Service"], settle: 900 },
   ],
+  // Production: the form (materials and cost lines, the live unit cost) and one posted production with its breakdown
+  "inventory-production": [
+    { name: "new", clicks: ["^New production"], settle: 1100 },
+    { name: "posted", clicks: ["^View PRD-2026-0001"], settle: 1100 },
+    { name: "cost", page: true, clicks: ["^Product cost$"], settle: 1000 },
+  ],
   // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
   "home-approvals": [{ name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 }],
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
@@ -183,6 +189,7 @@ DEEP["purchase-return"] = DEEP["purchase-returns"];
 DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
+DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /production
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 
 /**
@@ -546,7 +553,7 @@ function stubFor(pathname) {
     return {
       organisation: { code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "premium", planName: "Premium" },
       subscription: { state: "active", blocked: false, canRead: true, canWrite: true, endsAt: null, daysLeft: null, onExpiry: "block" },
-      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true },
+      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true },
       limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},
@@ -689,7 +696,7 @@ function stubFor(pathname) {
           ["audit", "Activity trail", "Who did what", ["view"], []],
           ["lookups", "Pick lists", "The lists a form chooses from", ["view"], ["view"]],
         ].map(([key, label, hint, actions, alwaysOn]) => ({ key, label, hint, actions: actions.map((action) => ({ action, label: action })), alwaysOn })),
-        features: [["quotations", "Quotations"], ["deliveryNotes", "Delivery notes"], ["batches", "Batches and expiry"], ["banking", "Banks, cards and cheques"], ["reconciliation", "Bank and card reconciliation"], ["currencies", "Foreign currency"], ["vatReturn", "VAT return"], ["ifrsStatements", "IFRS statements"], ["einvoicing", "E-invoicing"], ["messaging", "Send documents to customers"], ["multiBranch", "More than one branch"]].map(([key, label]) => ({ key, label })),
+        features: [["quotations", "Quotations"], ["deliveryNotes", "Delivery notes"], ["batches", "Batches and expiry"], ["banking", "Banks, cards and cheques"], ["reconciliation", "Bank and card reconciliation"], ["currencies", "Foreign currency"], ["vatReturn", "VAT return"], ["ifrsStatements", "IFRS statements"], ["einvoicing", "E-invoicing"], ["messaging", "Send documents to customers"], ["multiBranch", "More than one branch"], ["production", "Production (materials and expenses into a product's cost)"]].map(([key, label]) => ({ key, label })),
         limits: ["users", "branches", "documentsPerMonth"],
         currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }],
         unsupportedCurrencies: ["KWD", "BHD", "OMR"],
@@ -829,6 +836,34 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // Productions (Inventory > Production): the list, one posted production with materials and three costs, the cost report
+  if (p.includes("/productions")) {
+    const prod = (i, status = "POSTED") => ({
+      _id: `prd${i}`, productionNo: `PRD-2026-000${i}`, date: "2026-10-1" + i, status, ledgerPosted: status !== "DRAFT",
+      finished: { stockId: "s1", itemId: "ITM001", itemName: "Coated steel bracket, powder finish, 40 mm", qty: 12 },
+      materials: [{ _id: "m1", stockId: "s2", itemId: "ITM002", itemName: "Raw steel bracket 40 mm", qty: 12, cost: 600 }],
+      costs: [
+        { _id: "c1", accountId: "a1", accountName: "Travelling", amount: 50 },
+        { _id: "c2", accountId: "a2", accountName: "Metal Coating Powder", amount: 50, narration: "2 kg of powder, RAL 9005" },
+        { _id: "c3", accountId: "a3", accountName: "Packing", amount: 20 },
+      ],
+      totals: { materials: 600, costs: 120, total: 720, unitCost: 60 },
+      actions: { edit: status === "DRAFT", delete: status === "DRAFT", post: status === "DRAFT", reverse: status === "POSTED" },
+    });
+    if (p.endsWith("/cost-report")) {
+      const r = prod(1);
+      return {
+        items: [{ stockId: "s1", itemId: "ITM001", itemName: r.finished.itemName, qty: 24, count: 2, materials: 1200, costs: 240, total: 1440, unitCost: 60,
+          materialLines: [{ stockId: "s2", itemName: "Raw steel bracket 40 mm", qty: 24, cost: 1200 }],
+          costLines: r.costs.map((c) => ({ accountId: c.accountId, accountName: c.accountName, accountCode: "EXP-90" + c._id.slice(1), amount: c.amount * 2 })),
+          productions: [{ _id: "prd1", productionNo: "PRD-2026-0001" }, { _id: "prd2", productionNo: "PRD-2026-0002" }] }],
+        totals: { materials: 1200, costs: 240, total: 1440 },
+      };
+    }
+    if (/\/productions\/[^/]+$/.test(p)) return prod(1);
+    return [prod(1), prod(2), prod(3, "DRAFT"), prod(4, "REVERSED")];
   }
 
   // Goods received: the same, plus the not-invoiced worklist and what is left to receive on an order
