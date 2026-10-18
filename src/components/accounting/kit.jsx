@@ -328,7 +328,7 @@ export const Textarea = React.forwardRef(function Textarea({ className, ...p }, 
 // backdrop does NOT close it, so a half-typed form is never lost to a stray click.
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, description, onClose, children, footer, size = "md" }) {
+export function Modal({ title, description, onClose, children, footer, size = "md", confirmClose }) {
   const titleId = useId();
   const ref = useRef(null);
 
@@ -342,12 +342,20 @@ export function Modal({ title, description, onClose, children, footer, size = "m
     return () => previous?.focus?.();
   }, []);
 
+  // `confirmClose`, when given, is asked before the dialog actually closes (Escape or the X button) and may
+  // refuse by returning false - a form with something unsaved can ask "discard your changes?" instead of
+  // losing them to one keystroke or a stray click. The dialog stays open with focus exactly where it was.
+  const requestClose = () => {
+    if (confirmClose && confirmClose() === false) return;
+    onClose?.();
+  };
+
   const onKeyDown = (e) => {
     if (e.key === "Escape") {
       // a dropdown that was open has already handled this key: it closes, the dialog stays
       if (e.nativeEvent?.escapeHandledByList) return;
       e.stopPropagation();
-      onClose?.();
+      requestClose();
       return;
     }
     if (e.key !== "Tab") return;
@@ -371,7 +379,6 @@ export function Modal({ title, description, onClose, children, footer, size = "m
       <div
         ref={ref}
         role="dialog"
-        aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
           "flex max-h-[88dvh] w-full flex-col rounded-t-2xl border border-border bg-card shadow-elevated",
@@ -389,7 +396,7 @@ export function Modal({ title, description, onClose, children, footer, size = "m
             <h2 id={titleId} className="text-base font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-8">
+          <button type="button" onClick={requestClose} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-8">
             <X className="h-5 w-5 md:h-4 md:w-4" aria-hidden="true" />
           </button>
         </header>
