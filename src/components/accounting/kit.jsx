@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AlertCircle, Calendar, CheckCircle2, Inbox, Loader2, X } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Inbox, X } from "lucide-react";
 import ReactSelect from "react-select";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
 import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
-import { DataTable, TableScroll } from "./DataTable";
+import { DataTable, ErrorNote, Spinner, TableScroll } from "./DataTable";
 
 export { DataTable, TableScroll };
 
@@ -62,29 +62,7 @@ export function EmptyState({ title, text, action }) {
   );
 }
 
-export function Spinner({ label = "Loading" }) {
-  return (
-    <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      {label}…
-    </div>
-  );
-}
-
-export function ErrorNote({ error, onRetry }) {
-  if (!error) return null;
-  return (
-    <div role="alert" className="flex items-start gap-3 rounded-xl border border-status-danger/25 bg-status-danger-soft p-4 text-sm text-status-danger">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <div className="min-w-0 flex-1">{error.message || String(error)}</div>
-      {onRetry && (
-        <button type="button" onClick={onRetry} className="shrink-0 font-semibold underline underline-offset-2">
-          Try again
-        </button>
-      )}
-    </div>
-  );
-}
+export { Spinner, ErrorNote };
 
 // ---------- status ----------
 

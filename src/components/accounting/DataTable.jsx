@@ -1,7 +1,36 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { allOnPage, ariaSort, someOnPage, toggleAll, toggleKey } from "../../lib/listView";
+
+// Loading and error states, used here (DataTable renders them itself when `rows` is empty) and re-exported
+// from kit.jsx, which already imports DataTable from this file - defined HERE rather than in kit.jsx so
+// there is no import cycle, with kit.jsx's own re-export keeping every existing `import { Spinner } from
+// "../accounting/kit"` call site unaffected.
+export function Spinner({ label = "Loading" }) {
+  return (
+    <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      {label}…
+    </div>
+  );
+}
+
+export function ErrorNote({ error, onRetry }) {
+  if (!error) return null;
+  return (
+    <div role="alert" className="flex items-start gap-3 rounded-xl border border-status-danger/25 bg-status-danger-soft p-4 text-sm text-status-danger">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1">{error.message || String(error)}</div>
+      {onRetry && (
+        <button type="button" onClick={onRetry} className="shrink-0 font-semibold underline underline-offset-2">
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}
 
 // One list, two shapes. From md up this is a real <table>, which is what a pointer and a
 // wide screen want: columns line up and can be compared down the page. Below lg every row
@@ -61,6 +90,16 @@ export function useMediaQuery(query) {
   return matches;
 }
 
+// A sort button is logged once per mount, per caption, never on every render - a caller that forgets this
+// contract (footer + selection, or footer + hiddenColumns, both break the footer's own colSpan) is told
+// once rather than on every keystroke.
+const warnedOnce = new Set();
+function devWarnOnce(key, message) {
+  if (!import.meta.env?.DEV || warnedOnce.has(key)) return;
+  warnedOnce.add(key);
+  console.warn(message);
+}
+
 export function DataTable({
   columns,
   rows,
@@ -71,80 +110,186 @@ export function DataTable({
   caption,
   className,
   cardClassName,
+
+  // sorting: controlled, display only - DataTable never reorders `rows` itself (sorting only the rows this
+  // call was given would silently sort just the current page of a server-paged list). A column opts in
+  // with `sortable`; `onSort(key)` runs lib/listView.js's nextSort and feeds the result back as `sort`.
+  sort,
+  onSort,
+
+  // display: which columns show (table shape only - a card already chooses its own fields) and how dense
+  // the table's rows are. Both come from the view state (lib/listView.js), never from the screen itself.
+  hiddenColumns,
+  density = "comfortable",
+
+  // built-in states, rendered where the empty rows list used to just vanish - the toolbar and frame stay
+  // put instead of a caller swapping the whole panel out from under them.
+  loading,
+  loadingLabel,
+  error,
+  onRetry,
+  empty,
+
+  // selection: `selection` is null/undefined when selection is off (no checkbox column, no card checkbox,
+  // zero cost to every caller that doesn't ask for it). `bulkBar` renders above the table while something
+  // is selected.
+  selection,
+  onSelection,
+  selectName,
+  bulkBar,
 }) {
   const wide = useMediaQuery(WIDE);
-  const cols = columns.filter(Boolean);
-  if (!rows?.length) return null;
+  const allCols = columns.filter(Boolean);
+  const cols = hiddenColumns?.length ? allCols.filter((c) => !hiddenColumns.includes(c.key) || !c.hideable) : allCols;
+  const selecting = selection != null;
+
+  if (footer && (selecting || hiddenColumns?.length)) {
+    devWarnOnce(
+      `footer+${caption || "table"}`,
+      `DataTable "${caption || "(no caption)"}": footer is incompatible with selection/hiddenColumns (the footer's own colSpan would desync) - pass neither on a table with a footer.`
+    );
+  }
 
   const key = (row, i) => (rowKey ? rowKey(row, i) : (row?._id ?? row?.id ?? i));
+  const pageKeys = (rows || []).map((row, i) => key(row, i));
+  const nameOf = (row) => selectName?.(row) ?? "Select row";
+  // every hook above this line - rows being empty changes what the component RETURNS, not which hooks run
+  const headerCheckboxRef = useHeaderCheckboxState(selecting && allOnPage(selection, pageKeys), selecting && someOnPage(selection, pageKeys));
+
+  if (!rows?.length) {
+    if (loading) return <Spinner label={loadingLabel} />;
+    if (error) return <ErrorNote error={error} onRetry={onRetry} />;
+    return empty ?? null;
+  }
+
+  const toggleRow = (k) => onSelection?.(toggleKey(selection, k));
+  const toggleHeader = () => onSelection?.(toggleAll(selection, pageKeys));
 
   if (wide) {
+    const cellPad = density === "compact" ? "px-2 py-1.5 text-[13px]" : "px-3 py-2.5";
+    const headPad = density === "compact" ? "px-2 py-1.5" : "px-3 py-2";
     return (
       /* ---------- pointer / wide: the table ---------- */
-      <div className={cn("erp-scroll relative overflow-x-auto", className)}>
-        <table className="w-full text-sm">
-          {caption && <caption className="sr-only">{caption}</caption>}
-          <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              {cols.map((c) => (
-                <th
-                  key={c.key}
-                  scope="col"
-                  className={cn("px-3 py-2 font-semibold", ALIGN[c.align] || ALIGN.start, c.headerClassName)}
-                >
-                  {c.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const clickable = Boolean(onRowClick);
-              return (
-                <tr
-                  key={key(row, i)}
-                  onClick={clickable ? () => onRowClick(row) : undefined}
-                  className={cn(
-                    "border-t border-border",
-                    clickable ? "cursor-pointer hover:bg-accent/40" : "hover:bg-accent/40"
-                  )}
-                >
-                  {cols.map((c) => (
-                    <td
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        {selecting && selection.length > 0 && bulkBar}
+        <div className={cn("erp-scroll relative overflow-x-auto", className)}>
+          <table className="w-full text-sm">
+            {caption && <caption className="sr-only">{caption}</caption>}
+            <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                {selecting && (
+                  <th scope="col" className={cn("w-10", headPad)}>
+                    <label className="flex h-5 w-5 items-center justify-center">
+                      <span className="sr-only">Select all on this page</span>
+                      <input ref={headerCheckboxRef} type="checkbox" checked={allOnPage(selection, pageKeys)} onChange={toggleHeader} />
+                    </label>
+                  </th>
+                )}
+                {cols.map((c) => {
+                  const active = onSort && c.sortable;
+                  return (
+                    <th
                       key={c.key}
-                      className={cn("px-3 py-2.5 align-middle", ALIGN[c.align] || ALIGN.start, c.className)}
+                      scope="col"
+                      aria-sort={active ? ariaSort(sort, c.key) : undefined}
+                      className={cn("font-semibold", headPad, ALIGN[c.align] || ALIGN.start, c.headerClassName)}
                     >
-                      {c.cell(row, i)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-          {footer && <tfoot>{footer}</tfoot>}
-        </table>
+                      {active ? (
+                        <button
+                          type="button"
+                          onClick={() => onSort(c.key)}
+                          className={cn("inline-flex items-center gap-1 hover:text-foreground", c.align === "end" && "flex-row-reverse")}
+                        >
+                          {c.header}
+                          <SortGlyph active={sort?.key === c.key} dir={sort?.dir} />
+                        </button>
+                      ) : (
+                        c.header
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const clickable = Boolean(onRowClick);
+                const k = key(row, i);
+                return (
+                  <tr
+                    key={k}
+                    onClick={clickable ? () => onRowClick(row) : undefined}
+                    className={cn(
+                      "border-t border-border",
+                      clickable ? "cursor-pointer hover:bg-accent/40" : "hover:bg-accent/40"
+                    )}
+                  >
+                    {selecting && (
+                      <td className={cn("w-10", cellPad)} onClick={(e) => e.stopPropagation()}>
+                        <label className="flex h-5 w-5 items-center justify-center">
+                          <span className="sr-only">{nameOf(row)}</span>
+                          <input type="checkbox" checked={selection.includes(k)} onChange={() => toggleRow(k)} />
+                        </label>
+                      </td>
+                    )}
+                    {cols.map((c) => (
+                      <td key={c.key} className={cn("align-middle", cellPad, ALIGN[c.align] || ALIGN.start, c.className)}>
+                        {c.cell(row, i)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+            {footer && <tfoot>{footer}</tfoot>}
+          </table>
+        </div>
       </div>
     );
   }
 
   return (
     /* ---------- touch: the cards ---------- */
-    <ul data-cards="" className={cn("flex flex-col gap-2 p-3", cardClassName)} aria-label={caption}>
-      {rows.map((row, i) => (
-        <DataCard
-          key={key(row, i)}
-          row={row}
-          index={i}
-          columns={cols}
-          href={rowHref?.(row)}
-          onClick={onRowClick}
-        />
-      ))}
-    </ul>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+      {selecting && selection.length > 0 && bulkBar}
+      <ul data-cards="" className={cn("flex flex-col gap-2 p-3", cardClassName)} aria-label={caption}>
+        {rows.map((row, i) => {
+          const k = key(row, i);
+          return (
+            <DataCard
+              key={k}
+              row={row}
+              index={i}
+              columns={cols}
+              href={rowHref?.(row)}
+              onClick={onRowClick}
+              selectable={selecting}
+              selected={selecting && selection.includes(k)}
+              onSelect={() => toggleRow(k)}
+              selectLabel={nameOf(row)}
+            />
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
-function DataCard({ row, index, columns, href, onClick }) {
+function SortGlyph({ active, dir }) {
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return <Icon className={cn("h-3.5 w-3.5 shrink-0", !active && "opacity-40")} aria-hidden="true" />;
+}
+
+// A native checkbox's `indeterminate` is a DOM property, not an attribute React can set through JSX.
+function useHeaderCheckboxState(all, some) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !all && some;
+  }, [all, some]);
+  return ref;
+}
+
+function DataCard({ row, index, columns, href, onClick, selectable, selected, onSelect, selectLabel }) {
   const primary = slot(columns, "primary");
   const badge = slot(columns, "badge");
   const title = slot(columns, "title");
@@ -197,6 +342,14 @@ function DataCard({ row, index, columns, href, onClick }) {
         )}
       >
         <div className="flex min-w-0 items-start gap-2">
+          {selectable && (
+            // z above the overlay, pointer events restored - the same technique the actions row below
+            // uses, so a tap on the checkbox selects instead of opening the card.
+            <label className="relative z-[2] -ms-1 -mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center">
+              <span className="sr-only">{selectLabel}</span>
+              <input type="checkbox" checked={selected} onChange={onSelect} onClick={(e) => e.stopPropagation()} />
+            </label>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-foreground">
               {headline.map((c) => (
