@@ -42,22 +42,31 @@ function write(userId, data) {
   }
 }
 
-/** A small store scoped to one person: `get(path, fallback)` / `set(path, value)` under "display" or "views". */
+/**
+ * A small store scoped to one person: `get(path, fallback)` / `set(path, value)` under "display" or "views".
+ * `path`'s FIRST segment is the bucket ("display" / "views"); everything after it is one flat key within
+ * that bucket, dots and all - not a nested walk. A screen's own key often has a dot in it on purpose
+ * (`display.${screenName}.density`, where screenName is itself just a label), and treating the rest of the
+ * path as nested objects would mean one screen named "a.b" collides with a DIFFERENT screen "a" that has a
+ * "b" field - flat avoids that by construction, at the cost of path segments after the bucket never being
+ * individually addressable (get/set always read and write the whole remainder as one unit).
+ */
 export function prefsFor(userId) {
-  const dotted = (obj, path) => path.split(".").reduce((o, k) => (o && typeof o === "object" ? o[k] : undefined), obj);
+  const split = (path) => {
+    const [bucket, ...rest] = path.split(".");
+    return { bucket, key: rest.join(".") };
+  };
   return {
     get(path, fallback) {
       const data = read(userId);
-      const value = dotted(data, path);
+      const { bucket, key } = split(path);
+      const value = key ? data[bucket]?.[key] : data[bucket];
       return value === undefined ? fallback : value;
     },
     set(path, value) {
       const data = read(userId);
-      const [bucket, ...rest] = path.split(".");
-      const key = rest.join(".");
-      const next = { ...data, [bucket]: { ...(data[bucket] || {}) } };
-      if (rest.length) next[bucket][key] = value;
-      else next[bucket] = value;
+      const { bucket, key } = split(path);
+      const next = { ...data, [bucket]: key ? { ...(data[bucket] || {}), [key]: value } : value };
       write(userId, next);
     },
   };
