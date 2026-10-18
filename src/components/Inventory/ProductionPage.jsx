@@ -2,9 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Factory, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { accounting, api } from "../../lib/accountingApi";
-import { accountOption } from "../../lib/voucherForms";
-import { isService } from "../../lib/itemTypes";
 import { pageSession } from "../../lib/pageSession";
 import { productions } from "../../lib/productionApi";
 import { STATUS, buildBody, emptyCost, emptyForm, emptyMaterial, errorText, formFromProduction, formTotals, validateForm, warningsOf } from "../../lib/production";
@@ -15,6 +12,8 @@ import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
+import { useMasters, WarningsDialog } from "./productionShared";
+import JobWorkTab from "./jobWork/JobWorkTab";
 import {
   ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
   useAsync, useToasts,
@@ -29,20 +28,6 @@ const money = (n) => formatNumber(n ?? 0, 2);
 const qtyText = (n) => formatNumber(n ?? 0, 3).replace(/\.?0+$/, "");
 const StatusPill = ({ status }) => <Pill tone={STATUS[status]?.tone || "neutral"}>{STATUS[status]?.label || status}</Pill>;
 
-function useMasters() {
-  const stocks = useAsync(() => api.get("/stock/stock", { itemType: "goods" }), []);
-  const chart = useAsync(() => accounting.postableAccounts(), []);
-  return useMemo(() => {
-    const items = (stocks.data?.stocks || []).filter((s) => !isService(s));
-    return {
-      loading: stocks.loading || chart.loading,
-      items,
-      itemOptions: items.map((s) => ({ value: s._id, label: s.itemName, hint: s.itemId, searchText: `${s.itemId} ${s.sku || ""}` })),
-      expenseOptions: (chart.data || []).filter((a) => a.category === "EXPENSE").map(accountOption),
-    };
-  }, [stocks.data, stocks.loading, chart.data, chart.loading]);
-}
-
 export default function ProductionPage() {
   const [tab, setTab] = useState(() => session.get("tab", "list"));
   const choose = (t) => { setTab(t); session.set("tab", t); };
@@ -55,9 +40,11 @@ export default function ProductionPage() {
       <Tabs value={tab} onValueChange={choose}>
         <TabsList className="justify-start">
           <TabsTrigger value="list">Productions</TabsTrigger>
+          <TabsTrigger value="jobwork">Job work</TabsTrigger>
           <TabsTrigger value="cost">Product cost</TabsTrigger>
         </TabsList>
         <TabsContent value="list">{tab === "list" && <ProductionList />}</TabsContent>
+        <TabsContent value="jobwork">{tab === "jobwork" && <JobWorkTab />}</TabsContent>
         <TabsContent value="cost">{tab === "cost" && <CostReport />}</TabsContent>
       </Tabs>
     </div>
@@ -307,24 +294,6 @@ function Figure({ label, value, strong, testId }) {
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={strong ? "text-base font-semibold tabular-nums" : "tabular-nums"} data-testid={testId}>{CURRENCY} {money(value)}</div>
     </div>
-  );
-}
-
-function WarningsDialog({ warnings, busy, onClose, onConfirm }) {
-  const [ticked, setTicked] = useState(false);
-  return (
-    <Modal
-      size="sm"
-      onClose={onClose}
-      title="Check before posting"
-      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => onConfirm([...new Set(warnings.map((w) => w.code))])} disabled={!ticked || busy}>{busy ? "Posting…" : "Post anyway"}</Button></>}
-    >
-      <ul className="mb-4 grid gap-2 text-sm">{warnings.map((w, i) => <li key={i}>{w.message}</li>)}</ul>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" checked={ticked} onChange={(e) => setTicked(e.target.checked)} className="mt-1" />
-        <span>I understand, and want to post it as it is.</span>
-      </label>
-    </Modal>
   );
 }
 

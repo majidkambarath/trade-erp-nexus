@@ -10,7 +10,7 @@
 import { getBrand } from "../config/brands";
 
 const brand = getBrand();
-let locale = { currency: brand.currency, timezone: brand.timezone };
+let locale = { currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE" };
 const listeners = new Set();
 
 const validZone = (zone) => {
@@ -26,6 +26,8 @@ const validZone = (zone) => {
 export const getOrgLocale = () => locale;
 export const orgCurrency = () => locale.currency;
 export const orgTimezone = () => locale.timezone;
+/** The organisation's country (ISO code): decides what a tax number looks like (a UAE TRN, an Indian GSTIN) and the job-work challan. */
+export const orgCountry = () => locale.country;
 
 /** Subscribe to a change of currency or zone. Returns the unsubscribe. */
 export function subscribeOrgLocale(fn) {
@@ -34,19 +36,20 @@ export function subscribeOrgLocale(fn) {
 }
 
 /** Set the organisation's currency and zone. A missing or invalid part keeps what is held. -> true when something changed. */
-export function setOrgLocale({ currency, timezone } = {}) {
+export function setOrgLocale({ currency, timezone, country } = {}) {
   const next = {
     currency: typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency.trim()) ? currency.trim().toUpperCase() : locale.currency,
     timezone: validZone(timezone) ? timezone : locale.timezone,
+    country: typeof country === "string" && /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : locale.country,
   };
-  if (next.currency === locale.currency && next.timezone === locale.timezone) return false;
+  if (next.currency === locale.currency && next.timezone === locale.timezone && next.country === locale.country) return false;
   locale = next;
   listeners.forEach((fn) => fn(locale));
   return true;
 }
 
 /** Back to the brand pack's (for a test, and for signing out). */
-export const resetOrgLocale = () => setOrgLocale({ currency: brand.currency, timezone: brand.timezone });
+export const resetOrgLocale = () => setOrgLocale({ currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE" });
 
 // ----------------------------------------------------------------------------------------------- days in a zone
 

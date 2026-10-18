@@ -72,7 +72,7 @@ export default function DeliverySheet({
         {company.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5 }}>{company.contact.join("   ·   ")}</div>}
         {company.trn && (
           <div style={{ fontSize: 10.5, marginTop: 2 }}>
-            <span style={{ fontWeight: 600 }}>TRN</span> {company.trn}
+            <span style={{ fontWeight: 600 }}>{company.taxLabel || "TRN"}</span> {company.trn}
           </div>
         )}
       </div>
@@ -94,6 +94,11 @@ export default function DeliverySheet({
           {party.code && <div style={{ color: MUTED, fontSize: 10.5 }}>{party.code}</div>}
           {party.address && <div style={{ marginTop: 4, whiteSpace: "pre-line" }}>{party.address}</div>}
           {party.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5, marginTop: 2 }}>{party.contact.join("   ·   ")}</div>}
+          {party.taxId && (
+            <div style={{ fontSize: 10.5, marginTop: 2 }}>
+              <span style={{ fontWeight: 600 }}>{party.taxLabel || "TRN"}</span> {party.taxId}
+            </div>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 16, rowGap: 5, alignContent: "start" }}>
           {meta.map(([k, v]) => (

@@ -77,6 +77,11 @@ const DEEP = {
     { name: "new", clicks: ["^New production"], settle: 1100 },
     { name: "posted", clicks: ["^View PRD-2026-0001"], settle: 1100 },
     { name: "cost", page: true, clicks: ["^Product cost$"], settle: 1000 },
+    // job work: the send form, one job's challan with what came back, and the receive dialog
+    { name: "job-work", page: true, clicks: ["^Job work$"], settle: 1000 },
+    { name: "job-work-send", clicks: ["^Job work$", "Send to job worker"], settle: 1100 },
+    { name: "job-work-challan", page: true, clicks: ["^Job work$", "^View JWC-2026-0001"], settle: 1300 },
+    { name: "job-work-receive", clicks: ["^Job work$", "^View JWC-2026-0001", "Receive back"], settle: 1100 },
   ],
   // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
   "home-approvals": [{ name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 }],
@@ -836,6 +841,23 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // Job work (Inventory > Production > Job work): a job half back, its challan, and what is with job workers
+  if (p.includes("/job-work")) {
+    if (p.endsWith("/with-job-worker")) return { s2: 4 };
+    const job = (i, status = "PARTLY_RECEIVED") => ({
+      _id: `jw${i}`, jobWorkNo: `JWC-2026-000${i}`, status, date: "2026-10-1" + i, returnBy: "2027-10-1" + i, overdue: i === 3,
+      purpose: "Powder coating, matt black RAL 9005", vehicleNo: "MH12AB1234",
+      jobWorker: { name: "Shine Powder Coaters and Industrial Finishers", code: "V009", address: "Plot 44, MIDC Bhosari, Pune 411026", taxId: "27ABCDE1234F1Z5", phone: "+91 98200 00000" },
+      lines: [{ _id: "l1", rawStockId: "s2", rawItemId: "ITM002", rawName: "Car keychain holder (raw, zinc alloy)", qtySent: 100, unitValue: 50, finishedStockId: "s1", finishedName: "Car keychain holder", finishedPerRaw: 1 }],
+      receipts: [{ _id: "r1", date: "2026-10-15", workerRef: "SPC/118", productions: [{ id: "prd1", no: "PRD-2026-0001" }], lines: [{ lineId: "l1", finishedQty: 60, rawConsumed: 60 }] }],
+      progress: { atWorker: 40, status, lines: [{ lineId: "l1", qtySent: 100, expectedFinished: 100, finished: 60, consumed: 60, returned: 0, atWorker: 40 }] },
+      atWorker: 40,
+      actions: { edit: false, delete: false, send: false, receive: true, cancel: false, challan: true },
+    });
+    if (/\/job-work\/[^/]+$/.test(p)) return job(1);
+    return [job(1), job(2, "SENT"), job(3, "SENT"), job(4, "RECEIVED")];
   }
 
   // Productions (Inventory > Production): the list, one posted production with materials and three costs, the cost report

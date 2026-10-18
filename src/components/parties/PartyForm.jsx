@@ -6,6 +6,7 @@ import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyR
 import {
   CUSTOMER_STATUSES, SECTIONS, VAT_STATUSES, VENDOR_STATUSES,
   errorCountBySection, termOptions, validateParty, withCreditDays, withPaymentTerms,
+  taxIdRule,
 } from "../../lib/partyForms";
 
 // The customer / vendor form, in sections: Basic, VAT, Credit and terms, Contacts, Bank accounts and
@@ -132,7 +133,12 @@ function VatSection({ kind, value, set, errors, documentTypes }) {
         </Select>
       </Field>
       {showTrn ? (
-        <Field label="TRN (tax registration number)" required={needsTrn} error={trnError} hint={needsTrn ? "15 digits, for example 100123456700003." : "Optional. If given, 15 digits."}>
+        <Field
+          label={taxIdRule().label === "TRN" ? "TRN (tax registration number)" : taxIdRule().label === "GSTIN" ? "GSTIN (GST identification number)" : "Tax number"}
+          required={needsTrn}
+          error={trnError}
+          hint={taxIdRule().label === "TRN" ? (needsTrn ? "15 digits, for example 100123456700003." : "Optional. If given, 15 digits.") : taxIdRule().label === "GSTIN" ? `${needsTrn ? "" : "Optional. "}15 characters, for example 27ABCDE1234F1Z5.` : needsTrn ? "" : "Optional."}
+        >
           <TextInput
             inputMode="numeric" value={value.trn} maxLength={19} placeholder="100123456700003"
             onChange={(e) => set({ trn: e.target.value })} onBlur={() => setTouched(true)}

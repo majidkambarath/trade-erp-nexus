@@ -101,7 +101,7 @@ export function OrganisationProvider({ children }) {
 
   // The organisation's own currency and time zone: set before the shell's children render, so money and dates are right on the
   // first paint after the status loads. (Idempotent: it only changes when the organisation's values differ from what is held.)
-  if (status?.organisation) setOrgLocale({ currency: status.organisation.baseCurrency, timezone: status.organisation.timezone });
+  if (status?.organisation) setOrgLocale({ currency: status.organisation.baseCurrency, timezone: status.organisation.timezone, country: status.organisation.country });
   const localeKey = `${orgCurrency()}|${orgTimezone()}`;
 
   const value = useMemo(

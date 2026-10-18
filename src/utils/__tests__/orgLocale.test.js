@@ -1,13 +1,14 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { addDays, dayEnd, dayOf, dayStart, endOfDay, getOrgLocale, offsetMinutes, orgCurrency, orgTimezone, resetOrgLocale, setOrgLocale, subscribeOrgLocale, today } from "../orgLocale";
+import { addDays, dayEnd, dayOf, dayStart, endOfDay, getOrgLocale, offsetMinutes, orgCountry, orgCurrency, orgTimezone, resetOrgLocale, setOrgLocale, subscribeOrgLocale, today } from "../orgLocale";
 import { CURRENCY, TIMEZONE, formatCurrencyAED, formatCurrencyCompact, formatDate, formatDateTime, formatTime, toInputDate } from "../format";
 
 afterEach(() => resetOrgLocale());
 
 describe("the organisation's locale", () => {
   it("is what the product always assumed until an organisation says otherwise: AED and Dubai", () => {
-    expect(getOrgLocale()).toEqual({ currency: "AED", timezone: "Asia/Dubai" });
+    expect(getOrgLocale()).toEqual({ currency: "AED", timezone: "Asia/Dubai", country: "AE" });
     expect(orgCurrency()).toBe("AED");
+    expect(orgCountry()).toBe("AE");
     expect(orgTimezone()).toBe("Asia/Dubai");
   });
 
@@ -15,8 +16,8 @@ describe("the organisation's locale", () => {
     const heard = vi.fn();
     const stop = subscribeOrgLocale(heard);
     expect(setOrgLocale({ currency: "gbp", timezone: "Europe/London" })).toBe(true);
-    expect(getOrgLocale()).toEqual({ currency: "GBP", timezone: "Europe/London" });
-    expect(heard).toHaveBeenCalledWith({ currency: "GBP", timezone: "Europe/London" });
+    expect(getOrgLocale()).toEqual({ currency: "GBP", timezone: "Europe/London", country: "AE" });
+    expect(heard).toHaveBeenCalledWith({ currency: "GBP", timezone: "Europe/London", country: "AE" });
     expect(setOrgLocale({ currency: "GBP", timezone: "Europe/London" })).toBe(false); // nothing changed, nothing said
     expect(heard).toHaveBeenCalledTimes(1);
     stop();
@@ -24,10 +25,17 @@ describe("the organisation's locale", () => {
     expect(heard).toHaveBeenCalledTimes(1);
   });
 
+  it("carries the organisation's country: it decides what a tax number looks like", () => {
+    expect(setOrgLocale({ country: "in" })).toBe(true);
+    expect(orgCountry()).toBe("IN");
+    setOrgLocale({ country: "India" }); // not a 2-letter code: kept as it was
+    expect(orgCountry()).toBe("IN");
+  });
+
   it("keeps what it holds for a part that is missing or not valid", () => {
     setOrgLocale({ currency: "INR", timezone: "Asia/Kolkata" });
     setOrgLocale({ currency: "", timezone: "Mars/Phobos" });
-    expect(getOrgLocale()).toEqual({ currency: "INR", timezone: "Asia/Kolkata" });
+    expect(getOrgLocale()).toEqual({ currency: "INR", timezone: "Asia/Kolkata", country: "AE" });
     setOrgLocale({ currency: "RUPEES", timezone: undefined });
     expect(orgCurrency()).toBe("INR");
     setOrgLocale({});

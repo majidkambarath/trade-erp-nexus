@@ -1146,6 +1146,7 @@ const StockManagement = () => {
                           <div className="text-end">
                             <p className="text-sm font-bold text-gray-900">{item.currentStock}</p>
                             <p className={`text-xs font-normal ${stockStatus.color}`}>Reorder: {item.reorderLevel}</p>
+                            {item.withJobWorker > 0 && <p className="text-xs font-normal text-muted-foreground">{item.withJobWorker} with job worker</p>}
                           </div>
                         </div>
                       );
