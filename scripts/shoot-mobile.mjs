@@ -74,8 +74,16 @@ const DEEP = {
   ],
   // Production: the form (materials and cost lines, the live unit cost) and one posted production with its breakdown
   "inventory-production": [
-    { name: "new", clicks: ["^New production"], settle: 1100 },
-    { name: "posted", clicks: ["^View PRD-2026-0001"], settle: 1100 },
+    // the board (opens first): counts, columns per step, my work, what is with job workers; Done on my work
+    { name: "board", page: true, clicks: [], settle: 1100 },
+    { name: "board-done", clicks: ["^Done$"], settle: 900 },
+    // process orders: the list, the form with its steps, one order's step timeline, the finish dialog
+    { name: "process", page: true, clicks: ["^Process orders$"], settle: 1000 },
+    { name: "process-new", clicks: ["^Process orders$", "^New process order"], settle: 1100 },
+    { name: "process-view", clicks: ["^Process orders$", "^View PRO-2026-0001"], settle: 1100 },
+    { name: "process-finish", clicks: ["^Process orders$", "^View PRO-2026-0002", "^Finish$"], settle: 1100 },
+    { name: "new", clicks: ["^Productions$", "^New production"], settle: 1100 },
+    { name: "posted", clicks: ["^Productions$", "^View PRD-2026-0001"], settle: 1100 },
     { name: "cost", page: true, clicks: ["^Product cost$"], settle: 1000 },
     // job work: the send form, one job's challan with what came back, and the receive dialog
     { name: "job-work", page: true, clicks: ["^Job work$"], settle: 1000 },
@@ -841,6 +849,35 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // Process orders (Inventory > Production > Board / Process orders): one order mid-way (bending at Ravi, painting at the
+  // coater, packing to come), one ready to finish, the board built from them
+  if (p.includes("/process-orders")) {
+    const st = (seq, name, status, over = {}) => ({ _id: `st${seq}`, seq, name, mode: "in_house", status, plannedQty: 100, qtyDone: status === "DONE" ? 96 : 0, qtyRejected: status === "DONE" ? 4 : 0, dueDate: `2026-10-${16 + seq}`, dueState: status === "DONE" ? "done" : seq === 2 ? "overdue" : "later", assigneeId: "a1", assigneeName: "Ravi Kumar", actions: { start: status === "READY", complete: status === "READY" || status === "IN_PROGRESS", send: false }, ...over });
+    const order = (i, ready = false) => ({
+      _id: `po${i}`, processNo: `PRO-2026-000${i}`, status: "OPEN", date: "2026-10-15", dueDate: "2026-10-24",
+      finished: { stockId: "s1", itemId: "ITM001", itemName: "Car keychain holder (finished, matt black)", qty: 100 },
+      materials: [{ _id: "pm1", stockId: "s2", itemId: "ITM002", itemName: "Car keychain holder (raw, zinc alloy)", qty: 100 }],
+      steps: ready ? [st(1, "Cutting", "DONE"), st(2, "Bending", "DONE"), st(3, "Packing", "DONE")]
+        : [st(1, "Cutting", "DONE"), st(2, "Bending", "IN_PROGRESS"), st(3, "Powder coating", "WAITING", { mode: "job_work", assigneeId: null, assigneeName: null, jobWorkerName: "Shine Powder Coaters and Industrial Finishers" }), st(4, "Packing", "WAITING")],
+      current: ready ? null : { _id: "st2", name: "Bending", seq: 2, status: "IN_PROGRESS" }, readyToFinish: ready, finishedQty: ready ? 96 : 0,
+      actions: { edit: false, delete: false, release: false, cancel: true, finish: ready, reopen: false },
+    });
+    const card = (o, s) => ({ orderId: o._id, processNo: o.processNo, itemName: o.finished.itemName, qty: 100, orderDue: "2026-10-24", stepId: s._id, stepName: s.name, stepSeq: s.seq, stepCount: o.steps.length, status: s.status, mode: s.mode, who: s.assigneeName || s.jobWorkerName, assigneeId: s.assigneeId, plannedQty: 96, jobWorkNo: null, due: s.dueDate, dueState: s.dueState });
+    const a = order(1), b = order(2, true);
+    if (p.endsWith("/board")) {
+      const c1 = card(a, a.steps[1]);
+      const c2 = { ...card(b, b.steps[2]), stepId: null, stepName: "Ready to finish", stepSeq: null, status: "READY_TO_FINISH", dueState: "none" };
+      return { today: "2026-10-19", counts: { orders: 2, pending: 0, inProgress: 1, doneToday: 2, overdue: 1, dueToday: 0, dueTomorrow: 0, readyToFinish: 1 },
+        columns: [{ name: "Bending", order: 2, cards: [c1] }, { name: "Ready to finish", order: 99, cards: [c2] }], overdue: [c1], dueToday: [], dueTomorrow: [], mine: [c1],
+        withJobWorkers: [{ jobWorkId: "jw2", jobWorkNo: "JWC-2026-0002", worker: "Shine Powder Coaters and Industrial Finishers", processNo: "PRO-2026-0003", items: [{ name: "Car keychain holder (raw, zinc alloy)", out: 50 }], sent: "2026-10-16", daysOut: 3, returnBy: "2027-10-16", overdue: false, value: 2500 }] };
+    }
+    if (p.endsWith("/assignees")) return [{ id: "a1", name: "Ravi Kumar" }, { id: "a2", name: "Sunita Patil" }];
+    if (p.endsWith("/last-steps")) return [];
+    if (p.endsWith("/process-orders/po2")) return b;
+    if (p.split("/process-orders/")[1]) return a;
+    return [a, b];
   }
 
   // Job work (Inventory > Production > Job work): a job half back, its challan, and what is with job workers

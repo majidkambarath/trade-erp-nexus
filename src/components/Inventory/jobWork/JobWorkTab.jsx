@@ -370,6 +370,8 @@ export function ReceiveDialog({ job, onClose, onDone }) {
   const setCost = (i, patch) => setCosts((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const costTotal = costs.reduce((s, c) => s + (Number(c.amount) > 0 ? Number(c.amount) : 0), 0);
   const hasCosts = costs.some((c) => c.accountId && Number(c.amount) > 0);
+  // A challan sent from a process order's step carries no costs: they go in once, when the whole order is finished.
+  const forProcess = job.source?.kind === "process";
 
   async function submit(acknowledge) {
     const e = validateReceive(rows);
@@ -378,8 +380,10 @@ export function ReceiveDialog({ job, onClose, onDone }) {
     setBusy(true);
     setFailure(null);
     try {
-      const r = await jobWork.receive(job._id, { ...receiveBody({ rows, date, workerRef, costs }), ...(acknowledge ? { acknowledge } : {}) });
-      onDone(r.productions?.length
+      const r = await jobWork.receive(job._id, { ...receiveBody({ rows, date, workerRef, costs: forProcess ? [] : costs }), ...(acknowledge ? { acknowledge } : {}) });
+      onDone(forProcess
+        ? `Received. The step on ${job.source.no} is updated; its costs go in when the order is finished.`
+        : r.productions?.length
         ? `Received. ${r.productions.map((p) => p.no).join(", ")} posted: the finished items are in stock at their full cost.`
         : "Recorded: the parts came back unprocessed.");
     } catch (err) {
@@ -395,8 +399,10 @@ export function ReceiveDialog({ job, onClose, onDone }) {
       size="lg"
       onClose={onClose}
       title={`Receive back on ${job.jobWorkNo}`}
-      description="What came back finished becomes stock at the cost of the parts used plus the costs below (coating, transport)."
-      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => submit()} disabled={busy}>{busy ? "Posting…" : "Receive and post"}</Button></>}
+      description={forProcess
+        ? `Sent for a step of process order ${job.source.no}. What comes back moves the order on; nothing is posted until the order is finished.`
+        : "What came back finished becomes stock at the cost of the parts used plus the costs below (coating, transport)."}
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => submit()} disabled={busy}>{busy ? "Saving…" : forProcess ? "Receive" : "Receive and post"}</Button></>}
     >
       <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
         {failure && <ErrorNote error={new Error(jobErrorText(failure))} />}
@@ -421,6 +427,9 @@ export function ReceiveDialog({ job, onClose, onDone }) {
           </div>
           {errors.rows && <p className="mt-2 text-sm text-destructive">{errors.rows}</p>}
         </section>
+        {forProcess ? (
+          <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">The job worker's charge and the transport are added when {job.source.no} is finished (Process orders &gt; Finish), together with every other step's costs.</p>
+        ) : (
         <section aria-labelledby="jw-costs">
           <h3 id="jw-costs" className="mb-1 text-sm font-semibold">Costs moved in</h3>
           <p className="mb-3 text-xs text-muted-foreground">The coater's charge and the transport, from the expense vouchers that paid them (without {taxWord()}, which you claim back). Leave empty if the bill has not come yet.</p>
@@ -441,6 +450,7 @@ export function ReceiveDialog({ job, onClose, onDone }) {
           <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setCosts((cs) => [...cs, { accountId: "", amount: "", narration: "" }])}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Add cost</Button>
           {costTotal > 0 && <p className="mt-2 text-sm">Costs moved in: <span className="font-semibold tabular-nums">{orgCurrency()} {money(costTotal)}</span></p>}
         </section>
+        )}
       </div>
       {warnings && <WarningsDialog warnings={warnings} busy={busy} onClose={() => setWarnings(null)} onConfirm={(codes) => submit(codes)} />}
     </Modal>

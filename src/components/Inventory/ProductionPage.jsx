@@ -14,6 +14,8 @@ import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
 import { useMasters, WarningsDialog } from "./productionShared";
 import JobWorkTab from "./jobWork/JobWorkTab";
+import ProcessBoard from "./process/ProcessBoard";
+import ProcessOrdersTab from "./process/ProcessOrdersTab";
 import {
   ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
   useAsync, useToasts,
@@ -29,7 +31,7 @@ const qtyText = (n) => formatNumber(n ?? 0, 3).replace(/\.?0+$/, "");
 const StatusPill = ({ status }) => <Pill tone={STATUS[status]?.tone || "neutral"}>{STATUS[status]?.label || status}</Pill>;
 
 export default function ProductionPage() {
-  const [tab, setTab] = useState(() => session.get("tab", "list"));
+  const [tab, setTab] = useState(() => session.get("tab", "board"));
   const choose = (t) => { setTab(t); session.set("tab", t); };
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -39,10 +41,14 @@ export default function ProductionPage() {
       />
       <Tabs value={tab} onValueChange={choose}>
         <TabsList className="justify-start">
+          <TabsTrigger value="board">Board</TabsTrigger>
+          <TabsTrigger value="process">Process orders</TabsTrigger>
           <TabsTrigger value="list">Productions</TabsTrigger>
           <TabsTrigger value="jobwork">Job work</TabsTrigger>
           <TabsTrigger value="cost">Product cost</TabsTrigger>
         </TabsList>
+        <TabsContent value="board">{tab === "board" && <ProcessBoard />}</TabsContent>
+        <TabsContent value="process">{tab === "process" && <ProcessOrdersTab />}</TabsContent>
         <TabsContent value="list">{tab === "list" && <ProductionList />}</TabsContent>
         <TabsContent value="jobwork">{tab === "jobwork" && <JobWorkTab />}</TabsContent>
         <TabsContent value="cost">{tab === "cost" && <CostReport />}</TabsContent>

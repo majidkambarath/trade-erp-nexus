@@ -10,8 +10,15 @@ vi.mock("../../../lib/productionApi", () => ({ productions: { list: m.list, get:
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet }, accounting: { postableAccounts: m.postable } }));
 vi.mock("../../shell/OrganisationContext", () => ({ useOrganisation: () => ({ canAny: (k) => m.grants.allow(k), can: (k) => m.grants.allow(k) }) }));
 vi.mock("../../audit/AuditTrail", () => ({ VoucherAuditTrail: () => <div>trail</div> }));
+vi.mock("../../../lib/processOrderApi", () => ({ processOrders: { board: () => Promise.resolve({ counts: {}, columns: [], mine: [], overdue: [], dueToday: [], dueTomorrow: [], withJobWorkers: [] }), list: () => Promise.resolve([]) } }));
 
 import ProductionPage, { ProductionView } from "../ProductionPage";
+
+// The page opens on the Board; these tests are about the Productions tab.
+function renderList() {
+  render(<ProductionPage />);
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Productions" }));
+}
 
 const posted = {
   _id: "p1", productionNo: "PRD-2026-0001", date: "2026-10-17T00:00:00.000Z", status: "POSTED", ledgerPosted: true,
@@ -39,7 +46,7 @@ beforeEach(() => {
 
 describe("production page", () => {
   it("lists productions with the item made, the unit cost and the status", async () => {
-    render(<ProductionPage />);
+    renderList();
     const table = await screen.findByRole("table", { name: "Productions" });
     expect(within(table).getByText("PRD-2026-0001")).toBeInTheDocument();
     expect(within(table).getByText("Coated part")).toBeInTheDocument();
@@ -50,13 +57,13 @@ describe("production page", () => {
 
   it("hides New production from a role without inventory.adjust (after the list has loaded)", async () => {
     m.grants.allow = (k) => (Array.isArray(k) ? k : [k]).every((x) => x !== "inventory.adjust");
-    render(<ProductionPage />);
+    renderList();
     await screen.findByRole("table", { name: "Productions" });
     expect(screen.queryByRole("button", { name: /New production/ })).not.toBeInTheDocument();
   });
 
   it("the form adds up the unit cost as costs are typed, and refuses an incomplete form on the screen", async () => {
-    render(<ProductionPage />);
+    renderList();
     fireEvent.click(await screen.findByRole("button", { name: /New production/ }));
     const dialog = await screen.findByRole("dialog", { name: "New production" });
     await waitFor(() => expect(m.postable).toHaveBeenCalled());
@@ -108,7 +115,7 @@ describe("production page", () => {
         costLines: [{ accountId: "trav", accountName: "Travelling", accountCode: "EXP-1", amount: 50 }, { accountId: "coat", accountName: "Coating powder", amount: 50 }, { accountId: "pack", accountName: "Packing", amount: 20 }] }],
       totals: { materials: 50, costs: 120, total: 170 },
     });
-    render(<ProductionPage />);
+    renderList();
     await screen.findByRole("table", { name: "Productions" });
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Product cost" }));
     const card = await screen.findByRole("article", { name: "Coated part" });
