@@ -10,7 +10,7 @@ import { useSearchParams } from "react-router-dom";
 // yet) opens with `open(null, "create")`, which sets only the mode param. `recordId` is null whenever the
 // `open` param is absent (the list is showing), whatever `mode` says.
 //
-//   const route = useRecordRoute({ titleFor: (id, mode) => id ? `${id} · Quotations` : "New quotation · Quotations" });
+//   const route = useRecordRoute();
 //   route.recordId, route.recordMode        // null, null on the plain list
 //   route.open(id)                          // -> ?open=<id>&mode=view (pushes history)
 //   route.open(id, "edit")                  // -> ?open=<id>&mode=edit
@@ -45,20 +45,38 @@ export function useRecordRoute({ param = "open", modeParam = "mode", defaultMode
     [setParams, param, modeParam]
   );
 
-  const open = useCallback((id, mode = defaultMode) => navigate(id, mode), [navigate, defaultMode]);
-  const replace = useCallback((id, mode = defaultMode) => navigate(id, mode, { replace: true }), [navigate, defaultMode]);
+  // `mode` left out defaults to "view" for a real id; `open(null)` with no mode is `close()` (there is no
+  // sense in which a null record is "open"), so the only way to land on `?mode=create` with no id is to
+  // name that mode explicitly - `open(null, "create")`.
+  const open = useCallback(
+    (id, mode) => (!id && mode === undefined ? navigate(null, null) : navigate(id, mode === undefined ? defaultMode : mode)),
+    [navigate, defaultMode]
+  );
+  const replace = useCallback(
+    (id, mode) => navigate(id, !id && mode === undefined ? null : mode === undefined ? defaultMode : mode, { replace: true }),
+    [navigate, defaultMode]
+  );
   const close = useCallback(() => navigate(null, null), [navigate]);
 
-  const priorTitle = useRef(null);
-  useEffect(() => {
-    if (title == null) return undefined;
-    if (priorTitle.current == null) priorTitle.current = document.title;
-    document.title = title;
-    return () => {
-      if (priorTitle.current != null) document.title = priorTitle.current;
-      priorTitle.current = null;
-    };
-  }, [title]);
+  useDocumentTitle(title ?? null);
 
   return { recordId, recordMode, open, replace, close };
+}
+
+// Sets document.title to `title` while it is non-null, restoring whatever it was before once `title` goes
+// back to null or the component unmounts. Meant for a document VIEW, which usually only knows its own
+// number once its data has loaded - call this with `q ? \`${q.quotationNo} · Quotations\` : null` and the
+// tab updates itself the moment the record arrives, with no coordination needed from the parent list page
+// (which already has its own route via useRecordRoute, for the URL and history alone).
+export function useDocumentTitle(title) {
+  const prior = useRef(null);
+  useEffect(() => {
+    if (title == null) return undefined;
+    if (prior.current == null) prior.current = document.title;
+    document.title = title;
+    return () => {
+      if (prior.current != null) document.title = prior.current;
+      prior.current = null;
+    };
+  }, [title]);
 }

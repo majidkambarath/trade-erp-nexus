@@ -12,6 +12,8 @@ import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { allowActions } from "../../lib/salesDocuments";
 import { orgCurrency } from "../../utils/orgLocale";
+import { useDocumentTitle } from "../../lib/useRecordRoute";
+import { PRODUCT_NAME } from "../../config/product";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -24,6 +26,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
   const currency = orgCurrency();
   const { data: q, loading, error, reload } = useAsync(() => quotations.get(id), [id]);
   const activity = useAsync(() => quotations.activity(id), [id]);
+  useDocumentTitle(q ? `${q.quotationNo} · Quotations · ${PRODUCT_NAME}` : null);
   const [dialog, setDialog] = useState(null); // send | accept | reject | convert | delivery | revise | delete
   const [form, setForm] = useState({ acceptedBy: "", reason: "", date: todayInput(), deliveryAddress: "" });
 

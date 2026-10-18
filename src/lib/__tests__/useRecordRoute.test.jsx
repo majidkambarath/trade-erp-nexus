@@ -64,6 +64,23 @@ describe("the open record, read from the URL", () => {
     expect(lastSearch).toBe("?mode=create");
   });
 
+  it("open(null) with no mode behaves exactly like close() - a null record is never \"open\"", () => {
+    const { result } = renderHook(() => useRecordRoute(), { wrapper });
+    act(() => result.current.open("q1", "edit"));
+    act(() => result.current.open(null));
+    expect(result.current.recordId).toBeNull();
+    expect(result.current.recordMode).toBeNull();
+    expect(lastSearch).toBe("");
+  });
+
+  it("replace(null) with no mode also behaves like close()", () => {
+    const { result } = renderHook(() => useRecordRoute(), { wrapper });
+    act(() => result.current.open("q1", "edit"));
+    act(() => result.current.replace(null));
+    expect(result.current.recordId).toBeNull();
+    expect(result.current.recordMode).toBeNull();
+  });
+
   it("close() strips both params", () => {
     const { result } = renderHook(() => useRecordRoute(), { wrapper });
     act(() => result.current.open("q1", "edit"));
