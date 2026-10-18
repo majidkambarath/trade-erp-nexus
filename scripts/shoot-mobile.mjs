@@ -82,6 +82,11 @@ const DEEP = {
     { name: "process-new", clicks: ["^Process orders$", "^New process order"], settle: 1100 },
     { name: "process-view", clicks: ["^Process orders$", "^View PRO-2026-0001"], settle: 1100 },
     { name: "process-finish", clicks: ["^Process orders$", "^View PRO-2026-0002", "^Finish$"], settle: 1100 },
+    { name: "process-add-cost", clicks: ["^Process orders$", "^View PRO-2026-0001", "^Add cost$"], settle: 1100 },
+    // phase 2: saved routes (the list and one route's form) and the analysis
+    { name: "routes", page: true, clicks: ["^Routes$"], settle: 1000 },
+    { name: "route-form", clicks: ["^Routes$", "^Open the route for"], settle: 1100 },
+    { name: "analysis", page: true, clicks: ["^Analysis$"], settle: 1100 },
     { name: "new", clicks: ["^Productions$", "^New production"], settle: 1100 },
     { name: "posted", clicks: ["^Productions$", "^View PRD-2026-0001"], settle: 1100 },
     { name: "cost", page: true, clicks: ["^Product cost$"], settle: 1000 },
@@ -862,7 +867,9 @@ function stubFor(pathname) {
       steps: ready ? [st(1, "Cutting", "DONE"), st(2, "Bending", "DONE"), st(3, "Packing", "DONE")]
         : [st(1, "Cutting", "DONE"), st(2, "Bending", "IN_PROGRESS"), st(3, "Powder coating", "WAITING", { mode: "job_work", assigneeId: null, assigneeName: null, jobWorkerName: "Shine Powder Coaters and Industrial Finishers" }), st(4, "Packing", "WAITING")],
       current: ready ? null : { _id: "st2", name: "Bending", seq: 2, status: "IN_PROGRESS" }, readyToFinish: ready, finishedQty: ready ? 96 : 0,
-      actions: { edit: false, delete: false, release: false, cancel: true, finish: ready, reopen: false },
+      actions: { edit: false, delete: false, release: false, cancel: true, finish: ready, reopen: false, addCost: true },
+      costs: ready ? [] : [{ _id: "pc1", stepId: "st3", stepName: "Powder coating", accountId: "e1", accountName: "Powder Coating Charges", amount: 4500, voucherId: "v1", voucherNo: "EV-2026-0004", narration: "Matt black RAL 9005" }],
+      costTotal: ready ? 0 : 4500,
     });
     const card = (o, s) => ({ orderId: o._id, processNo: o.processNo, itemName: o.finished.itemName, qty: 100, orderDue: "2026-10-24", stepId: s._id, stepName: s.name, stepSeq: s.seq, stepCount: o.steps.length, status: s.status, mode: s.mode, who: s.assigneeName || s.jobWorkerName, assigneeId: s.assigneeId, plannedQty: 96, jobWorkNo: null, due: s.dueDate, dueState: s.dueState });
     const a = order(1), b = order(2, true);
@@ -874,10 +881,41 @@ function stubFor(pathname) {
         withJobWorkers: [{ jobWorkId: "jw2", jobWorkNo: "JWC-2026-0002", worker: "Shine Powder Coaters and Industrial Finishers", processNo: "PRO-2026-0003", items: [{ name: "Car keychain holder (raw, zinc alloy)", out: 50 }], sent: "2026-10-16", daysOut: 3, returnBy: "2027-10-16", overdue: false, value: 2500 }] };
     }
     if (p.endsWith("/assignees")) return [{ id: "a1", name: "Ravi Kumar" }, { id: "a2", name: "Sunita Patil" }];
+    if (p.endsWith("/my-work")) return { count: 1 };
+    if (p.endsWith("/expense-vouchers")) return [{ id: "v1", voucherNo: "EV-2026-0004", date: "2026-10-16", accountId: "e1", accountName: "Powder Coating Charges", party: "Shine Powder Coaters and Industrial Finishers", description: "Coating, 100 pcs", net: 9000, used: 4500, left: 4500 }];
+    if (p.endsWith("/analysis")) {
+      const row = (key, label, done, wait, work, late, withDue, rejected, extra = {}) => ({ key, label, done, good: done * 95, rejected, rejectPct: rejected ? Math.round((rejected / (done * 95 + rejected)) * 1000) / 10 : null, waitHours: wait, workHours: work, late, withDue, latePct: withDue ? Math.round((late / withDue) * 1000) / 10 : null, ...extra });
+      return {
+        period: { from: "2026-10-01", to: "2026-10-19" },
+        orders: { finished: 6, unitsOrdered: 600, unitsMade: 571, yieldPct: 95.2, avgLeadDays: 6.4, withDue: 6, onTime: 4, onTimePct: 66.7 },
+        steps: [row("Cutting", "Cutting", 7, 3.5, 5, 0, 7, 9), row("Bending", "Bending", 7, 20, 9.5, 2, 7, 14), row("Powder coating", "Powder coating", 6, 2, 96, 1, 6, 4), row("Packing", "Packing", 6, 6, 2, 0, 6, 0)],
+        people: [row("in_house:a1", "Ravi Kumar", 14, 11.5, 7.2, 2, 14, 23, { mode: "in_house" }), row("job_work:v9", "Shine Powder Coaters and Industrial Finishers", 6, 2, 96, 1, 6, 4, { mode: "job_work" }), row("in_house:a2", "Sunita Patil", 6, 6, 2, 0, 6, 0, { mode: "in_house" })],
+        reasons: [{ reason: "Bent or cracked", qty: 14 }, { reason: "Dimension out of tolerance", qty: 9 }, { reason: "Coating defect", qty: 4 }],
+        daily: [["2026-10-13", 3, 0], ["2026-10-14", 4, 95], ["2026-10-15", 2, 0], ["2026-10-16", 5, 190], ["2026-10-17", 3, 96], ["2026-10-18", 4, 190]].map(([day, stepsDone, unitsFinished]) => ({ day, stepsDone, unitsFinished })),
+      };
+    }
     if (p.endsWith("/last-steps")) return [];
     if (p.endsWith("/process-orders/po2")) return b;
     if (p.split("/process-orders/")[1]) return a;
     return [a, b];
+  }
+
+  // Saved routes (Inventory > Production > Routes): one product's way through the shop, and the plan a new order gets
+  if (p.includes("/process-routes")) {
+    const route = {
+      _id: "pr1", finished: { stockId: "it1", itemId: "ITM001", itemName: "Car keychain holder (finished, matt black)" }, batchQty: 100,
+      materials: [{ stockId: "it2", itemId: "ITM002", itemName: "Car keychain holder (raw, zinc alloy)", qty: 100 }],
+      steps: [
+        { name: "Cutting", mode: "in_house", assigneeId: "a1", assigneeName: "Ravi Kumar", days: 1 },
+        { name: "Bending", mode: "in_house", assigneeId: "a1", assigneeName: "Ravi Kumar", days: 1 },
+        { name: "Powder coating", mode: "job_work", jobWorkerId: "v9", jobWorkerName: "Shine Powder Coaters and Industrial Finishers", days: 4 },
+        { name: "Packing", mode: "in_house", assigneeId: "a2", assigneeName: "Sunita Patil", days: 1 },
+      ],
+      totalDays: 7,
+    };
+    if (p.endsWith("/plan")) return { route, order: null };
+    if (p.split("/process-routes/")[1]) return route;
+    return [route, { ...route, _id: "pr2", finished: { stockId: "s3", itemId: "ITM003", itemName: "Bottle opener keyring" }, steps: route.steps.slice(0, 2), totalDays: 2 }];
   }
 
   // Job work (Inventory > Production > Job work): a job half back, its challan, and what is with job workers

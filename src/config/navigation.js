@@ -94,7 +94,7 @@ export const MODULES = [
         keywords: ["products", "sku", "items"],
       },
       { label: "Movements", to: "/inventory", permission: "inventory.view", keywords: ["inventory", "stock movement"] },
-      { label: "Production", to: "/production", permission: "inventory.view", feature: "production", keywords: ["manufacture", "make", "assembly", "product cost", "costing", "bill of materials"] },
+      { label: "Production", to: "/production", permission: "inventory.view", feature: "production", badge: "myWork", keywords: ["manufacture", "make", "assembly", "product cost", "costing", "bill of materials"] },
       { label: "Categories", to: "/category-management", permission: "inventory.view" },
       { label: "Units", to: "/unit-setup", permission: "inventory.view", keywords: ["unit of measure", "uom"] },
       { label: "Batches", to: "/batches", permission: "inventory.view", feature: "batches", keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },

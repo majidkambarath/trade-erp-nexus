@@ -10,7 +10,8 @@ const m = vi.hoisted(() => ({
 vi.mock("../../../lib/processOrderApi", () => ({ processOrders: {
   board: m.board, list: m.list, get: m.get, create: m.create, update: m.create, release: m.release, startStep: m.startStep, completeStep: m.completeStep,
   sendStep: m.sendStep, finish: m.finish, assignees: m.assignees, lastSteps: m.lastSteps, remove: vi.fn(), cancel: vi.fn(), reopen: vi.fn(),
-} }));
+  addCost: vi.fn(), removeCost: vi.fn(), expenseVouchers: () => Promise.resolve([]),
+}, processRoutes: { plan: () => Promise.resolve({ route: null, order: null }) }, PROCESS_WORK_CHANGED: "process-work-changed" }));
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet }, accounting: { postableAccounts: m.postable } }));
 vi.mock("../../shell/OrganisationContext", () => ({ useOrganisation: () => ({ canAny: (k) => m.grants.allow(k), can: (k) => m.grants.allow(k), me: m.me }) }));
 

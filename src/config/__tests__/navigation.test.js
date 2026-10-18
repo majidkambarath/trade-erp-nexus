@@ -133,7 +133,7 @@ describe("what a role may open", () => {
     expect(home(grants("sales.view", "finance.create", "purchase.delete", "reports.view"))).toEqual(["Dashboard"]);
     for (const key of ["sales.approve", "purchase.approve", "finance.approve"]) expect(home(grants("reports.view", key))).toEqual(["Dashboard", "Approvals"]);
     expect(home(grants("finance.approve"))).toEqual(["Approvals"]); // an approver without the dashboard still has the list
-    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([["Approvals", "approvals"]]);
+    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([["Approvals", "approvals"], ["Production", "myWork"]]);
   });
 
   it("guarding is the default: every tab names what it needs, or says it is open and why", () => {

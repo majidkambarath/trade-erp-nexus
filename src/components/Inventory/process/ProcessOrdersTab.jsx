@@ -1,12 +1,12 @@
 import React, { useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { api } from "../../../lib/accountingApi";
 import { pageSession } from "../../../lib/pageSession";
-import { processOrders } from "../../../lib/processOrderApi";
+import { processOrders, processRoutes } from "../../../lib/processOrderApi";
 import {
-  DUE_LABEL, DUE_TONE, ORDER_STATUS, STEP_SUGGESTIONS, emptyProcess, emptyStep, processBody, processErrorText, processToForm, stepLabel,
-  stepsFromLast, validateProcess,
+  DUE_LABEL, DUE_TONE, ORDER_STATUS, REJECT_REASONS, emptyProcess, emptyStep, finishCostsFrom, planToForm, processBody, processErrorText, processToForm,
+  routeFromOrderForm, stepLabel, stepsFromLast, validateProcess,
 } from "../../../lib/processOrders";
 import { warningsOf } from "../../../lib/production";
 import { formatDate, formatNumber, todayInput } from "../../../utils/format";
@@ -15,8 +15,10 @@ import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import FilterBar, { FilterSelect } from "../../lists/FilterBar";
 import { useMasters, WarningsDialog } from "../productionShared";
+import { CostsSection } from "./ProcessCosts";
+import { MaterialsEditor, StepsEditor } from "./StepsEditor";
 import {
-  ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Select, Spinner, Textarea, TextInput,
+  ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
   useAsync, useToasts,
 } from "../../accounting/kit";
 
@@ -110,21 +112,31 @@ export function ProcessOrderForm({ order, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const savedId = useRef(order?._id || null);
   const last = useAsync(() => (form.finishedId ? processOrders.lastSteps(form.finishedId) : Promise.resolve([])), [form.finishedId]);
+  // the product's saved route, if it has one: it plans the materials, steps and dates (and is offered before the last order)
+  const routeLookup = useAsync(() => (form.finishedId ? processRoutes.plan({ stockId: form.finishedId }) : Promise.resolve({ route: null })), [form.finishedId]);
+  const route = routeLookup.data?.route || null;
+  const [saveRoute, setSaveRoute] = useState(false);
+  const [planning, setPlanning] = useState(false);
 
   const personOptions = useMemo(() => (people.data || []).map((p) => ({ value: p.id, label: p.name })), [people.data]);
   const vendorOptions = useMemo(() => (vendors.data || []).map((v) => ({ value: v._id, label: v.vendorName, hint: v.vendorId })), [vendors.data]);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-  const setLine = (key, i, patch) => setForm((f) => ({ ...f, [key]: f[key].map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const dropLine = (key, i) => setForm((f) => ({ ...f, [key]: f[key].filter((_, j) => j !== i) }));
-  const moveStep = (i, by) => setForm((f) => {
-    const steps = [...f.steps];
-    const j = i + by;
-    if (j < 0 || j >= steps.length) return f;
-    [steps[i], steps[j]] = [steps[j], steps[i]];
-    return { ...f, steps };
-  });
   const lastSteps = last.data || [];
   const blankSteps = form.steps.every((s) => !s.name.trim());
+
+  async function applyRoute() {
+    setPlanning(true);
+    setFailure(null);
+    try {
+      const qtyNow = Number(form.qty) > 0 ? form.qty : String(route.batchQty);
+      const planned = await processRoutes.plan({ stockId: form.finishedId, qty: qtyNow, date: form.date });
+      setForm((f) => planToForm({ ...f, qty: qtyNow }, planned.order));
+    } catch (err) {
+      setFailure(err);
+    } finally {
+      setPlanning(false);
+    }
+  }
 
   async function save(andRelease) {
     const e = validateProcess(form);
@@ -133,6 +145,12 @@ export function ProcessOrderForm({ order, onClose, onSaved }) {
     setFailure(null);
     setBusy(true);
     try {
+      // the route first: if it cannot be saved, nothing is
+      if (saveRoute) {
+        const routeBody = routeFromOrderForm(form);
+        if (route) await processRoutes.update(route._id, routeBody);
+        else await processRoutes.create(routeBody);
+      }
       const body = processBody(form);
       const saved = savedId.current ? await processOrders.update(savedId.current, body) : await processOrders.create(body);
       savedId.current = saved._id;
@@ -176,77 +194,38 @@ export function ProcessOrderForm({ order, onClose, onSaved }) {
         <section aria-labelledby="pro-materials">
           <h3 id="pro-materials" className="mb-1 text-sm font-semibold">Made from</h3>
           <p className="mb-3 text-xs text-muted-foreground">Taken out of stock when the order is finished. The first material is what goes out to a job worker.</p>
-          <div className="grid gap-3">
-            {form.materials.map((m, i) => (
-              <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_auto] sm:items-start">
-                <Field label="Material" labelClassName="sm:sr-only" error={errors[`materials.${i}.stockId`]} className="col-span-2 sm:col-span-1">
-                  <SearchSelect value={m.stockId} onChange={(v) => setLine("materials", i, { stockId: v })} options={masters.itemOptions.filter((o) => String(o.value) !== form.finishedId)} loading={masters.loading} placeholder="Choose a material" aria-label={`Material ${i + 1}`} noOptionsText="Add the raw material under Inventory > Stock Items (a different item from the product)." />
-                </Field>
-                <Field label="Quantity" labelClassName="sm:sr-only" error={errors[`materials.${i}.qty`]}>
-                  <TextInput type="number" min="0" step="any" inputMode="decimal" value={m.qty} onChange={(e) => setLine("materials", i, { qty: e.target.value })} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
-                </Field>
-                <Button type="button" variant="ghost" size="icon" className="self-end sm:self-center" onClick={() => dropLine("materials", i)} aria-label={`Remove material ${i + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
-              </div>
-            ))}
-          </div>
-          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => set({ materials: [...form.materials, { stockId: "", qty: "" }] })}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Add material</Button>
+          <MaterialsEditor materials={form.materials} onChange={(materials) => set({ materials })} errors={errors} itemOptions={masters.itemOptions} loading={masters.loading} finishedId={form.finishedId} />
         </section>
 
         <section aria-labelledby="pro-steps">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h3 id="pro-steps" className="text-sm font-semibold">Steps, in order</h3>
-            {lastSteps.length > 0 && (
+            {route ? (
+              <Button type="button" variant="outline" size="sm" onClick={applyRoute} disabled={planning}>
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />{planning ? "Planning…" : "Use the saved route"}
+              </Button>
+            ) : lastSteps.length > 0 && (
               <Button type="button" variant="outline" size="sm" onClick={() => set({ steps: stepsFromLast(lastSteps) })} disabled={!blankSteps && !order}>
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />Copy steps from the last order
               </Button>
             )}
           </div>
-          <p className="mb-3 text-xs text-muted-foreground">Each step is done in house by a person you name, or sent out to a job worker on a challan. A step starts when the one before it is done.</p>
-          {errors.steps && <p className="mb-2 text-sm text-destructive">{errors.steps}</p>}
-          <datalist id="process-step-suggestions">{STEP_SUGGESTIONS.map((s) => <option key={s} value={s} />)}</datalist>
-          <ol className="grid gap-3">
-            {form.steps.map((s, i) => (
-              <li key={i} className="grid gap-2 rounded-lg border p-3" aria-label={`Step ${i + 1}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground">Step {i + 1}</span>
-                  <span className="flex gap-1">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => moveStep(i, -1)} disabled={i === 0} aria-label={`Move step ${i + 1} up`}><ArrowUp className="h-4 w-4" aria-hidden="true" /></Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => moveStep(i, 1)} disabled={i === form.steps.length - 1} aria-label={`Move step ${i + 1} down`}><ArrowDown className="h-4 w-4" aria-hidden="true" /></Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => dropLine("steps", i)} aria-label={`Remove step ${i + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Step" error={errors[`steps.${i}.name`]}>
-                    <TextInput value={s.name} maxLength={80} list="process-step-suggestions" onChange={(e) => setLine("steps", i, { name: e.target.value })} aria-label={`Step ${i + 1} name`} placeholder="e.g. Bending" />
-                  </Field>
-                  <Field label="Done by">
-                    <Select value={s.mode} onChange={(e) => setLine("steps", i, { mode: e.target.value })} aria-label={`Step ${i + 1} done by`}>
-                      <option value="in_house">In house</option>
-                      <option value="job_work">Job worker (outside)</option>
-                    </Select>
-                  </Field>
-                  {s.mode === "job_work" ? (
-                    <Field label="Job worker" error={errors[`steps.${i}.jobWorkerId`]}>
-                      <SearchSelect value={s.jobWorkerId} onChange={(v) => setLine("steps", i, { jobWorkerId: v })} options={vendorOptions} loading={vendors.loading} placeholder="Choose the job worker" aria-label={`Step ${i + 1} job worker`} noOptionsText="No vendors. Add the job worker under Purchase > Vendors first." />
-                    </Field>
-                  ) : (
-                    <Field label="Person" hint="Optional. They see it under My work.">
-                      <SearchSelect value={s.assigneeId} onChange={(v) => setLine("steps", i, { assigneeId: v })} options={personOptions} loading={people.loading} placeholder="Anyone" aria-label={`Step ${i + 1} person`} noOptionsText="No people found." />
-                    </Field>
-                  )}
-                  <Field label="Due">
-                    <DateInput value={s.dueDate} onChange={(v) => setLine("steps", i, { dueDate: v })} aria-label={`Step ${i + 1} due`} />
-                  </Field>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => set({ steps: [...form.steps, emptyStep()] })}><Plus className="h-3.5 w-3.5" aria-hidden="true" />Add step</Button>
+          <p className="mb-3 text-xs text-muted-foreground">Each step is done in house by a person you name, or sent out to a job worker on a challan. A step starts when the one before it is done.{route ? ` This product has a saved route: ${route.steps.length} step${route.steps.length === 1 ? "" : "s"}, ${route.totalDays} day${route.totalDays === 1 ? "" : "s"}.` : ""}</p>
+          <StepsEditor steps={form.steps} onChange={(steps) => set({ steps })} errors={errors} kind="order" makeStep={emptyStep} vendorOptions={vendorOptions} vendorsLoading={vendors.loading} personOptions={personOptions} peopleLoading={people.loading} />
         </section>
 
         <Field label="Notes">
           <Textarea value={form.notes} maxLength={1000} onChange={(e) => set({ notes: e.target.value })} />
         </Field>
+        {form.finishedId && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={saveRoute} onChange={(e) => setSaveRoute(e.target.checked)} />
+            <span>
+              {route ? "Replace this product's saved route with these steps and materials" : "Save these steps and materials as this product's route"}
+              <span className="block text-xs text-muted-foreground">The next order for it is planned from them; each step's days come from the due dates above.</span>
+            </span>
+          </label>
+        )}
       </form>
     </Modal>
   );
@@ -360,6 +339,7 @@ export function ProcessOrderView({ id, onClose, onEdit, onChanged, onRemoved }) 
               })}
             </ol>
           </section>
+          <CostsSection order={o} onChanged={async (m) => { onChanged(m); await one.reload(); }} />
           {o.notes && <p className="text-sm text-muted-foreground">{o.notes}</p>}
         </div>
       )}
@@ -392,6 +372,7 @@ export function CompleteStepDialog({ orderId, step, onClose, onDone }) {
   const [good, setGood] = useState(String(step.plannedQty ?? ""));
   const [rejected, setRejected] = useState("");
   const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
   const [failure, setFailure] = useState(null);
   const [busy, setBusy] = useState(false);
   const planned = Number(step.plannedQty) || 0;
@@ -403,7 +384,7 @@ export function CompleteStepDialog({ orderId, step, onClose, onDone }) {
     setBusy(true);
     setFailure(null);
     try {
-      const r = await processOrders.completeStep(orderId, step._id, { qtyDone: Number(good), qtyRejected: Number(rejected) || 0, notes: notes.trim() || undefined });
+      const r = await processOrders.completeStep(orderId, step._id, { qtyDone: Number(good), qtyRejected: Number(rejected) || 0, rejectReason: Number(rejected) > 0 ? reason.trim() || undefined : undefined, notes: notes.trim() || undefined });
       onDone(r.current ? `${step.name} done. ${r.current.name} can start.` : `${step.name} done. The order is ready to finish.`);
     } catch (err) {
       setFailure(err);
@@ -429,6 +410,12 @@ export function CompleteStepDialog({ orderId, step, onClose, onDone }) {
             <TextInput type="number" min="0" step="any" inputMode="decimal" value={rejected} onChange={(e) => setRejected(e.target.value)} aria-label="Rejected" />
           </Field>
         </div>
+        {Number(rejected) > 0 && (
+          <Field label="Why rejected" hint="Shown in the analysis, by step and by worker.">
+            <TextInput value={reason} maxLength={80} list="process-reject-reasons" onChange={(e) => setReason(e.target.value)} aria-label="Why rejected" placeholder="e.g. Bent or cracked" />
+            <datalist id="process-reject-reasons">{REJECT_REASONS.map((r) => <option key={r} value={r} />)}</datalist>
+          </Field>
+        )}
         <Field label="Note"><TextInput value={notes} maxLength={300} onChange={(e) => setNotes(e.target.value)} aria-label="Note" /></Field>
       </div>
     </Modal>
@@ -483,7 +470,8 @@ function FinishDialog({ order, onClose, onDone }) {
   const masters = useMasters();
   const { canAny } = useOrganisation();
   const [date, setDate] = useState(todayInput());
-  const [costs, setCosts] = useState([{ accountId: "", amount: "", narration: "" }]);
+  // the costs recorded while the order ran, to check and change; one empty line when there are none
+  const [costs, setCosts] = useState(() => (order.costs?.length ? finishCostsFrom(order.costs) : [{ accountId: "", amount: "", narration: "" }]));
   const [failure, setFailure] = useState(null);
   const [warnings, setWarnings] = useState(null);
   const [busy, setBusy] = useState(false);

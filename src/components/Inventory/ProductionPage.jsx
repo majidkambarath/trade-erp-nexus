@@ -16,6 +16,8 @@ import { useMasters, WarningsDialog } from "./productionShared";
 import JobWorkTab from "./jobWork/JobWorkTab";
 import ProcessBoard from "./process/ProcessBoard";
 import ProcessOrdersTab from "./process/ProcessOrdersTab";
+import RoutesTab from "./process/RoutesTab";
+import ProcessAnalysis from "./process/ProcessAnalysis";
 import {
   ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
   useAsync, useToasts,
@@ -43,12 +45,16 @@ export default function ProductionPage() {
         <TabsList className="justify-start">
           <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="process">Process orders</TabsTrigger>
+          <TabsTrigger value="routes">Routes</TabsTrigger>
+          <TabsTrigger value="analysis">Analysis</TabsTrigger>
           <TabsTrigger value="list">Productions</TabsTrigger>
           <TabsTrigger value="jobwork">Job work</TabsTrigger>
           <TabsTrigger value="cost">Product cost</TabsTrigger>
         </TabsList>
         <TabsContent value="board">{tab === "board" && <ProcessBoard />}</TabsContent>
         <TabsContent value="process">{tab === "process" && <ProcessOrdersTab />}</TabsContent>
+        <TabsContent value="routes">{tab === "routes" && <RoutesTab />}</TabsContent>
+        <TabsContent value="analysis">{tab === "analysis" && <ProcessAnalysis />}</TabsContent>
         <TabsContent value="list">{tab === "list" && <ProductionList />}</TabsContent>
         <TabsContent value="jobwork">{tab === "jobwork" && <JobWorkTab />}</TabsContent>
         <TabsContent value="cost">{tab === "cost" && <CostReport />}</TabsContent>

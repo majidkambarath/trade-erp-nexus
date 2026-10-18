@@ -8,7 +8,8 @@ import "@testing-library/jest-dom";
 // refreshed when something is decided, and shown wherever the navigation names the tab (header tabs, rail, bottom bar, More).
 // A failure shows nothing rather than a wrong number.
 
-const m = vi.hoisted(() => ({ count: vi.fn() }));
+const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn() }));
+vi.mock("../../../lib/processOrderApi", () => ({ PROCESS_WORK_CHANGED: "process-work-changed", processOrders: { myWork: m.myWork } }));
 vi.mock("../../../lib/approvalsApi", async (importOriginal) => ({ ...(await importOriginal()), approvalQueue: { count: m.count, waiting: vi.fn() } }));
 let orgStatus = null;
 vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
@@ -49,6 +50,7 @@ const homeFor = (grants) => getVisibleModules(statusFor(grants)).find((x) => x.i
 beforeEach(() => {
   vi.clearAllMocks();
   m.count.mockResolvedValue({ count: 4, others: 1, capped: false });
+  m.myWork.mockResolvedValue({ count: 3 });
 });
 
 describe("the approvals count", () => {
@@ -126,5 +128,30 @@ describe("everywhere the navigation names the tab", () => {
     await waitFor(() => expect(m.count).toHaveBeenCalled());
     expect(await screen.findByRole("link", { name: /Finance/ })).toBeInTheDocument(); // (the control: the entry is there, with no number)
     expect(screen.queryByText(/waiting/)).toBeNull();
+  });
+});
+
+describe("the my-work count (process steps given to the person)", () => {
+  const INVENTORY = MODULES.find((x) => x.id === "inventory");
+  it("is shown beside Production where Production is switched on, and refreshed when a step changes", async () => {
+    orgStatus = { ...statusFor(["inventory.view"]), features: { production: true } };
+    render(
+      <MemoryRouter>
+        <OrganisationProvider>
+          <Known />
+          <NavBadgesProvider><ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} /></NavBadgesProvider>
+        </OrganisationProvider>
+      </MemoryRouter>
+    );
+    expect(await screen.findByRole("link", { name: /Production.*3 waiting/ })).toHaveAttribute("href", "/production");
+    m.myWork.mockResolvedValue({ count: 1 });
+    await act(async () => window.dispatchEvent(new Event("process-work-changed")));
+    expect(await screen.findByRole("link", { name: /Production.*1 waiting/ })).toBeInTheDocument();
+  });
+
+  it("asks nothing where Production is not explicitly on", async () => {
+    await renderAs(["inventory.view"], <ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} />);
+    await waitFor(() => expect(m.count).not.toHaveBeenCalled());
+    expect(m.myWork).not.toHaveBeenCalled();
   });
 });
