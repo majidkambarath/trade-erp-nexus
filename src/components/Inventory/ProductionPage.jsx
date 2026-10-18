@@ -20,7 +20,7 @@ import {
   useAsync, useToasts,
 } from "../accounting/kit";
 
-// Inventory > Production: materials used up and expenses already paid (travelling, coating powder, packing ...) moved
+// Inventory > Production: materials used up and expenses already paid (coating, labour, transport to the coater, packing ...) moved
 // into the cost of the item made. Posting moves the stock and books Dr Inventory / Cr Inventory (materials) /
 // Cr "Production costs moved to stock"; each expense account keeps what was spent on it. Rules: lib/production.js.
 
@@ -50,7 +50,7 @@ export default function ProductionPage() {
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Production"
-        description="Make an item from materials in stock and the expenses spent on it. The item comes in at what it cost, so its sale shows the true cost of goods; each expense account keeps what was spent on it."
+        description="Make an item from materials in stock and the expenses spent making it. The item comes in at what it cost, so its sale shows the true cost of goods; each expense account keeps what was spent on it."
       />
       <Tabs value={tab} onValueChange={choose}>
         <TabsList className="justify-start">
@@ -223,7 +223,7 @@ export function ProductionForm({ production, onClose, onSaved }) {
                 <div key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_8rem_10rem_auto] sm:items-start sm:border-0 sm:p-0">
                   <Field label="Material" labelClassName="sm:sr-only" error={errors[`materials.${i}.stockId`]} className="col-span-2 sm:col-span-1">
                     <SearchSelect value={m.stockId} onChange={(v) => setLine("materials", i, { stockId: v })} options={masters.itemOptions.filter((o) => String(o.value) !== form.finishedId)} loading={masters.loading} placeholder="Choose a material" aria-label={`Material ${i + 1}`} noOptionsText={(typed) => typed.trim()
-                      ? `No stock item matches "${typed.trim()}". A cost you paid by expense voucher (coating powder, packing, travelling) goes under Costs moved in below; a material you keep in stock is added under Inventory > Stock Items.`
+                      ? `No stock item matches "${typed.trim()}". A cost you paid by expense voucher (coating, packing, transport to the coater) goes under Costs moved in below; a material you keep in stock is added under Inventory > Stock Items.`
                       : masters.items.length ? "No other stock items. Add the raw material under Inventory > Stock Items (it must be a different item from the one made)." : "No stock items yet. Add them under Inventory > Stock Items first."} />
                   </Field>
                   <Field label="Quantity" labelClassName="sm:sr-only" error={errors[`materials.${i}.qty`]}>
@@ -247,13 +247,17 @@ export function ProductionForm({ production, onClose, onSaved }) {
 
         <section aria-labelledby="prd-costs">
           <h3 id="prd-costs" className="mb-2 text-sm font-semibold">Costs moved in</h3>
-          <p className="mb-3 text-xs text-muted-foreground">Expenses already paid (travelling, coating powder, packing…). Each expense account keeps what was spent on it; the amount moved into stock shows as one line, "Production costs moved to stock".</p>
+          <div className="mb-3 grid gap-1 text-xs text-muted-foreground">
+            <p>Expenses already paid by expense voucher. Each expense keeps what was spent on it; the amount moved into stock shows beside it, in the same group, as "Production costs moved to stock".</p>
+            <p><span className="font-medium text-foreground">Belongs here:</span> coating, labour, transport to and from the coater, packing that makes the item saleable.</p>
+            <p><span className="font-medium text-foreground">Not here:</span> delivery to customers, sales or office travel, storage, admin. Those stay ordinary expenses.</p>
+          </div>
           {!mayMoveCosts && totals.hasCosts && <p className="mb-3 text-xs text-destructive">Your role cannot move expenses into stock (it needs Finance: Add). Ask an administrator, or post with materials only.</p>}
           <div className="grid gap-3">
             {form.costs.map((c, i) => (
               <div key={i} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)_auto] sm:items-start sm:border-0 sm:p-0">
                 <Field label="Expense" labelClassName="sm:sr-only" error={errors[`costs.${i}.accountId`]} className="col-span-2 sm:col-span-1">
-                  <SearchSelect value={c.accountId} onChange={(v) => setLine("costs", i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="Choose the expense" aria-label={`Cost ${i + 1} expense`} noOptionsText={(typed) => (typed.trim() ? `No expense account matches "${typed.trim()}". Add it under Accounts > Chart of accounts (as an expense).` : "No expense accounts. Add one (e.g. Travelling) under Accounts > Chart of accounts.")} />
+                  <SearchSelect value={c.accountId} onChange={(v) => setLine("costs", i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="Choose the expense" aria-label={`Cost ${i + 1} expense`} noOptionsText={(typed) => (typed.trim() ? `No expense account matches "${typed.trim()}". Add it under Accounts > Chart of accounts (as an expense).` : "No expense accounts. Add one (e.g. Powder coating) under Accounts > Chart of accounts.")} />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only" error={errors[`costs.${i}.amount`]}>
                   <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setLine("costs", i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={CURRENCY} />
