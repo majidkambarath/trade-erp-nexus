@@ -32,6 +32,7 @@ import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
+import { taxIdWord } from "../../lib/taxTerms";
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two
 // choices and the column the list is sorted by. Held in memory for the tab; emptied at sign-out. The add / edit form is the
@@ -511,7 +512,7 @@ const CustomerManagement = () => {
                 // on a card the order is whatever the page's sort already set.
                 ...[
                   { key: "customerId", label: "Customer ID", card: "meta", cell: (c) => <span className="font-medium text-gray-900">{c.customerId}</span> },
-                  { key: "trnNumber", label: "TRN", card: "hidden", cell: (c) => (c.trnNumber ? <span className="font-medium text-gray-900">{c.trnNumber}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
+                  { key: "trnNumber", label: taxIdWord(), card: "hidden", cell: (c) => (c.trnNumber ? <span className="font-medium text-gray-900">{c.trnNumber}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
                   {
                     key: "customerName", label: "Customer Name", card: "primary",
                     cell: (c) => (

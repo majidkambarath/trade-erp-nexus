@@ -1,3 +1,4 @@
+import { taxWord } from "./taxTerms";
 // Pure logic behind the finance voucher forms, kept out of the components so it can be tested
 // without rendering. Money is handled in whole cents so 0.1 + 0.2 never shows as 0.30000000000000004.
 
@@ -182,7 +183,7 @@ export function notePreview({ type, partyName, partyType, lines, accounts, total
     if (!toCents(l.amount)) continue;
     rows.push({ account: accounts.find((a) => String(a._id) === String(l.accountId))?.accountName || "Choose an account", side: isDebit ? "Cr" : "Dr", amount: toCents(l.amount) });
   }
-  if (totals.vat > 0) rows.push({ account: partyType === "Vendor" ? "Input VAT" : "Output VAT", side: isDebit ? "Cr" : "Dr", amount: totals.vat });
+  if (totals.vat > 0) rows.push({ account: partyType === "Vendor" ? `Input ${taxWord()}` : `Output ${taxWord()}`, side: isDebit ? "Cr" : "Dr", amount: totals.vat });
   return rows;
 }
 

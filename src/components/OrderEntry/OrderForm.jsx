@@ -21,6 +21,7 @@ import { partyVat, vatAdvice } from "../../lib/partyVat";
 import { statusClasses } from "../../lib/status";
 
 import { DateInput } from "../accounting/kit";
+import { taxIdWord, taxWord } from "../../lib/taxTerms";
 const num = (v) => parseFloat(v) || 0;
 
 // Lookup endpoints answer either a bare array or an object keyed by the collection name.
@@ -104,7 +105,7 @@ function PartyVat({ party, partyType, vatAmount }) {
     <div className="space-y-2 pt-1" data-party-vat={v.status}>
       <dl className="space-y-1.5">
         <div className="flex gap-3">
-          <dt className="w-28 shrink-0 text-muted-foreground">VAT status</dt>
+          <dt className="w-28 shrink-0 text-muted-foreground">{taxWord()} status</dt>
           <dd>
             <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium", statusClasses(v.tone === "success" ? "APPROVED" : v.tone === "info" ? "INVOICED" : "DRAFT"))}>
               {v.label}
@@ -113,7 +114,7 @@ function PartyVat({ party, partyType, vatAmount }) {
         </div>
         {v.trn && (
           <div className="flex gap-3">
-            <dt className="w-28 shrink-0 text-muted-foreground">TRN</dt>
+            <dt className="w-28 shrink-0 text-muted-foreground">{taxIdWord()}</dt>
             <dd className="min-w-0 break-words font-mono text-foreground">{v.trn}</dd>
           </div>
         )}
@@ -372,7 +373,7 @@ export default function OrderForm({
       if (!r.itemId) e[`itemId_${i}`] = "Choose an item";
       if (!(num(r.qty) > 0)) e[`qty_${i}`] = "Enter a quantity above 0";
       if (priceEditable && !(num(r[F.unitPrice]) > 0)) e[`${F.unitPrice}_${i}`] = "Enter a price above 0";
-      if (num(r[F.vatPercent]) < 0) e[`${F.vatPercent}_${i}`] = "VAT cannot be negative";
+      if (num(r[F.vatPercent]) < 0) e[`${F.vatPercent}_${i}`] = `${taxWord()} cannot be negative`;
       if (num(r.discountPercent) < 0 || num(r.discountPercent) > 100) e[`discountPercent_${i}`] = "Discount is 0 to 100%";
       // a return against an invoice cannot take back more than is left on that line
       if (r.maxQty !== "" && r.maxQty != null && num(r.qty) > num(r.maxQty)) e[`qty_${i}`] = `At most ${r.maxQty} can be returned`;
@@ -380,7 +381,7 @@ export default function OrderForm({
     charges.forEach((c, i) => {
       if (c.amount === "" && !c.description) return;
       if (!(num(c.amount) > 0)) e[`charge_amount_${i}`] = "Enter an amount above 0";
-      if (num(c.vatPercent) < 0) e[`charge_vatPercent_${i}`] = "VAT cannot be negative";
+      if (num(c.vatPercent) < 0) e[`charge_vatPercent_${i}`] = `${taxWord()} cannot be negative`;
     });
     return e;
   };
@@ -798,16 +799,16 @@ export default function OrderForm({
               <dl className="space-y-2.5 text-sm tabular-nums">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Lines</dt><dd>{rows.filter((r) => r.itemId).length}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.subtotal))}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">VAT</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()}</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
                 {num(totals.rcmVat) > 0 && (
                   // reverse charge: the supplier charges no VAT; the VAT assessed on those lines is beside the total, never in it
-                  <div className="flex justify-between"><dt className="text-muted-foreground">VAT self-assessed (reverse charge)<span className="block text-xs">Not in the total: {V.partyType === "Vendor" ? "you account for it, not the supplier" : "your customer accounts for it"}</span></dt><dd>{formatNumber(num(totals.rcmVat))}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()} self-assessed (reverse charge)<span className="block text-xs">Not in the total: {V.partyType === "Vendor" ? "you account for it, not the supplier" : "your customer accounts for it"}</span></dt><dd>{formatNumber(num(totals.rcmVat))}</dd></div>
                 )}
                 {num(totals.discount) > 0 && (
                   <div className="flex justify-between"><dt className="text-muted-foreground">Line discounts (included in net)</dt><dd>−{formatNumber(num(totals.discount))}</dd></div>
                 )}
                 {chargeSums.total > 0 && (
-                  <div className="flex justify-between"><dt className="text-muted-foreground">Charges (incl. VAT)</dt><dd>{formatNumber(chargeSums.total)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Charges (incl. {taxWord()})</dt><dd>{formatNumber(chargeSums.total)}</dd></div>
                 )}
                 {V.discount && discount > 0 && (
                   <div className="flex justify-between"><dt className="text-muted-foreground">Discount</dt><dd>−{formatNumber(discount)}</dd></div>
@@ -862,7 +863,7 @@ export default function OrderForm({
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id={fid("charges")} className="text-base font-bold text-foreground">Additional charges</h2>
-              <p className="text-xs text-muted-foreground">Freight, handling or other costs on this document, each with its own VAT.</p>
+              <p className="text-xs text-muted-foreground">Freight, handling or other costs on this document, each with its own {taxWord()}.</p>
             </div>
             <button type="button" onClick={addCharge} className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Plus className="h-4 w-4" aria-hidden="true" />Add charge
@@ -877,7 +878,7 @@ export default function OrderForm({
               <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? `Amount (${CURRENCY})` : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
                 <input id={fid(`chargeAmt${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} className={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
               </Field>
-              <Field id={fid(`chargeVat${i}`)} label={i === 0 ? "VAT %" : <span className="sr-only">VAT %</span>}>
+              <Field id={fid(`chargeVat${i}`)} label={i === 0 ? `${taxWord()} %` : <span className="sr-only">{taxWord()} %</span>}>
                 <input id={fid(`chargeVat${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.vatPercent ?? ""} onChange={(e) => changeCharge(i, "vatPercent", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />
               </Field>
               <button type="button" onClick={() => removeCharge(i)} aria-label={`Remove charge ${i + 1}`} className={cn("grid h-10 w-10 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-status-danger", i === 0 && "sm:mt-[1.75rem]")}>

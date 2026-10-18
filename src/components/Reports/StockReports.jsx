@@ -9,6 +9,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, TextInput, useAsync } from "../accounting/kit";
 import { DateRange, Frame, monthStart, yearStart } from "./reportKit";
+import { taxWord } from "../../lib/taxTerms";
 
 // Stock reports, read from the stock movements, the item master, the batches and the approved
 // documents. Valuation and Movement are checked against the Inventory account of the ledger.
@@ -604,14 +605,14 @@ function AnalysisBody({ d }) {
       <Cards>
         {sales ? (
           <>
-            <StatCard title="Net revenue" count={money(t.netRevenue)} subText={`${CURRENCY}, VAT excluded, returns deducted`} tone="olive" />
+            <StatCard title="Net revenue" count={money(t.netRevenue)} subText={`${CURRENCY}, ${taxWord()} excluded, returns deducted`} tone="olive" />
             <StatCard title="Cost of goods sold" count={money(t.cogs)} subText={`${CURRENCY}, actual cost of the stock sold`} tone="rose" />
             <StatCard title="Gross profit" count={money(t.grossProfit)} subText={CURRENCY} tone={t.grossProfit < 0 ? "danger" : "teal"} />
             <StatCard title="Margin" count={pct(t.marginPct)} subText={`${whole(t.documents)} ${t.documents === 1 ? "document" : "documents"}`} tone={t.marginPct !== null && t.marginPct < 0 ? "danger" : "plum"} />
           </>
         ) : (
           <>
-            <StatCard title="Net purchases" count={money(t.netValue)} subText={`${CURRENCY}, VAT excluded, returns deducted`} tone="olive" />
+            <StatCard title="Net purchases" count={money(t.netValue)} subText={`${CURRENCY}, ${taxWord()} excluded, returns deducted`} tone="olive" />
             <StatCard title="Returned to vendors" count={money(t.returned)} subText={CURRENCY} tone="rose" />
             <StatCard title="Average price paid" count={t.avgPrice === null ? "–" : rate(t.avgPrice)} subText={`${CURRENCY} per unit, all items`} tone="teal" />
             <StatCard title="Vendors" count={whole(t.vendors)} subText={`${whole(t.documents)} ${t.documents === 1 ? "document" : "documents"}`} tone="plum" />
@@ -620,7 +621,7 @@ function AnalysisBody({ d }) {
       </Cards>
       <ReportPanel
         title={`${sales ? "Sales" : "Purchases"} by ${groupLabel.toLowerCase()}`}
-        description={sales ? "Revenue excludes VAT and is net of sales returns. Cost is the actual cost stamped on each stock movement, not an estimate." : "Values exclude VAT and are net of purchase returns."}
+        description={sales ? `Revenue excludes ${taxWord()} and is net of sales returns. Cost is the actual cost stamped on each stock movement, not an estimate.` : `Values exclude ${taxWord()} and are net of purchase returns.`}
         onCsv={exportCsv} csvDisabled={!d.rows.length}
       >
         {d.rows.length === 0 ? (

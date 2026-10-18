@@ -1,6 +1,7 @@
 import React from "react";
 import { formatNumber, formatQty } from "../../../utils/format";
 import { tint, totalInWords } from "./invoiceModel";
+import { taxIdWord, taxWord } from "../../../lib/taxTerms";
 
 // The printed page: an A4 sheet laid out with inline styles only, so the same markup prints
 // from the browser, renders to PDF and previews on screen. The paper is always white and ink
@@ -87,7 +88,7 @@ export default function InvoiceSheet({
         {company.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5 }}>{company.contact.join("   ·   ")}</div>}
         {company.trn && (
           <div style={{ fontSize: 10.5, marginTop: 2 }}>
-            <span style={{ fontWeight: 600 }}>TRN</span> {company.trn}
+            <span style={{ fontWeight: 600 }}>{taxIdWord()}</span> {company.trn}
           </div>
         )}
       </div>
@@ -124,12 +125,12 @@ export default function InvoiceSheet({
           {party.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5, marginTop: 2 }}>{party.contact.join("   ·   ")}</div>}
           {party.trn && (
             <div style={{ fontSize: 10.5, marginTop: 2 }}>
-              <span style={{ fontWeight: 600 }}>TRN</span> {party.trn}
+              <span style={{ fontWeight: 600 }}>{taxIdWord()}</span> {party.trn}
             </div>
           )}
           {party.vatStatus && (
             <div style={{ fontSize: 10.5, marginTop: 2 }}>
-              <span style={{ fontWeight: 600 }}>VAT status</span> {party.vatStatus}
+              <span style={{ fontWeight: 600 }}>{taxWord()} status</span> {party.vatStatus}
             </div>
           )}
         </div>
@@ -165,8 +166,8 @@ export default function InvoiceSheet({
             <th style={head}>Qty</th>
             <th style={head}>Unit price</th>
             <th style={head}>Value</th>
-            <th style={head}>VAT %</th>
-            <th style={head}>VAT</th>
+            <th style={head}>{taxWord()} %</th>
+            <th style={head}>{taxWord()}</th>
             <th style={head}>Total</th>
           </tr>
         </thead>
@@ -203,9 +204,9 @@ export default function InvoiceSheet({
             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 10.5 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${RULE}` }}>
-                  <th style={{ ...head, textAlign: "left", paddingLeft: 0 }}>VAT rate</th>
+                  <th style={{ ...head, textAlign: "left", paddingLeft: 0 }}>{taxWord()} rate</th>
                   <th style={head}>Taxable amount</th>
-                  <th style={{ ...head, paddingRight: 0 }}>VAT</th>
+                  <th style={{ ...head, paddingRight: 0 }}>{taxWord()}</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,7 +243,7 @@ export default function InvoiceSheet({
           {totals.charges.map((c, i) => (
             <TotalRow key={i} value={formatNumber(c.amount)}>{c.description || "Charge"}</TotalRow>
           ))}
-          <TotalRow value={formatNumber(totals.vat)}>VAT</TotalRow>
+          <TotalRow value={formatNumber(totals.vat)}>{taxWord()}</TotalRow>
           {totals.roundOff !== 0 && <TotalRow value={formatNumber(totals.roundOff)}>Round off</TotalRow>}
           <TotalRow strong border accent={accent} value={formatNumber(totals.grandTotal)}>
             Grand total ({currency})

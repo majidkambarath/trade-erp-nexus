@@ -16,6 +16,7 @@ import { graphValues, statementGraph } from "./sankeyLayout";
 import FlowSankey from "./FlowSankey";
 import CashCycle from "./CashCycle";
 import { MonthlySplit, SplitRing, ViewSwitch } from "./SplitViews";
+import { taxWord } from "../../lib/taxTerms";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const session = pageSession("dashboard-flow");
@@ -184,17 +185,17 @@ export default function BusinessFlow({ state, scope, initialView }) {
             {s && (
               <>
                 <div className="grid grid-cols-2 gap-3 lg:flex lg:items-stretch lg:gap-0">
-                  <Tile to="/purchase-order" label="Bought" note={`before VAT · ${at}`} value={s.bought} />
+                  <Tile to="/purchase-order" label="Bought" note={`before ${taxWord()} · ${at}`} value={s.bought} />
                   <Connector />
                   <Tile to="/stock-reports" label="In stock" note={`at cost · ${asAt}`} value={s.stock} />
                   <Connector />
-                  <Tile to="/sales-order" label="Sold" note={`before VAT · ${at}`} value={s.sold} change={flow.previous.revenueChangePct} />
+                  <Tile to="/sales-order" label="Sold" note={`before ${taxWord()} · ${at}`} value={s.sold} change={flow.previous.revenueChangePct} />
                   <Connector />
                   <Tile to="/receipt-voucher" label="Collected" note={`receipts · ${at}`} value={s.collected} />
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Tile small accent="var(--chart-2)" to="/ageing" label="Customers still owe you" note={`with VAT · as at ${asAt}`} value={s.owedByCustomers} />
-                  <Tile small accent="var(--chart-4)" to="/ageing" label="You still owe vendors" note={`with VAT · as at ${asAt}`} value={s.owedToVendors} />
+                  <Tile small accent="var(--chart-2)" to="/ageing" label="Customers still owe you" note={`with ${taxWord()} · as at ${asAt}`} value={s.owedByCustomers} />
+                  <Tile small accent="var(--chart-4)" to="/ageing" label="You still owe vendors" note={`with ${taxWord()} · as at ${asAt}`} value={s.owedToVendors} />
                 </div>
               </>
             )}

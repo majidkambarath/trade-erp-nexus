@@ -27,6 +27,7 @@ import ExpiryPill from "../parties/ExpiryPill";
 import { DataTable } from "../accounting/DataTable";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
+import { taxIdWord } from "../../lib/taxTerms";
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices
 // and the column the list is sorted by. Held in memory for the tab; emptied at sign-out. The add / edit form is the shared party
@@ -467,7 +468,7 @@ const VendorManagement = () => {
                   { key: "email", label: "Email", cell: (v) => <a href={`mailto:${v.email}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.email}</a> },
                   { key: "phone", label: "Phone Number", cell: (v) => <a href={`tel:${v.phone}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.phone}</a> },
                   { key: "address", label: "Billing Address", card: "hidden", cell: (v) => <div className="max-w-xs truncate" title={v.address}>{v.address}</div> },
-                  { key: "trnNO", label: "TRN NO", cell: (v) => v.trnNO || "-" },
+                  { key: "trnNO", label: taxIdWord(), cell: (v) => v.trnNO || "-" },
                 ].map((c) => ({
                   ...c,
                   header: (

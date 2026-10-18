@@ -1,3 +1,4 @@
+import { taxIdWord, taxWord } from "./taxTerms";
 // A customer's or vendor's VAT registration, and what it means for the document in front of the person. Pure.
 //
 // The master stores `vat.status` (registered / unregistered / exempt / designated_zone) and `vat.trn`; a record saved before
@@ -5,9 +6,9 @@
 // so a party with a TRN and no stated status is registered, and one with neither is not.
 
 export const VAT_LABEL = {
-  registered: "VAT registered",
-  unregistered: "Not VAT registered",
-  exempt: "VAT exempt",
+  get registered() { return `${taxWord()} registered`; },
+  get unregistered() { return `Not ${taxWord()} registered`; },
+  get exempt() { return `${taxWord()} exempt`; },
   designated_zone: "Designated zone",
 };
 
@@ -40,8 +41,8 @@ export function vatAdvice({ partyType, party, vatAmount = 0 }) {
     out.push({
       tone: "warning",
       text: vendor
-        ? "This vendor is marked VAT registered but has no TRN on file. VAT on this purchase can only be claimed back against an invoice that shows the vendor's TRN, so add it to the vendor."
-        : "This customer is marked VAT registered but has no TRN on file. A tax invoice to a registered customer must show their TRN, so add it to the customer before you invoice.",
+        ? `This vendor is marked ${taxWord()} registered but has no ${taxIdWord()} on file. ${taxWord()} on this purchase can only be claimed back against an invoice that shows the vendor's ${taxIdWord()}, so add it to the vendor.`
+        : `This customer is marked ${taxWord()} registered but has no ${taxIdWord()} on file. A tax invoice to a registered customer must show their ${taxIdWord()}, so add it to the customer before you invoice.`,
     });
   }
 
@@ -49,17 +50,17 @@ export function vatAdvice({ partyType, party, vatAmount = 0 }) {
     if (vendor && Number(vatAmount) > 0.005) {
       out.push({
         tone: "warning",
-        text: "This vendor is not VAT registered, so it cannot charge VAT and the VAT on this purchase cannot be claimed back. Check the tax code on each line (use an out-of-scope or no-VAT code), or ask the vendor for a tax invoice with its TRN.",
+        text: `This vendor is not ${taxWord()} registered, so it cannot charge ${taxWord()} and the ${taxWord()} on this purchase cannot be claimed back. Check the tax code on each line (use an out-of-scope or no-${taxWord()} code), or ask the vendor for a tax invoice with its ${taxIdWord()}.`,
       });
     } else if (vendor) {
-      out.push({ tone: "info", text: "This vendor is not VAT registered: no VAT should be charged on this purchase, and none can be claimed back." });
+      out.push({ tone: "info", text: `This vendor is not ${taxWord()} registered: no ${taxWord()} should be charged on this purchase, and none can be claimed back.` });
     } else {
-      out.push({ tone: "info", text: "This customer is not VAT registered, so no customer TRN is printed. VAT is charged on the sale as normal." });
+      out.push({ tone: "info", text: `This customer is not ${taxWord()} registered, so no customer ${taxIdWord()} is printed. ${taxWord()} is charged on the sale as normal.` });
     }
   }
 
   if (v.status === "exempt") {
-    out.push({ tone: "info", text: `This ${vendor ? "vendor" : "customer"} is marked VAT exempt. Check the tax code on each line.` });
+    out.push({ tone: "info", text: `This ${vendor ? "vendor" : "customer"} is marked ${taxWord()} exempt. Check the tax code on each line.` });
   }
   if (v.status === "designated_zone") {
     out.push({ tone: "info", text: `This ${vendor ? "vendor" : "customer"} is in a designated zone. Check the tax treatment of each line, because some supplies to and from a designated zone are treated differently.` });

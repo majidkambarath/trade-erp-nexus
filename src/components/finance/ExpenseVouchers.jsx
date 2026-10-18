@@ -11,6 +11,7 @@ import { vouchers } from "../../lib/bankingApi";
 import { describePayment, emptyPayment, money, paymentFromVoucher, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDateGB } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
+import { taxWord } from "../../lib/taxTerms";
 
 // Expense vouchers: an expense account of the chart, the VAT on it, and how it was paid - cash,
 // bank, transfer, cheque or card, like any other payment.
@@ -27,7 +28,7 @@ export default function ExpenseVouchers() {
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Expense vouchers"
-        description="Record what the business spent: rent, utilities, fuel. Pick the expense account, add the VAT, and say how it was paid."
+        description={`Record what the business spent: rent, utilities, fuel. Pick the expense account, add the ${taxWord()}, and say how it was paid.`}
         actions={<Can permission="finance.create"><Button onClick={() => setForm({})}><Plus className="h-4 w-4" aria-hidden="true" />New expense</Button></Can>}
       />
       <ListToolbar filters={list.filters} set={list.set} />
@@ -43,7 +44,7 @@ export default function ExpenseVouchers() {
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
               { key: "expense", header: "Expense", card: "title", cell: (v) => <><span className="font-medium">{v.expenseAccountName || v.expenseTypeName || v.transactorName}</span>{v.description && <span className="block max-w-xs truncate text-xs text-muted-foreground">{v.description}</span>}</> },
               { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs truncate text-muted-foreground", cell: (v) => describePayment(v) },
-              { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
+              { key: "vat", header: taxWord(), align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
@@ -122,11 +123,11 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
           <Field label="Description" required error={errors.description} className="sm:col-span-2">
             <Textarea rows={2} value={f.description} onChange={(e) => set({ description: e.target.value })} maxLength={200} placeholder="e.g. Office rent - October" />
           </Field>
-          <Field label={`Amount before VAT (${CURRENCY})`} required error={errors.amount}>
+          <Field label={`Amount before ${taxWord()} (${CURRENCY})`} required error={errors.amount}>
             <TextInput inputMode="decimal" className="text-end tabular-nums" value={f.amount} onChange={(e) => /^\d*(\.\d{0,2})?$/.test(e.target.value.replace(/,/g, "")) && set({ amount: e.target.value.replace(/,/g, "") })} placeholder="0.00" />
           </Field>
-          <Field label="Tax code" hint={rate ? `${rate}% = ${money(vat)} ${CURRENCY}, total ${money(total)} ${CURRENCY}` : "Leave empty for no VAT."}>
-            <SearchSelect value={f.taxCodeId} onChange={(v) => set({ taxCodeId: v })} options={taxOptions} clearable placeholder="No VAT" />
+          <Field label="Tax code" hint={rate ? `${rate}% = ${money(vat)} ${CURRENCY}, total ${money(total)} ${CURRENCY}` : `Leave empty for no ${taxWord()}.`}>
+            <SearchSelect value={f.taxCodeId} onChange={(v) => set({ taxCodeId: v })} options={taxOptions} clearable placeholder={`No ${taxWord()}`} />
           </Field>
           <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
           <Field label="Paid to" hint="Optional: a vendor, for the record.">

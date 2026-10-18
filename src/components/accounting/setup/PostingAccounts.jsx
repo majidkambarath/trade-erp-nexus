@@ -5,6 +5,7 @@ import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { ConfirmDialog, ErrorNote, Panel, Pill, SearchSelect, Spinner, errorMessage, useAsync } from "../kit";
+import { say, taxWord } from "../../../lib/taxTerms";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
 
@@ -156,7 +157,7 @@ export default function PostingAccounts({ notify }) {
     <div className="space-y-5">
       <Panel
         title="Ledger posting"
-        description="When on, approving an order books its accounting entries (receivable or payable, revenue or stock, VAT, cost of goods)."
+        description={`When on, approving an order books its accounting entries (receivable or payable, revenue or stock, ${taxWord()}, cost of goods).`}
         actions={<Can permission="accounts.manage"><Button variant={enabled ? "outline" : "default"} size="sm" onClick={() => setConfirm(enabled ? "off" : "on")} disabled={!enabled && unmapped.length > 0}>{enabled ? "Switch off" : "Switch on"}</Button></Can>}
       >
         <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -187,7 +188,7 @@ export default function PostingAccounts({ notify }) {
                 <li key={r.configKey} title={r.configKey} className={`grid items-center gap-x-6 gap-y-2 px-5 py-3.5 lg:grid-cols-[minmax(0,1fr)_26rem_7.5rem] ${changed(r) ? "bg-accent/40" : ""}`}>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">{r.displayName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{HINTS[r.configKey] || CATEGORY_LABEL[r.accountCategory] || ""}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{say(HINTS[r.configKey]) || CATEGORY_LABEL[r.accountCategory] || ""}</p>
                   </div>
                   {canManage ? (
                     <SearchSelect
@@ -214,7 +215,7 @@ export default function PostingAccounts({ notify }) {
                 <li className="grid items-center gap-x-6 gap-y-1 px-5 py-3.5 lg:grid-cols-[minmax(0,1fr)_26rem_7.5rem]">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">{equityRow.displayName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{HINTS[equityRow.configKey]}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{say(HINTS[equityRow.configKey])}</p>
                   </div>
                   <p className="text-sm text-muted-foreground">Every equity group is included automatically.</p>
                   <span className="inline-flex items-center gap-1.5 text-sm text-status-success"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Automatic</span>

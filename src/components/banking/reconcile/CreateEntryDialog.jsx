@@ -10,6 +10,7 @@ import { cn } from "../../../lib/utils";
 import { formatNumber } from "../../../utils/format";
 import { Amount, Day } from "./parts";
 import { useAction } from "./helpers";
+import { taxWord } from "../../../lib/taxTerms";
 
 // Posts the entry a statement line needs and matches it, in one step: a bank fee with its VAT,
 // interest, a transfer between our own accounts, a customer receipt or vendor payment nobody booked,
@@ -89,18 +90,18 @@ export default function CreateEntryDialog({ accountId, line, onClose, onDone }) 
           <Field label="Charge it to" hint="Leave empty for the bank charges account in your posting accounts.">
             <SearchSelect aria-label="Expense account" value={postTo} onChange={setPostTo} options={expense.options} placeholder="Bank charges (default)" clearable loading={expense.loading} />
           </Field>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={vat} onChange={(e) => setVat(e.target.checked)} />The amount includes VAT ({rate}%)</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="h-4 w-4" checked={vat} onChange={(e) => setVat(e.target.checked)} />The amount includes {taxWord()} ({rate}%)</label>
           {split && (
             <p className="rounded-lg border border-border px-3 py-2 text-sm" aria-live="polite">
-              {formatNumber(gross, 2)} = {formatNumber(split.net, 2)} charge + {formatNumber(split.vat, 2)} VAT
-              {!split.exact && <span className="block text-xs text-muted-foreground">The VAT is a fils away from {rate}% of the charge, because the bank's figure fixes the total.</span>}
+              {formatNumber(gross, 2)} = {formatNumber(split.net, 2)} charge + {formatNumber(split.vat, 2)} {taxWord()}
+              {!split.exact && <span className="block text-xs text-muted-foreground">The {taxWord()} is a fils away from {rate}% of the charge, because the bank's figure fixes the total.</span>}
             </p>
           )}
         </>
       )}
 
       {kind === "interest" && (
-        <Field label="Credit it to" hint="Leave empty for the bank interest income account. Interest carries no VAT.">
+        <Field label="Credit it to" hint={`Leave empty for the bank interest income account. Interest carries no ${taxWord()}.`}>
           <SearchSelect aria-label="Income account" value={postTo} onChange={setPostTo} options={income.options} placeholder="Bank interest income (default)" clearable loading={income.loading} />
         </Field>
       )}
@@ -139,7 +140,7 @@ export default function CreateEntryDialog({ accountId, line, onClose, onDone }) 
           <SearchSelect aria-label="Account" value={postTo} onChange={setPostTo} options={everything.options} placeholder="Choose an account" loading={everything.loading} />
         </Field>
       )}
-      {kind === "journal" && <Note>A journal does not appear in the VAT return. For a charge with VAT, use "Bank charge".</Note>}
+      {kind === "journal" && <Note>A journal does not appear in the {taxWord()} return. For a charge with {taxWord()}, use "Bank charge".</Note>}
       <p className="text-xs text-muted-foreground">{selected?.help}. It will be posted and matched in one step; if anything fails, nothing is posted.</p>
     </ActionModal>
   );

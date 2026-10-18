@@ -1,3 +1,4 @@
+import { taxIdWord, taxWord } from "./taxTerms";
 // Pure pieces of the trade reports screen: the months to choose from, how a month reads, and the rows of each export.
 // Nothing here renders anything or calls the server.
 
@@ -56,9 +57,9 @@ export function summaryExport(data, partyLabel) {
   const by = data.groupBy;
   const headers = [];
   if (by === "month") headers.push("Month");
-  if (by === "party" || by === "party_item") headers.push(partyLabel, `${partyLabel} code`, "VAT status");
+  if (by === "party" || by === "party_item") headers.push(partyLabel, `${partyLabel} code`, `${taxWord()} status`);
   if (by === "item" || by === "party_item") headers.push("Item", "Item code", "Category");
-  headers.push("Documents", "Quantity", "Gross", "Returns", "Net", "VAT", "Total", "Average price", "Share %", "First date", "Last date");
+  headers.push("Documents", "Quantity", "Gross", "Returns", "Net", taxWord(), "Total", "Average price", "Share %", "First date", "Last date");
   const months = data.monthly ? data.months : [];
   for (const m of months) headers.push(`${monthLabel(m)} qty`, `${monthLabel(m)} net`);
 
@@ -75,13 +76,13 @@ export function summaryExport(data, partyLabel) {
 }
 
 export function registerExport(data) {
-  const headers = ["Date", "Document", "Type", data.partyLabel, "Item", "Item code", "Category", "Reference", "Quantity", "Price", "Net", "VAT", "Total"];
+  const headers = ["Date", "Document", "Type", data.partyLabel, "Item", "Item code", "Category", "Reference", "Quantity", "Price", "Net", taxWord(), "Total"];
   const rows = data.rows.map((r) => [String(r.date).slice(0, 10), r.documentNo, r.kind === "return" ? "Return" : "Invoice", r.partyName, r.itemName, r.itemCode, r.category, r.reference, n(r.quantity), n(r.price), n(r.net), n(r.vat), n(r.total)]);
   return [headers, rows];
 }
 
 export function movementExport(data, label) {
-  const headers = [label, "Code", "VAT status", "TRN", "Terms", "Opening", "Invoiced", "Returns and credit notes", data.type === "customer" ? "Received" : "Paid", "Other", "Closing", "Overdue"];
+  const headers = [label, "Code", `${taxWord()} status`, taxIdWord(), "Terms", "Opening", "Invoiced", "Returns and credit notes", data.type === "customer" ? "Received" : "Paid", "Other", "Closing", "Overdue"];
   const rows = data.rows.map((r) => [r.partyName, r.partyCode, r.vatStatus, r.trn, r.paymentTerms, n(r.opening), n(r.invoiced), n(r.returns), n(r.settled), n(r.other), n(r.closing), n(r.overdue)]);
   return [headers, rows];
 }

@@ -6,6 +6,7 @@ import { Button } from "../../ui/button";
 import { ErrorNote, Panel, Pill } from "../../accounting/kit";
 import { DetailList, Skeleton } from "./partyAccountParts";
 import { partyStatusTone } from "./partyAccountUtils";
+import { taxIdWord } from "../../../lib/taxTerms";
 
 const tel = (v) => (v ? <a className="underline underline-offset-2" href={`tel:${v}`}>{v}</a> : null);
 const mail = (v) => (v ? <a className="break-all underline underline-offset-2" href={`mailto:${v}`}>{v}</a> : null);
@@ -16,14 +17,14 @@ function sections(kind, p) {
   if (kind === "vendor") {
     return [
       { title: "Contact", items: [{ label: "Contact person", value: p.contactPerson }, { label: "Phone", value: tel(p.phone) }, { label: "Email", value: mail(p.email) }, { label: "Vendor since", value: p.enrollDate ? formatDate(p.enrollDate) : null }] },
-      { title: "Tax and e-invoicing", items: [{ label: "TRN", value: p.trnNO }, { label: "Peppol participant ID", value: p.participantId }] },
+      { title: "Tax and e-invoicing", items: [{ label: taxIdWord(), value: p.trnNO }, { label: "Peppol participant ID", value: p.participantId }] },
       { title: "Terms", items: [{ label: "Payment terms", value: p.paymentTerms }, { label: "Status", value: p.status ? <Pill tone={partyStatusTone(p.status)}>{p.status}</Pill> : null }] },
       { title: "Address", items: [{ label: "Address", value: text(p.address), wide: true }] },
     ];
   }
   return [
     { title: "Contact", items: [{ label: "Contact person", value: p.contactPerson }, { label: "Phone", value: tel(p.phone) }, { label: "Email", value: mail(p.email) }, { label: "Sales person", value: p.salesPerson }, { label: "Customer since", value: p.joinDate ? formatDate(p.joinDate) : null }] },
-    { title: "Tax and e-invoicing", items: [{ label: "TRN", value: p.trnNumber }, { label: "Peppol participant ID", value: p.eInvoice?.participantId }, { label: "City", value: p.eInvoice?.city }, { label: "Country", value: p.eInvoice?.countryCode }] },
+    { title: "Tax and e-invoicing", items: [{ label: taxIdWord(), value: p.trnNumber }, { label: "Peppol participant ID", value: p.eInvoice?.participantId }, { label: "City", value: p.eInvoice?.city }, { label: "Country", value: p.eInvoice?.countryCode }] },
     {
       title: "Terms and credit",
       items: [

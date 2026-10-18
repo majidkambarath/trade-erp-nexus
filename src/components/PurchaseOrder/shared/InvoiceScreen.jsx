@@ -12,6 +12,7 @@ import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup, sheetsPdfF
 import { cn } from "../../../lib/utils";
 import { statusClasses } from "../../../lib/status";
 import { formatNumber } from "../../../utils/format";
+import { taxIdWord, taxWord } from "../../../lib/taxTerms";
 
 const COPIES = ["Customer copy", "Internal copy"];
 
@@ -155,7 +156,7 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, pa
 
       {missingTrn && (
         <p className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-foreground">
-          Your TRN is not set, so this prints as an Invoice, not a Tax invoice. If you are VAT-registered, add your TRN in{" "}
+          Your {taxIdWord()} is not set, so this prints as an Invoice, not a Tax invoice. If you are {taxWord()}-registered, add your {taxIdWord()} in{" "}
           <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue it.
         </p>
       )}

@@ -6,6 +6,8 @@ import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
+import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
+import { isValidTrn, taxIdRule } from "../../lib/partyForms";
 
 const MODES = [
   { value: "off", label: "Off", help: "No credit check. Approvals are never held up." },
@@ -148,7 +150,7 @@ function TaxIdentity({ settings, defaults, notify, onSaved }) {
   const [fieldError, setFieldError] = useState(null);
   const set = (k) => (e) => setP((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const s = useSection(async () => {
-    if (p.trn && !/^\d{15}$/.test(p.trn)) { setFieldError("A UAE TRN is exactly 15 digits"); throw new Error("Check the TRN"); }
+    if (p.trn && !isValidTrn(p.trn)) { setFieldError(taxIdRule().message); throw new Error(`Check the ${taxIdWord()}`); }
     setFieldError(null);
     await accounting.saveSettings({ profile: p });
   }, notify, onSaved, "Tax identity saved");
@@ -156,8 +158,8 @@ function TaxIdentity({ settings, defaults, notify, onSaved }) {
     <Panel title="Tax identity" description="The seller on tax invoices and on every e-invoice. Taken from your company profile until you change it here.">
       <form onSubmit={s.submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Registered name" className="sm:col-span-2"><TextInput value={p.legalName || ""} onChange={set("legalName")} maxLength={150} /></Field>
-        <Field label="Tax registration number (TRN)" error={fieldError} hint="15 digits."><TextInput inputMode="numeric" value={p.trn || ""} onChange={set("trn")} maxLength={15} /></Field>
-        <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Registered for VAT</label>
+        <Field label={isUae() ? "Tax registration number (TRN)" : taxIdWord()} error={fieldError} hint={isUae() ? "15 digits." : taxIdWord() === "GSTIN" ? "15 characters, for example 27ABCDE1234F1Z5." : undefined}><TextInput inputMode={isUae() ? "numeric" : "text"} value={p.trn || ""} onChange={set("trn")} maxLength={isUae() ? 15 : 20} /></Field>
+        <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Registered for {taxWord()}</label>
         <Field label="Address" className="sm:col-span-2"><TextInput value={p.addressLine1 || ""} onChange={set("addressLine1")} /></Field>
         <Field label="City"><TextInput value={p.city || ""} onChange={set("city")} /></Field>
         <Field label="Emirate">

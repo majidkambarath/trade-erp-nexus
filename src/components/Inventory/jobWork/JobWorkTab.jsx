@@ -20,6 +20,7 @@ import {
 } from "../../accounting/kit";
 import { useMasters, WarningsDialog } from "../productionShared";
 import { buildJobWorkChallan } from "./challan";
+import { taxWord } from "../../../lib/taxTerms";
 
 // Inventory > Production > Job work: our parts sent to an outside job worker (a powder coater) on a challan, and received
 // back finished. Sending moves no stock (they are still ours); each receipt posts a Production: the parts out at their
@@ -422,7 +423,7 @@ export function ReceiveDialog({ job, onClose, onDone }) {
         </section>
         <section aria-labelledby="jw-costs">
           <h3 id="jw-costs" className="mb-1 text-sm font-semibold">Costs moved in</h3>
-          <p className="mb-3 text-xs text-muted-foreground">The coater's charge and the transport, from the expense vouchers that paid them (without GST/VAT, which you claim back). Leave empty if the bill has not come yet.</p>
+          <p className="mb-3 text-xs text-muted-foreground">The coater's charge and the transport, from the expense vouchers that paid them (without {taxWord()}, which you claim back). Leave empty if the bill has not come yet.</p>
           {hasCosts && !canAny("finance.create") && <p className="mb-3 text-xs text-destructive">Your role cannot move expenses into stock (it needs Finance: Add).</p>}
           <div className="grid gap-3">
             {costs.map((c, i) => (

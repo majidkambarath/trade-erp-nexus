@@ -25,6 +25,7 @@ import BarcodeGenerator from "react-barcode";
 
 import { formatDate, formatCurrencyAED} from "../../utils/format";
 import { isService } from "../../lib/itemTypes";
+import { taxWord } from "../../lib/taxTerms";
 
 // A service's income / expense account as the item detail returns it (populated), else the company default.
 const accountText = (account, fallback) => (account?.accountName ? `${account.accountCode ? `${account.accountCode} ` : ""}${account.accountName}` : fallback);
@@ -448,7 +449,7 @@ const StockDetail = () => {
                       </th>
                      
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        VAT %
+                        {taxWord()} %
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Expiry Date

@@ -1,3 +1,4 @@
+import { taxTerms } from "./taxTerms";
 // Reverse-charge VAT: the rules the screens share, without a component in sight.
 //
 // When a supplier charges no VAT (services bought from abroad, some local supplies) the BUYER assesses it. A line on a tax code of
@@ -20,9 +21,22 @@ export const isReverseCharge = (x) => x?.reverseCharge === true || x?.taxKind ==
 export const SUPPLIER_STATEMENT =
   "Reverse charge applies: VAT to be accounted for by the recipient (Federal Decree-Law No. 8 of 2017, Article 48). Lines marked RC carry no VAT.";
 
+// The same, in the organisation's own law and words: the UAE text cites the UAE Decree-Law; an Indian invoice says what the
+// GST rules ask (tax payable on reverse charge); elsewhere a plain sentence. (lib/taxTerms.js)
+export const supplierStatement = () => {
+  const t = taxTerms();
+  if (t.uae) return SUPPLIER_STATEMENT;
+  if (t.india) return "Tax payable on reverse charge: Yes. The GST on the lines marked RC is paid by the recipient; none is charged on them.";
+  return `Reverse charge applies: the ${t.tax} on the lines marked RC is accounted for by the recipient. Lines marked RC carry no ${t.tax}.`;
+};
+
 // What our own purchase document says about the VAT we assess. It is not on any invoice a supplier sees.
-export const recipientStatement = (amountText) =>
-  `VAT of ${amountText} on the reverse-charge lines is accounted for by us (Federal Decree-Law No. 8 of 2017, Article 48). It is not payable to the supplier and is not in the total.`;
+export const recipientStatement = (amountText) => {
+  const t = taxTerms();
+  return t.uae
+    ? `VAT of ${amountText} on the reverse-charge lines is accounted for by us (Federal Decree-Law No. 8 of 2017, Article 48). It is not payable to the supplier and is not in the total.`
+    : `${t.tax} of ${amountText} on the reverse-charge lines is paid by us under the reverse charge. It is not payable to the supplier and is not in the total.`;
+};
 
 // The words under the VAT cell of a reverse-charge line: the VAT column reads 0 and this says why.
 export const lineHint = (percent, amountText) => `Reverse charge: ${Number(percent) || 0}% = ${amountText} self-assessed`;

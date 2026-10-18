@@ -5,6 +5,7 @@ import { formatDate, formatNumber, formatQty, todayInput, CURRENCY } from "../..
 import { receiptInvoiceBlocker, receivePayload, receiveRows, validateReceive } from "../../lib/orderDocuments";
 import { invoiceConfirmLabel } from "../../lib/invoiceFlow";
 import ApproveNow from "./ApproveNow";
+import { taxWord } from "../../lib/taxTerms";
 
 const numInput = "h-11 w-full rounded-lg border border-input bg-background px-3 text-end text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-[invalid=true]:border-status-danger lg:h-9";
 
@@ -113,7 +114,7 @@ export function ReceiptInvoiceDialog({ receipts, busy, problem, onClose, onConfi
             <span className="tabular-nums">{formatNumber(r.totalAmount, 2)}</span>
           </li>
         ))}
-        <li className="flex justify-between px-3 py-2 font-semibold"><span>Total, VAT included</span><span className="tabular-nums">{CURRENCY} {formatNumber(total, 2)}</span></li>
+        <li className="flex justify-between px-3 py-2 font-semibold"><span>Total, {taxWord()} included</span><span className="tabular-nums">{CURRENCY} {formatNumber(total, 2)}</span></li>
       </ul>
       {blocker && <Note tone="danger">{blocker}</Note>}
       <div className="grid gap-4 sm:grid-cols-2">

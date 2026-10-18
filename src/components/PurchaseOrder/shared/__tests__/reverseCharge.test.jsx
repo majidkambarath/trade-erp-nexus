@@ -124,3 +124,21 @@ describe("the other documents", () => {
     expect(doc.sheet.lines.map((l) => Boolean(l.reverseCharge))).toEqual([true, false]);
   });
 });
+
+describe("an Indian organisation's printed invoice", () => {
+  it("says GST and GSTIN, and the Indian reverse-charge statement instead of the UAE Decree-Law", async () => {
+    const { setOrgLocale, resetOrgLocale } = await import("../../../../utils/orgLocale");
+    setOrgLocale({ country: "IN" });
+    try {
+      const { sheet } = buildSalesDocument({ transactionNo: "SO-1", status: "APPROVED", date: "2026-10-18", items: [standard, reverse] }, { ...customer, vat: { status: "registered", trn: "27ABCDE1234F1Z5" } }, { ...company, vatNumber: "27AAACB1234C1Z5" }, "INR");
+      render1(sheet);
+      expect(screen.getAllByText("GSTIN").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("GST").length).toBeGreaterThan(0);
+      expect(screen.getByText(/Tax payable on reverse charge: Yes/)).toBeInTheDocument();
+      expect(screen.queryByText(/Decree-Law/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/\bVAT\b|\bTRN\b/)).not.toBeInTheDocument();
+    } finally {
+      resetOrgLocale();
+    }
+  });
+});

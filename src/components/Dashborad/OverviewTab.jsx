@@ -50,6 +50,7 @@ import BusinessFlow from "./BusinessFlow";
 import { ago, dayLabel, gold, hourLabel, ink, monthLabel, monthYearLabel, mutedInk, opsRows, recentLink, signed, slices, compactAmount, tip, weekdayLabel } from "./helpers";
 import { addMonths, quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
+import { isUae, taxWord } from "../../lib/taxTerms";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -236,13 +237,13 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
             <Card data-anim="bento" className={cn("flex flex-col", cardClass)}>
               <CardContent className="flex flex-1 flex-col p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">{scope.current ? "VAT this quarter" : `VAT ${vatQuarter}`}</Link>
+                  {isUae() ? <Link to="/vat-reports" className="-my-2 inline-flex min-h-10 items-center py-2 text-sm font-bold hover:underline lg:my-0 lg:min-h-0 lg:py-0">{scope.current ? `${taxWord()} this quarter` : `${taxWord()} ${vatQuarter}`}</Link> : <span className="text-sm font-bold">{scope.current ? `${taxWord()} this quarter` : `${taxWord()} ${vatQuarter}`}</span>}
                   {c?.vat?.hasActivity && c.vat.position !== "nil" && (
                     <Badge variant="secondary" className="rounded-full">{c.vat.position === "payable" ? "Payable" : "Refundable"}</Badge>
                   )}
                 </div>
                 {!c && <Skeleton className="h-28" />}
-                {c && !c.vat.hasActivity && <Empty height={112}>No VAT transactions {scope.current ? "this quarter" : `in ${vatQuarter}`}</Empty>}
+                {c && !c.vat.hasActivity && <Empty height={112}>No {taxWord()} transactions {scope.current ? "this quarter" : `in ${vatQuarter}`}</Empty>}
                 {c?.vat?.hasActivity && (
                   <>
                     <p className="text-lg font-extrabold tracking-tight">{formatCurrencyAED(Math.abs(c.vat.net))}</p>
@@ -254,7 +255,7 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
                         {c.vat.unclassifiedLines} {c.vat.unclassifiedLines === 1 ? "line has" : "lines have"} no tax treatment
                       </p>
                     )}
-                    <div className="relative mt-3 min-h-14 flex-1" role="img" aria-label={`Output VAT for each of the ${trail(6, "months")}`}>
+                    <div className="relative mt-3 min-h-14 flex-1" role="img" aria-label={`Output ${taxWord()} for each of the ${trail(6, "months")}`}>
                       <div className="absolute inset-0">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart data={c.vat.spark}>
@@ -339,7 +340,8 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
           { label: "Sales Order", to: "/sales-order", icon: Receipt },
           { label: "Purchase Order", to: "/purchase-order", icon: Truck },
           { label: "Stock Items", to: "/stock-item-creation", icon: Package },
-          { label: "VAT Reports", to: "/vat-reports", icon: Percent },
+          // the VAT return is the UAE's: elsewhere the reports page stands in its place (utils/countryRules.js on the server)
+          isUae() ? { label: "VAT Reports", to: "/vat-reports", icon: Percent } : { label: "Ledger reports", to: "/ledger-reports", icon: Percent },
         ].map((q) => {
           const Icon = q.icon;
           return (

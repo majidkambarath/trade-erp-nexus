@@ -1,6 +1,7 @@
 import { isValidIban, normalizeIban } from "./iban";
 import { orgCountry } from "../utils/orgLocale";
 import { toInputDate, todayInput } from "../utils/format";
+import { taxWord } from "./taxTerms";
 
 // Pure logic of the customer / vendor form: the rules the server applies (so a mistake is caught
 // before the request), and the two translations between the API record and the form fields.
@@ -9,7 +10,7 @@ import { toInputDate, todayInput } from "../utils/format";
 // ---- constants ---------------------------------------------------------------------------------
 
 export const VAT_STATUSES = [
-  { value: "registered", label: "VAT registered" },
+  { value: "registered", get label() { return `${taxWord()} registered`; } },
   { value: "unregistered", label: "Not registered" },
   { value: "exempt", label: "Exempt" },
   { value: "designated_zone", label: "Designated zone" },
@@ -27,7 +28,7 @@ export const DEFAULT_WARNING_DAYS = 30;
 
 export const SECTIONS = [
   { id: "basic", label: "Basic" },
-  { id: "vat", label: "VAT" },
+  { id: "vat", get label() { return taxWord(); } },
   { id: "credit", label: "Credit and terms" },
   { id: "contacts", label: "Contacts" },
   { id: "bank", label: "Bank accounts" },
@@ -266,7 +267,7 @@ export function validateParty(kind, form, { documentTypes = [], strict = true } 
   // VAT
   const trn = normalizeTrn(form.trn);
   if (TRN_REQUIRED_FOR.includes(form.vatStatus)) {
-    if (!trn) { if (strict) e["vat.trn"] = taxIdRule().label === "TRN" ? "Enter the 15-digit TRN" : `Enter the ${taxIdRule().label}`; }
+    if (!trn) { if (strict) e["vat.trn"] = taxIdRule().label === "TRN" ? "Enter the 15-digit TRN" : `Enter the ${taxIdRule().label}`; } // the words follow the country (lib/taxTerms.js)
     else if (!isValidTrn(trn)) e["vat.trn"] = `${taxIdRule().message} (${trn.length} entered)`;
   } else if (form.vatStatus === "exempt" && trn && !isValidTrn(trn)) {
     e["vat.trn"] = `${taxIdRule().message} (${trn.length} entered)`;

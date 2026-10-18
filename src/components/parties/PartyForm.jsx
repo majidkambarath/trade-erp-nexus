@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Field, Select, Textarea, TextInput } from "../accounting/kit";
 import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
+import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
 import {
   CUSTOMER_STATUSES, SECTIONS, VAT_STATUSES, VENDOR_STATUSES,
   errorCountBySection, termOptions, validateParty, withCreditDays, withPaymentTerms,
@@ -127,9 +128,9 @@ function VatSection({ kind, value, set, errors, documentTypes }) {
   const trnError = errors["vat.trn"] || (touched || digits > 15 ? live : undefined);
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="VAT status" hint="Whether this party is registered for UAE VAT.">
+      <Field label={`${taxWord()} status`} hint={`Whether this party is registered for ${taxWord()}.`}>
         <Select value={value.vatStatus} onChange={(e) => set({ vatStatus: e.target.value, ...(e.target.value === "unregistered" ? { trn: "" } : {}) })}>
-          {VAT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          {VAT_STATUSES.filter((s) => s.value !== "designated_zone" || isUae() || value.vatStatus === "designated_zone").map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </Select>
       </Field>
       {showTrn ? (
@@ -140,12 +141,12 @@ function VatSection({ kind, value, set, errors, documentTypes }) {
           hint={taxIdRule().label === "TRN" ? (needsTrn ? "15 digits, for example 100123456700003." : "Optional. If given, 15 digits.") : taxIdRule().label === "GSTIN" ? `${needsTrn ? "" : "Optional. "}15 characters, for example 27ABCDE1234F1Z5.` : needsTrn ? "" : "Optional."}
         >
           <TextInput
-            inputMode="numeric" value={value.trn} maxLength={19} placeholder="100123456700003"
+            inputMode={isUae() ? "numeric" : "text"} value={value.trn} maxLength={19} placeholder={isUae() ? "100123456700003" : taxIdWord() === "GSTIN" ? "27ABCDE1234F1Z5" : ""}
             onChange={(e) => set({ trn: e.target.value })} onBlur={() => setTouched(true)}
           />
         </Field>
       ) : (
-        <p className="self-end pb-2 text-sm text-muted-foreground">An unregistered party has no TRN.</p>
+        <p className="self-end pb-2 text-sm text-muted-foreground">An unregistered party has no {taxIdWord()}.</p>
       )}
       <Field label="Trade licence number" hint="Optional. Keep the licence itself under KYC documents.">
         <TextInput value={value.tradeLicenseNo} onChange={(e) => set({ tradeLicenseNo: e.target.value })} maxLength={60} />

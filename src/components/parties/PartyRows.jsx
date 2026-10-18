@@ -5,6 +5,7 @@ import { accounting, downloadAttachment, uploadAttachment } from "../../lib/acco
 import { checkFile, formatBytes } from "../accounting/AttachmentPanel";
 import { DateInput, ErrorNote, Field, Pill, SearchSelect, TextInput } from "../accounting/kit";
 import { formatDate } from "../../utils/format";
+import { isUae, taxWord } from "../../lib/taxTerms";
 import {
   DOC_STATUS, addRow, daysLeftText, documentStatus, emptyBankAccount, emptyContact, emptyDocument, isValidIban, isValidSwift, removeRow, setPrimary, updateRow,
 } from "../../lib/partyForms";
@@ -205,7 +206,7 @@ export function DocumentsSection({ value, set, errors, documentTypes, typesLoadi
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <p className="max-w-2xl text-sm text-muted-foreground">Trade licence, VAT certificate, Emirates ID, passport and the like. The status follows the expiry date, counted on the Dubai calendar; a document counts as expiring in its last 30 days.</p>
+        <p className="max-w-2xl text-sm text-muted-foreground">{isUae() ? "Trade licence, VAT certificate, Emirates ID, passport and the like" : `Trade licence, ${taxWord()} certificate, ID documents, passport and the like`}. The status follows the expiry date, counted on your organisation's calendar; a document counts as expiring in its last 30 days.</p>
         <span className="text-xs text-muted-foreground">Reminders by email: Coming soon</span>
       </div>
       {rows.map((d, i) => {

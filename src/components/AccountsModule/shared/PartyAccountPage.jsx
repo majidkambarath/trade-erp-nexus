@@ -13,6 +13,7 @@ import StatementTab from "./StatementTab";
 import OpenInvoicesTab from "./OpenInvoicesTab";
 import PartyDetailsTab from "./PartyDetailsTab";
 import CustomerDocumentsTab from "../../salesDocs/CustomerDocumentsTab";
+import { taxIdWord } from "../../../lib/taxTerms";
 
 const TABS = [
   { id: "statement", label: "Statement" },
@@ -119,7 +120,7 @@ export default function PartyAccountPage({ kind, partyId }) {
                 <Fact icon={Phone} label="Phone">{p?.phone && <a className="underline underline-offset-2" href={`tel:${p.phone}`}>{p.phone}</a>}</Fact>
                 <Fact icon={Mail} label="Email">{p?.email && <a className="underline underline-offset-2" href={`mailto:${p.email}`}>{p.email}</a>}</Fact>
                 <Fact icon={Clock} label="Payment terms">{terms}</Fact>
-                <Fact icon={FileText} label="TRN">{p?.trnNumber || p?.trnNO}</Fact>
+                <Fact icon={FileText} label={taxIdWord()}>{p?.trnNumber || p?.trnNO}</Fact>
               </>
             )}
           </dl>
