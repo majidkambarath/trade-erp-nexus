@@ -246,7 +246,7 @@ describe("the search and the choices", () => {
 
     render(<CustomerManagement />);
     await screen.findByText("Bay Grocers");
-    expect(header()).toHaveTextContent("↓");
+    expect(screen.getByRole("columnheader", { name: /^Customer Name/ })).toHaveAttribute("aria-sort", "descending");
     fireEvent.change(searchbox(), { target: { value: "" } });
     expect(names()[0]).toContain("Bay Grocers");
     expect(names()[1]).toContain("Al Noor Mart");

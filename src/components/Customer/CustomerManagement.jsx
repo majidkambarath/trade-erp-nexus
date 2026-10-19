@@ -1,20 +1,11 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-} from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   Plus,
   Edit,
   Trash2,
-  CreditCard,
   Users,
-  TrendingUp,
   Clock,
-  AlertTriangle,
   UserPlus,
-  Loader2,
   RefreshCw,
   CheckCircle,
   XCircle,
@@ -22,110 +13,48 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { formatCurrencyAED } from "../../utils/format";
-import { toastClasses } from "../../lib/status";
-import { pageSession } from "../../lib/pageSession";
+import { useListView } from "../../lib/useListView";
+import { sortRows } from "../../lib/listView";
 import { CUSTOMER_STATUSES, CUSTOMER_TERMS } from "../../lib/partyForms";
 import StatCard from "../ui/stat-card";
 
 import PartyModal from "../parties/PartyModal";
 import ExpiryPill from "../parties/ExpiryPill";
-import { DataTable } from "../accounting/DataTable";
-import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import { Button } from "../ui/button";
+import ListPage from "../lists/ListPage";
+import { FilterSelect } from "../lists/FilterBar";
+import { ConfirmDialog, Pill, useAsync, useToasts } from "../accounting/kit";
 import Can from "../shell/Can";
 import { taxIdWord } from "../../lib/taxTerms";
 
-// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two
-// choices and the column the list is sorted by. Held in memory for the tab; emptied at sign-out. The add / edit form is the
-// shared party form (components/parties) and keeps no draft, so there is none to remember here.
-const session = pageSession("customers");
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search,
+// the two choices and the column it is sorted by - all via useListView, below. Held in memory for the tab;
+// emptied at sign-out. The add / edit form is the shared party form (components/parties) and keeps no draft of
+// its own, so there is none to remember here.
 
 // A customer may have no email (the field is optional) and the search reads it: an absent one reads as nothing, never throws.
 const lower = (value) => String(value ?? "").toLowerCase();
 
-const CustomerManagement = () => {
-  const [customers, setCustomers] = useState([]);
-  const [partyModal, setPartyModal] = useState(null); // { customer } to edit one, {} for a new customer
-  // the search and the choices come back as the person left them
-  const [kept] = useState(() => session.get("filters", {}) || {});
-  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
-  const [isLoading, setIsLoading] = useState(true);
-  const [showToast, setShowToast] = useState({
-    visible: false,
-    message: "",
-    type: "success",
-  });
-  const [filterStatus, setFilterStatus] = useState(kept.status || "");
-  const [filterPaymentTerms, setFilterPaymentTerms] = useState(kept.paymentTerms || "");
-  const [deleteConfirmation, setDeleteConfirmation] = useState({
-    visible: false,
-    customerId: null,
-    customerName: "",
-    isDeleting: false,
-  });
+const STATUS_TONE = { Active: "success", Inactive: "neutral" };
+const STATUS_ICON = { Active: CheckCircle, Inactive: XCircle };
 
-  // New UX enhancement states
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [sortConfig, setSortConfig] = useState(
-    () => session.get("sort") || { key: null, direction: "asc" }
-  );
+const CustomerManagement = () => {
+  const list = useListView("customers", { filters: { status: "", paymentTerms: "" } });
+  const { notify, toastNode } = useToasts();
+  const showToastMessage = useCallback((message, type = "success") => notify(message, type), [notify]);
+
+  const [partyModal, setPartyModal] = React.useState(null); // { customer } to edit one, {} for a new customer
+  const [deleteConfirmation, setDeleteConfirmation] = React.useState({ visible: false, customerId: null, customerName: "", isDeleting: false });
+
+  const { data, loading, error, reload } = useAsync(() => axiosInstance.get("/customers/customers").then((res) => res.data.data || []), []);
+  const customers = useMemo(() => data || [], [data]);
+
+  useEffect(() => {
+    if (error) showToastMessage(error.response?.data?.message || "Failed to fetch customers.", "error");
+  }, [error, showToastMessage]);
 
   // Money is written the same way across the product: in the organisation's currency, as text ("AED 1,234.50" by default), never an icon.
-  const formatCurrency = useCallback(
-    (amount, colorClass = "") => (
-      <span className={`whitespace-nowrap tabular-nums ${colorClass}`}>
-        {formatCurrencyAED(Number(amount) || 0)}
-      </span>
-    ),
-    []
-  );
-
-  // Remember the search, the choices and the sort for the next visit to this page
-  useEffect(() => {
-    session.set("searchTerm", searchTerm);
-    session.set("filters", {
-      status: filterStatus,
-      paymentTerms: filterPaymentTerms,
-    });
-    session.set("sort", sortConfig);
-  }, [searchTerm, filterStatus, filterPaymentTerms, sortConfig]);
-
-  const fetchCustomers = useCallback(async (showRefreshIndicator = false) => {
-    try {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      const response = await axiosInstance.get("/customers/customers");
-      setCustomers(response.data.data || []);
-
-      if (showRefreshIndicator) {
-        showToastMessage("Data refreshed successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Failed to fetch customers:", error);
-      showToastMessage(
-        error.response?.data?.message || "Failed to fetch customers.",
-        "error"
-      );
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
-
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+  const formatCurrency = useCallback((amount) => <span className="whitespace-nowrap tabular-nums">{formatCurrencyAED(Number(amount) || 0)}</span>, []);
 
   // The add / edit form is the shared party form (components/parties); the page only opens it and
   // reloads the list when it saves.
@@ -135,501 +64,197 @@ const CustomerManagement = () => {
   const handlePartySaved = useCallback(
     async (_saved, message) => {
       setPartyModal(null);
-      await fetchCustomers();
+      await reload();
       showToastMessage(message, "success");
     },
-    [fetchCustomers, showToastMessage]
+    [reload, showToastMessage]
   );
 
   const showDeleteConfirmation = useCallback((customer) => {
-    setDeleteConfirmation({
-      visible: true,
-      customerId: customer._id,
-      customerName: customer.customerName,
-      isDeleting: false,
-    });
+    setDeleteConfirmation({ visible: true, customerId: customer._id, customerName: customer.customerName, isDeleting: false });
   }, []);
-
   const hideDeleteConfirmation = useCallback(() => {
-    setDeleteConfirmation({
-      visible: false,
-      customerId: null,
-      customerName: "",
-      isDeleting: false,
-    });
+    setDeleteConfirmation({ visible: false, customerId: null, customerName: "", isDeleting: false });
   }, []);
-
   const confirmDelete = useCallback(async () => {
     setDeleteConfirmation((prev) => ({ ...prev, isDeleting: true }));
-
     try {
       await axiosInstance.delete(`/customers/${deleteConfirmation.customerId}`);
-      setCustomers((prev) =>
-        prev.filter(
-          (customer) => customer._id !== deleteConfirmation.customerId
-        )
-      );
       showToastMessage("Customer deleted successfully!", "success");
       hideDeleteConfirmation();
-      await fetchCustomers();
-    } catch (error) {
-      showToastMessage(
-        error.response?.data?.message || "Failed to delete customer.",
-        "error"
-      );
+      await reload();
+    } catch (err) {
+      showToastMessage(err.response?.data?.message || "Failed to delete customer.", "error");
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
     }
-  }, [
-    deleteConfirmation.customerId,
-    fetchCustomers,
-    showToastMessage,
-    hideDeleteConfirmation,
-  ]);
+  }, [deleteConfirmation.customerId, reload, showToastMessage, hideDeleteConfirmation]);
 
   const handleRefresh = useCallback(() => {
-    fetchCustomers(true);
-  }, [fetchCustomers]);
+    reload();
+    showToastMessage("Data refreshed successfully!", "success");
+  }, [reload, showToastMessage]);
 
-  const handleSort = useCallback((key) => {
-    setSortConfig((prevConfig) => ({
-      key,
-      direction:
-        prevConfig.key === key && prevConfig.direction === "asc"
-          ? "desc"
-          : "asc",
-    }));
-  }, []);
+  const customerStats = useMemo(
+    () => ({
+      activeCustomers: customers.filter((c) => c.status === "Active").length,
+      inactiveCustomers: customers.filter((c) => c.status === "Inactive").length,
+    }),
+    [customers]
+  );
 
-  const getStatusBadge = useCallback((status) => {
-    const badges = {
-      Active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      Inactive: "bg-slate-100 text-slate-800 border border-slate-200",
-    };
-    return (
-      badges[status] || "bg-slate-100 text-slate-800 border border-slate-200"
-    );
-  }, []);
+  // what the empty state's wording and action follow - a search or a choice, never the sort (sorting an
+  // empty-of-filters list can never itself be why nothing shows)
+  const filtered = Boolean(list.search || list.filters.status || list.filters.paymentTerms);
 
-  const getStatusIcon = useCallback((status) => {
-    const icons = {
-      Active: <CheckCircle size={14} className="text-emerald-600" />,
-      Inactive: <XCircle size={14} className="text-slate-600" />,
-    };
-    return (
-      icons[status] || <AlertCircle size={14} className="text-slate-600" />
-    );
-  }, []);
-
-  // Enhanced statistics calculations
-  const customerStats = useMemo(() => {
-    const activeCustomers = customers.filter(
-      (c) => c.status === "Active"
-    ).length;
-    const inactiveCustomers = customers.filter(
-      (c) => c.status === "Inactive"
-    ).length;
-    const totalRevenue = customers.reduce(
-      (sum, c) => sum + (c.totalSpent || 0),
-      0
-    );
-    const totalOrders = customers.reduce(
-      (sum, c) => sum + (c.totalOrders || 0),
-      0
-    );
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-    return {
-      activeCustomers,
-      inactiveCustomers,
-      totalRevenue,
-      avgOrderValue,
-      totalCustomers: customers.length,
-    };
-  }, [customers]);
-
-  const sortedAndFilteredCustomers = useMemo(() => {
-    const needle = searchTerm.toLowerCase();
-    let filtered = customers.filter(
+  const filteredCustomers = useMemo(() => {
+    const needle = list.search.toLowerCase();
+    return customers.filter(
       (customer) =>
         (lower(customer.customerName).includes(needle) ||
           lower(customer.contactPerson).includes(needle) ||
           lower(customer.email).includes(needle) ||
           lower(customer.customerId).includes(needle)) &&
-        (filterStatus ? customer.status === filterStatus : true) &&
-        (filterPaymentTerms
-          ? customer.paymentTerms === filterPaymentTerms
-          : true)
+        (list.filters.status ? customer.status === list.filters.status : true) &&
+        (list.filters.paymentTerms ? customer.paymentTerms === list.filters.paymentTerms : true)
     );
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue < bValue) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [customers, searchTerm, filterStatus, filterPaymentTerms, sortConfig]);
-
-  // What counts as a filter: a search or a choice. "Clear filters" is offered only while one is set.
-  const filtersOn = Boolean(searchTerm || filterStatus || filterPaymentTerms);
-  const clearFilters = () => {
-    setSearchTerm("");
-    setFilterStatus("");
-    setFilterPaymentTerms("");
-  };
+  }, [customers, list.search, list.filters.status, list.filters.paymentTerms]);
+  const rows = useMemo(() => sortRows(filteredCustomers, list.sort), [filteredCustomers, list.sort]);
 
   // The usual terms, then any other a customer carries (the form turns "credit days: 15" into "Net 15", up to 365), then
   // the one chosen: so every customer can be reached from the choice and a restored choice is always one of the entries.
   const paymentTermOptions = useMemo(() => {
     const others = customers.map((c) => c.paymentTerms).filter(Boolean);
-    return [...new Set([...CUSTOMER_TERMS, ...others, filterPaymentTerms].filter(Boolean))];
-  }, [customers, filterPaymentTerms]);
+    return [...new Set([...CUSTOMER_TERMS, ...others, list.filters.paymentTerms].filter(Boolean))];
+  }, [customers, list.filters.paymentTerms]);
 
-  const emptyState = (
+  const emptyNode = (
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
       <div className="mb-5 grid h-20 w-20 place-items-center rounded-full bg-muted">
         <UserPlus size={36} className="text-muted-foreground" aria-hidden="true" />
       </div>
       <h3 className="mb-2 text-xl font-semibold text-foreground">
-        {filtersOn ? "No customers match the search or filters" : "No customers yet"}
+        {filtered ? "No customers match the search or filters" : "No customers yet"}
       </h3>
       <p className="mb-6 max-w-md text-sm text-muted-foreground">
-        {filtersOn
-          ? "Clear the search and filters to see every customer."
-          : "Start building your customer base by adding your first customer."}
+        {filtered ? "Clear the search and filters to see every customer." : "Start building your customer base by adding your first customer."}
       </p>
-      {filtersOn ? (
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
-        >
+      {filtered ? (
+        <button type="button" onClick={list.clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
           Clear search and filters
         </button>
       ) : (
         <Can permission="sales.create">
-          <button onClick={openAddModal} className="erp-btn-primary">
-            <Plus size={20} />
+          <Button onClick={openAddModal}>
+            <Plus size={20} aria-hidden="true" />
             Add First Customer
-          </button>
+          </Button>
         </Can>
       )}
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="min-h-[60dvh] bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2
-            size={48}
-            className="text-purple-600 animate-spin mx-auto mb-4"
-          />
-          <p className="text-gray-600 text-lg">Loading customers...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-background p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Customer Management
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {customerStats.totalCustomers} total customers •{" "}
-            {sortedAndFilteredCustomers.length} displayed
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-            title="Refresh data"
-            aria-label="Refresh data"
-          >
-            <RefreshCw
-              size={16}
-              className={isRefreshing ? "animate-spin" : ""}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* Toast Notification */}
-      {showToast.visible && (
-        <div
-          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
-        >
-          <div className="flex items-center space-x-2">
-            {showToast.type === "success" ? (
-              <CheckCircle size={16} />
-            ) : (
-              <XCircle size={16} />
-            )}
-            <span>{showToast.message}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Statistics Cards */}
-      <div className="mb-8">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-          {[
-            {
-              title: "Active Customers",
-              count: customerStats.activeCustomers,
-              icon: <Users size={24} />,
-              subText: "Show only active",
-              onClick: () => setFilterStatus("Active"),
-            },
-            {
-              title: "Inactive Customers",
-              count: customerStats.inactiveCustomers,
-              icon: <Clock size={24} />,
-              subText: "Show only inactive",
-              onClick: () => setFilterStatus("Inactive"),
-            },
-            // {
-            //   title: "Total Revenue",
-            //   count: formatCurrency(
-            //     customerStats.totalRevenue,
-            //     "text-blue-700",
-            //     "w-6.5 h-7.5"
-            //   ),
-            //   icon: <TrendingUp size={24} />,
-            //   bgColor: "bg-blue-50",
-            //   textColor: "text-blue-700",
-            //   borderColor: "border-blue-200",
-            //   iconBg: "bg-blue-100",
-            //   iconColor: "text-blue-600",
-            //   textSize: "text-4xl",
-            // },
-            // {
-            //   title: "Avg Order Value",
-            //   count: formatCurrency(
-            //     customerStats.avgOrderValue,
-            //     "text-indigo-700",
-            //     "w-6.5 h-7.5"
-            //   ),
-            //   icon: <CreditCard size={24} />,
-            //   bgColor: "bg-indigo-50",
-            //   textColor: "text-indigo-700",
-            //   borderColor: "border-indigo-200",
-            //   iconBg: "bg-indigo-100",
-            //   iconColor: "text-indigo-600",
-            // },
-          ].map((card, index) => (
-            <StatCard
-              key={index}
-              title={card.title}
-              count={card.count}
-              icon={card.icon}
-              subText={card.subText}
-              tone={["teal", "plum", "olive", "rose"][index % 4]}
-              onClick={card.onClick}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
-        {/* Header */}
-        <div className="border-b border-border p-4 sm:p-6">
-          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                Customer Directory
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Manage all your customer information
-              </p>
-            </div>
+    <>
+      <ListPage
+        title="Customer Management"
+        description={`${customers.length} total customers • ${rows.length} displayed`}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={loading}
+              className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              title="Refresh data"
+              aria-label="Refresh data"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
             <Can permission="sales.create">
-              <button
-                onClick={openAddModal}
-                className="erp-btn-primary"
-              >
-                <Plus size={18} />
+              <Button data-shortcut="new" onClick={openAddModal}>
                 Add Customer
-              </button>
+              </Button>
             </Can>
+          </>
+        }
+        beforeFilters={
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+            <StatCard title="Active Customers" count={customerStats.activeCustomers} icon={<Users size={24} />} subText="Show only active" tone="teal" onClick={() => list.setFilter("status", "Active")} />
+            <StatCard title="Inactive Customers" count={customerStats.inactiveCustomers} icon={<Clock size={24} />} subText="Show only inactive" tone="plum" onClick={() => list.setFilter("status", "Inactive")} />
           </div>
-
-          {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
-          <FilterBar
-            search={searchTerm}
-            onSearch={setSearchTerm}
-            searchLabel="Search customers"
-            placeholder="Name, ID, email or contact…"
-            active={filtersOn}
-            onClear={clearFilters}
-          >
-            <FilterSelect
-              label="Status"
-              value={filterStatus}
-              onChange={setFilterStatus}
-              allLabel="All statuses"
-              options={CUSTOMER_STATUSES.map((s) => [s, s])}
-            />
-            <FilterSelect
-              label="Payment terms"
-              value={filterPaymentTerms}
-              onChange={setFilterPaymentTerms}
-              allLabel="All terms"
-              options={paymentTermOptions.map((t) => [t, t])}
-            />
-          </FilterBar>
-        </div>
-
-        {/* Table/Content */}
-        {sortedAndFilteredCustomers.length === 0 ? (
-          emptyState
-        ) : (
-          <div className="overflow-x-auto">
-            <DataTable
-              caption="Customers"
-              rows={sortedAndFilteredCustomers}
-              rowKey={(customer) => customer._id}
-              columns={[
-                // The sort control belongs to the header, which only the table shape renders;
-                // on a card the order is whatever the page's sort already set.
-                ...[
-                  { key: "customerId", label: "Customer ID", card: "meta", cell: (c) => <span className="font-medium text-gray-900">{c.customerId}</span> },
-                  { key: "trnNumber", label: taxIdWord(), card: "hidden", cell: (c) => (c.trnNumber ? <span className="font-medium text-gray-900">{c.trnNumber}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
-                  {
-                    key: "customerName", label: "Customer Name", card: "primary",
-                    cell: (c) => (
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
-                          <Users size={16} className="text-purple-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{c.customerName}</div>
-                          <ExpiryPill documents={c.documents} />
-                        </div>
-                      </div>
-                    ),
-                  },
-                  { key: "contactPerson", label: "Contact Person", card: "title", cell: (c) => c.contactPerson },
-                  { key: "salesPerson", label: "Sales Person", card: "hidden", cell: (c) => (c.salesPerson ? <span className="font-medium text-gray-900">{c.salesPerson}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
-                  { key: "email", label: "Email", cell: (c) => <a href={`mailto:${c.email}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.email}</a> },
-                  { key: "phone", label: "Phone", cell: (c) => <a href={`tel:${c.phone}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.phone}</a> },
-                  { key: "creditLimit", label: "Credit Limit", card: "amount", cell: (c) => <span className="font-medium text-gray-900">{formatCurrency(c.creditLimit)}</span> },
-                  { key: "paymentTerms", label: "Payment Terms", card: "meta", cell: (c) => c.paymentTerms },
-                ].map((c) => ({
-                  ...c,
-                  header: (
-                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
-                      <span>{c.label}</span>
-                      {sortConfig.key === c.key && <span className="text-purple-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
-                    </button>
-                  ),
-                })),
-                {
-                  key: "status", header: "Status", card: "badge",
-                  cell: (c) => (
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(c.status)}
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(c.status)}`}>{c.status}</span>
-                    </div>
-                  ),
-                },
-                {
-                  key: "actions", header: "Actions", card: "actions",
-                  cell: (c) => (
-                    <div className="flex items-center space-x-3">
-                      <Can permission="sales.edit">
-                        <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
-                          <Edit size={16} />
-                        </button>
-                      </Can>
-                      <Can permission="sales.delete">
-                        <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
-                          <Trash2 size={16} />
-                        </button>
-                      </Can>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Enhanced Delete Confirmation Modal */}
-      {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
-            <div className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={32} className="text-red-600" />
+        }
+        list={list}
+        noun="customers"
+        searchLabel="Search customers"
+        placeholder="Name, ID, email or contact…"
+        filterChildren={
+          <>
+            <FilterSelect label="Status" value={list.filters.status} onChange={(v) => list.setFilter("status", v)} allLabel="All statuses" options={CUSTOMER_STATUSES.map((s) => [s, s])} />
+            <FilterSelect label="Payment terms" value={list.filters.paymentTerms} onChange={(v) => list.setFilter("paymentTerms", v)} allLabel="All terms" options={paymentTermOptions.map((t) => [t, t])} />
+          </>
+        }
+        caption="Customers"
+        rows={rows}
+        rowKey={(customer) => customer._id}
+        columns={[
+          { key: "customerId", header: "Customer ID", sortable: true, card: "meta", cell: (c) => <span className="font-medium text-gray-900">{c.customerId}</span> },
+          { key: "trnNumber", header: taxIdWord(), sortable: true, card: "hidden", cell: (c) => (c.trnNumber ? <span className="font-medium text-gray-900">{c.trnNumber}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
+          {
+            key: "customerName", header: "Customer Name", sortable: true, card: "primary",
+            cell: (c) => (
+              <div className="flex items-center">
+                <div className="flex-shrink-0 h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                  <Users size={16} className="text-purple-600" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{c.customerName}</div>
+                  <ExpiryPill documents={c.documents} />
                 </div>
               </div>
-
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                Delete Customer
-              </h3>
-
-              <p className="text-gray-600 text-center mb-2">
-                Are you sure you want to delete
-              </p>
-              <p className="text-gray-900 font-semibold text-center mb-6">
-                "{deleteConfirmation.customerName}"?
-              </p>
-              <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the
-                customer from your database.
-              </p>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={hideDeleteConfirmation}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
-                >
-                  {deleteConfirmation.isDeleting ? (
-                    <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} className="mr-2" />
-                      Delete
-                    </>
-                  )}
-                </button>
+            ),
+          },
+          { key: "contactPerson", header: "Contact Person", sortable: true, card: "title", cell: (c) => c.contactPerson },
+          { key: "salesPerson", header: "Sales Person", sortable: true, card: "hidden", cell: (c) => (c.salesPerson ? <span className="font-medium text-gray-900">{c.salesPerson}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
+          { key: "email", header: "Email", sortable: true, cell: (c) => <a href={`mailto:${c.email}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.email}</a> },
+          { key: "phone", header: "Phone", sortable: true, cell: (c) => <a href={`tel:${c.phone}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.phone}</a> },
+          { key: "creditLimit", header: "Credit Limit", sortable: true, card: "amount", cell: (c) => <span className="font-medium text-gray-900">{formatCurrency(c.creditLimit)}</span> },
+          { key: "paymentTerms", header: "Payment Terms", sortable: true, card: "meta", cell: (c) => c.paymentTerms },
+          {
+            key: "status", header: "Status", card: "badge",
+            cell: (c) => {
+              const Icon = STATUS_ICON[c.status] || AlertCircle;
+              return (
+                <div className="flex items-center space-x-2">
+                  <Icon size={14} aria-hidden="true" />
+                  <Pill tone={STATUS_TONE[c.status] || "neutral"}>{c.status}</Pill>
+                </div>
+              );
+            },
+          },
+          {
+            key: "actions", header: "Actions", card: "actions",
+            cell: (c) => (
+              <div className="flex items-center space-x-3">
+                <Can permission="sales.edit">
+                  <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
+                    <Edit size={16} />
+                  </button>
+                </Can>
+                <Can permission="sales.delete">
+                  <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
+                    <Trash2 size={16} />
+                  </button>
+                </Can>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            ),
+          },
+        ]}
+        loading={loading}
+        loadingLabel="Loading customers"
+        error={error}
+        onRetry={reload}
+        empty={emptyNode}
+      />
 
       {/* Add / edit: the shared party form */}
       {partyModal && (
@@ -640,7 +265,21 @@ const CustomerManagement = () => {
           onSaved={handlePartySaved}
         />
       )}
-    </div>
+
+      {deleteConfirmation.visible && (
+        <ConfirmDialog
+          title="Delete Customer"
+          text={`Are you sure you want to delete "${deleteConfirmation.customerName}"? This action cannot be undone and will permanently remove the customer from your database.`}
+          confirmLabel="Delete"
+          danger
+          busy={deleteConfirmation.isDeleting}
+          onClose={hideDeleteConfirmation}
+          onConfirm={confirmDelete}
+        />
+      )}
+
+      {toastNode}
+    </>
   );
 };
 
