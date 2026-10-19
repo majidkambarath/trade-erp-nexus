@@ -1140,12 +1140,12 @@ const StockManagement = () => {
                   cell: (item) => (
                     <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
                       <Can permission="inventory.edit">
-                        <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit item">
+                        <button onClick={() => handleEdit(item)} className="grid h-10 w-10 place-items-center rounded-lg text-indigo-600 transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-800 lg:h-8 lg:w-8" title="Edit item">
                           <Edit size={16} />
                         </button>
                       </Can>
                       <Can permission="inventory.delete">
-                        <button onClick={() => showDeleteConfirmation(item)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete item">
+                        <button onClick={() => showDeleteConfirmation(item)} className="grid h-10 w-10 place-items-center rounded-lg text-red-600 transition-all duration-200 hover:bg-red-50 hover:text-red-800 lg:h-8 lg:w-8" title="Delete item">
                           <Trash2 size={16} />
                         </button>
                       </Can>
@@ -1240,7 +1240,7 @@ const StockManagement = () => {
               </div>
               <button
                 onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
+                className="grid h-10 w-10 place-items-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white hover:text-gray-600 md:h-8 md:w-8"
               >
                 <X size={22} />
               </button>
