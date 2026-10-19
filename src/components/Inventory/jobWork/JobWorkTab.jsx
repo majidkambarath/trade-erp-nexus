@@ -436,12 +436,15 @@ export function ReceiveDialog({ job, onClose, onDone }) {
           {hasCosts && !canAny("finance.create") && <p className="mb-3 text-xs text-destructive">Your role cannot move expenses into stock (it needs Finance: Add).</p>}
           <div className="grid gap-3">
             {costs.map((c, i) => (
-              <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-start">
+              <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)_auto] sm:items-start">
                 <Field label="Expense" labelClassName="sm:sr-only" className="col-span-2 sm:col-span-1">
                   <SearchSelect value={c.accountId} onChange={(v) => setCost(i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="e.g. Powder coating charges" aria-label={`Cost ${i + 1} expense`} noOptionsText="Add the expense account under Accounts > Chart of accounts." />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only">
                   <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setCost(i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={orgCurrency()} />
+                </Field>
+                <Field label="Note" labelClassName="sm:sr-only" className="order-last col-span-2 sm:order-none sm:col-span-1">
+                  <TextInput value={c.narration} maxLength={300} onChange={(e) => setCost(i, { narration: e.target.value })} aria-label={`Cost ${i + 1} note`} placeholder="Note (optional)" />
                 </Field>
                 <Button type="button" variant="ghost" size="icon" className="self-end sm:self-center" onClick={() => setCosts((cs) => cs.filter((_, j) => j !== i))} aria-label={`Remove cost ${i + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
