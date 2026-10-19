@@ -314,6 +314,12 @@ export function SearchSelect({
 //
 // Omitting `onCreate` degrades to a plain SearchSelect with no creatable affordance - a screen can pass
 // it conditionally (a role without create permission, say) and nothing else changes.
+//
+// Testing note: react-select's own "create" option, unlike clicking an EXISTING option, does not reliably
+// fire onCreateOption from a bare `fireEvent.click` in jsdom - send `fireEvent.mouseDown` then
+// `fireEvent.click` on it (found the hard way: the click resolved, the option was real and correctly
+// wired, and onCreate simply never ran - no error, nothing to see without instrumenting the handler
+// itself to prove it was never reached).
 export function QuickAddSelect({
   id, value, onChange, options, onCreate, onCreated, onCreateError,
   createLabel = (text) => `Add "${text}"`,

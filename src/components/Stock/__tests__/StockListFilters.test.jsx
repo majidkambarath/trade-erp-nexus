@@ -233,6 +233,17 @@ describe("a half-filled new item is kept", () => {
     fireEvent.click(await screen.findByText(selectText));
     fireEvent.click(await screen.findByText(optionText));
   };
+  // Category is a QuickAddSelect (kit.jsx) now, not the old hand-rolled FormSelect - scoped to the open
+  // dialog because the filter row behind it has its own combobox of the same name ("Category").
+  const pickCategory = async (optionText) => {
+    // the combobox is scoped to the open dialog (the filter row behind it has its own, same-named one),
+    // but the OPEN MENU is not - react-select portals it to document.body, outside the dialog's own DOM
+    // subtree, so the option itself is found unscoped (only one menu is ever open at a time)
+    const input = within(screen.getByRole("dialog")).getByRole("combobox", { name: "Category" });
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown", keyCode: 40 });
+    fireEvent.click(await screen.findByRole("option", { name: optionText }));
+  };
 
   it("comes back after another page, and is gone once cancelled", async () => {
     const first = await show();
@@ -262,7 +273,7 @@ describe("a half-filled new item is kept", () => {
   it("is gone after a successful save", async () => {
     const first = await show();
     openAdd();
-    await pick("Select category", "General");
+    await pickCategory("General");
     fireEvent.change(nameField(), { target: { value: "Flour" } });
     await pick(/Select unit/, "Kg");
     fireEvent.change(screen.getByPlaceholderText("Enter country of origin"), { target: { value: "UAE" } });
@@ -297,7 +308,7 @@ describe("a half-filled new item is kept", () => {
   it("keeps a SKU the person typed by hand instead of replacing it with the next automatic one", async () => {
     const first = await show();
     openAdd();
-    await pick("Select category", "General");
+    await pickCategory("General");
     // choosing the category fills the SKU in automatically; switch to Manual and type our own
     await waitFor(() => expect(screen.getByPlaceholderText("Enter SKU code")).toHaveValue("GE0003"));
     fireEvent.click(screen.getByRole("button", { name: "Auto" }));
@@ -326,5 +337,40 @@ describe("a half-filled new item is kept", () => {
     openAdd();
     expect(nameField()).toHaveValue("");
     expect(screen.getByPlaceholderText("Enter SKU code")).toHaveValue("");
+  }, 30000);
+
+  it("the category field can create a category in place, with no separate button or modal", async () => {
+    m.post.mockImplementation((url, body) => {
+      if (url === "/categories/categories") return Promise.resolve({ data: { data: { _id: "cat9", name: body.name, status: "Active" } } });
+      return Promise.resolve({ data: { data: { stock: {} } } });
+    });
+    await show();
+    const categoryFetches = () => m.get.mock.calls.filter((c) => c[0] === "/categories/categories").length;
+    openAdd();
+    const dialog = screen.getByRole("dialog");
+    const input = within(dialog).getByRole("combobox", { name: "Category" });
+    const fetchedBefore = categoryFetches();
+
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown", keyCode: 40 });
+    fireEvent.change(input, { target: { value: "Pulses" } });
+    // nothing named "Pulses" exists, so the list offers to create it instead of saying nothing matches - a
+    // moment of real time first, then a synchronous (not polling) query: react-select's own CREATE option
+    // only fires onCreateOption on mousedown-then-click against the SAME node findByRole resolved with,
+    // and a node found mid-poll (rather than after everything has settled) was a different, stale one by
+    // the time the click ran - no error either way, which made this look like a silent no-op at first
+    await wait(50);
+    const createOption = screen.getByRole("option", { name: 'Add "Pulses"' });
+    fireEvent.mouseDown(createOption);
+    fireEvent.mouseUp(createOption);
+    fireEvent.click(createOption);
+
+    await waitFor(() => expect(m.post).toHaveBeenCalledWith("/categories/categories", { name: "Pulses", description: "Pulses", status: "Active" }));
+    // selected at once, without waiting for the list to be asked for again - its own waitFor, not a bare
+    // assertion right after the one above: that one only proves the request fired, not that the state
+    // updates it triggers (setJustCreated/onChange) have been committed to the DOM yet
+    await waitFor(() => expect(within(screen.getByRole("dialog")).getByText("Pulses")).toBeInTheDocument());
+    // and the real list is refetched in the background, so the new category is there to pick again later
+    await waitFor(() => expect(categoryFetches()).toBe(fetchedBefore + 1));
   }, 30000);
 });
