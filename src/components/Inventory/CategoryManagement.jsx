@@ -5,24 +5,22 @@ import {
   RefreshCw,
   Tag,
   Edit3,
-  X,
   CheckCircle2,
   XCircle,
   Loader2,
   AlertCircle,
-  AlertTriangle,
   Trash2,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
-import { toastClasses } from "../../lib/status";
 import { pageSession } from "../../lib/pageSession";
 import StatCard from "../ui/stat-card";
+import { Button } from "../ui/button";
 import FilterBar from "../lists/FilterBar";
 import ListPager from "../lists/ListPager";
 import { pageFigures } from "../../lib/pagination";
 
 import { downloadCSV, formatTime } from "../../utils/format";
-import { DataTable } from "../accounting/DataTable";
+import { ConfirmDialog, DataTable, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, Textarea, useToasts } from "../accounting/kit";
 import Can from "../shell/Can";
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, and a half-filled
@@ -58,11 +56,7 @@ const CategoryManagement = () => {
   const [formData, setFormData] = useState(() => restoredDraft || blankForm());
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showToast, setShowToast] = useState({
-    visible: false,
-    message: "",
-    type: "success",
-  });
+  const { notify, toastNode } = useToasts();
   const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(restoredDraft));
   const [lastSaveTime, setLastSaveTime] = useState(() => (restoredDraft ? session.get("lastSaveTime") : null));
   const [deleteConfirmation, setDeleteConfirmation] = useState({
@@ -100,13 +94,9 @@ const CategoryManagement = () => {
     session.set("searchTerm", searchTerm);
   }, [searchTerm]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+  // Every existing call site below reads `showToastMessage(message, type)` - kept as a thin wrapper over the
+  // shared kit.useToasts() so none of them needed to change.
+  const showToastMessage = useCallback((message, type = "success") => notify(message, type), [notify]);
 
   // The rows on the screen answer one question (a page of one search). The empty state is a claim about THAT question, so it is
   // drawn only once the answer to the question now being asked is in: after a page or a search changes there is one frame, before
@@ -329,51 +319,34 @@ const CategoryManagement = () => {
   }, [fetchCategories, fetchStats]);
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Category Management</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {stats.totalCategories} total categories • {categories.length} displayed
-          </p>
-        </div>
-        <div className="flex items-center space-x-2 mt-4 sm:mt-0">
-          <button
-            type="button"
-            onClick={handleExport}
-            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-            title="Export to CSV"
-            aria-label="Export to CSV"
-          >
-            <Download size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={isLoading}
-            className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
-            title="Refresh data"
-            aria-label="Refresh data"
-          >
-            <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-          </button>
-        </div>
-      </div>
-
-      {showToast.visible && (
-        <div
-          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
-        >
-          <div className="flex items-center space-x-2">
-            {showToast.type === "success" ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <XCircle size={16} />
-            )}
-            <span>{showToast.message}</span>
-          </div>
-        </div>
-      )}
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Category Management"
+        description={`${stats.totalCategories} total categories • ${categories.length} displayed`}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={handleExport}
+              className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              title="Export to CSV"
+              aria-label="Export to CSV"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              title="Refresh data"
+              aria-label="Refresh data"
+            >
+              <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+            </button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 mb-8">
         {[
@@ -405,34 +378,26 @@ const CategoryManagement = () => {
           ))}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+      <Panel
+        bodyClassName="p-0"
+        title="Category List"
+        description="Manage all inventory categories"
+        actions={
+          <Can permission="inventory.create">
+            <Button
+              onClick={() => {
+                setShowModal(true);
+                setIsEditMode(false);
+                setEditCategoryId(null);
+              }}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add Category
+            </Button>
+          </Can>
+        }
+      >
         <div className="border-b border-border p-4 sm:p-6">
-          <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Category List</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Manage all inventory categories</p>
-            </div>
-            <Can permission="inventory.create">
-              <button
-                onClick={() => {
-                  setShowModal(true);
-                  setIsEditMode(false);
-                  setEditCategoryId(null);
-                  setTimeout(() => {
-                    if (formRef.current) {
-                      const firstInput = formRef.current.querySelector('input[name="name"]');
-                      if (firstInput) firstInput.focus();
-                    }
-                  }, 10);
-                }}
-                className="erp-btn-primary"
-              >
-                <Plus size={18} />
-                Add Category
-              </button>
-            </Can>
-          </div>
-
           {/* The search: always showing, the same row every list of the product has (components/lists/FilterBar.jsx). It has no other
               choice to offer: a category has a name, a description and a status, and the server searches the first two. */}
           <FilterBar
@@ -447,8 +412,8 @@ const CategoryManagement = () => {
 
         {isLoading && (
           <div className="flex items-center justify-center p-12">
-            <Loader2 size={32} className="animate-spin text-indigo-600" />
-            <span className="ml-3 text-gray-600">Loading categories...</span>
+            <Loader2 size={32} className="animate-spin text-muted-foreground" />
+            <span className="ml-3 text-muted-foreground">Loading categories...</span>
           </div>
         )}
 
@@ -463,28 +428,24 @@ const CategoryManagement = () => {
                   key: "name", header: "Category Name", card: "primary",
                   cell: (category) => (
                     <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-indigo-100 rounded-lg">
-                        <Tag size={16} className="text-indigo-600" />
+                      <div className="rounded-lg bg-secondary p-2">
+                        <Tag size={16} className="text-muted-foreground" />
                       </div>
-                      <p className="font-semibold text-gray-900">{category.name}</p>
+                      <p className="font-semibold text-foreground">{category.name}</p>
                     </div>
                   ),
                 },
-                { key: "description", header: "Description", card: "title", cell: (category) => <p className="text-sm text-gray-600">{category.description || "No description"}</p> },
+                { key: "description", header: "Description", card: "title", cell: (category) => <p className="text-sm text-muted-foreground">{category.description || "No description"}</p> },
                 {
                   key: "status", header: "Status", card: "badge",
-                  cell: (category) => (
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${category.status === "Active" ? "bg-green-100 text-green-800 border-green-200" : "bg-red-100 text-red-800 border-red-200"}`}>
-                      {category.status}
-                    </span>
-                  ),
+                  cell: (category) => <Pill tone={category.status === "Active" ? "success" : "danger"}>{category.status}</Pill>,
                 },
                 {
                   key: "actions", header: "Actions", align: "center", card: "actions",
                   cell: (category) => (
                     <div className="flex justify-center space-x-2">
-                      <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200" title="Edit Category"><Edit3 size={16} /></button></Can>
-                      <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200" title="Delete Category"><Trash2 size={16} /></button></Can>
+                      <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground" title="Edit Category"><Edit3 size={16} /></button></Can>
+                      <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="rounded-lg p-2 text-status-danger transition-colors duration-200 hover:bg-status-danger-soft" title="Delete Category"><Trash2 size={16} /></button></Can>
                     </div>
                   ),
                 },
@@ -533,205 +494,80 @@ const CategoryManagement = () => {
             className="rounded-none border-0 border-t shadow-none"
           />
         )}
-      </div>
+      </Panel>
 
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  {isEditMode ? "Edit Category" : "Add Category"}
-                </h3>
-                <div className="flex items-center mt-1 space-x-4">
-                  <p className="text-gray-600 text-sm">
-                    {isEditMode ? "Update an existing inventory category" : "Create a new inventory category"}
-                  </p>
-                  {!isEditMode && isDraftSaved && lastSaveTime && (
-                    <p className="text-sm text-green-600 flex items-center">
-                      <CheckCircle2 size={12} className="mr-1" />
-                      Draft saved {formatLastSaveTime(lastSaveTime)}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6" ref={formRef}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter category name"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.name
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.name && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder="Optional description..."
-                  rows="4"
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none ${
-                    errors.description
-                      ? "border-red-300 bg-red-50"
-                      : "border-gray-300"
-                    }`}
-                />
-                {errors.description && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle size={12} className="mr-1" />
-                    {errors.description}
-                  </p>
+        <Modal
+          size="lg"
+          title={isEditMode ? "Edit Category" : "Add Category"}
+          description={isEditMode ? "Update an existing inventory category" : "Create a new inventory category"}
+          onClose={resetForm}
+          footer={
+            <>
+              <Button variant="outline" onClick={resetForm} disabled={isSubmitting}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                {isSubmitting ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Category" : "Create Category"}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid gap-4" ref={formRef}>
+            {/* a new category is kept as a draft; an edit is not (nothing is saved until Update) */}
+            {!isEditMode && (
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                {isDraftSaved && lastSaveTime && (
+                  <span className="flex items-center text-status-success">
+                    <CheckCircle2 size={12} className="mr-1" aria-hidden="true" />
+                    Draft saved {formatLastSaveTime(lastSaveTime)}
+                  </span>
                 )}
+                {isDraftSaved ? (
+                  <span className="flex items-center text-status-success">
+                    <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
+                    Changes saved automatically
+                  </span>
+                ) : formData.name || formData.description ? (
+                  <span className="flex items-center text-status-warning">
+                    <AlertCircle size={14} className="mr-1" aria-hidden="true" />
+                    Unsaved changes
+                  </span>
+                ) : null}
               </div>
+            )}
 
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-500">
-                  {/* a new category is kept as a draft; an edit is not (nothing is saved until Update) */}
-                  {isEditMode ? null : isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle2 size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.name || formData.description ? (
-                    <span className="flex items-center text-status-warning">
-                      <AlertCircle size={14} className="mr-1" />
-                      Unsaved changes
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    onClick={resetForm}
-                    disabled={isSubmitting}
-                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="mr-2 animate-spin" />
-                        {isEditMode ? "Updating..." : "Creating..."}
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 size={16} className="mr-2" />
-                        {isEditMode ? "Update Category" : "Create Category"}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Category Name" required error={errors.name}>
+                <TextInput data-autofocus name="name" value={formData.name} onChange={handleChange} placeholder="Enter category name" />
+              </Field>
+              <Field label="Status">
+                <Select name="status" value={formData.status} onChange={handleChange}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </Select>
+              </Field>
             </div>
+
+            <Field label="Description" error={errors.description}>
+              <Textarea name="description" value={formData.description} onChange={handleChange} placeholder="Optional description..." rows={4} />
+            </Field>
           </div>
-        </div>
+        </Modal>
       )}
 
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
-            <div className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={32} className="text-red-600" />
-                </div>
-              </div>
-
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                Delete Category
-              </h3>
-
-              <p className="text-gray-600 text-center mb-2">
-                Are you sure you want to delete
-              </p>
-              <p className="text-gray-900 font-semibold text-center mb-6">
-                "{deleteConfirmation.categoryName}"?
-              </p>
-              <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the
-                category from your inventory.
-              </p>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={hideDeleteConfirmation}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
-                >
-                  {deleteConfirmation.isDeleting ? (
-                    <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} className="mr-2" />
-                      Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Category"
+          text={`Are you sure you want to delete "${deleteConfirmation.categoryName}"? This action cannot be undone and will permanently remove the category from your inventory.`}
+          confirmLabel="Delete"
+          danger
+          busy={deleteConfirmation.isDeleting}
+          onClose={hideDeleteConfirmation}
+          onConfirm={confirmDelete}
+        />
       )}
+
+      {toastNode}
     </div>
   );
 };
