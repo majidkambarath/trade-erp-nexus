@@ -151,7 +151,7 @@ describe("the vendor list's search and filters", () => {
     render(<VendorManagement />);
     await screen.findByText("Gulf Mills");
     expect(rowOrder()[0]).toMatch(/Dubai Dates/);
-    expect(screen.getByRole("button", { name: /Vendor Name/ })).toHaveTextContent("↑");
+    expect(screen.getByRole("columnheader", { name: /Vendor Name/ })).toHaveAttribute("aria-sort", "ascending");
   });
 
   it("start empty again once the sessions are cleared (sign-out)", async () => {
