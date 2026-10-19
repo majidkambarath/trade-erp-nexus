@@ -1120,7 +1120,9 @@ const StockManagement = () => {
                 ].map((c) => ({
                   ...c,
                   header: (
-                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                    // -my-3.5/py-3.5 grows the tap target past the 40px floor without moving the text,
+                    // same invisible-expansion trick as DataTable's own sort buttons (accounting/DataTable.jsx).
+                    <button type="button" onClick={() => handleSort(c.key)} className="-my-3.5 flex items-center space-x-1 py-3.5 hover:text-foreground">
                       <span>{c.label}</span>
                       {sortConfig.key === c.key && <span className="text-indigo-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
                     </button>
