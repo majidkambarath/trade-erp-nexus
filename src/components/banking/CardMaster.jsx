@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Pencil, Plus, ShieldCheck } from "lucide-react";
 import { Button } from "../ui/button";
-import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, QuickAddSelect, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { banking } from "../../lib/bankingApi";
 import { cn } from "../../lib/utils";
@@ -75,6 +75,14 @@ export function CardForm({ card, onClose, onSaved }) {
   const [problem, setProblem] = useState(null);
   const set = (p) => setF((s) => ({ ...s, ...p }));
 
+  // The card type picker's quick-add (kit.QuickAddSelect): a card type needs only a name to exist
+  // (feePercent defaults to 0, isActive defaults true), so typing one that does not exist and choosing
+  // "Add ..." creates it for real, in place - the screen used to say "Add card types first" and send
+  // the person to the separate Card types screen with no way back to where they were.
+  const createCardType = useCallback(async (name) => {
+    const created = await banking.createCardType({ name });
+    return { value: created._id, label: created.name };
+  }, []);
   const typeOptions = useMemo(() => (types.data || []).map((t) => ({ value: t._id, label: t.name, hint: `${t.feePercent}% fee` })), [types.data]);
   const bankOptions = useMemo(() => (banks.data || []).map((b) => ({ value: b._id, label: b.bankName, hint: b.bankCode })), [banks.data]);
   const accountOptions = useMemo(() => (opts.data?.bankAccounts || []).map((a) => ({ value: a._id, label: a.accountName, hint: a.bank?.bankName || a.accountCode, searchText: a.accountCode })), [opts.data]);
@@ -134,7 +142,19 @@ export function CardForm({ card, onClose, onSaved }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name" required error={errors.label}><TextInput value={f.label} onChange={(e) => set({ label: e.target.value })} maxLength={100} data-autofocus placeholder={f.kind === "terminal" ? "e.g. Emirates NBD POS 1" : "e.g. Company Visa"} /></Field>
-          <Field label="Card type" required error={errors.cardTypeId}><SearchSelect value={f.cardTypeId} onChange={(v) => set({ cardTypeId: v })} options={typeOptions} placeholder="Visa, Mastercard…" invalid={Boolean(errors.cardTypeId)} noOptionsText="Add card types first" loading={types.loading} /></Field>
+          <Field label="Card type" required error={errors.cardTypeId}>
+            <QuickAddSelect
+              value={f.cardTypeId}
+              onChange={(v) => set({ cardTypeId: v })}
+              options={typeOptions}
+              onCreate={createCardType}
+              onCreated={types.reload}
+              onCreateError={(err) => setProblem(err)}
+              placeholder="Search or add a card type…"
+              invalid={Boolean(errors.cardTypeId)}
+              loading={types.loading}
+            />
+          </Field>
           <Field label="Issuing / acquiring bank"><SearchSelect value={f.bankId} onChange={(v) => set({ bankId: v })} options={bankOptions} clearable placeholder="Optional" loading={banks.loading} /></Field>
           {needsAccount && (
             <Field label={f.kind === "terminal" ? "Settles into" : "Draws on"} required error={errors.accountId}>
