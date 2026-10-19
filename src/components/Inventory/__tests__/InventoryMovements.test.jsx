@@ -165,3 +165,143 @@ describe("the search and the choices are kept", () => {
     expect(screen.getByRole("combobox", { name: "Event type" })).toBeVisible();
   });
 });
+
+// Record Movement and Movement Details used to be two hand-rolled dialogs, each with its own close button built
+// from <X> and each error line built from <AlertCircle> - neither icon was imported anywhere in the file, so
+// OPENING either dialog threw "X is not defined" and crashed the page. Nothing here ever exercised that path
+// before, which is exactly how it shipped broken; these tests are what should have caught it.
+describe("recording a movement", () => {
+  const STOCKS = [
+    { _id: "s1", itemName: "Basmati Rice 5kg", sku: "SKU-1" },
+    { _id: "s2", itemName: "Sunflower Oil 1L", sku: "SKU-2" },
+  ];
+
+  beforeEach(() => {
+    api.get.mockImplementation(async (url, cfg) => {
+      if (url === "/inventory/inventory") {
+        const { page, limit } = cfg.params;
+        return { data: { data: { movements: all.slice((page - 1) * limit, page * limit) }, total: all.length, totalPages: Math.ceil(all.length / limit) } };
+      }
+      if (url === "/inventory/inventory/stats") return { data: { data: { stats } } };
+      if (url === "/stock/stock") return { data: { data: { stocks: STOCKS } } };
+      return { data: { data: {} } };
+    });
+  });
+
+  const open = async () => {
+    show();
+    await screen.findByText("REF-1");
+    fireEvent.click(screen.getByRole("button", { name: "Record Movement" }));
+    return screen.findByRole("dialog", { name: "Record Movement" });
+  };
+  // Stock Item is a SearchSelect (react-select): a bare fireEvent.change just types into its search box
+  // and never commits a value - the menu has to be opened and the option clicked, same convention as
+  // Stock/__tests__/StockItemTypes.test.jsx's pickCategory.
+  const pickStockItem = async (dialog, optionText) => {
+    const input = within(dialog).getByRole("combobox", { name: "Stock Item" });
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown", keyCode: 40 });
+    fireEvent.click(await screen.findByRole("option", { name: optionText }));
+  };
+
+  it("opens without crashing, defaulted to Stock Adjustment", async () => {
+    const dialog = await open();
+    expect(within(dialog).getByRole("combobox", { name: "Event Type" })).toHaveValue("STOCK_ADJUSTMENT");
+    // a system-only event (written by Production, never typed here) is not offered
+    expect(within(dialog).queryByText("Used in Production")).not.toBeInTheDocument();
+  });
+
+  it("refuses to submit without a stock item, a quantity or a reference, and says so", async () => {
+    const dialog = await open();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record Movement" }));
+    expect(await within(dialog).findByText("Stock item is required")).toBeInTheDocument();
+    expect(within(dialog).getByText("Valid non-zero quantity is required")).toBeInTheDocument();
+    expect(within(dialog).getByText("Reference number is required")).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it("posts the filled-in form and refreshes the list once it succeeds", async () => {
+    api.post.mockResolvedValue({ data: { success: true } });
+    const dialog = await open();
+    await pickStockItem(dialog, "Sunflower Oil 1L (SKU-2)");
+    fireEvent.change(within(dialog).getByLabelText(/^Quantity/), { target: { value: "-4" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Reference Number/), { target: { value: "ADJ-2026-01" } });
+    fireEvent.change(within(dialog).getByLabelText(/Unit Cost/), { target: { value: "7.5" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record Movement" }));
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/inventory/inventory", expect.objectContaining({
+      stockId: "s2", quantity: -4, referenceNumber: "ADJ-2026-01", unitCost: 7.5, eventType: "STOCK_ADJUSTMENT",
+    })));
+    expect(await screen.findByText("Inventory movement recorded successfully!")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps the form open and shows the server's message when the save fails", async () => {
+    api.post.mockRejectedValueOnce({ response: { data: { message: "Stock would go negative" } } });
+    const dialog = await open();
+    await pickStockItem(dialog, "Basmati Rice 5kg (SKU-1)");
+    fireEvent.change(within(dialog).getByLabelText(/^Quantity/), { target: { value: "-100" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Reference Number/), { target: { value: "ADJ-2026-02" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record Movement" }));
+    expect(await screen.findByText("Stock would go negative")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Record Movement" })).toBeInTheDocument();
+  });
+
+  it("keeps a half-filled draft across a remount, and Cancel discards it", async () => {
+    const first = render(<MemoryRouter><InventoryManagement /></MemoryRouter>);
+    await screen.findByText("REF-1");
+    fireEvent.click(screen.getByRole("button", { name: "Record Movement" }));
+    let dialog = await screen.findByRole("dialog", { name: "Record Movement" });
+    fireEvent.change(within(dialog).getByLabelText(/^Reference Number/), { target: { value: "ADJ-DRAFT" } });
+    expect(await within(dialog).findByText("Changes saved automatically", {}, { timeout: 4000 })).toBeInTheDocument();
+    first.unmount();
+
+    render(<MemoryRouter><InventoryManagement /></MemoryRouter>);
+    await screen.findByText("REF-1");
+    fireEvent.click(screen.getByRole("button", { name: "Record Movement" }));
+    dialog = await screen.findByRole("dialog", { name: "Record Movement" });
+    expect(within(dialog).getByLabelText(/^Reference Number/)).toHaveValue("ADJ-DRAFT");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Movement" }));
+    dialog = await screen.findByRole("dialog", { name: "Record Movement" });
+    expect(within(dialog).getByLabelText(/^Reference Number/)).toHaveValue("");
+  }, 10000);
+});
+
+describe("a movement's details", () => {
+  it("opens from its row and shows the item, the change, the event type, the money and who recorded it", async () => {
+    all = [movement(1, { quantity: -6, totalValue: 90, unitCost: 15, eventType: "SALES_DISPATCH", location: "WH-2", notes: "Damaged in transit" })];
+    show();
+    await screen.findByText("REF-1");
+    fireEvent.click(screen.getByRole("button", { name: "View details of REF-1" }));
+    const dialog = await screen.findByRole("dialog", { name: "Movement Details" });
+
+    expect(within(dialog).getByText("Rice 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("-6")).toBeInTheDocument();
+    expect(within(dialog).getByText("Stock changed from 0 to 5")).toBeInTheDocument();
+    expect(within(dialog).getByText("Sales Dispatch")).toBeInTheDocument();
+    expect(within(dialog).getByText("REF-1")).toBeInTheDocument();
+    expect(within(dialog).getByText(money(15))).toBeInTheDocument();
+    // the sign and the currency are in nested spans (formatCurrency wraps its own), so the combined
+    // text is checked on their shared row rather than as one getByText string
+    expect(within(dialog).getByText("Total Value:").closest("div")).toHaveTextContent(`−${money(90)}`);
+    expect(within(dialog).getByText("WH-2")).toBeInTheDocument();
+    expect(within(dialog).getByText("Mariam Haddad")).toBeInTheDocument();
+    expect(within(dialog).getByText("Damaged in transit")).toBeInTheDocument();
+
+    // the dialog has two controls named "Close" - the header's X (aria-label) and this footer button
+    // (same pattern as accounting/Currencies.jsx) - scoped to the footer to click the right one
+    fireEvent.click(within(dialog.querySelector("footer")).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("leaves out the Notes section when a movement was recorded without one", async () => {
+    show();
+    await screen.findByText("REF-1");
+    fireEvent.click(screen.getByRole("button", { name: "View details of REF-1" }));
+    const dialog = await screen.findByRole("dialog", { name: "Movement Details" });
+    expect(within(dialog).queryByText("Notes")).not.toBeInTheDocument();
+  });
+});

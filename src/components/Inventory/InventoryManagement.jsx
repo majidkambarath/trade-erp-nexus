@@ -15,7 +15,6 @@ import {
   BarChart3,
   MapPin,
   CheckCircle2,
-  XCircle,
   Loader2,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
@@ -26,11 +25,29 @@ import ListPager from "../lists/ListPager";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
-import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
+import { Button } from "../ui/button";
 
-import { DateInput } from "../accounting/kit";
+import { DateInput, Field, Modal, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, useToasts } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
+
+// The event-type badge used to be 8 literal Tailwind colours (bg-green-100 text-green-800...), none of them
+// dark-mode aware. The direction (in/out) is already shown by the row's own coloured arrow, so the badge's
+// job is only to label WHICH kind of event it was - mapped onto the product's one contrast-tested tone system
+// rather than inventing a second palette.
+const EVENT_TONE = {
+  INITIAL_STOCK: "info",
+  STOCK_ADJUSTMENT: "neutral",
+  PURCHASE_RECEIVE: "success",
+  SALES_DISPATCH: "info",
+  PURCHASE_RETURN: "warning",
+  SALES_RETURN: "warning",
+  DAMAGED_STOCK: "danger",
+  TRANSFER_IN: "success",
+  TRANSFER_OUT: "neutral",
+  PRODUCTION_ISSUE: "neutral",
+  PRODUCTION_RECEIPT: "success",
+};
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices,
 // the period, and a half-filled movement form. Held in memory for the tab; emptied at sign-out.
@@ -46,6 +63,15 @@ const signedValue = (m) => Math.sign(Number(m.quantity) || 0) * Math.abs(Number(
 const signText = (n) => (n > 0 ? "+" : n < 0 ? "−" : "");
 // The server sends the person's NAME. An account that no longer exists has none, and its raw id is never shown in its place.
 const whoText = (m) => m.createdByName || "Unknown user";
+
+// A labelled block in the Movement Details modal - that modal only shows a record, it never edits one, so
+// these are plain labelled blocks rather than kit.Field (which is for a form control with a label).
+const DetailField = ({ label, children, className }) => (
+  <div className={className}>
+    <p className="mb-1 text-sm font-semibold text-muted-foreground">{label}</p>
+    {children}
+  </div>
+);
 
 const InventoryManagement = () => {
   const [movements, setMovements] = useState([]);
@@ -91,11 +117,7 @@ const InventoryManagement = () => {
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showToast, setShowToast] = useState({
-    visible: false,
-    message: "",
-    type: "success",
-  });
+  const { notify, toastNode } = useToasts();
   const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(session.get("formData")));
   const [lastSaveTime, setLastSaveTime] = useState(() => session.get("lastSaveTime"));
 
@@ -106,7 +128,6 @@ const InventoryManagement = () => {
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
 
   const eventTypes = [
@@ -236,13 +257,7 @@ const InventoryManagement = () => {
     setFilterMovementType("");
   };
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
+  const showToastMessage = useCallback((message, type = "success") => notify(message, type), [notify]);
 
   const handleChange = useCallback(
     (e) => {
@@ -253,6 +268,9 @@ const InventoryManagement = () => {
     },
     [errors]
   );
+  // SearchSelect (the stock item picker: this list can run long, house rule in CLAUDE.md) hands back the
+  // chosen value directly rather than an event - reuses handleChange's own logic through the same shape.
+  const handleStockChange = useCallback((value) => handleChange({ target: { name: "stockId", value } }), [handleChange]);
 
   const validateForm = useCallback(() => {
     const newErrors = {};
@@ -393,30 +411,12 @@ const InventoryManagement = () => {
     fetchStockItems();
   }, [fetchMovements, fetchStats, fetchStockItems]);
 
-  const getEventTypeBadge = useCallback((eventType) => {
-    const type = eventTypes.find((t) => t.value === eventType);
-    if (!type) return "bg-gray-100 text-gray-800 border-gray-200";
-
-    const colors = {
-      blue: "bg-blue-100 text-blue-800 border-blue-200",
-      purple: "bg-purple-100 text-purple-800 border-purple-200",
-      green: "bg-green-100 text-green-800 border-green-200",
-      red: "bg-red-100 text-red-800 border-red-200",
-      orange: "bg-orange-100 text-orange-800 border-orange-200",
-      teal: "bg-teal-100 text-teal-800 border-teal-200",
-      indigo: "bg-indigo-100 text-indigo-800 border-indigo-200",
-      gray: "bg-gray-100 text-gray-800 border-gray-200",
-    };
-
-    return colors[type.color] || colors.gray;
-  }, []);
-
   const getMovementIcon = useCallback((quantity) => {
     return quantity > 0 ? ArrowUpCircle : ArrowDownCircle;
   }, []);
 
   const getMovementColor = useCallback((quantity) => {
-    return quantity > 0 ? "text-green-600" : "text-red-600";
+    return quantity > 0 ? "text-status-success" : "text-status-danger";
   }, []);
 
   return (
@@ -449,22 +449,6 @@ const InventoryManagement = () => {
           </button>
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {showToast.visible && (
-        <div
-          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
-        >
-          <div className="flex items-center space-x-2">
-            {showToast.type === "success" ? (
-              <CheckCircle2 size={16} />
-            ) : (
-              <XCircle size={16} />
-            )}
-            <span>{showToast.message}</span>
-          </div>
-        </div>
-      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-5 mb-8">
@@ -519,21 +503,10 @@ const InventoryManagement = () => {
               <h2 className="text-xl font-semibold text-foreground">Movement History</h2>
               <p className="mt-1 text-sm text-muted-foreground">Track all inventory movements and changes</p>
             </div>
-            <button
-              onClick={() => {
-                setShowModal(true);
-                setTimeout(() => {
-                  if (formRef.current) {
-                    const firstInput = formRef.current.querySelector('select[name="stockId"]');
-                    if (firstInput) firstInput.focus();
-                  }
-                }, 10);
-              }}
-              className="erp-btn-primary"
-            >
-              <Plus size={18} />
+            <Button data-shortcut="new" onClick={() => setShowModal(true)}>
+              <Plus size={18} aria-hidden="true" />
               Record Movement
-            </button>
+            </Button>
           </div>
 
           {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
@@ -573,12 +546,7 @@ const InventoryManagement = () => {
         </div>
 
         {/* Loading State */}
-        {isLoading && (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 size={32} className="animate-spin text-indigo-600" />
-            <span className="ml-3 text-gray-600">Loading movements...</span>
-          </div>
-        )}
+        {isLoading && <Spinner label="Loading movements" />}
 
         {/* Movements Table */}
         {!isLoading && (
@@ -621,9 +589,9 @@ const InventoryManagement = () => {
                 {
                   key: "eventType", header: "Event Type", card: "badge",
                   cell: (m) => (
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium border ${getEventTypeBadge(m.eventType)}`}>
+                    <Pill tone={EVENT_TONE[m.eventType] || "neutral"}>
                       {eventTypes.find((t) => t.value === m.eventType)?.label || m.eventType}
-                    </span>
+                    </Pill>
                   ),
                 },
                 {
@@ -725,441 +693,176 @@ const InventoryManagement = () => {
 
       {/* Add Movement Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  Record Movement
-                </h3>
-                <div className="flex items-center mt-1 space-x-4">
-                  <p className="text-gray-600 text-sm">
-                    Create a new inventory movement
-                  </p>
-                  {isDraftSaved && lastSaveTime && (
-                    <p className="text-sm text-green-600 flex items-center">
-                      <CheckCircle2 size={12} className="mr-1" />
-                      Draft saved {formatLastSaveTime(lastSaveTime)}
-                    </p>
-                  )}
-                </div>
+        <Modal
+          size="lg"
+          title="Record Movement"
+          description="Create a new inventory movement"
+          onClose={resetForm}
+          footer={
+            <>
+              <div className="me-auto flex items-center text-sm text-muted-foreground">
+                {isDraftSaved ? (
+                  <span className="flex items-center text-status-success">
+                    <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
+                    Changes saved automatically
+                  </span>
+                ) : formData.stockId || formData.quantity || formData.referenceNumber ? (
+                  <span className="flex items-center text-status-warning">
+                    <Clock size={14} className="mr-1" aria-hidden="true" />
+                    Unsaved changes
+                  </span>
+                ) : null}
               </div>
-              <button
-                onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
+              <Button variant="outline" onClick={resetForm} disabled={isSubmitting}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                {isSubmitting ? "Recording..." : "Record Movement"}
+              </Button>
+            </>
+          }
+        >
+          {isDraftSaved && lastSaveTime && (
+            <p className="mb-4 flex items-center text-sm text-status-success">
+              <CheckCircle2 size={12} className="mr-1" aria-hidden="true" />
+              Draft saved {formatLastSaveTime(lastSaveTime)}
+            </p>
+          )}
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Stock Item" required error={errors.stockId}>
+                <SearchSelect autoFocus value={formData.stockId} onChange={handleStockChange} placeholder="Select stock item" options={stockItems.map((item) => ({ value: item._id, label: `${item.itemName} (${item.sku})` }))} />
+              </Field>
+              <Field label="Quantity" required error={errors.quantity} hint="Positive to add stock, negative to remove it">
+                <TextInput type="number" name="quantity" value={formData.quantity} onChange={handleChange} placeholder="Enter quantity" />
+              </Field>
+              <Field label="Event Type" required>
+                <Select name="eventType" value={formData.eventType} onChange={handleChange}>
+                  {eventTypes.filter((type) => !type.system).map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Reference Number" required error={errors.referenceNumber}>
+                <TextInput name="referenceNumber" value={formData.referenceNumber} onChange={handleChange} placeholder="e.g., PO-2024-001" />
+              </Field>
+              <Field label={`Unit Cost (${CURRENCY})`} error={errors.unitCost}>
+                <TextInput type="number" name="unitCost" value={formData.unitCost} onChange={handleChange} placeholder="0.00" step="0.01" min="0" />
+              </Field>
+              <Field label="Location">
+                <TextInput name="location" value={formData.location} onChange={handleChange} placeholder="MAIN" />
+              </Field>
+              <Field label="Batch Number">
+                <TextInput name="batchNumber" value={formData.batchNumber} onChange={handleChange} placeholder="Optional batch number" />
+              </Field>
+              <Field label="Expiry Date">
+                <DateInput name="expiryDate" value={formData.expiryDate} onChange={handleChange} />
+              </Field>
             </div>
-
-            <div className="p-6 space-y-6" ref={formRef}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Stock Item *
-                  </label>
-                  <select
-                    name="stockId"
-                    value={formData.stockId}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.stockId
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <option value="">Select Stock Item</option>
-                    {stockItems.map((item) => (
-                      <option key={item._id} value={item._id}>
-                        {item.itemName} ({item.sku})
-                      </option>
-                    ))}
-                  </select>
-                  {errors.stockId && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.stockId}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    placeholder="Enter quantity (positive or negative)"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.quantity
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.quantity && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.quantity}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Event Type *
-                  </label>
-                  <select
-                    name="eventType"
-                    value={formData.eventType}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  >
-                    {eventTypes.filter((type) => !type.system).map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Reference Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="referenceNumber"
-                    value={formData.referenceNumber}
-                    onChange={handleChange}
-                    placeholder="e.g., PO-2024-001"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.referenceNumber
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.referenceNumber && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.referenceNumber}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {`Unit Cost (${CURRENCY})`}
-                  </label>
-                  <input
-                    type="number"
-                    name="unitCost"
-                    value={formData.unitCost}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.unitCost
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.unitCost && (
-                    <p className="text-red-500 text-sm mt-1 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.unitCost}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleChange}
-                    placeholder="MAIN"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Batch Number
-                  </label>
-                  <input
-                    type="text"
-                    name="batchNumber"
-                    value={formData.batchNumber}
-                    onChange={handleChange}
-                    placeholder="Optional batch number"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Expiry Date
-                  </label>
-                  <DateInput
-                    name="expiryDate"
-                    aria-label="Expiry date"
-                    value={formData.expiryDate}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="Additional notes or comments..."
-                  rows="3"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none"
-                />
-              </div>
-
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle2 size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.stockId || formData.quantity || formData.referenceNumber ? (
-                    <span className="flex items-center text-status-warning">
-                      <Clock size={14} className="mr-1" />
-                      Unsaved changes
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    onClick={resetForm}
-                    disabled={isSubmitting}
-                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="mr-2 animate-spin" />
-                        Recording...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 size={16} className="mr-2" />
-                        Record Movement
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <Field label="Notes">
+              <Textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Additional notes or comments..." rows={3} />
+            </Field>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Movement Details Modal */}
       {showDetailsModal && selectedMovement && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
-              <h3 className="text-xl font-bold text-gray-900">
-                Movement Details
-              </h3>
-              <button
-                onClick={() => setShowDetailsModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+        <Modal
+          size="lg"
+          title="Movement Details"
+          onClose={() => setShowDetailsModal(false)}
+          footer={<Button variant="outline" onClick={() => setShowDetailsModal(false)}>Close</Button>}
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <DetailField label="Item Information">
+                <div className="flex items-center space-x-3 rounded-lg bg-secondary p-3">
+                  <Package size={20} className="text-muted-foreground" aria-hidden="true" />
                   <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Item Information
-                    </label>
-                    <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                      <Package size={20} className="text-indigo-600" />
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          {selectedMovement.itemName || selectedMovement.stockId}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          ID: {selectedMovement.stockId}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="font-semibold text-foreground">{selectedMovement.itemName || selectedMovement.stockId}</p>
+                    <p className="text-sm text-muted-foreground">ID: {selectedMovement.stockId}</p>
                   </div>
+                </div>
+              </DetailField>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Movement Details
-                    </label>
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {selectedMovement.quantity > 0 ? (
-                          <ArrowUpCircle size={20} className="text-green-600" />
-                        ) : (
-                          <ArrowDownCircle size={20} className="text-red-600" />
-                        )}
-                        <span
-                          className={`font-bold text-lg ${
-                            selectedMovement.quantity > 0
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {selectedMovement.quantity > 0 ? "+" : ""}
-                          {selectedMovement.quantity}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Stock changed from {selectedMovement.previousStock} to{" "}
-                        {selectedMovement.newStock}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Event Type
-                    </label>
-                    <span
-                      className={`inline-flex px-3 py-1 rounded-full text-sm font-medium border ${getEventTypeBadge(
-                        selectedMovement.eventType
-                      )}`}
-                    >
-                      {eventTypes.find(
-                        (t) => t.value === selectedMovement.eventType
-                      )?.label || selectedMovement.eventType}
+              <DetailField label="Movement Details">
+                <div className="rounded-lg bg-secondary p-3">
+                  <div className="mb-2 flex items-center space-x-2">
+                    {selectedMovement.quantity > 0 ? <ArrowUpCircle size={20} className="text-status-success" aria-hidden="true" /> : <ArrowDownCircle size={20} className="text-status-danger" aria-hidden="true" />}
+                    <span className={`text-lg font-bold ${selectedMovement.quantity > 0 ? "text-status-success" : "text-status-danger"}`}>
+                      {selectedMovement.quantity > 0 ? "+" : ""}{selectedMovement.quantity}
                     </span>
                   </div>
+                  <p className="text-sm text-muted-foreground">Stock changed from {selectedMovement.previousStock} to {selectedMovement.newStock}</p>
+                </div>
+              </DetailField>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Reference Number
-                    </label>
-                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                      <FileText size={16} className="text-gray-400" />
-                      <span className="font-mono text-sm">
-                        {selectedMovement.referenceNumber}
-                      </span>
-                    </div>
+              <DetailField label="Event Type">
+                <Pill tone={EVENT_TONE[selectedMovement.eventType] || "neutral"}>
+                  {eventTypes.find((t) => t.value === selectedMovement.eventType)?.label || selectedMovement.eventType}
+                </Pill>
+              </DetailField>
+
+              <DetailField label="Reference Number">
+                <div className="flex items-center space-x-2 rounded-lg bg-secondary p-3">
+                  <FileText size={16} className="text-muted-foreground" aria-hidden="true" />
+                  <span className="font-mono text-sm text-foreground">{selectedMovement.referenceNumber}</span>
+                </div>
+              </DetailField>
+            </div>
+
+            <div className="space-y-4">
+              <DetailField label="Financial Information">
+                <div className="space-y-2 rounded-lg bg-secondary p-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Unit Cost:</span>
+                    <span className="font-semibold text-foreground">{formatCurrency(selectedMovement.unitCost)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Total Value:</span>
+                    <span className={`font-bold ${signedValue(selectedMovement) < 0 ? "text-status-danger" : "text-status-success"}`}>
+                      {signText(signedValue(selectedMovement))}
+                      {formatCurrency(Math.abs(signedValue(selectedMovement)))}
+                    </span>
                   </div>
                 </div>
+              </DetailField>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Financial Information
-                    </label>
-                    <div className="p-3 bg-gray-50 rounded-lg space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Unit Cost:
-                        </span>
-                        <span className="font-semibold">
-                          {formatCurrency(selectedMovement.unitCost)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">
-                          Total Value:
-                        </span>
-                        <span
-                          className={`font-bold ${signedValue(selectedMovement) < 0 ? "text-status-danger" : "text-status-success"}`}
-                        >
-                          {signText(signedValue(selectedMovement))}
-                          {formatCurrency(Math.abs(signedValue(selectedMovement)))}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Location
-                    </label>
-                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                      <MapPin size={16} className="text-gray-400" />
-                      <span className="text-sm">
-                        {selectedMovement.location}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Recorded By
-                    </label>
-                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                      <User size={16} className="text-gray-400" />
-                      <span className="text-sm">{whoText(selectedMovement)}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">
-                      Date
-                    </label>
-                    <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
-                      <Calendar size={16} className="text-gray-400" />
-                      <span className="text-sm">{formatDate(selectedMovement.date)}</span>
-                    </div>
-                    {selectedMovement.createdAt && (
-                      <p className="mt-1 text-xs text-gray-500">Recorded {formatRecorded(selectedMovement.createdAt)}</p>
-                    )}
-                  </div>
+              <DetailField label="Location">
+                <div className="flex items-center space-x-2 rounded-lg bg-secondary p-3">
+                  <MapPin size={16} className="text-muted-foreground" aria-hidden="true" />
+                  <span className="text-sm text-foreground">{selectedMovement.location}</span>
                 </div>
-              </div>
+              </DetailField>
 
-              {selectedMovement.notes && (
-                <div className="mt-6">
-                  <label className="block text-sm font-semibold text-gray-600 mb-2">
-                    Notes
-                  </label>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-700">
-                      {selectedMovement.notes}
-                    </p>
-                  </div>
+              <DetailField label="Recorded By">
+                <div className="flex items-center space-x-2 rounded-lg bg-secondary p-3">
+                  <User size={16} className="text-muted-foreground" aria-hidden="true" />
+                  <span className="text-sm text-foreground">{whoText(selectedMovement)}</span>
                 </div>
-              )}
+              </DetailField>
 
-              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="px-6 py-2 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
-                >
-                  Close
-                </button>
-              </div>
+              <DetailField label="Date">
+                <div className="flex items-center space-x-2 rounded-lg bg-secondary p-3">
+                  <Calendar size={16} className="text-muted-foreground" aria-hidden="true" />
+                  <span className="text-sm text-foreground">{formatDate(selectedMovement.date)}</span>
+                </div>
+                {selectedMovement.createdAt && <p className="mt-1 text-xs text-muted-foreground">Recorded {formatRecorded(selectedMovement.createdAt)}</p>}
+              </DetailField>
             </div>
           </div>
-        </div>
+
+          {selectedMovement.notes && (
+            <DetailField label="Notes" className="mt-6">
+              <div className="rounded-lg bg-secondary p-3">
+                <p className="text-sm text-foreground">{selectedMovement.notes}</p>
+              </div>
+            </DetailField>
+          )}
+        </Modal>
       )}
+
+      {toastNode}
     </div>
   );
 };
