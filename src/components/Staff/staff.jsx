@@ -85,11 +85,11 @@ const FileField = ({ label, preview, onPick, onRemove }) => (
         </div>
         <div className="flex space-x-2">
           {preview.url && (
-            <a href={preview.url} target="_blank" rel="noopener noreferrer" className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800" title="View file" aria-label={`View file: ${preview.name}`}>
+            <a href={preview.url} target="_blank" rel="noopener noreferrer" className="grid h-10 w-10 place-items-center rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 md:h-8 md:w-8" title="View file" aria-label={`View file: ${preview.name}`}>
               <Eye size={16} aria-hidden="true" />
             </a>
           )}
-          <button type="button" onClick={onRemove} className="rounded-lg p-2 text-status-danger hover:bg-status-danger-soft" title="Delete file" aria-label={`Delete file: ${preview.name}`}>
+          <button type="button" onClick={onRemove} className="grid h-10 w-10 place-items-center rounded-lg text-status-danger hover:bg-status-danger-soft md:h-8 md:w-8" title="Delete file" aria-label={`Delete file: ${preview.name}`}>
             <Trash2 size={16} aria-hidden="true" />
           </button>
         </div>
@@ -611,10 +611,10 @@ const StaffManagement = () => {
                 key: "actions", header: "Actions", card: "actions",
                 cell: (m) => (
                   <div className="flex items-center space-x-3">
-                    <button onClick={() => handleEdit(m)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit staff">
+                    <button onClick={() => handleEdit(m)} className="grid h-10 w-10 place-items-center rounded-lg text-indigo-600 transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-800 lg:h-8 lg:w-8" title="Edit staff">
                       <Edit size={16} />
                     </button>
-                    <button onClick={() => showDeleteConfirmation(m)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete staff">
+                    <button onClick={() => showDeleteConfirmation(m)} className="grid h-10 w-10 place-items-center rounded-lg text-red-600 transition-all duration-200 hover:bg-red-50 hover:text-red-800 lg:h-8 lg:w-8" title="Delete staff">
                       <Trash2 size={16} />
                     </button>
                   </div>

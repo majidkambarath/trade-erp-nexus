@@ -414,8 +414,8 @@ const CategoryManagement = () => {
             key: "actions", header: "Actions", align: "center", card: "actions",
             cell: (category) => (
               <div className="flex justify-center space-x-2">
-                <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground" title="Edit Category"><Edit3 size={16} /></button></Can>
-                <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="rounded-lg p-2 text-status-danger transition-colors duration-200 hover:bg-status-danger-soft" title="Delete Category"><Trash2 size={16} /></button></Can>
+                <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="grid h-10 w-10 place-items-center rounded-lg text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground lg:h-8 lg:w-8" title="Edit Category"><Edit3 size={16} /></button></Can>
+                <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="grid h-10 w-10 place-items-center rounded-lg text-status-danger transition-colors duration-200 hover:bg-status-danger-soft lg:h-8 lg:w-8" title="Delete Category"><Trash2 size={16} /></button></Can>
               </div>
             ),
           },

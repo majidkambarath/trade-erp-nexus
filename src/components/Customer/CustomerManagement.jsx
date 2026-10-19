@@ -236,12 +236,12 @@ const CustomerManagement = () => {
             cell: (c) => (
               <div className="flex items-center space-x-3">
                 <Can permission="sales.edit">
-                  <button onClick={() => handleEdit(c)} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200" title="Edit customer">
+                  <button onClick={() => handleEdit(c)} className="grid h-10 w-10 place-items-center rounded-lg text-blue-600 transition-all duration-200 hover:bg-blue-50 hover:text-blue-800 lg:h-8 lg:w-8" title="Edit customer">
                     <Edit size={16} />
                   </button>
                 </Can>
                 <Can permission="sales.delete">
-                  <button onClick={() => showDeleteConfirmation(c)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete customer">
+                  <button onClick={() => showDeleteConfirmation(c)} className="grid h-10 w-10 place-items-center rounded-lg text-red-600 transition-all duration-200 hover:bg-red-50 hover:text-red-800 lg:h-8 lg:w-8" title="Delete customer">
                     <Trash2 size={16} />
                   </button>
                 </Can>

@@ -195,10 +195,15 @@ export function DataTable({
                       className={cn("font-semibold", headPad, ALIGN[c.align] || ALIGN.start, c.headerClassName)}
                     >
                       {active ? (
+                        // -my-2.5/py-2.5 grows the tap target past the 40px floor (check:mobile's own
+                        // "small taps" rule) without moving the text: the negative margin pulls the
+                        // button's box in by the same amount its own padding pushes the content back out,
+                        // so only the invisible, clickable area grows - found when VendorManagement became
+                        // the first real screen (not just a test file) to use a sortable column.
                         <button
                           type="button"
                           onClick={() => onSort(c.key)}
-                          className={cn("inline-flex items-center gap-1 hover:text-foreground", c.align === "end" && "flex-row-reverse")}
+                          className={cn("-my-3.5 inline-flex items-center gap-1 py-3.5 hover:text-foreground", c.align === "end" && "flex-row-reverse")}
                         >
                           {c.header}
                           <SortGlyph active={sort?.key === c.key} dir={sort?.dir} />
