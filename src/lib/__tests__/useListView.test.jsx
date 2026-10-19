@@ -121,6 +121,21 @@ describe("selection", () => {
     act(() => result.current.clearSelection());
     expect(result.current.selection).toEqual([]);
   });
+
+  it("dropMissingSelection keeps the same identity across renders, including one it itself causes", async () => {
+    // A caller (ListPage) depends on this function in a useEffect. If it were a fresh closure every render,
+    // that effect would re-fire on every render it causes - including the render ITS OWN setState call
+    // produces - forever. Stable identity across an unrelated state change (setSearch, here) AND across the
+    // very update this function makes (calling it with nothing to drop still re-renders the hook, since
+    // `rawViews`/other state is untouched but React still re-evaluates the hook body) is what makes the
+    // effect finite instead of infinite.
+    const result = await setUp();
+    const first = result.current.dropMissingSelection;
+    act(() => result.current.setSearch("x"));
+    expect(result.current.dropMissingSelection).toBe(first);
+    act(() => result.current.dropMissingSelection(["irrelevant"]));
+    expect(result.current.dropMissingSelection).toBe(first);
+  });
 });
 
 describe("saved views", () => {

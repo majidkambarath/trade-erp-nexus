@@ -81,6 +81,13 @@ export function useListView(name, { columns = [], filters: defaultFilters = {}, 
 
   const setSelection = useCallback((keys) => setSelectionState(keys), []);
   const clearSelection = useCallback(() => setSelectionState([]), []);
+  // Stable identity is load-bearing, not a micro-optimisation: a caller (ListPage) runs this from a
+  // useEffect keyed on it, among other things, so it reruns the effect right back if this function were
+  // ever a fresh closure every render - which it was, once, and together with keepExisting NOT returning
+  // the same array when nothing was dropped, pegged a CPU core in a tight render loop for hours before
+  // anyone noticed a test had simply never finished. `rowKeys` is a call-time argument, not anything from
+  // this render's closure, so the callback has no real dependency and needs none here.
+  const dropMissingSelection = useCallback((rowKeys) => setSelectionState((keys) => keepExisting(keys, rowKeys)), []);
 
   // the view list itself - `rawViews` is real state (set below whenever it changes) so a save/rename/delete
   // is reflected on the very next render, not whenever something else happens to re-render the hook
@@ -143,7 +150,7 @@ export function useListView(name, { columns = [], filters: defaultFilters = {}, 
     density, setDensity,
     hidden, toggleColumn,
     selection, setSelection, selectMode, setSelectMode, clearSelection,
-    dropMissingSelection: (rowKeys) => setSelectionState((keys) => keepExisting(keys, rowKeys)),
+    dropMissingSelection,
     active, key,
     views, currentViewId,
     goToView, saveView, renameView: renameViewById, deleteView,

@@ -107,6 +107,17 @@ describe("selection", () => {
   it("keepExisting drops a selected key that no longer appears in the list", () => {
     expect(keepExisting(["a", "b", "c"], ["b", "c", "d"])).toEqual(["b", "c"]);
   });
+
+  it("returns the SAME array reference when nothing was dropped - a caller that feeds this into setState from "
+    + "an effect must not see a \"changed\" value when nothing changed, or the state update it causes "
+    + "re-triggers the effect that called it, forever (this exact loop pegged a CPU core for hours in ListPage "
+    + "before anyone looked at why a test \"just hadn't finished\"; the empty-selection case is the common one, "
+    + "since useListView starts `selection` at [] and every row is always \"not missing\" from an empty set)", () => {
+    const empty = [];
+    expect(keepExisting(empty, ["a", "b"])).toBe(empty);
+    const full = ["a", "b"];
+    expect(keepExisting(full, ["a", "b", "c"])).toBe(full);
+  });
 });
 
 describe("columns & density", () => {

@@ -93,10 +93,16 @@ export const allOnPage = (keys, pageKeys) => pageKeys.length > 0 && pageKeys.eve
 export const someOnPage = (keys, pageKeys) => pageKeys.some((k) => keys.includes(k));
 
 // Drops selected keys that no longer appear in the list (after a reload, a filter change, a delete), so a
-// selection never silently keeps acting on rows that have scrolled out of view or been removed.
+// selection never silently keeps acting on rows that have scrolled out of view or been removed. Returns
+// the SAME array when nothing was dropped - a caller that feeds this straight into setState (useListView's
+// dropMissingSelection, called from an effect keyed on the rows it was just given) must not see a "changed"
+// reference every time it runs with nothing to drop, or the state update it causes re-triggers the very
+// effect that called it, forever (found the hard way: a tight render loop that pegged a CPU core for hours
+// before anyone looked at why a test "just hadn't finished").
 export function keepExisting(keys, rowKeys) {
   const present = toKeySet(rowKeys);
-  return keys.filter((k) => present.has(k));
+  const next = keys.filter((k) => present.has(k));
+  return next.length === keys.length ? keys : next;
 }
 
 // ---------------------------------------------------------------------- columns & density
