@@ -1,9 +1,9 @@
 import React, {
-  useState,
-  useEffect,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,7 +11,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  X,
   User,
   Phone,
   FileText,
@@ -21,30 +20,32 @@ import {
   UserCheck,
   UserX,
   Briefcase,
-  AlertTriangle,
   CheckCircle,
   XCircle,
   Loader2,
   Save,
   Clock,
-  AlertCircle,
   File,
   Eye,
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { toInputDate, formatDate, formatTime } from "../../utils/format";
-import { toastClasses } from "../../lib/status";
 import StatCard from "../ui/stat-card";
 import { pageSession } from "../../lib/pageSession";
+import { useListView } from "../../lib/useListView";
+import { sortRows } from "../../lib/listView";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import { Button } from "../ui/button";
 
-import { DateInput } from "../accounting/kit";
+import { ConfirmDialog, DateInput, Field, Modal, Pill, Select, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import { useOrganisation } from "../shell/OrganisationContext";
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, the two choices,
 // the sort, and a half-filled add-staff form. Held in this tab's memory only; emptied at sign-out.
 const session = pageSession("staff");
+
+const STATUS_TONE = { Active: "success", Inactive: "neutral" };
 
 // What a draft of the add-staff form keeps: the text the person typed. Not the files (a file cannot be shown again without being
 // chosen again), and not the defaults a blank form starts with (the status "Active"): a form nobody has typed in is not a draft.
@@ -63,17 +64,51 @@ const designations = [
   "Marketing Specialist",
 ];
 
+// A document picker: choose, preview, remove. The original screen offered a "Replace X" label once a file
+// was chosen, but the label pointed at a hidden <input> that was no longer rendered in that state - clicking
+// it silently did nothing, so replacing a chosen file needed Delete first regardless of what the button said.
+// Remove-then-choose-again (this component's only path) is the same convention
+// components/parties/PartyRows.jsx already uses for a party's KYC documents - the input is nested INSIDE its
+// label rather than linked by id, so there is no id to go stale when the input stops being rendered.
+const FileField = ({ label, preview, onPick, onRemove }) => (
+  <div className="flex flex-col gap-1.5">
+    <span className="text-sm font-medium text-foreground">{label}</span>
+    {preview ? (
+      <div className="flex items-center justify-between rounded-xl border border-input bg-background p-3">
+        <div className="flex items-center space-x-3">
+          {preview.type === "existing" || preview.type?.startsWith("image/") ? (
+            <img src={preview.url} alt={`${label} preview`} className="h-12 w-12 rounded-md object-cover" />
+          ) : (
+            <File size={24} className="text-muted-foreground" aria-hidden="true" />
+          )}
+          <span className="max-w-[150px] truncate text-sm text-foreground">{preview.name}</span>
+        </div>
+        <div className="flex space-x-2">
+          {preview.url && (
+            <a href={preview.url} target="_blank" rel="noopener noreferrer" className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800" title="View file" aria-label={`View file: ${preview.name}`}>
+              <Eye size={16} aria-hidden="true" />
+            </a>
+          )}
+          <button type="button" onClick={onRemove} className="rounded-lg p-2 text-status-danger hover:bg-status-danger-soft" title="Delete file" aria-label={`Delete file: ${preview.name}`}>
+            <Trash2 size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    ) : (
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-input bg-background px-4 py-3 text-center text-sm text-muted-foreground hover:bg-accent">
+        {`Upload ${label}`}
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="sr-only" onChange={(e) => onPick(e.target.files[0])} />
+      </label>
+    )}
+  </div>
+);
+
 const StaffManagement = () => {
-  const [staff, setStaff] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // search/filters/sort for this list - lib/useListView.js, the same hook CategoryManagement/VendorManagement/
+  // CustomerManagement already use.
+  const list = useListView("staff", { filters: { status: "", designation: "" } });
   const [showModal, setShowModal] = useState(false);
-  // the search, the two choices and the sort come back as the person left them (lazy initialisers: the first render already has them)
-  const [kept] = useState(() => session.get("filters", {}) || {});
-  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [editStaffId, setEditStaffId] = useState(null);
-  const [filterStatus, setFilterStatus] = useState(kept.status || "");
-  const [filterDesignation, setFilterDesignation] = useState(kept.designation || "");
-  const [sortConfig, setSortConfig] = useState(() => session.get("sort") || { key: null, direction: "asc" });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -93,11 +128,7 @@ const StaffManagement = () => {
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showToast, setShowToast] = useState({
-    visible: false,
-    message: "",
-    type: "success",
-  });
+  const { notify, toastNode } = useToasts();
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     visible: false,
     staffId: null,
@@ -107,51 +138,20 @@ const StaffManagement = () => {
   const [isDraftSaved, setIsDraftSaved] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState(null);
 
-  const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
   const navigate = useNavigate();
   // The employee files are their own permission (staff.view to read, staff.manage to add, change or delete), apart from
   // the people who sign in. The server refuses the rest; this only decides what to offer.
   const { canAny } = useOrganisation();
   const canManage = canAny("staff.manage");
+  const showToastMessage = useCallback((message, type = "success") => notify(message, type), [notify]);
 
-  const showToastMessage = useCallback((message, type = "success") => {
-    setShowToast({ visible: true, message, type });
-    setTimeout(
-      () => setShowToast((prev) => ({ ...prev, visible: false })),
-      3000
-    );
-  }, []);
-
-  const fetchStaff = useCallback(
-    async (showRefreshIndicator = false) => {
-      try {
-        if (showRefreshIndicator) {
-          setIsLoading(true);
-        } else {
-          setIsLoading(true);
-        }
-        const response = await axiosInstance.get("/staff/staff");
-        setStaff(response.data.data?.staff || []);
-        if (showRefreshIndicator) {
-          showToastMessage("Staff data refreshed successfully!", "success");
-        }
-      } catch (error) {
-        console.error("Failed to fetch staff:", error);
-        showToastMessage(
-          error.response?.data?.message || "Failed to fetch staff.",
-          "error"
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [showToastMessage]
-  );
+  const { data, loading: isLoading, error, reload: fetchStaff } = useAsync(() => axiosInstance.get("/staff/staff").then((res) => res.data.data?.staff || []), []);
+  const staff = useMemo(() => data || [], [data]);
 
   useEffect(() => {
-    fetchStaff();
-  }, [fetchStaff]);
+    if (error) showToastMessage(error.response?.data?.message || "Failed to fetch staff.", "error");
+  }, [error, showToastMessage]);
 
   useEffect(() => {
     // Only a NEW staff member is drafted: an edit starts from a saved record, and must never become the draft of an add.
@@ -170,15 +170,6 @@ const StaffManagement = () => {
       }
     };
   }, [formData, showModal, editStaffId]);
-
-  useEffect(() => {
-    session.set("searchTerm", searchTerm);
-    session.set("filters", {
-      status: filterStatus,
-      designation: filterDesignation,
-    });
-    session.set("sort", sortConfig);
-  }, [searchTerm, filterStatus, filterDesignation, sortConfig]);
 
   const handleChange = useCallback(
     (e) => {
@@ -337,9 +328,6 @@ const StaffManagement = () => {
 
     try {
       await axiosInstance.delete(`/staff/staff/${deleteConfirmation.staffId}`);
-      setStaff((prev) =>
-        prev.filter((s) => s._id !== deleteConfirmation.staffId)
-      );
       showToastMessage("Staff member deleted successfully!", "success");
       hideDeleteConfirmation();
       await fetchStaff();
@@ -397,48 +385,7 @@ const StaffManagement = () => {
       resetForm();
     }
     setShowModal(true);
-    setTimeout(() => {
-      const modal = document.querySelector(".modal-container");
-      if (modal) {
-        modal.classList.add("scale-100");
-      }
-
-      if (formRef.current) {
-        const firstInput = formRef.current.querySelector('input[name="name"]');
-        if (firstInput) firstInput.focus();
-      }
-    }, 10);
   }, [resetForm]);
-
-  const handleSort = useCallback((key) => {
-    setSortConfig((prevConfig) => ({
-      key,
-      direction:
-        prevConfig.key === key && prevConfig.direction === "asc"
-          ? "desc"
-          : "asc",
-    }));
-  }, []);
-
-  const getStatusBadge = useCallback((status) => {
-    const badges = {
-      Active: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      Inactive: "bg-slate-100 text-slate-800 border border-slate-200",
-    };
-    return (
-      badges[status] || "bg-slate-100 text-slate-800 border border-slate-200"
-    );
-  }, []);
-
-  const getStatusIcon = useCallback((status) => {
-    const icons = {
-      Active: <CheckCircle size={14} className="text-emerald-600" />,
-      Inactive: <XCircle size={14} className="text-slate-600" />,
-    };
-    return (
-      icons[status] || <AlertCircle size={14} className="text-slate-600" />
-    );
-  }, []);
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
@@ -462,110 +409,66 @@ const StaffManagement = () => {
     return { totalStaff, activeStaff, inactiveStaff, activeRate };
   }, [staff]);
 
-  const sortedAndFilteredStaff = useMemo(() => {
-    let filtered = staff.filter((member) => {
+  const filteredStaff = useMemo(() => {
+    const needle = list.search.toLowerCase();
+    return staff.filter((member) => {
       const matchesSearch =
-        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.designation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.idNo.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = filterStatus
-        ? member.status === filterStatus
-        : true;
-      const matchesDesignation = filterDesignation
-        ? member.designation === filterDesignation
-        : true;
-
+        member.name.toLowerCase().includes(needle) ||
+        member.designation.toLowerCase().includes(needle) ||
+        member.idNo.toLowerCase().includes(needle);
+      const matchesStatus = list.filters.status ? member.status === list.filters.status : true;
+      const matchesDesignation = list.filters.designation ? member.designation === list.filters.designation : true;
       return matchesSearch && matchesStatus && matchesDesignation;
     });
-
-    if (sortConfig.key) {
-      filtered.sort((a, b) => {
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue < bValue) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [staff, searchTerm, filterStatus, filterDesignation, sortConfig]);
+  }, [staff, list.search, list.filters.status, list.filters.designation]);
+  const sortedAndFilteredStaff = useMemo(() => sortRows(filteredStaff, list.sort), [filteredStaff, list.sort]);
 
   // the designations to choose from: the ones the add form offers, plus any a record already carries (an older record may name
   // one that is not on the list, and a filter that cannot reach it would hide it), plus the one the person has chosen
   const designationOptions = useMemo(
     () =>
-      [...new Set([...designations, ...staff.map((s) => s.designation), filterDesignation].filter(Boolean))].map(
+      [...new Set([...designations, ...staff.map((s) => s.designation), list.filters.designation].filter(Boolean))].map(
         (d) => [d, d]
       ),
-    [staff, filterDesignation]
+    [staff, list.filters.designation]
   );
 
-  const filtersOn = Boolean(searchTerm || filterStatus || filterDesignation);
-  const clearFilters = () => {
-    setSearchTerm("");
-    setFilterStatus("");
-    setFilterDesignation("");
-  };
+  // what the empty state's wording and action follow - a search or a choice, never the sort
+  const filtered = Boolean(list.search || list.filters.status || list.filters.designation);
 
-  const EmptyState = () => (
+  const emptyNode = (
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
       <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
         <Users size={36} className="text-muted-foreground" aria-hidden="true" />
       </div>
       <h3 className="mb-2 text-xl font-semibold text-foreground">
-        {filtersOn ? "No staff match the search or filters" : "No staff members found"}
+        {filtered ? "No staff match the search or filters" : "No staff members found"}
       </h3>
       <p className="mb-6 max-w-md text-sm text-muted-foreground">
-        {filtersOn
+        {filtered
           ? "Clear the search and filters to see everyone."
           : canManage
             ? "Start building your team by adding your first staff member."
             : "No staff records have been added yet."}
       </p>
       <div className="flex flex-wrap justify-center gap-2">
-        {filtersOn && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent"
-          >
+        {filtered && (
+          <button type="button" onClick={list.clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
             Clear search and filters
           </button>
         )}
-        {!filtersOn && canManage && (
-          <button
-            onClick={openAddModal}
-            className="erp-btn-primary"
-          >
-            <Plus size={20} />
+        {!filtered && canManage && (
+          <Button onClick={openAddModal}>
+            <Plus size={20} aria-hidden="true" />
             Add First Staff Member
-          </button>
+          </Button>
         )}
       </div>
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="min-h-[60dvh] bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2
-            size={48}
-            className="text-indigo-600 animate-spin mx-auto mb-4"
-          />
-          <p className="text-gray-600 text-lg">Loading staff members...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
+    <>
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
         <div className="flex items-center space-x-4">
@@ -588,21 +491,6 @@ const StaffManagement = () => {
           </div>
         </div>
       </div>
-
-      {showToast.visible && (
-        <div
-          className={`fixed end-4 bottom-4 z-[70] ${toastClasses(showToast.type)}`}
-        >
-          <div className="flex items-center space-x-2">
-            {showToast.type === "success" ? (
-              <CheckCircle size={16} />
-            ) : (
-              <XCircle size={16} />
-            )}
-            <span>{showToast.message}</span>
-          </div>
-        </div>
-      )}
 
       <div className="mb-8">
         <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-4">
@@ -653,547 +541,206 @@ const StaffManagement = () => {
               </p>
             </div>
             {canManage && (
-              <button
-                onClick={openAddModal}
-                className="erp-btn-primary"
-              >
-                <Plus size={18} />
+              <Button data-shortcut="new" onClick={openAddModal}>
+                <Plus size={18} aria-hidden="true" />
                 Add Staff Member
-              </button>
+              </Button>
             )}
           </div>
 
           {/* Filters: always showing, the same row every list of the product has (components/lists/FilterBar.jsx) */}
           <FilterBar
-            search={searchTerm}
-            onSearch={setSearchTerm}
+            search={list.search}
+            onSearch={list.setSearch}
             searchLabel="Search staff"
             placeholder="Search name, designation or ID"
-            active={filtersOn}
-            onClear={clearFilters}
+            active={list.active}
+            onClear={list.clearFilters}
           >
             <FilterSelect
               label="Status"
-              value={filterStatus}
-              onChange={setFilterStatus}
+              value={list.filters.status}
+              onChange={(v) => list.setFilter("status", v)}
               allLabel="All statuses"
               options={[["Active", "Active"], ["Inactive", "Inactive"]]}
             />
             <FilterSelect
               label="Designation"
-              value={filterDesignation}
-              onChange={setFilterDesignation}
+              value={list.filters.designation}
+              onChange={(v) => list.setFilter("designation", v)}
               allLabel="All designations"
               options={designationOptions}
             />
           </FilterBar>
         </div>
 
-        {sortedAndFilteredStaff.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="overflow-x-auto">
-            <DataTable
-              caption="Staff"
-              rows={sortedAndFilteredStaff}
-              rowKey={(member) => member._id}
-              columns={[
-                ...[
-                  {
-                    key: "name", label: "Staff Info", card: "primary",
-                    cell: (m) => (
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                          <User size={20} className="text-indigo-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{m.name}</p>
-                          <p className="text-xs font-normal text-gray-500">ID: {m._id}</p>
-                        </div>
-                      </div>
-                    ),
-                  },
-                  { key: "designation", label: "Designation", card: "title", cell: (m) => <p className="text-sm font-medium text-indigo-600">{m.designation}</p> },
-                  { key: "contactNo", label: "Contact No", card: "meta", cell: (m) => m.contactNo },
-                  { key: "idNo", label: "ID Number", cell: (m) => <p className="text-sm font-mono font-bold text-gray-600">{m.idNo}</p> },
-                  { key: "joiningDate", label: "Joining Date", card: "meta", cell: (m) => formatDate(m.joiningDate) },
-                ].map((c) => ({
-                  ...c,
-                  header: (
-                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
-                      <span>{c.label}</span>
-                      {sortConfig.key === c.key && <span className="text-indigo-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+        <div className="overflow-x-auto">
+          <DataTable
+            caption="Staff"
+            rows={sortedAndFilteredStaff}
+            rowKey={(member) => member._id}
+            loading={isLoading}
+            loadingLabel="Loading staff members"
+            empty={emptyNode}
+            sort={list.sort}
+            onSort={list.toggleSort}
+            columns={[
+              {
+                key: "name", header: "Staff Info", sortable: true, card: "primary",
+                cell: (m) => (
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <User size={20} className="text-indigo-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{m.name}</p>
+                      <p className="text-xs font-normal text-muted-foreground">ID: {m._id}</p>
+                    </div>
+                  </div>
+                ),
+              },
+              { key: "designation", header: "Designation", sortable: true, card: "title", cell: (m) => <p className="text-sm font-medium text-indigo-600">{m.designation}</p> },
+              { key: "contactNo", header: "Contact No", sortable: true, card: "meta", cell: (m) => m.contactNo },
+              { key: "idNo", header: "ID Number", sortable: true, cell: (m) => <p className="text-sm font-mono font-bold text-muted-foreground">{m.idNo}</p> },
+              { key: "joiningDate", header: "Joining Date", sortable: true, card: "meta", cell: (m) => formatDate(m.joiningDate) },
+              {
+                key: "status", header: "Status", card: "badge",
+                cell: (m) => <Pill tone={STATUS_TONE[m.status] || "neutral"}>{m.status}</Pill>,
+              },
+              ...(canManage ? [{
+                key: "actions", header: "Actions", card: "actions",
+                cell: (m) => (
+                  <div className="flex items-center space-x-3">
+                    <button onClick={() => handleEdit(m)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit staff">
+                      <Edit size={16} />
                     </button>
-                  ),
-                })),
-                {
-                  key: "status", header: "Status", card: "badge",
-                  cell: (m) => (
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(m.status)}
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(m.status)}`}>{m.status}</span>
-                    </div>
-                  ),
-                },
-                ...(canManage ? [{
-                  key: "actions", header: "Actions", card: "actions",
-                  cell: (m) => (
-                    <div className="flex items-center space-x-3">
-                      <button onClick={() => handleEdit(m)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit staff">
-                        <Edit size={16} />
-                      </button>
-                      <button onClick={() => showDeleteConfirmation(m)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete staff">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ),
-                }] : []),
-              ]}
-            />
-          </div>
-        )}
+                    <button onClick={() => showDeleteConfirmation(m)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete staff">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ),
+              }] : []),
+            ]}
+          />
+        </div>
       </div>
 
       {deleteConfirmation.visible && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
-            <div className="p-6">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={32} className="text-red-600" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 text-center mb-2">
-                Delete Staff Member
-              </h3>
-              <p className="text-gray-600 text-center mb-2">
-                Are you sure you want to delete
-              </p>
-              <p className="text-gray-900 font-semibold text-center mb-6">
-                "{deleteConfirmation.staffName}"?
-              </p>
-              <p className="text-sm text-gray-500 text-center mb-8">
-                This action cannot be undone and will permanently remove the
-                staff member from your records.
-              </p>
-              <div className="flex space-x-3">
-                <button
-                  onClick={hideDeleteConfirmation}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-background transition-all duration-200 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  disabled={deleteConfirmation.isDeleting}
-                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200 font-medium disabled:opacity-50 flex items-center justify-center"
-                >
-                  {deleteConfirmation.isDeleting ? (
-                    <>
-                      <Loader2 size={16} className="mr-2 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 size={16} className="mr-2" />
-                      Delete
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Staff Member"
+          text={`Are you sure you want to delete "${deleteConfirmation.staffName}"? This action cannot be undone and will permanently remove the staff member from your records.`}
+          confirmLabel="Delete"
+          danger
+          busy={deleteConfirmation.isDeleting}
+          onClose={hideDeleteConfirmation}
+          onConfirm={confirmDelete}
+        />
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50 modal-container transform scale-95 transition-transform duration-300" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90dvh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0 z-10">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  {editStaffId ? "Edit Staff Member" : "Add New Staff Member"}
-                </h3>
-                <div className="flex items-center mt-1 space-x-4">
-                  <p className="text-gray-600 text-sm">
-                    {editStaffId
-                      ? "Update staff member information"
-                      : "Create a new staff member profile"}
-                  </p>
-                  {isDraftSaved && lastSaveTime && (
-                    <p className="text-sm text-green-600 flex items-center">
-                      <Save size={12} className="mr-1" />
-                      Draft saved {formatLastSaveTime(lastSaveTime)}
-                    </p>
-                  )}
-                </div>
+        <Modal
+          size="xl"
+          title={editStaffId ? "Edit Staff Member" : "Add New Staff Member"}
+          description={editStaffId ? "Update staff member information" : "Create a new staff member profile"}
+          onClose={resetForm}
+          footer={
+            <>
+              <div className="me-auto flex items-center text-sm text-muted-foreground">
+                {isDraftSaved ? (
+                  <span className="flex items-center text-status-success">
+                    <CheckCircle size={14} className="mr-1" aria-hidden="true" />
+                    Changes saved automatically
+                  </span>
+                ) : formData.name || formData.designation || formData.contactNo || formData.idNo || formData.joiningDate || formData.idProof || formData.addressProof ? (
+                  <span className="flex items-center text-status-warning">
+                    <Clock size={14} className="mr-1" aria-hidden="true" />
+                    Unsaved changes
+                  </span>
+                ) : null}
               </div>
-              <button
-                onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
+              <Button variant="outline" onClick={resetForm} disabled={isSubmitting}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : editStaffId ? <Save className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+                {isSubmitting ? "Saving..." : editStaffId ? "Update Staff" : "Add Staff"}
+              </Button>
+            </>
+          }
+        >
+          {isDraftSaved && lastSaveTime && (
+            <p className="mb-4 flex items-center text-sm text-status-success">
+              <Save size={12} className="mr-1" aria-hidden="true" />
+              Draft saved {formatLastSaveTime(lastSaveTime)}
+            </p>
+          )}
+          <div className="grid gap-6">
+            <div>
+              <h3 className="mb-4 flex items-center text-base font-semibold text-foreground">
+                <User size={20} className="mr-2 text-indigo-600" aria-hidden="true" />
+                Personal Information
+              </h3>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <Field label="Full Name" required error={errors.name}>
+                  <TextInput data-autofocus name="name" value={formData.name} onChange={handleChange} placeholder="Enter full name" />
+                </Field>
+                <Field label="Designation" required error={errors.designation}>
+                  <Select name="designation" value={formData.designation} onChange={handleChange}>
+                    <option value="">Select Designation</option>
+                    {designations.map((des) => <option key={des} value={des}>{des}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Contact Number" required error={errors.contactNo}>
+                  <TextInput type="tel" name="contactNo" value={formData.contactNo} onChange={handleChange} placeholder="Enter contact number" />
+                </Field>
+              </div>
             </div>
 
-            <div className="p-6" ref={formRef}>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
-                <div className="lg:col-span-3">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <User size={20} className="mr-2 text-indigo-600" />
-                    Personal Information
-                  </h4>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <User size={16} className="inline mr-2" />
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter full name"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.name
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.name && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Briefcase size={16} className="inline mr-2" />
-                    Designation *
-                  </label>
-                  <select
-                    name="designation"
-                    value={formData.designation}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.designation
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <option value="">Select Designation</option>
-                    {designations.map((des) => (
-                      <option key={des} value={des}>
-                        {des}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.designation && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.designation}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Phone size={16} className="inline mr-2" />
-                    Contact Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="contactNo"
-                    value={formData.contactNo}
-                    onChange={handleChange}
-                    placeholder="Enter contact number"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.contactNo
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.contactNo && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.contactNo}
-                    </p>
-                  )}
-                </div>
-
-                <div className="lg:col-span-3">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <FileText size={20} className="mr-2 text-purple-600" />
-                    Identification Information
-                  </h4>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <FileText size={16} className="inline mr-2" />
-                    ID/Passport Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="idNo"
-                    value={formData.idNo}
-                    onChange={handleChange}
-                    placeholder="Enter ID or Passport number"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      errors.idNo
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {errors.idNo && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.idNo}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Calendar size={16} className="inline mr-2" />
-                    Joining Date *
-                  </label>
-                  <DateInput
-                    name="joiningDate"
-                    aria-label="Joining date"
-                    value={formData.joiningDate}
-                    onChange={handleChange}
-                    aria-invalid={Boolean(errors.joiningDate) || undefined}
-                  />
-                  {errors.joiningDate && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {errors.joiningDate}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  >
+            <div>
+              <h3 className="mb-4 flex items-center text-base font-semibold text-foreground">
+                <FileText size={20} className="mr-2 text-purple-600" aria-hidden="true" />
+                Identification Information
+              </h3>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <Field label="ID/Passport Number" required error={errors.idNo}>
+                  <TextInput name="idNo" value={formData.idNo} onChange={handleChange} placeholder="Enter ID or Passport number" />
+                </Field>
+                <Field label="Joining Date" required error={errors.joiningDate}>
+                  <DateInput name="joiningDate" value={formData.joiningDate} onChange={handleChange} />
+                </Field>
+                <Field label="Status">
+                  <Select name="status" value={formData.status} onChange={handleChange}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-
-                <div className="lg:col-span-3">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <Upload size={20} className="mr-2 text-green-600" />
-                    Documents
-                  </h4>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Upload size={16} className="inline mr-2" />
-                    ID Proof Document
-                  </label>
-                  <div className="flex flex-col space-y-3">
-                    {filePreviews.idProof ? (
-                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-background">
-                        <div className="flex items-center space-x-3">
-                          {filePreviews.idProof.type.startsWith("image/") ||
-                          filePreviews.idProof.type === "existing" ? (
-                            <img
-                              src={filePreviews.idProof.url}
-                              alt="ID Proof Preview"
-                              className="w-12 h-12 object-cover rounded-md"
-                            />
-                          ) : (
-                            <File size={24} className="text-gray-500" />
-                          )}
-                          <span className="text-sm text-gray-600 truncate max-w-[150px]">
-                            {filePreviews.idProof.name}
-                          </span>
-                        </div>
-                        <div className="flex space-x-2">
-                          {filePreviews.idProof.type !== "existing" && (
-                            <a
-                              href={filePreviews.idProof.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
-                              title="View file"
-                            >
-                              <Eye size={16} />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleFileDelete("idProof")}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg"
-                            title="Delete file"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) =>
-                          handleFileUpload("idProof", e.target.files[0])
-                        }
-                        className="hidden"
-                        id="idProofUpload"
-                      />
-                    )}
-                    <label
-                      htmlFor="idProofUpload"
-                      className="px-4 py-3 border border-gray-300 rounded-xl bg-background hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
-                    >
-                      {filePreviews.idProof
-                        ? "Replace ID Proof"
-                        : "Upload ID Proof"}
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    <Upload size={16} className="inline mr-2" />
-                    Address Proof Document
-                  </label>
-                  <div className="flex flex-col space-y-3">
-                    {filePreviews.addressProof ? (
-                      <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-background">
-                        <div className="flex items-center space-x-3">
-                          {filePreviews.addressProof.type.startsWith(
-                            "image/"
-                          ) || filePreviews.addressProof.type === "existing" ? (
-                            <img
-                              src={filePreviews.addressProof.url}
-                              alt="Address Proof Preview"
-                              className="w-12 h-12 object-cover rounded-md"
-                            />
-                          ) : (
-                            <File size={24} className="text-gray-500" />
-                          )}
-                          <span className="text-sm text-gray-600 truncate max-w-[150px]">
-                            {filePreviews.addressProof.name}
-                          </span>
-                        </div>
-                        <div className="flex space-x-2">
-                          {filePreviews.addressProof.type !== "existing" && (
-                            <a
-                              href={filePreviews.addressProof.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg"
-                              title="View file"
-                            >
-                              <Eye size={16} />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleFileDelete("addressProof")}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg"
-                            title="Delete file"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) =>
-                          handleFileUpload("addressProof", e.target.files[0])
-                        }
-                        className="hidden"
-                        id="addressProofUpload"
-                      />
-                    )}
-                    <label
-                      htmlFor="addressProofUpload"
-                      className="px-4 py-3 border border-gray-300 rounded-xl bg-background hover:bg-gray-100 cursor-pointer transition-all duration-200 text-center text-sm text-gray-600"
-                    >
-                      {filePreviews.addressProof
-                        ? "Replace Address Proof"
-                        : "Upload Address Proof"}
-                    </label>
-                  </div>
-                </div>
+                  </Select>
+                </Field>
               </div>
+            </div>
 
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-                <div className="flex items-center text-sm text-gray-500">
-                  {isDraftSaved ? (
-                    <span className="flex items-center text-green-600">
-                      <CheckCircle size={14} className="mr-1" />
-                      Changes saved automatically
-                    </span>
-                  ) : formData.name ||
-                    formData.designation ||
-                    formData.contactNo ||
-                    formData.idNo ||
-                    formData.joiningDate ||
-                    formData.idProof ||
-                    formData.addressProof ? (
-                    <span className="flex items-center text-status-warning">
-                      <Clock size={14} className="mr-1" />
-                      Unsaved changes
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex space-x-4">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    disabled={isSubmitting}
-                    className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin mr-2" />
-                        Saving...
-                      </>
-                    ) : editStaffId ? (
-                      <>
-                        <Save size={16} className="mr-2" />
-                        Update Staff
-                      </>
-                    ) : (
-                      <>
-                        <Plus size={16} className="mr-2" />
-                        Add Staff
-                      </>
-                    )}
-                  </button>
-                </div>
+            <div>
+              <h3 className="mb-4 flex items-center text-base font-semibold text-foreground">
+                <Upload size={20} className="mr-2 text-green-600" aria-hidden="true" />
+                Documents
+              </h3>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <FileField
+                  label="ID Proof Document"
+                  preview={filePreviews.idProof}
+                  onPick={(file) => handleFileUpload("idProof", file)}
+                  onRemove={() => handleFileDelete("idProof")}
+                />
+                <FileField
+                  label="Address Proof Document"
+                  preview={filePreviews.addressProof}
+                  onPick={(file) => handleFileUpload("addressProof", file)}
+                  onRemove={() => handleFileDelete("addressProof")}
+                />
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
+    {toastNode}
+    </>
   );
 };
 
