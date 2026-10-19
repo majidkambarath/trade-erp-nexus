@@ -126,23 +126,23 @@ export function RouteForm({ route, onClose, onSaved }) {
         {failure && <ErrorNote error={new Error(processErrorText(failure))} />}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Product" required error={errors.finishedId} className="sm:col-span-2">
-            <SearchSelect value={form.finishedId} onChange={(v) => set({ finishedId: v })} options={masters.itemOptions} loading={masters.loading} placeholder="Choose the product" aria-label="Product" autoFocus={!route} noOptionsText="Add the product under Inventory > Stock Items first." />
+            <SearchSelect value={form.finishedId} onChange={(v) => set({ finishedId: v })} options={masters.itemOptions} loading={masters.loading} disabled={!editable} placeholder="Choose the product" aria-label="Product" autoFocus={!route} noOptionsText="Add the product under Inventory > Stock Items first." />
           </Field>
           <Field label="Materials are for" required error={errors.batchQty} hint="How many products the quantities below make.">
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={form.batchQty} onChange={(e) => set({ batchQty: e.target.value })} aria-label="Materials are for" />
+            <TextInput type="number" min="0" step="any" inputMode="decimal" value={form.batchQty} onChange={(e) => set({ batchQty: e.target.value })} disabled={!editable} aria-label="Materials are for" />
           </Field>
         </div>
         <section aria-labelledby="route-materials">
           <h3 id="route-materials" className="mb-1 text-sm font-semibold">Made from</h3>
           <p className="mb-3 text-xs text-muted-foreground">Scaled to each order's quantity. The first material is what goes out to a job worker.</p>
-          <MaterialsEditor materials={form.materials} onChange={(materials) => set({ materials })} errors={errors} itemOptions={masters.itemOptions} loading={masters.loading} finishedId={form.finishedId} />
+          <MaterialsEditor materials={form.materials} onChange={(materials) => set({ materials })} errors={errors} itemOptions={masters.itemOptions} loading={masters.loading} finishedId={form.finishedId} disabled={!editable} />
         </section>
         <section aria-labelledby="route-steps">
           <h3 id="route-steps" className="mb-1 text-sm font-semibold">Steps, in order</h3>
           <p className="mb-3 text-xs text-muted-foreground">Days are calendar days after the step before (the first, after the order's day). In all: {days(total)}.</p>
-          <StepsEditor steps={form.steps} onChange={(steps) => set({ steps })} errors={errors} kind="route" makeStep={emptyRouteStep} vendorOptions={vendorOptions} vendorsLoading={vendors.loading} personOptions={personOptions} peopleLoading={people.loading} />
+          <StepsEditor steps={form.steps} onChange={(steps) => set({ steps })} errors={errors} kind="route" makeStep={emptyRouteStep} vendorOptions={vendorOptions} vendorsLoading={vendors.loading} personOptions={personOptions} peopleLoading={people.loading} disabled={!editable} />
         </section>
-        <Field label="Notes"><Textarea value={form.notes} maxLength={1000} onChange={(e) => set({ notes: e.target.value })} /></Field>
+        <Field label="Notes"><Textarea value={form.notes} maxLength={1000} onChange={(e) => set({ notes: e.target.value })} disabled={!editable} /></Field>
       </form>
       {confirm && (
         <ConfirmDialog title="Delete this route?" text="New orders for the product will no longer be planned from it. Orders already made keep their steps." confirmLabel="Delete" danger busy={busy}

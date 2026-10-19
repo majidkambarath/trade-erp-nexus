@@ -119,6 +119,26 @@ describe("a saved route", () => {
     expect(screen.getByText("Choose the product to make")).toBeInTheDocument();
     expect(m.routeCreate).not.toHaveBeenCalled();
   });
+
+  it("a person without inventory.adjust can open a route to look, but every field is disabled and only Close is offered", async () => {
+    m.grants.allow = (k) => k !== "inventory.adjust";
+    render(<RoutesTab />);
+    const table = await screen.findByRole("table", { name: "Routes" });
+    fireEvent.click(within(table).getByRole("button", { name: /Open the route for/ }));
+    expect(await screen.findByLabelText("Product")).toBeDisabled();
+    expect(screen.getByLabelText("Materials are for")).toBeDisabled();
+    expect(screen.getByLabelText("Material 1 quantity")).toBeDisabled();
+    expect(screen.getByLabelText("Step 1 name")).toBeDisabled();
+    expect(screen.getByLabelText("Step 1 done by")).toBeDisabled();
+    expect(screen.getByLabelText("Step 1 person")).toBeDisabled();
+    expect(screen.getByLabelText("Notes")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Add material" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save route" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog.querySelector("footer")).getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
 });
 
 describe("rejects and the analysis", () => {
