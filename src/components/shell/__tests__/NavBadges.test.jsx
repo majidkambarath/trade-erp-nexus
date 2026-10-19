@@ -8,14 +8,16 @@ import "@testing-library/jest-dom";
 // refreshed when something is decided, and shown wherever the navigation names the tab (header tabs, rail, bottom bar, More).
 // A failure shows nothing rather than a wrong number.
 
-const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn() }));
+const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn(), unreadCount: vi.fn() }));
 vi.mock("../../../lib/processOrderApi", () => ({ PROCESS_WORK_CHANGED: "process-work-changed", processOrders: { myWork: m.myWork } }));
 vi.mock("../../../lib/approvalsApi", async (importOriginal) => ({ ...(await importOriginal()), approvalQueue: { count: m.count, waiting: vi.fn() } }));
+vi.mock("../../../lib/notificationsApi", async (importOriginal) => ({ ...(await importOriginal()), notifications: { unreadCount: m.unreadCount } }));
 let orgStatus = null;
 vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
 
 import { OrganisationProvider, useOrganisation } from "../OrganisationContext";
-import { NavBadgesProvider } from "../NavBadges";
+import { NavBadgesProvider, useNavBadge } from "../NavBadges";
+import { announceNotificationsChanged } from "../../../lib/notificationsApi";
 import ModuleTabs from "../ModuleTabs";
 import AppRail from "../AppRail";
 import BottomNav from "../BottomNav";
@@ -51,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.count.mockResolvedValue({ count: 4, others: 1, capped: false });
   m.myWork.mockResolvedValue({ count: 3 });
+  m.unreadCount.mockResolvedValue({ count: 0 });
 });
 
 describe("the approvals count", () => {
@@ -153,5 +156,37 @@ describe("the my-work count (process steps given to the person)", () => {
     await renderAs(["inventory.view"], <ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} />);
     await waitFor(() => expect(m.count).not.toHaveBeenCalled());
     expect(m.myWork).not.toHaveBeenCalled();
+  });
+});
+
+// No navigation tab names this one - it only backs the bell in TopBar - so it is read with a bare probe.
+function NotificationsProbe() {
+  const count = useNavBadge("notifications");
+  return <span data-testid="notifications-count">{count}</span>;
+}
+
+describe("the notifications count (everyone's own feed)", () => {
+  it("is asked for any signed-in person, whatever their grants - a row's audience can be any permission", async () => {
+    m.unreadCount.mockResolvedValue({ count: 2 });
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId("notifications-count")).toHaveTextContent("2");
+  });
+
+  it("is read again the moment something changes it", async () => {
+    m.unreadCount.mockResolvedValue({ count: 2 });
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await screen.findByText("2");
+    m.unreadCount.mockResolvedValue({ count: 0 });
+    await act(async () => announceNotificationsChanged());
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("0")).toBeInTheDocument();
+  });
+
+  it("shows nothing when the count cannot be read, rather than a wrong number", async () => {
+    m.unreadCount.mockRejectedValue(new Error("offline"));
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalled());
+    expect(await screen.findByTestId("notifications-count")).toHaveTextContent("0");
   });
 });

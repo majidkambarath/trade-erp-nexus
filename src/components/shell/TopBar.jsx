@@ -8,6 +8,7 @@ import BrandMark from "./BrandMark";
 import { PRODUCT_NAME } from "../../config/product";
 import { useInstall } from "./InstallApp";
 import BranchSwitcher from "./BranchSwitcher";
+import NotificationBell from "./NotificationBell";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -124,6 +125,8 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
           </kbd>
           <span className="sr-only lg:hidden">Search pages</span>
         </button>
+
+        <NotificationBell />
 
         <UserMenu profile={profile} onLogout={onLogout} />
       </div>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { approvalQueue, APPROVALS_CHANGED } from "../../lib/approvalsApi";
 import { holdsAnyApprove } from "../../lib/approvalQueue";
 import { processOrders, PROCESS_WORK_CHANGED } from "../../lib/processOrderApi";
+import { notifications, NOTIFICATIONS_CHANGED } from "../../lib/notificationsApi";
 import { cn } from "../../lib/utils";
 import { useOrganisation } from "./OrganisationContext";
 
@@ -56,8 +57,11 @@ export function NavBadgesProvider({ children }) {
   // the process steps given to this person (Inventory > Production): only where Production is switched on, and an opt-in
   // feature is on only when the server says so (a status without it asks nothing)
   const myWork = usePolledCount(Boolean(status?.features?.production === true && can?.("inventory.view")), () => processOrders.myWork(), PROCESS_WORK_CHANGED, branchKey);
+  // Everyone signed in has their own feed - a row's audience can be any permission, so there is no single
+  // one to gate this on (the server filters per row instead; see notificationRoutes.js).
+  const notificationsCount = usePolledCount(Boolean(me), () => notifications.unreadCount(), NOTIFICATIONS_CHANGED, branchKey);
 
-  const value = useMemo(() => ({ approvals, myWork }), [approvals, myWork]);
+  const value = useMemo(() => ({ approvals, myWork, notifications: notificationsCount }), [approvals, myWork, notificationsCount]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
