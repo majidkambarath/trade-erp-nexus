@@ -205,7 +205,7 @@ export function ProcessOrderForm({ order, onClose, onSaved }) {
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />{planning ? "Planning…" : "Use the saved route"}
               </Button>
             ) : lastSteps.length > 0 && (
-              <Button type="button" variant="outline" size="sm" onClick={() => set({ steps: stepsFromLast(lastSteps) })} disabled={!blankSteps && !order}>
+              <Button type="button" variant="outline" size="sm" onClick={() => set({ steps: stepsFromLast(lastSteps) })} disabled={!blankSteps}>
                 <Copy className="h-3.5 w-3.5" aria-hidden="true" />Copy steps from the last order
               </Button>
             )}

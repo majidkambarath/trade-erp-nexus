@@ -148,4 +148,26 @@ describe("process orders", () => {
     expect(screen.getByText("Add the steps the product goes through")).toBeInTheDocument();
     expect(m.create).not.toHaveBeenCalled();
   });
+
+  it("'Copy steps from the last order' never silently wipes real steps, whether on a new or an existing order", async () => {
+    m.lastSteps.mockResolvedValue([{ name: "Cutting", mode: "in_house" }]);
+    render(<ProcessOrdersTab />);
+    // A new, still-blank order: nothing to lose, so the button works, once a product (and so its last steps) is chosen.
+    fireEvent.click(await screen.findByRole("button", { name: /New process order/ }));
+    await waitFor(() => expect(m.apiGet).toHaveBeenCalled());
+    await screen.findByText("Choose the product");
+    const product = screen.getByLabelText("Product to make");
+    fireEvent.change(product, { target: { value: "Keychain" } });
+    fireEvent.keyDown(product, { key: "Enter" });
+    expect(await screen.findByRole("button", { name: "Copy steps from the last order" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Copy steps from the last order" }));
+    expect(await screen.findByLabelText("Step 1 name")).toHaveValue("Cutting");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Editing an existing order with real steps already typed: one click must not be able to wipe them.
+    m.get.mockResolvedValue(order({ actions: { edit: true, cancel: true } }));
+    fireEvent.click(await screen.findByRole("button", { name: "View PRO-2026-0001" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("button", { name: "Copy steps from the last order" })).toBeDisabled();
+  });
 });
