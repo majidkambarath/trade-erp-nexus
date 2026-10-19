@@ -26,7 +26,7 @@ export default function CashAndBank() {
   const total = (rows) => { const { text, side } = drCr(sum(rows)); return side ? `${text} ${side}` : text; };
 
   const table = (rows, kind) => (
-    <Panel bodyClassName="p-0" title={kind === "bank" ? "Bank accounts" : "Cash accounts"} actions={canAddAccount && <Link to="/chart-of-accounts" className="text-sm text-primary underline-offset-2 hover:underline">Add an account</Link>}>
+    <Panel bodyClassName="p-0" title={kind === "bank" ? "Bank accounts" : "Cash accounts"} actions={canAddAccount && <Link to="/chart-of-accounts" className="-my-2.5 py-2.5 text-sm text-primary underline-offset-2 hover:underline">Add an account</Link>}>
       {rows.length === 0 ? <EmptyState title={`No ${kind} accounts`} text={canAddAccount ? "Add one in the chart of accounts." : "None have been set up yet."} /> : (
         <DataTable
           caption="Accounts"
