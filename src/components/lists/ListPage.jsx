@@ -18,6 +18,10 @@ import ListPager from "./ListPager";
 // "Lists of masters need no period") can still reach for FilterBar, SavedViews, BulkBar and DataTable
 // directly, in whatever arrangement it needs - `ListPage` is a convenience, not the only way in.
 //
+// `beforeFilters` is the one escape hatch for what does not fit the header/filters/table shape - stat
+// cards above the list (as `CategoryManagement` keeps), a tab strip, a notice. It is deliberately a single
+// slot, not named ones for each case: most screens need nothing here at all.
+//
 //   const columns = [...];
 //   const list = useListView("customers", { columns, filters: { status: "" } });
 //   const { data, loading, error, reload } = useAsync(() => api.customers.list({ search: list.search, ...list.filters, sort: list.sort }), [list.key]);
@@ -42,6 +46,10 @@ export default function ListPage({
   title,
   description,
   actions,
+
+  // anything that sits between the header and the filter row - stat cards, a tab strip, a notice. Rare
+  // enough (most screens need nothing here) that it stays a single escape hatch rather than named slots.
+  beforeFilters,
 
   // the useListView(...) result - required; everything below reads/writes through it
   list,
@@ -72,7 +80,14 @@ export default function ListPage({
   // the "nothing at all" case (list.active decides whether this or the "no match" copy below shows);
   // `empty` overrides both and is rendered as-is - reach for it when a screen needs ListEmpty's
   // period-aware wording instead (a list of dated documents or movements, which carries its own
-  // usePeriodFilter and so a period control FilterBar does not have room for here)
+  // usePeriodFilter and so a period control FilterBar does not have room for here).
+  //
+  // `empty` is read with `??`, so pass `false` (never `null`/`undefined`) when a screen computes its own
+  // empty node and wants to suppress it for one render (a stale answer mid-reload, a page about to be
+  // clamped back by its own effect) - `null`/`undefined` read as "nothing custom was given" and fall
+  // through to this component's own default copy instead of showing nothing (`CategoryManagement`'s own
+  // `page`/`answeredFor` guard hit exactly this: passing `null` there surfaced THIS component's "No
+  // categories yet" one render early, not the screen's own text, because both happened to read the same).
   emptyTitle,
   emptyText,
   emptyAction,
@@ -124,6 +139,8 @@ export default function ListPage({
   return (
     <div className={cn("mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8", className)}>
       <PageHeader title={title} description={description} actions={actions} />
+
+      {beforeFilters}
 
       {list && (
         <div className="mb-4">

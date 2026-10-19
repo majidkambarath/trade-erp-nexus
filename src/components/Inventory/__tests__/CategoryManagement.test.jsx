@@ -189,7 +189,7 @@ describe("the empty state", () => {
   it("does not claim there are none on the very first frame, before anything has been asked", () => {
     // rendered to a string: no effect has run, so this is exactly what is painted before the request goes out
     const html = renderToString(<MemoryRouter><CategoryManagement /></MemoryRouter>);
-    expect(html).toContain("Loading categories...");
+    expect(html).toContain("Loading categories");
     expect(html).not.toContain("No categories yet");
   });
 
@@ -198,7 +198,7 @@ describe("the empty state", () => {
     api.get.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ data: { data: { categories: [category("Rice")] }, total: 1, totalPages: 1 } }); }));
     show();
     expect(screen.queryByText("No categories yet")).not.toBeInTheDocument();
-    expect(screen.getByText("Loading categories...")).toBeInTheDocument();
+    expect(screen.getByText(/Loading categories/)).toBeInTheDocument();
     await waitFor(() => expect(release).toBeTypeOf("function"));
     release();
     expect(await screen.findByText("Rice")).toBeInTheDocument();

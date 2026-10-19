@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus,
   Download,
@@ -13,40 +13,41 @@ import {
 } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { pageSession } from "../../lib/pageSession";
+import { useListView } from "../../lib/useListView";
 import StatCard from "../ui/stat-card";
 import { Button } from "../ui/button";
-import FilterBar from "../lists/FilterBar";
+import ListPage from "../lists/ListPage";
 import ListPager from "../lists/ListPager";
 import { pageFigures } from "../../lib/pagination";
 
 import { downloadCSV, formatTime } from "../../utils/format";
-import { ConfirmDialog, DataTable, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, Textarea, useToasts } from "../accounting/kit";
+import { ConfirmDialog, Field, Modal, Pill, Select, TextInput, Textarea, useAsync, useToasts } from "../accounting/kit";
 import Can from "../shell/Can";
 
-// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search, and a half-filled
-// new-category form. Held in memory for the tab; emptied at sign-out.
-const session = pageSession("inventory-categories");
+// What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search (via
+// useListView, below), and a half-filled new-category form. Held in memory for the tab; emptied at sign-out.
+const PAGE_NAME = "inventory-categories";
+const session = pageSession(PAGE_NAME);
 
 const blankForm = () => ({ name: "", description: "", status: "Active" });
 // a form is worth keeping once the person has put something in it ("Active" is where it starts, not an entry)
 const hasEntry = (draft) => Boolean(draft && (draft.name || draft.description || (draft.status && draft.status !== "Active")));
 
 const CategoryManagement = () => {
-  const [categories, setCategories] = useState([]);
-  // the list is being asked for from the first frame: "No categories yet" must not show before the answer is in
-  const [isLoading, setIsLoading] = useState(true);
+  // search/filters/sort/selection for this list - lib/useListView.js. No filters or sort of its own today
+  // (a category has only a name, a description and a status, and the server has nothing to sort on), so
+  // this is mostly the search box; it is the first real screen to adopt the `ListPage`/`useListView` shell
+  // built for Stage 1c, in place of the hand-rolled search state every list used to carry on its own.
+  const list = useListView(PAGE_NAME, {});
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState(null);
-  // the search and a half-filled new-category form come back as the person left them
+  // the half-filled new-category form comes back as the person left them
   const [restoredDraft] = useState(() => {
     const draft = session.get("formData");
     return hasEntry(draft) ? { ...blankForm(), ...draft } : null;
   });
-  const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRows, setTotalRows] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [stats, setStats] = useState({
     totalCategories: 0,
@@ -68,12 +69,15 @@ const CategoryManagement = () => {
 
   const formRef = useRef(null);
 
-  // a search is sent once the person pauses, not on every key
-  const [askedSearch, setAskedSearch] = useState(() => searchTerm.trim());
+  // What is actually SENT to the server: the box (list.search) updates on every key, this waits for a pause - except
+  // when the box goes back to empty (backspaced, or "Clear filters"/"Clear search and filters" pressed), which asks
+  // again at once rather than making someone wait to see the full list come back.
+  const [askedSearch, setAskedSearch] = useState(() => (list.search || "").trim());
   useEffect(() => {
-    const t = setTimeout(() => setAskedSearch(searchTerm.trim()), 300);
+    if (!list.search) { setAskedSearch(""); return undefined; }
+    const t = setTimeout(() => setAskedSearch(list.search.trim()), 300);
     return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [list.search]);
 
   // Only the NEW-category form is kept: an edit is a change to a record the server holds, and kept as a draft it would come back
   // as a new category carrying another one's details. It is written at once (leaving the page inside the two seconds below must
@@ -90,52 +94,33 @@ const CategoryManagement = () => {
     return () => clearTimeout(t);
   }, [formData, showModal, isEditMode]);
 
-  useEffect(() => {
-    session.set("searchTerm", searchTerm);
-  }, [searchTerm]);
-
   // Every existing call site below reads `showToastMessage(message, type)` - kept as a thin wrapper over the
   // shared kit.useToasts() so none of them needed to change.
   const showToastMessage = useCallback((message, type = "success") => notify(message, type), [notify]);
 
-  // The rows on the screen answer one question (a page of one search). The empty state is a claim about THAT question, so it is
-  // drawn only once the answer to the question now being asked is in: after a page or a search changes there is one frame, before
-  // the request starts, in which the old (possibly empty) rows would otherwise be read as the answer to the new one.
-  const [answeredFor, setAnsweredFor] = useState("");
+  // What the answer in hand actually answers, vs. what the screen is asking right now - these can differ for one
+  // render: a page clamped back after a delete (the effect below) takes effect before its own refetch lands, and
+  // without this check the empty state would flash onto a request that was never actually made.
   const asking = `${page}|${askedSearch}|${pageSize}`;
-  const categoryRequest = useRef(0);
-  const fetchCategories = useCallback(
-    async (showRefreshIndicator = false) => {
-      const ask = ++categoryRequest.current;
-      setIsLoading(showRefreshIndicator ? false : true);
-      try {
-        const params = {
-          page,
-          limit: pageSize,
-          search: askedSearch || undefined,
-        };
-        const response = await axiosInstance.get("/categories/categories", { params });
-        // an answer to a search the person has since changed is not shown
-        if (ask !== categoryRequest.current) return;
-        setCategories(response.data.data?.categories || []);
-        setTotalPages(response.data.totalPages || 1);
-        setTotalRows(Number(response.data.total) || 0);
-        setAnsweredFor(`${page}|${askedSearch}|${pageSize}`);
-        if (showRefreshIndicator) {
-          showToastMessage("Data refreshed successfully!", "success");
-        }
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-        showToastMessage(
-          error.response?.data?.message || "Failed to fetch categories",
-          "error"
-        );
-      } finally {
-        if (ask === categoryRequest.current) setIsLoading(false);
-      }
-    },
-    [page, pageSize, askedSearch, showToastMessage]
+  const { data, loading, error, reload } = useAsync(
+    () =>
+      axiosInstance.get("/categories/categories", { params: { page, limit: pageSize, search: askedSearch || undefined } }).then((response) => ({
+        categories: response.data.data?.categories || [],
+        totalPages: response.data.totalPages || 1,
+        total: Number(response.data.total) || 0,
+        answeredFor: asking,
+      })),
+    [page, pageSize, askedSearch]
   );
+  const categories = useMemo(() => data?.categories || [], [data]);
+  const totalPages = data?.totalPages || 1;
+  const totalRows = data?.total || 0;
+  const answered = data?.answeredFor === asking;
+
+  // the same guarantee the hand-rolled fetch used to give directly: a failed list request still says so
+  useEffect(() => {
+    if (error) showToastMessage(error.response?.data?.message || "Failed to fetch categories", "error");
+  }, [error, showToastMessage]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -153,8 +138,6 @@ const CategoryManagement = () => {
     }
   }, [showToastMessage]);
 
-  // each is asked for on its own: a new search or page must not fetch the cards again
-  useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   // a new search starts at the first page, and a page that no longer exists (the last row of the last page was deleted) falls back
@@ -163,16 +146,8 @@ const CategoryManagement = () => {
     setPage(1);
   }, [askedSearch]);
   useEffect(() => {
-    if (!isLoading && page > totalPages) setPage(Math.max(1, totalPages));
-  }, [isLoading, page, totalPages]);
-  const filtersOn = Boolean(searchTerm.trim());
-  // what the list on the screen was actually asked for: the wording of its empty state follows this, not the box, which can be
-  // ahead of it by the pause above
-  const listFiltered = Boolean(askedSearch);
-  const clearFilters = () => {
-    setSearchTerm("");
-    setAskedSearch("");
-  };
+    if (!loading && page > totalPages) setPage(Math.max(1, totalPages));
+  }, [loading, page, totalPages]);
 
   const handleChange = useCallback(
     (e) => {
@@ -221,7 +196,7 @@ const CategoryManagement = () => {
         showToastMessage("Category created successfully!", "success");
       }
       resetForm();
-      fetchCategories();
+      reload();
       fetchStats();
     } catch (error) {
       showToastMessage(
@@ -231,7 +206,7 @@ const CategoryManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, validateForm, resetForm, isEditMode, editCategoryId, fetchCategories, fetchStats, showToastMessage]);
+  }, [formData, validateForm, resetForm, isEditMode, editCategoryId, reload, fetchStats, showToastMessage]);
 
   const handleEdit = useCallback((category) => {
     setFormData({
@@ -273,7 +248,7 @@ const CategoryManagement = () => {
     try {
       await axiosInstance.delete(`/categories/categories/${deleteConfirmation.categoryId}`);
       showToastMessage("Category deleted successfully!", "success");
-      fetchCategories();
+      reload();
       fetchStats();
       hideDeleteConfirmation();
     } catch (error) {
@@ -284,7 +259,7 @@ const CategoryManagement = () => {
     } finally {
       setDeleteConfirmation((prev) => ({ ...prev, isDeleting: false }));
     }
-  }, [deleteConfirmation.categoryId, fetchCategories, fetchStats, showToastMessage, hideDeleteConfirmation]);
+  }, [deleteConfirmation.categoryId, reload, fetchStats, showToastMessage, hideDeleteConfirmation]);
 
   const formatLastSaveTime = useCallback((timeString) => {
     if (!timeString) return "";
@@ -314,13 +289,48 @@ const CategoryManagement = () => {
   }, [categories, showToastMessage]);
 
   const handleRefresh = useCallback(() => {
-    fetchCategories(true);
+    reload();
     fetchStats();
-  }, [fetchCategories, fetchStats]);
+    showToastMessage("Data refreshed successfully!", "success");
+  }, [reload, fetchStats, showToastMessage]);
+
+  // what the list on the screen was actually asked for: the empty state's wording follows this, not the search
+  // box, which can be ahead of it by the debounce above. Guarded by `page <= totalPages` too: a delete that empties
+  // the last page must show the page before it (the clamp effect above), never an empty-state flash in between.
+  const listFiltered = Boolean(askedSearch);
+  // `false`, not `null` - ListPage's own `empty ?? (its default text)` would read a bare `null` as "nothing
+  // custom was given" and substitute ITS OWN "No categories yet"/"No categories match" copy; `false` is not
+  // nullish, so it suppresses the empty state outright, exactly while the guard below says the answer in
+  // hand does not (yet) answer what the screen is asking.
+  const emptyNode =
+    !answered || page > totalPages ? false : (
+      <div className="text-center py-12">
+        <Tag size={48} className="mx-auto text-gray-300 mb-4" />
+        <p className="text-foreground">
+          {listFiltered ? "No categories match the search or filters" : "No categories yet"}
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {listFiltered ? (
+            "Clear the search to see every category."
+          ) : (
+            <Can permission="inventory.create" fallback="Categories your team adds will be listed here.">
+              Add a category to start the list.
+            </Can>
+          )}
+        </p>
+        {listFiltered && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={list.clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
+              Clear search and filters
+            </button>
+          </div>
+        )}
+      </div>
+    );
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader
+    <>
+      <ListPage
         title="Category Management"
         description={`${stats.totalCategories} total categories • ${categories.length} displayed`}
         actions={
@@ -337,164 +347,100 @@ const CategoryManagement = () => {
             <button
               type="button"
               onClick={handleRefresh}
-              disabled={isLoading}
+              disabled={loading}
               className="grid h-10 w-10 place-items-center lg:h-9 lg:w-9 rounded-lg border border-input bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
               title="Refresh data"
               aria-label="Refresh data"
             >
-              <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             </button>
+            <Can permission="inventory.create">
+              <Button
+                data-shortcut="new"
+                onClick={() => {
+                  setShowModal(true);
+                  setIsEditMode(false);
+                  setEditCategoryId(null);
+                }}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add Category
+              </Button>
+            </Can>
           </>
         }
-      />
-
-      <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 mb-8">
-        {[
-          {
-            title: "Total Categories",
-            count: stats.totalCategories,
-            icon: <Tag size={24} />,
-          },
-          {
-            title: "Active Categories",
-            count: stats.activeCategories,
-            icon: <CheckCircle2 size={24} />,
-          },
-          {
-            title: "Inactive Categories",
-            count: stats.inactiveCategories,
-            icon: <XCircle size={24} />,
-          },
-        ].map((card, index) => (
-          <StatCard
-              key={index}
-              title={card.title}
-              count={card.count}
-              icon={card.icon}
-              subText={card.subText}
-              tone={["teal", "plum", "olive", "rose"][index % 4]}
-              onClick={card.onClick}
-            />
-          ))}
-      </div>
-
-      <Panel
-        bodyClassName="p-0"
-        title="Category List"
-        description="Manage all inventory categories"
-        actions={
-          <Can permission="inventory.create">
-            <Button
-              onClick={() => {
-                setShowModal(true);
-                setIsEditMode(false);
-                setEditCategoryId(null);
-              }}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add Category
-            </Button>
-          </Can>
+        beforeFilters={
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3 mb-8">
+            {[
+              { title: "Total Categories", count: stats.totalCategories, icon: <Tag size={24} /> },
+              { title: "Active Categories", count: stats.activeCategories, icon: <CheckCircle2 size={24} /> },
+              { title: "Inactive Categories", count: stats.inactiveCategories, icon: <XCircle size={24} /> },
+            ].map((card, index) => (
+              <StatCard
+                key={index}
+                title={card.title}
+                count={card.count}
+                icon={card.icon}
+                tone={["teal", "plum", "olive", "rose"][index % 4]}
+              />
+            ))}
+          </div>
         }
-      >
-        <div className="border-b border-border p-4 sm:p-6">
-          {/* The search: always showing, the same row every list of the product has (components/lists/FilterBar.jsx). It has no other
-              choice to offer: a category has a name, a description and a status, and the server searches the first two. */}
-          <FilterBar
-            search={searchTerm}
-            onSearch={setSearchTerm}
-            searchLabel="Search categories"
-            placeholder="Search name or description…"
-            active={filtersOn}
-            onClear={clearFilters}
-          />
-        </div>
-
-        {isLoading && (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 size={32} className="animate-spin text-muted-foreground" />
-            <span className="ml-3 text-muted-foreground">Loading categories...</span>
-          </div>
-        )}
-
-        {!isLoading && (
-          <div className="overflow-x-auto">
-            <DataTable
-              caption="Categories"
-              rows={categories}
-              rowKey={(category) => category._id}
-              columns={[
-                {
-                  key: "name", header: "Category Name", card: "primary",
-                  cell: (category) => (
-                    <div className="flex items-center space-x-3">
-                      <div className="rounded-lg bg-secondary p-2">
-                        <Tag size={16} className="text-muted-foreground" />
-                      </div>
-                      <p className="font-semibold text-foreground">{category.name}</p>
-                    </div>
-                  ),
-                },
-                { key: "description", header: "Description", card: "title", cell: (category) => <p className="text-sm text-muted-foreground">{category.description || "No description"}</p> },
-                {
-                  key: "status", header: "Status", card: "badge",
-                  cell: (category) => <Pill tone={category.status === "Active" ? "success" : "danger"}>{category.status}</Pill>,
-                },
-                {
-                  key: "actions", header: "Actions", align: "center", card: "actions",
-                  cell: (category) => (
-                    <div className="flex justify-center space-x-2">
-                      <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground" title="Edit Category"><Edit3 size={16} /></button></Can>
-                      <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="rounded-lg p-2 text-status-danger transition-colors duration-200 hover:bg-status-danger-soft" title="Delete Category"><Trash2 size={16} /></button></Can>
-                    </div>
-                  ),
-                },
-              ]}
-            />
-
-            {/* not before the answer to this page and search is in, and not while the page is about to fall back to the last one
-                (the categories are there, on another page) */}
-            {categories.length === 0 && answeredFor === asking && page <= totalPages && (
-              <div className="text-center py-12">
-                <Tag size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-foreground">
-                  {listFiltered ? "No categories match the search or filters" : "No categories yet"}
-                </p>
-                <p className="text-muted-foreground text-sm">
-                  {listFiltered ? (
-                    "Clear the search to see every category."
-                  ) : (
-                    <Can permission="inventory.create" fallback="Categories your team adds will be listed here.">
-                      Add a category to start the list.
-                    </Can>
-                  )}
-                </p>
-                {listFiltered && (
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <button type="button" onClick={clearFilters} className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-medium text-foreground hover:bg-accent">
-                      Clear search and filters
-                    </button>
-                  </div>
-                )}
+        list={list}
+        noun="categories"
+        searchLabel="Search categories"
+        placeholder="Search name or description…"
+        caption="Categories"
+        rows={categories}
+        rowKey={(category) => category._id}
+        columns={[
+          {
+            key: "name", header: "Category Name", card: "primary",
+            cell: (category) => (
+              <div className="flex items-center space-x-3">
+                <div className="rounded-lg bg-secondary p-2">
+                  <Tag size={16} className="text-muted-foreground" />
+                </div>
+                <p className="font-semibold text-foreground">{category.name}</p>
               </div>
-            )}
-          </div>
-        )}
-
-        {!isLoading && categories.length > 0 && (
-          <ListPager
-            figures={pageFigures({ page, size: pageSize, total: totalRows })}
-            onPage={setPage}
-            onPageSize={(n) => {
-              setPageSize(n);
-              setPage(1);
-            }}
-            noun="categories"
-            one="category"
-            className="rounded-none border-0 border-t shadow-none"
-          />
-        )}
-      </Panel>
+            ),
+          },
+          { key: "description", header: "Description", card: "title", cell: (category) => <p className="text-sm text-muted-foreground">{category.description || "No description"}</p> },
+          {
+            key: "status", header: "Status", card: "badge",
+            cell: (category) => <Pill tone={category.status === "Active" ? "success" : "danger"}>{category.status}</Pill>,
+          },
+          {
+            key: "actions", header: "Actions", align: "center", card: "actions",
+            cell: (category) => (
+              <div className="flex justify-center space-x-2">
+                <Can permission="inventory.edit"><button onClick={() => handleEdit(category)} className="rounded-lg p-2 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground" title="Edit Category"><Edit3 size={16} /></button></Can>
+                <Can permission="inventory.delete"><button onClick={() => showDeleteConfirmation(category._id, category.name)} className="rounded-lg p-2 text-status-danger transition-colors duration-200 hover:bg-status-danger-soft" title="Delete Category"><Trash2 size={16} /></button></Can>
+              </div>
+            ),
+          },
+        ]}
+        loading={loading}
+        loadingLabel="Loading categories"
+        error={error}
+        onRetry={reload}
+        empty={emptyNode}
+        pager={
+          categories.length > 0 ? (
+            <ListPager
+              figures={pageFigures({ page, size: pageSize, total: totalRows })}
+              onPage={setPage}
+              onPageSize={(n) => {
+                setPageSize(n);
+                setPage(1);
+              }}
+              noun="categories"
+              one="category"
+              className="rounded-none border-0 border-t shadow-none"
+            />
+          ) : null
+        }
+      />
 
       {showModal && (
         <Modal
@@ -568,7 +514,7 @@ const CategoryManagement = () => {
       )}
 
       {toastNode}
-    </div>
+    </>
   );
 };
 

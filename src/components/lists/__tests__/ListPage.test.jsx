@@ -58,6 +58,15 @@ describe("ListPage", () => {
     expect(screen.getByText("Alpha")).toBeVisible();
   });
 
+  it("beforeFilters renders between the header and the filter row, and is absent by default", async () => {
+    const { unmount } = await renderAs(<Harness />);
+    expect(screen.queryByText("3 widgets, 2 active")).not.toBeInTheDocument();
+    unmount();
+
+    await renderAs(<Harness beforeFilters={<p>3 widgets, 2 active</p>} />);
+    expect(screen.getByText("3 widgets, 2 active")).toBeVisible();
+  });
+
   it("the saved-view picker rides in the same toolbar as the search box, and can be turned off", async () => {
     const { unmount } = await renderAs(<Harness />);
     expect(screen.getByRole("combobox", { name: "View" })).toBeVisible();
@@ -106,6 +115,15 @@ describe("ListPage", () => {
   it("an explicit empty node overrides both built-in empty states", async () => {
     await renderAs(<Harness rows={[]} empty={<p>Nothing here at all.</p>} />);
     expect(screen.getByText("Nothing here at all.")).toBeVisible();
+  });
+
+  it("empty={false} shows nothing; empty={null}/{undefined} fall through to the built-in copy (?? reads both as 'not given')", async () => {
+    const { unmount } = await renderAs(<Harness rows={[]} empty={false} />);
+    expect(screen.queryByText(/No widgets/)).not.toBeInTheDocument();
+    unmount();
+
+    await renderAs(<Harness rows={[]} empty={null} />);
+    expect(screen.getByText("No widgets yet")).toBeVisible();
   });
 
   it("shows a spinner while loading and an error with Try again otherwise", async () => {
