@@ -9,6 +9,7 @@ import {
   BookOpen,
   Building2,
   CalendarClock,
+  CalendarDays,
   Contact,
   Gauge,
   Handshake,
@@ -102,6 +103,13 @@ export const MODULES = [
     icon: CalendarClock,
     // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what this person owes today
     tabs: [{ label: "Follow-ups", to: "/crm/follow-ups", permission: "crm.view", badge: "crmFollowUps", keywords: ["call", "visit", "reminder", "due", "overdue", "chase", "activity", "task", "worklist"] }],
+  },
+  {
+    id: "crm-calendar",
+    workspace: "crm",
+    label: "Calendar",
+    icon: CalendarDays,
+    tabs: [{ label: "Calendar", to: "/crm/calendar", permission: "crm.view", keywords: ["schedule", "diary", "agenda", "month", "events", "due", "reschedule", "drag", "what is on"] }],
   },
   {
     id: "crm-reports",

@@ -103,7 +103,7 @@ function RankTip({ active, payload, describe }) {
   );
 }
 
-// rows: [{ key, name, value, muted? }]. `reference` draws a dashed line to compare every bar against
+// rows: [{ key, name, value, muted?, color? }]. `reference` draws a dashed line to compare every bar against
 // ({ value, label }). `valueText` writes the figure at the end of a bar, `describe` fills the tooltip.
 export function RankedBars({ rows, height, valueText, axisText = compactAmount, describe, reference }) {
   const h = height || Math.max(160, rows.length * 40 + 34);
@@ -124,7 +124,8 @@ export function RankedBars({ rows, height, valueText, axisText = compactAmount, 
           />
         )}
         <Bar dataKey="value" radius={[0, 8, 8, 0]} maxBarSize={20} isAnimationActive={false}>
-          {rows.map((r) => <Cell key={r.key} fill={r.muted ? "var(--muted-foreground)" : ink} />)}
+          {/* A row may name its own colour (the CRM colours its stages); without one every bar is ink, as before. */}
+          {rows.map((r) => <Cell key={r.key} fill={r.color || (r.muted ? "var(--muted-foreground)" : ink)} />)}
           <LabelList dataKey="value" content={<ValueLabel rows={rows} valueText={valueText} />} />
         </Bar>
       </BarChart>

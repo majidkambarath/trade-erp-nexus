@@ -6,7 +6,7 @@
 //
 // Every chart is the same RankedBars the home dashboard uses, so a figure here and a figure there are drawn the
 // same way and read the same way.
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, TableScroll, useAsync, Field, DateInput } from "../accounting/kit.jsx";
@@ -18,6 +18,9 @@ import { pageSession } from "../../lib/pageSession";
 import { formatCurrencyAED, formatDate, formatNumber, downloadCSV } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
+import { hueFor, stageHues } from "../../lib/crm";
+import { Ring, PulseStrip } from "./CrmCharts.jsx";
+import { useReveal } from "./useReveal.js";
 import { Tag } from "./crmShared.jsx";
 
 const session = pageSession("crm-reports");
@@ -39,29 +42,52 @@ function Chart({ rows, valueText = compactAmount, describe, empty }) {
   return <RankedBars rows={rows} valueText={valueText} describe={describe} />;
 }
 
+/** One report's body. Its direct children (the tiles, then each panel) arrive in a short stagger - see useReveal. */
+function Stage({ children, ready = true }) {
+  const ref = useRef(null);
+  useReveal(ref, ready, ":scope > *");
+  return (
+    <div ref={ref} className="space-y-4">
+      {children}
+    </div>
+  );
+}
+
 const Grid = ({ children }) => <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{children}</div>;
 
 function Pipeline({ data }) {
-  const stages = (data?.funnel || []).filter((s) => s.type !== "won" && s.type !== "lost");
+  const all = data?.funnel || [];
+  const stages = all.filter((s) => s.type !== "won" && s.type !== "lost");
+  const hues = stageHues(all);
+  const live = stages.filter((s) => s.count > 0);
   return (
-    <>
+    <Stage>
       <Grid>
         <StatCard title="Open deals" count={count(data?.deals?.open)} />
         <StatCard title="In the pipeline" fit count={formatCurrencyAED(data?.deals?.openValue)} />
         <StatCard title="Likely to close" fit count={formatCurrencyAED(data?.deals?.weightedValue)} tone="teal" subText="Weighted by stage" />
         <StatCard title="Stages" count={count(stages.length)} subText="Set up under Setup" />
       </Grid>
-      <Panel className="mt-4" title="Where the deals stand" description="Open deals by stage, at the value they are worth." bodyClassName="px-2 pb-2">
-        <Chart
-          rows={stages.filter((s) => s.count > 0).map((s) => ({ key: s.key, name: s.name, value: s.value }))}
-          describe={(r) => {
-            const s = stages.find((x) => x.name === r.name);
-            return `${count(s?.count)} deals · ${formatCurrencyAED(s?.weighted)} likely`;
-          }}
-          empty={{ title: "Nothing in the pipeline", text: "Qualify an enquiry and the deal appears on the first stage." }}
-        />
-      </Panel>
-      <Panel className="mt-4" bodyClassName="p-0">
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Panel className="lg:col-span-3" title="Where the deals stand" description="Open deals by stage, at the value they are worth." bodyClassName="px-2 pb-2">
+          <Chart
+            rows={live.map((s) => ({ key: s.key, name: s.name, value: s.value, color: hues[s.key] }))}
+            describe={(r) => {
+              const s = stages.find((x) => x.name === r.name);
+              return `${count(s?.count)} deals · ${formatCurrencyAED(s?.weighted)} likely`;
+            }}
+            empty={{ title: "Nothing in the pipeline", text: "Qualify an enquiry and the deal appears on the first stage." }}
+          />
+        </Panel>
+        <Panel className="lg:col-span-2" title="What it is made of" description="Each stage's share of the open value." bodyClassName="p-4">
+          {live.length === 0 ? (
+            <Nothing title="Nothing to divide" text="The pipeline is empty." />
+          ) : (
+            <Ring rows={live.map((s) => ({ key: s.key, name: s.name, value: s.value, color: hues[s.key] }))} total={data?.deals?.openValue || 0} />
+          )}
+        </Panel>
+      </div>
+      <Panel bodyClassName="p-0">
         <DataTable
           caption="Pipeline by stage"
           rows={stages}
@@ -75,32 +101,63 @@ function Pipeline({ data }) {
           ]}
         />
       </Panel>
-    </>
+    </Stage>
   );
 }
 
 function Conversion({ data }) {
   const rows = data?.bySource || [];
+  const total = data?.leads?.total || 0;
+  // The funnel the whole module exists to widen: how many enquiries became customers, and how many of THOSE were won.
+  // Three bars, each a share of the first, so a leak is visible as a step that drops away.
+  const steps = [
+    { key: "enquiries", name: "Enquiries", value: total, color: hueFor(0) },
+    { key: "customers", name: "Became customers", value: data?.leads?.converted || 0, color: hueFor(1) },
+    { key: "won", name: "Deals won", value: data?.deals?.won || 0, color: hueFor(2) },
+  ];
   return (
-    <>
+    <Stage>
       <Grid>
-        <StatCard title="Enquiries" count={count(data?.leads?.total)} />
+        <StatCard title="Enquiries" count={count(total)} />
         <StatCard title="Became customers" count={count(data?.leads?.converted)} tone="teal" />
         <StatCard title="Conversion" count={pct(data?.leads?.conversionRate)} subText={`${count(data?.leads?.lost)} came to nothing`} />
         <StatCard title="Still in hand" count={count(data?.leads?.open)} />
       </Grid>
-      <Panel className="mt-4" title="Where the enquiries come from" description="How many arrived from each source." bodyClassName="px-2 pb-2">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="The funnel" description="Where enquiries drop away on the way to a won deal." bodyClassName="px-2 pb-2">
+          <Chart
+            rows={steps}
+            valueText={(v) => `${count(v)}${total ? ` · ${formatNumber((v / total) * 100, 0)}%` : ""}`}
+            describe={(r) => `${count(r.value)} of ${count(total)} enquiries`}
+            empty={{ title: "No enquiries in this period", text: "Widen the dates, or take one." }}
+          />
+        </Panel>
+        <Panel title="Where they come from" description="Enquiries by source." bodyClassName="p-4">
+          {rows.length === 0 ? (
+            <Nothing title="No enquiries in this period" text="Widen the dates, or take one." />
+          ) : (
+            <Ring
+              rows={rows.map((r, i) => ({ key: r.source, name: r.label, value: r.leads, color: hueFor(i) }))}
+              total={total}
+              label="enquiries"
+              format={(n) => count(n)}
+            />
+          )}
+        </Panel>
+      </div>
+      <Panel title="Which sources actually convert" description="The share of each source's enquiries that became customers." bodyClassName="px-2 pb-2">
         <Chart
-          rows={rows.map((r) => ({ key: r.source, name: r.label, value: r.leads }))}
-          valueText={(v) => count(v)}
+          rows={rows.filter((r) => r.conversionRate !== null).map((r, i) => ({ key: r.source, name: r.label, value: r.conversionRate, color: hueFor(i) }))}
+          valueText={(v) => pct(v)}
+          axisText={(v) => `${v}%`}
           describe={(r) => {
             const s = rows.find((x) => x.label === r.name);
-            return `${count(s?.converted)} converted · ${pct(s?.conversionRate)} · ${formatCurrencyAED(s?.value)} enquired for`;
+            return `${count(s?.converted)} of ${count(s?.leads)} converted · ${formatCurrencyAED(s?.value)} enquired for`;
           }}
-          empty={{ title: "No enquiries in this period", text: "Widen the dates, or take one." }}
+          empty={{ title: "Nothing to compare", text: "A source needs at least one enquiry." }}
         />
       </Panel>
-      <Panel className="mt-4" bodyClassName="p-0">
+      <Panel bodyClassName="p-0">
         <DataTable
           caption="Lead conversion by source"
           rows={rows}
@@ -114,52 +171,70 @@ function Conversion({ data }) {
           ]}
         />
       </Panel>
-    </>
+    </Stage>
   );
 }
 
 function WinLoss({ data }) {
   const reasons = data?.lostReasons || [];
+  const won = data?.deals?.wonValue || 0;
+  const lost = data?.deals?.lostValue || 0;
   return (
-    <>
+    <Stage>
       <Grid>
-        <StatCard title="Won" count={count(data?.deals?.won)} tone="teal" subText={formatCurrencyAED(data?.deals?.wonValue)} />
-        <StatCard title="Lost" count={count(data?.deals?.lost)} tone={data?.deals?.lost ? "danger" : undefined} subText={formatCurrencyAED(data?.deals?.lostValue)} />
+        <StatCard title="Won" count={count(data?.deals?.won)} tone="teal" subText={formatCurrencyAED(won)} />
+        <StatCard title="Lost" count={count(data?.deals?.lost)} tone={data?.deals?.lost ? "danger" : undefined} subText={formatCurrencyAED(lost)} />
         <StatCard title="Win rate" count={pct(data?.deals?.winRate)} subText="Of the deals that closed" />
         <StatCard title="Days to win" count={days(data?.deals?.averageDaysToWin)} subText="On average" />
       </Grid>
-      <Panel
-        className="mt-4"
-        title="Why deals are lost"
-        description="The reason is required when a deal is marked lost, which is what makes this worth reading."
-        bodyClassName="px-2 pb-2"
-      >
-        <Chart
-          rows={reasons.map((r) => ({ key: r.reason, name: r.label, value: r.value }))}
-          describe={(r) => {
-            const s = reasons.find((x) => x.label === r.name);
-            return `${count(s?.deals)} deals · ${formatCurrencyAED(s?.value)}`;
-          }}
-          empty={{ title: "Nothing lost in this period", text: "Every deal that closed was won." }}
-        />
-      </Panel>
-    </>
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Panel className="lg:col-span-2" title="Won against lost" description="By value, in this period." bodyClassName="p-4">
+          {won + lost === 0 ? (
+            <Nothing title="Nothing closed in this period" text="Widen the dates, or close a deal." />
+          ) : (
+            <Ring
+              rows={[
+                { key: "won", name: "Won", value: won, color: "var(--status-success)" },
+                { key: "lost", name: "Lost", value: lost, color: "var(--status-danger)" },
+              ]}
+              total={won + lost}
+              label="closed"
+            />
+          )}
+        </Panel>
+        <Panel
+          className="lg:col-span-3"
+          title="Why deals are lost"
+          description="The reason is required when a deal is marked lost, which is what makes this worth reading."
+          bodyClassName="px-2 pb-2"
+        >
+          <Chart
+            rows={reasons.map((r, i) => ({ key: r.reason, name: r.label, value: r.value, color: hueFor(i) }))}
+            describe={(r) => {
+              const s = reasons.find((x) => x.label === r.name);
+              return `${count(s?.deals)} deals · ${formatCurrencyAED(s?.value)}`;
+            }}
+            empty={{ title: "Nothing lost in this period", text: "Every deal that closed was won." }}
+          />
+        </Panel>
+      </div>
+    </Stage>
   );
 }
 
 function Performance({ data }) {
   const rows = data?.byOwner || [];
   return (
-    <>
+    <Stage>
       <Grid>
         <StatCard title="People selling" count={count(rows.filter((r) => r.ownerId).length)} />
         <StatCard title="Won between them" fit count={formatCurrencyAED(rows.reduce((t, r) => t + (r.wonValue || 0), 0))} tone="teal" />
         <StatCard title="Follow-ups done" count={count(data?.activity?.done)} />
         <StatCard title="Still owed" count={count(data?.activity?.open)} tone={data?.activity?.overdue ? "warning" : undefined} subText={`${count(data?.activity?.overdue)} late`} />
       </Grid>
-      <Panel className="mt-4" title="Who is selling" description="Value won in this period." bodyClassName="px-2 pb-2">
+      <Panel title="Who is selling" description="Value won in this period." bodyClassName="px-2 pb-2">
         <Chart
-          rows={rows.map((r) => ({ key: r.ownerId || "unassigned", name: r.name, value: r.wonValue, muted: !r.ownerId }))}
+          rows={rows.map((r, i) => ({ key: r.ownerId || "unassigned", name: r.name, value: r.wonValue, color: hueFor(i), muted: !r.ownerId }))}
           describe={(r) => {
             const s = rows.find((x) => x.name === r.name);
             return `${count(s?.won)} won of ${count(s?.deals)} · ${count(s?.activities)} follow-ups · ${pct(s?.winRate)}`;
@@ -167,7 +242,7 @@ function Performance({ data }) {
           empty={{ title: "Nothing won in this period", text: "Widen the dates, or win something." }}
         />
       </Panel>
-      <Panel className="mt-4" bodyClassName="p-0">
+      <Panel bodyClassName="p-0">
         <TableScroll label="Who is selling">
           <DataTable
             className="table-pin-first"
@@ -187,7 +262,7 @@ function Performance({ data }) {
           />
         </TableScroll>
       </Panel>
-    </>
+    </Stage>
   );
 }
 
@@ -197,16 +272,16 @@ function Aging() {
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const rows = data?.rows || [];
   return (
-    <>
+    <Stage>
       <Grid>
         <StatCard title="Oldest" count={data?.oldest ? `${count(data.oldest)} days` : "–"} subText="On its current stage" />
         <StatCard title="Average age" count={days(data?.average)} />
         <StatCard title="Gone quiet" count={count(data?.stale)} tone={data?.stale ? "warning" : undefined} subText="Past the stage's own limit" />
         <StatCard title="Past its close date" count={count(data?.overdueClose)} tone={data?.overdueClose ? "danger" : undefined} />
       </Grid>
-      <Panel className="mt-4" title="How long deals have stood still" description="Open deals, by days on their current stage." bodyClassName="px-2 pb-2">
+      <Panel title="How long deals have stood still" description="Open deals, by days on their current stage." bodyClassName="px-2 pb-2">
         <Chart
-          rows={(data?.bands || []).filter((b) => b.deals > 0).map((b) => ({ key: b.key, name: b.label, value: b.value }))}
+          rows={(data?.bands || []).map((b, i) => ({ ...b, color: rules.AGE_HUES[i] })).filter((b) => b.deals > 0).map((b) => ({ key: b.key, name: b.label, value: b.value, color: b.color }))}
           describe={(r) => {
             const b = (data?.bands || []).find((x) => x.label === r.name);
             return `${count(b?.deals)} deals · ${formatCurrencyAED(b?.value)}`;
@@ -215,7 +290,6 @@ function Aging() {
         />
       </Panel>
       <Panel
-        className="mt-4"
         title="Every open deal, oldest first"
         actions={
           rows.length ? (
@@ -271,7 +345,7 @@ function Aging() {
           ]}
         />
       </Panel>
-    </>
+    </Stage>
   );
 }
 
@@ -335,29 +409,50 @@ function Communications({ from, to }) {
   if (loading && !data) return <Spinner label="Reading what was done" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const people = data?.byPerson || [];
+  const kinds = data?.byKind || [];
+  // Every day of the period, quiet ones included: whether the team is working is the question, and a gap in the
+  // strip would read as "no data" rather than "no calls".
+  const strip = rules.fillDays(data?.byDay || [], data?.period?.from, data?.period?.to);
   return (
-    <>
+    <Stage>
       <Grid>
         <StatCard title="Done" count={count(data?.done)} tone="teal" subText="In this period" />
         <StatCard title="Still owed" count={count(data?.open)} />
         <StatCard title="Late" count={count(data?.overdue)} tone={data?.overdue ? "danger" : undefined} />
         <StatCard title="Busiest day" count={count(Math.max(0, ...(data?.byDay || []).map((d) => d.count)))} subText="Follow-ups finished" />
       </Grid>
-      <Panel className="mt-4" title="Who is doing the chasing" description="Follow-ups finished in this period." bodyClassName="px-2 pb-2">
-        <Chart
-          rows={people.map((p) => ({ key: p.key, name: p.name, value: p.done, muted: p.name === "Nobody" }))}
-          valueText={(v) => count(v)}
-          describe={(r) => {
-            const p = people.find((x) => x.name === r.name);
-            return `${count(p?.done)} done · ${count(p?.open)} still owed · ${count(p?.overdue)} late`;
-          }}
-          empty={{ title: "Nothing was done in this period", text: "Widen the dates, or log a call." }}
-        />
+      <Panel title="Day by day" description="Follow-ups finished, over the period." bodyClassName="p-4">
+        {strip.length === 0 ? <Nothing title="No period" text="" /> : <PulseStrip rows={strip} />}
       </Panel>
-      <Panel className="mt-4" title="How they were reached" bodyClassName="p-0">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Who is doing the chasing" description="Follow-ups finished in this period." bodyClassName="px-2 pb-2">
+          <Chart
+            rows={people.map((p, i) => ({ key: p.key, name: p.name, value: p.done, color: hueFor(i), muted: p.name === "Nobody" }))}
+            valueText={(v) => count(v)}
+            describe={(r) => {
+              const p = people.find((x) => x.name === r.name);
+              return `${count(p?.done)} done · ${count(p?.open)} still owed · ${count(p?.overdue)} late`;
+            }}
+            empty={{ title: "Nothing was done in this period", text: "Widen the dates, or log a call." }}
+          />
+        </Panel>
+        <Panel title="How they were reached" description="Everything logged, by kind." bodyClassName="p-4">
+          {kinds.length === 0 ? (
+            <Nothing title="Nothing logged" text="Log a call from an enquiry, a deal or a person." />
+          ) : (
+            <Ring
+              rows={kinds.map((k, i) => ({ key: k.kind, name: k.label, value: k.done + k.open, color: hueFor(i) }))}
+              total={kinds.reduce((t, k) => t + k.done + k.open, 0)}
+              label="logged"
+              format={(n) => count(n)}
+            />
+          )}
+        </Panel>
+      </div>
+      <Panel bodyClassName="p-0">
         <DataTable
           caption="Communication activity by kind"
-          rows={data?.byKind || []}
+          rows={kinds}
           rowKey={(r) => r.kind}
           empty={<Nothing title="Nothing logged" text="" />}
           columns={[
@@ -368,7 +463,7 @@ function Communications({ from, to }) {
           ]}
         />
       </Panel>
-    </>
+    </Stage>
   );
 }
 

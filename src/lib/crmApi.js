@@ -26,12 +26,14 @@ export const crm = {
   // the module's own figures
   dashboard: () => api.get("/crm/dashboard"),
   // The named reports. Aging is an "as at today" picture and takes no range; the rest read a period.
+  // The calendar reads a range of days (a month grid is about six weeks) and answers one flat list.
+  calendar: (params) => api.get("/crm/calendar", params),
   aging: () => api.get("/crm/reports/aging"),
-  activityReport: (params) => api.get("/crm/reports/activity", { params }),
+  activityReport: (params) => api.get("/crm/reports/activity", params),
   // Every activity ever logged, newest first: the communications LOG, as against followUps (the worklist).
-  activities: (params) => api.get("/crm/activities", { params }),
+  activities: (params) => api.get("/crm/activities", params),
 
-  contacts: (params) => api.get("/crm/contacts", { params }),
+  contacts: (params) => api.get("/crm/contacts", params),
   contact: (id) => api.get(`/crm/contacts/${id}`),
   createContact: (body) => announced(api.post("/crm/contacts", body)),
   updateContact: (id, body) => announced(api.put(`/crm/contacts/${id}`, body)),

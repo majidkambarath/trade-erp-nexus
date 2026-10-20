@@ -17,6 +17,7 @@ import { formatDate, todayInput } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import { DuePill, KindIcon, DoneDialog, useOwners } from "./crmShared.jsx";
+import TaskBoard from "./TaskBoard.jsx";
 
 const session = pageSession("crm-followups");
 
@@ -25,8 +26,13 @@ const SCOPES = [
   ["", "Everybody's"],
 ];
 
+const VIEWS = [
+  ["list", "List"],
+  ["board", "Board"],
+];
+
 export default function FollowUpsPage() {
-  const { me } = useOrganisation();
+  const { me, can } = useOrganisation();
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
   const [due, setDue] = useState(() => session.get("due", "overdue"));
@@ -34,6 +40,9 @@ export default function FollowUpsPage() {
   const [kind, setKind] = useState(() => session.get("kind", ""));
   const [doing, setDoing] = useState(null);
   const [reload, setReload] = useState(0);
+  // One concept, two ways to read it: the list is for working through what is owed, the board is for moving things
+  // (to another day, to another person). Same rows either way - the board is handed what the list already fetched.
+  const [view, setView] = useState(() => session.get("view", "list"));
 
   const keep = (setter, key) => (value) => {
     session.set(key, value);
@@ -110,7 +119,10 @@ export default function FollowUpsPage() {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <PillTabs tabs={rules.DUE_TABS} value={due} onChange={keep(setDue, "due")} counts={{ overdue: counts.overdue, today: counts.today, week: counts.week, "": counts.all }} label="When" />
+        <PillTabs tabs={VIEWS} value={view} onChange={keep(setView, "view")} label="How to see them" />
+        {view === "list" && (
+          <PillTabs tabs={rules.DUE_TABS} value={due} onChange={keep(setDue, "due")} counts={{ overdue: counts.overdue, today: counts.today, week: counts.week, "": counts.all }} label="When" />
+        )}
         <PillTabs tabs={SCOPES} value={scope} onChange={keep(setScope, "scope")} label="Whose" />
       </div>
 
@@ -120,6 +132,17 @@ export default function FollowUpsPage() {
         </FilterBar>
       </div>
 
+      {view === "board" && (
+        <div className="mt-4">
+          {list.loading && !list.data && <Spinner label="Reading your follow-ups" />}
+          {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+          {list.data && (
+            <TaskBoard rows={all} today={today} owners={owners} canEdit={can("crm.edit")} notify={notify} onChanged={again} onDone={setDoing} />
+          )}
+        </div>
+      )}
+
+      {view === "list" && (
       <Panel className="mt-4" bodyClassName="p-0">
         {list.loading && !list.data && <Spinner label="Reading your follow-ups" />}
         {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
@@ -131,6 +154,7 @@ export default function FollowUpsPage() {
         )}
         {rows.length > 0 && <DataTable caption="Follow-ups" rows={rows} rowKey={(r) => r._id} columns={columns} />}
       </Panel>
+      )}
 
       {doing && <DoneDialog activity={doing} today={today} notify={notify} onClose={() => setDoing(null)} onSaved={() => { setDoing(null); again(); }} />}
       {toastNode}

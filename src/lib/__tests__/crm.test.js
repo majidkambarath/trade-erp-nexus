@@ -230,3 +230,99 @@ describe("people", () => {
     expect(csv.rows[0]).toContain(crm.outcomeLabel("interested"));
   });
 });
+
+describe("days, the task board and the calendar", () => {
+  it("shifts a day on the string itself, across month and year ends", () => {
+    expect(crm.shiftDay("2026-10-31", 1)).toBe("2026-11-01");
+    expect(crm.shiftDay("2026-12-31", 1)).toBe("2027-01-01");
+    expect(crm.shiftDay("2026-03-01", -1)).toBe("2026-02-28");
+    expect(crm.daysBetween("2026-10-20", "2026-10-27")).toBe(7);
+    expect(crm.daysBetween("2026-10-20", "2026-10-15")).toBe(-5);
+  });
+
+  it("sorts a task into the column it belongs to", () => {
+    const at = (d) => crm.taskBucket({ dueAt: d }, "2026-10-20");
+    expect([at("2026-10-01"), at("2026-10-19"), at("2026-10-20"), at("2026-10-21"), at("2026-10-22"), at("2026-10-27"), at("2026-10-28")]).toEqual([
+      "late", "late", "today", "tomorrow", "week", "week", "later",
+    ]);
+  });
+
+  it("a drop sets one named day, and Late takes no drops", () => {
+    expect(crm.bucketTarget("late", "2026-10-20")).toBeNull();
+    expect(crm.bucketTarget("today", "2026-10-20")).toBe("2026-10-20");
+    expect(crm.bucketTarget("tomorrow", "2026-10-20")).toBe("2026-10-21");
+    expect(crm.bucketTarget("week", "2026-10-20")).toBe("2026-10-27");
+    // The day a drop SETS must land back in the column it was dropped on, or a card would jump column on arrival.
+    for (const b of ["today", "tomorrow", "week", "later"]) {
+      expect(crm.taskBucket({ dueAt: crm.bucketTarget(b, "2026-10-20") }, "2026-10-20")).toBe(b);
+    }
+  });
+
+  it("groups every task, keeps every column even when empty, and orders by day", () => {
+    const rows = [{ id: "a", dueAt: "2026-10-22" }, { id: "b", dueAt: "2026-10-21" }, { id: "c", dueAt: "2026-10-01" }];
+    const out = crm.groupTasks(rows, "2026-10-20");
+    expect(Object.keys(out)).toEqual(["late", "today", "tomorrow", "week", "later"]);
+    expect(out.late.map((r) => r.id)).toEqual(["c"]);
+    expect(out.today).toEqual([]);
+    expect(out.tomorrow.map((r) => r.id)).toEqual(["b"]);
+  });
+
+  it("groups by person, with 'nobody' for what has no owner or an owner who has gone", () => {
+    const out = crm.groupByPerson([{ id: "a", ownerId: "u1" }, { id: "b", ownerId: null }, { id: "c", ownerId: "gone" }], [{ id: "u1" }, { id: "u2" }]);
+    expect(out.u1.map((r) => r.id)).toEqual(["a"]);
+    expect(out.u2).toEqual([]);
+    expect(out.__nobody__.map((r) => r.id)).toEqual(["b", "c"]);
+  });
+
+  it("draws a month as clean weeks of seven, with the neighbouring months' days filling the corners", () => {
+    const weeks = crm.monthWeeks("2026-10");
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+    expect(weeks[0][0].day).toBe("2026-09-28");
+    expect(weeks[0][0].inMonth).toBe(false);
+    expect(weeks[0][3]).toEqual({ day: "2026-10-01", inMonth: true });
+    expect(crm.monthRange("2026-10")).toEqual({ from: "2026-09-28", to: "2026-11-01" });
+    // A Sunday-first week starts a day earlier.
+    expect(crm.monthWeeks("2026-10", 0)[0][0].day).toBe("2026-09-27");
+    expect(crm.WEEKDAYS(1)[0]).toBe("Mon");
+    expect(crm.WEEKDAYS(0)[0]).toBe("Sun");
+  });
+
+  it("a month whose first day is the week's first day needs no leading days", () => {
+    // 1 June 2026 is a Monday.
+    expect(crm.monthWeeks("2026-06")[0][0]).toEqual({ day: "2026-06-01", inMonth: true });
+  });
+
+  it("steps months across a year end", () => {
+    expect(crm.shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(crm.shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(crm.monthKeyOf("2026-10-20")).toBe("2026-10");
+  });
+
+  it("colours stages in a fixed order, never cycled, and won / lost are status", () => {
+    const hues = crm.stageHues([
+      { key: "new", type: "open" }, { key: "q", type: "open" }, { key: "won", type: "won" }, { key: "lost", type: "lost" },
+    ]);
+    expect(hues.new).toBe(crm.CHART_HUES[0]);
+    expect(hues.q).toBe(crm.CHART_HUES[1]);
+    expect(hues.won).toBe("var(--status-success)");
+    expect(hues.lost).toBe("var(--status-danger)");
+    // Past five stages they share the last hue rather than inventing one nobody validated.
+    expect(crm.hueFor(99)).toBe(crm.CHART_HUES[4]);
+  });
+});
+
+describe("filling a period", () => {
+  it("gives every day its count and the quiet ones nothing, so a quiet day is a bar and not a gap", () => {
+    const out = crm.fillDays([{ day: "2026-10-02", count: 3 }], "2026-10-01", "2026-10-04");
+    expect(out).toEqual([
+      { day: "2026-10-01", count: 0 }, { day: "2026-10-02", count: 3 }, { day: "2026-10-03", count: 0 }, { day: "2026-10-04", count: 0 },
+    ]);
+  });
+  it("is empty for a missing or backwards range rather than looping", () => {
+    expect(crm.fillDays([], "2026-10-05", "2026-10-01")).toEqual([]);
+    expect(crm.fillDays([], null, "2026-10-01")).toEqual([]);
+  });
+  it("has one age colour for every age band the server draws", () => {
+    expect(crm.AGE_HUES).toHaveLength(5);
+  });
+});

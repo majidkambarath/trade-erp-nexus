@@ -78,10 +78,17 @@ const DEEP = {
     { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
     { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
   ],
+  "crm-calendar": [
+    { name: "calendar", page: true, clicks: [], settle: 1100 },
+    { name: "calendar-enquiries", page: true, clicks: ["^Enquiries$"], settle: 900 },
+    { name: "calendar-next", page: true, clicks: ["^Next month$"], settle: 1000 },
+  ],
   "crm-follow-ups": [
     { name: "followups", page: true, clicks: [], settle: 1000 },
     { name: "followup-done", clicks: ["^Done$"], settle: 1000 },
     { name: "followups-today", page: true, clicks: ["^Today"], settle: 900 },
+    { name: "followups-board", page: true, clicks: ["^Board$"], settle: 1100 },
+    { name: "followups-board-people", page: true, clicks: ["^Board$", "^By person$"], settle: 1100 },
   ],
   "crm-reports": [{ name: "reports", page: true, clicks: [], settle: 1100 }],
   "crm-setup": [{ name: "setup", page: true, clicks: [], settle: 1100 }],
@@ -251,6 +258,7 @@ DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /productio
 DEEP["dashboard"] = DEEP["crm-dashboard"]; // check:mobile -- /crm/dashboard
 DEEP["contacts"] = DEEP["crm-contacts"]; // check:mobile -- /crm/contacts
 DEEP["communications"] = DEEP["crm-communications"]; // check:mobile -- /crm/communications
+DEEP["calendar"] = DEEP["crm-calendar"]; // check:mobile -- /crm/calendar
 DEEP["reports"] = DEEP["crm-reports"]; // check:mobile -- /crm/reports
 DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
 DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
@@ -1008,6 +1016,11 @@ function stubFor(pathname) {
           { month: "2026-09", deals: 4, value: 88000 }, { month: "2026-10", deals: 2, value: 74000 },
         ],
         funnel: stageRows("funnel"),
+        pulse: Array.from({ length: 14 }, (_, i) => ({ day: `2026-10-${String(6 + i).padStart(2, "0")}`, count: [2, 0, 3, 1, 4, 0, 0, 2, 5, 1, 3, 2, 0, 4][i] })),
+        leadSources: [
+          { key: "referral", name: "Referral", value: 4 }, { key: "walk_in", name: "Walk-in", value: 3 },
+          { key: "website", name: "Website", value: 2 }, { key: "exhibition", name: "Exhibition", value: 1 },
+        ],
       };
     }
     if (p.endsWith("/crm/activities")) {
@@ -1034,6 +1047,22 @@ function stubFor(pathname) {
     if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
     if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    if (p.endsWith("/crm/calendar")) {
+      const at = (id, type, day, title, over = {}) => ({ id, type, day, title, sub: "", status: "OPEN", overdue: false, movable: false, ...over });
+      return {
+        today: "2026-10-19", from: "2026-09-28", to: "2026-11-01",
+        items: [
+          at("c1", "activity", "2026-10-14", "Chase the signed contract copy", { sub: "Call", kind: "call", overdue: true, movable: true, ownerName: "Asif Rahman" }),
+          at("c2", "activity", "2026-10-19", "Visit the Deira branch", { sub: "Visit", kind: "visit", movable: true, ownerName: "Asif Rahman" }),
+          at("c3", "activity", "2026-10-19", "Send the price for 200 bags", { sub: "Call", kind: "call", movable: true }),
+          at("c4", "activity", "2026-10-19", "Met at the trade fair", { sub: "Note", kind: "note", status: "DONE" }),
+          at("c5", "deal", "2026-10-19", "Monthly rice and sunflower oil", { sub: "Al Noor Foods Trading", value: 48500 }),
+          at("c6", "activity", "2026-10-22", "Works visit with the production head", { sub: "Meeting", kind: "meeting", movable: true }),
+          at("c7", "deal", "2026-10-30", "Dates and nuts", { sub: "Noor Supermarket", value: 28000 }),
+          at("c8", "lead", "2026-10-07", "Hassan Al Noor", { sub: "Al Noor Foods", status: "NEW" }),
+        ],
+      };
+    }
     if (p.endsWith("/crm/reports/aging")) {
       const aged = (i, days, over = {}) => ({
         id: `op${i}`, opportunityNo: `OPP-2026-000${i}`, title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading",

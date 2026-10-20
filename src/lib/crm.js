@@ -414,3 +414,161 @@ export const dealsCsv = (rows = []) => ({
   headers: ["Deal", "Title", "Customer", "Stage", "Status", "Owner", "Value", "Expected close"],
   rows: rows.map((r) => [r.opportunityNo, r.title, r.customerName, r.stageName, r.status, r.ownerName, r.value, r.expectedCloseDate || ""]),
 });
+
+// The CRM's categorical colours, assigned in a FIXED order and never cycled: a stage keeps its colour however
+// many stages are on screen, so a filter that drops one cannot repaint the rest. They are the five chart tokens
+// the rest of the product uses (already contrast-tested in both themes); past five, stages share the last one
+// rather than inventing a hue nobody validated.
+// Teal first and ink LAST: the first thing in a chart should not be near-black (which is what the home dashboard's
+// single-series bars use for "this is the measure", not for "this is a category").
+export const CHART_HUES = ["var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-1)"];
+
+export const hueFor = (index) => CHART_HUES[Math.min(Math.max(0, index), CHART_HUES.length - 1)];
+
+/** Stage colours follow pipeline ORDER, so the eye reads left-to-right down the funnel. Won and lost are status. */
+export function stageHues(stages = []) {
+  const open = stages.filter((s) => (s.type || "open") === "open");
+  const map = {};
+  open.forEach((s, i) => {
+    map[s.key] = hueFor(i);
+  });
+  for (const s of stages) {
+    if (s.type === "won") map[s.key] = "var(--status-success)";
+    if (s.type === "lost") map[s.key] = "var(--status-danger)";
+  }
+  return map;
+}
+
+// ---- days, the task board and the calendar --------------------------------------------------------------------
+//
+// Every day here is a "YYYY-MM-DD" string and every shift is done ON that string, in UTC, never through a local
+// clock: a day does not have a time zone, and the organisation's own "today" comes from the server (the screens
+// are handed it), so nothing here ever asks the browser what day it is.
+
+export const shiftDay = (day, delta) => {
+  const [y, m, d] = String(day).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + delta)).toISOString().slice(0, 10);
+};
+
+/** Whole days from a to b; negative when b is earlier. */
+export const daysBetween = (a, b) => Math.round((Date.UTC(...ymd(b)) - Date.UTC(...ymd(a))) / 86400000);
+const ymd = (day) => {
+  const [y, m, d] = String(day).split("-").map(Number);
+  return [y, m - 1, d];
+};
+
+/**
+ * The columns of the task board, by WHEN. Late cannot be dropped on: nobody reschedules something INTO being late.
+ * Each droppable column names the one day a drop sets, and the screen prints it in the column's header - so a card
+ * dropped on "Within a week" is never a surprise about which day it landed on.
+ */
+export const TASK_BUCKETS = [
+  { key: "late", label: "Late", drop: null },
+  { key: "today", label: "Today", drop: 0 },
+  { key: "tomorrow", label: "Tomorrow", drop: 1 },
+  { key: "week", label: "Within a week", drop: 7 },
+  { key: "later", label: "Later", drop: 30 },
+];
+
+export function taskBucket(row, today) {
+  if (!row?.dueAt || !today) return "later";
+  const gap = daysBetween(today, row.dueAt);
+  if (gap < 0) return "late";
+  if (gap === 0) return "today";
+  if (gap === 1) return "tomorrow";
+  return gap <= 7 ? "week" : "later";
+}
+
+/** The day a card dropped on this column is given. null for a column that takes no drops. */
+export function bucketTarget(key, today) {
+  const column = TASK_BUCKETS.find((b) => b.key === key);
+  return column && column.drop !== null && today ? shiftDay(today, column.drop) : null;
+}
+
+/** Open follow-ups sorted into the board's columns. Every column is present, even empty, so a drop target always exists. */
+export function groupTasks(rows = [], today = null) {
+  const out = Object.fromEntries(TASK_BUCKETS.map((b) => [b.key, []]));
+  for (const row of rows) out[taskBucket(row, today)].push(row);
+  for (const key of Object.keys(out)) out[key].sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)));
+  return out;
+}
+
+/** The board's other reading: by PERSON. "Nobody" is a column but never a drop target (the server cannot un-assign). */
+export function groupByPerson(rows = [], owners = []) {
+  const out = { __nobody__: [] };
+  for (const o of owners) out[o.id] = [];
+  for (const row of rows) {
+    const key = row.ownerId && out[row.ownerId] ? row.ownerId : "__nobody__";
+    out[key].push(row);
+  }
+  return out;
+}
+
+// ---- the month grid ---------------------------------------------------------------------------------------------
+
+export const monthKeyOf = (day) => String(day).slice(0, 7);
+
+export const shiftMonth = (key, delta) => {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
+/**
+ * The weeks a month occupies, as full rows of seven days - including the tail of the month before and the head of
+ * the next, so the grid is always a clean rectangle. `weekStart` is 0 for Sunday and 1 for Monday (the default;
+ * most of the markets this is sold into start the working week on a Monday).
+ */
+export function monthWeeks(key, weekStart = 1) {
+  const first = `${key}-01`;
+  const [y, m] = key.split("-").map(Number);
+  const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() - weekStart + 7) % 7;
+  const total = Math.ceil((lead + new Date(Date.UTC(y, m, 0)).getUTCDate()) / 7) * 7;
+  const weeks = [];
+  for (let i = 0; i < total; i += 7) {
+    weeks.push(
+      Array.from({ length: 7 }, (_, j) => {
+        const day = shiftDay(first, i + j - lead);
+        return { day, inMonth: monthKeyOf(day) === key };
+      })
+    );
+  }
+  return weeks;
+}
+
+/** The first and last day the grid shows, which is what the calendar asks the server for. */
+export function monthRange(key, weekStart = 1) {
+  const weeks = monthWeeks(key, weekStart);
+  return { from: weeks[0][0].day, to: weeks[weeks.length - 1][6].day };
+}
+
+export const WEEKDAYS = (weekStart = 1) => {
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return [...names.slice(weekStart), ...names.slice(0, weekStart)];
+};
+
+/** Calendar items grouped by their day. */
+export function itemsByDay(items = []) {
+  const out = {};
+  for (const item of items) (out[item.day] ||= []).push(item);
+  return out;
+}
+
+/** The calendar's layers. Enquiries start OFF: they are the noisiest, and the market's own advice is an uncluttered month. */
+export const CALENDAR_LAYERS = [
+  { key: "activity", label: "Follow-ups", on: true },
+  { key: "deal", label: "Deals closing", on: true },
+  { key: "lead", label: "Enquiries", on: false },
+];
+
+/** Every day from `from` to `to`, with the count where there is one and nothing where there is not (a quiet day is a bar of nothing, not a gap). */
+export function fillDays(rows = [], from, to) {
+  if (!from || !to || from > to) return [];
+  const counts = new Map((rows || []).map((r) => [r.day, r.count]));
+  const out = [];
+  for (let d = from, guard = 0; d <= to && guard < 400; d = shiftDay(d, 1), guard += 1) out.push({ day: d, count: counts.get(d) || 0 });
+  return out;
+}
+
+/** How long a deal has stood still, as a scale from healthy to worrying. Status colours, because age IS a state here. */
+export const AGE_HUES = ["var(--status-success)", "var(--chart-4)", "var(--status-warning)", "var(--chart-5)", "var(--status-danger)"];

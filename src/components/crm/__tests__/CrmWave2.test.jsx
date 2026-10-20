@@ -127,7 +127,11 @@ beforeEach(() => {
     mine: [logged({ _id: "a3", subject: "Visit the Deira branch", status: "OPEN", dueState: "today" })],
     moved: [{ dealId: "op1", opportunityNo: "OPP-2026-0001", title: "Monthly rice", customerName: "Al Noor Foods", event: "quotation_sent", eventLabel: "Quotation sent", from: "qualified", to: "quoted", stageName: "Quotation sent", docNo: "QT-2026-0007", at: "2026-10-19T09:00:00.000Z" }],
     topDeals: [{ _id: "op1", title: "Monthly rice", customerName: "Al Noor Foods", stageName: "Quotation sent", probability: 50, value: 48500, weighted: 24250 }],
-    funnel: [{ key: "quoted", name: "Quotation sent", count: 2, value: 68500, weighted: 34250 }],
+    funnel: [{ key: "quoted", name: "Quotation sent", type: "open", count: 2, value: 68500, weighted: 34250 }],
+    pulse: Array.from({ length: 14 }, (_, i) => ({ day: `2026-10-${String(7 + i).padStart(2, "0")}`, count: i % 3 })),
+    leadSources: [{ key: "referral", name: "Referral", value: 4 }, { key: "walk_in", name: "Walk-in", value: 2 }],
+    byOwner: [{ key: "Asif", name: "Asif", deals: 2, value: 68500, weighted: 34250 }],
+    trend: [{ month: "2026-09", deals: 1, value: 40000 }, { month: "2026-10", deals: 2, value: 74000 }],
   });
 });
 
@@ -145,7 +149,7 @@ describe("the CRM dashboard", () => {
     expect(screen.getByText("QT-2026-0007")).toBeInTheDocument();
 
     // Every panel a person expects is drawn, charts included.
-    for (const title of ["Where the pipeline sits", "Won, six months", "Moved by itself", "Worth the most", "Who is carrying what"]) {
+    for (const title of ["Where the pipeline sits", "Won, six months", "Where the enquiries come from", "Is the team working?", "Moved by itself", "Worth the most", "Who is carrying what"]) {
       expect(screen.getByText(title)).toBeInTheDocument();
     }
   });
@@ -153,7 +157,8 @@ describe("the CRM dashboard", () => {
   it("says plainly when there is nothing, rather than drawing an empty chart", async () => {
     m.dashboard.mockResolvedValue({
       today: "2026-10-20", openLeads: 0, openDeals: 0, pipelineValue: 0, weightedValue: 0, staleDeals: 0, dueToday: 0, overdue: 0,
-      late: [], mine: [], moved: [], topDeals: [], byOwner: [], funnel: [],
+      late: [], mine: [], moved: [], topDeals: [], byOwner: [], funnel: [], leadSources: [],
+      pulse: [{ day: "2026-10-19", count: 0 }, { day: "2026-10-20", count: 0 }],
       trend: [{ month: "2026-05", deals: 0, value: 0 }, { month: "2026-06", deals: 0, value: 0 }],
     });
     render_(<CrmDashboard />);
@@ -163,6 +168,18 @@ describe("the CRM dashboard", () => {
     expect(screen.getByText("Nothing in the pipeline")).toBeInTheDocument();
     // A trend of six empty months is not a chart of zeroes; it says so.
     expect(screen.getByText("Nothing won yet")).toBeInTheDocument();
+    expect(screen.getByText("No enquiries yet")).toBeInTheDocument();
+    // A quiet fortnight still draws its strip and SAYS it was quiet, rather than leaving a blank.
+    expect(screen.getByText("Nothing finished in the last two weeks.")).toBeInTheDocument();
+  });
+
+  it("the ring names every source, with its share, so colour is never the only way to tell them apart", async () => {
+    render_(<CrmDashboard />);
+    await screen.findByRole("heading", { name: "CRM" });
+    expect(screen.getByText("Referral")).toBeInTheDocument();
+    expect(screen.getByText("Walk-in")).toBeInTheDocument();
+    expect(screen.getByText("66.7%")).toBeInTheDocument();
+    expect(screen.getByText("33.3%")).toBeInTheDocument();
   });
 
   it("leads somewhere: the figures are the way in to the screen behind them", async () => {
@@ -295,5 +312,46 @@ describe("the reports", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
     const table = await screen.findByRole("table", { name: "Every deal" });
     expect(within(table).getByRole("link", { name: "OPP-2026-0001" })).toHaveAttribute("href", "/crm/pipeline?deal=op1");
+  });
+});
+
+describe("the report charts", () => {
+  const open = async (tab) => {
+    render_(<CrmReports />);
+    await screen.findByRole("table", { name: "Pipeline by stage" });
+    if (tab !== "Pipeline") fireEvent.click(screen.getByRole("tab", { name: tab }));
+  };
+
+  it("pipeline: the bars and the ring are drawn from the same stages", async () => {
+    await open("Pipeline");
+    expect(screen.getByText("Where the deals stand")).toBeInTheDocument();
+    expect(screen.getByText("What it is made of")).toBeInTheDocument();
+  });
+
+  it("conversion: a funnel from enquiry to won deal, where they come from, and which sources convert", async () => {
+    await open("Lead conversion");
+    expect(await screen.findByText("The funnel")).toBeInTheDocument();
+    expect(screen.getByText("Where they come from")).toBeInTheDocument();
+    expect(screen.getByText("Which sources actually convert")).toBeInTheDocument();
+    // The legend is also the table: a source is named with its share, so colour is never the only way to tell them apart.
+    expect(screen.getAllByText("Referral").length).toBeGreaterThan(0);
+  });
+
+  it("win / loss: won against lost, and why", async () => {
+    await open("Win / loss");
+    expect(await screen.findByText("Won against lost")).toBeInTheDocument();
+    expect(screen.getByText("Why deals are lost")).toBeInTheDocument();
+  });
+
+  it("communications: a strip of every day of the period, and the kinds as a ring", async () => {
+    await open("Communications");
+    expect(await screen.findByText("Day by day")).toBeInTheDocument();
+    expect(screen.getByText("How they were reached")).toBeInTheDocument();
+  });
+
+  it("says so, rather than drawing an empty ring, when nothing closed", async () => {
+    m.analysis.mockResolvedValue({ ...(await m.analysis()), deals: { won: 0, lost: 0, wonValue: 0, lostValue: 0, open: 0, openValue: 0, weightedValue: 0 }, lostReasons: [] });
+    await open("Win / loss");
+    expect(await screen.findByText("Nothing closed in this period")).toBeInTheDocument();
   });
 });

@@ -65,6 +65,7 @@ const CrmCommunications = lazy(() => import("../components/crm/CommunicationsPag
 const CrmPipeline = lazy(() => import("../components/crm/CrmPipeline.jsx"));
 const CrmLeads = lazy(() => import("../components/crm/LeadsPage.jsx"));
 const CrmFollowUps = lazy(() => import("../components/crm/FollowUpsPage.jsx"));
+const CrmCalendar = lazy(() => import("../components/crm/CrmCalendar.jsx"));
 const CrmReports = lazy(() => import("../components/crm/CrmReports.jsx"));
 const CrmSetup = lazy(() => import("../components/crm/CrmSetup.jsx"));
 const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
@@ -168,6 +169,7 @@ export default function AdminRouter() {
         <Route path="/crm/pipeline" element={<CrmPipeline />} />
         <Route path="/crm/leads" element={<CrmLeads />} />
         <Route path="/crm/follow-ups" element={<CrmFollowUps />} />
+        <Route path="/crm/calendar" element={<CrmCalendar />} />
         <Route path="/crm/reports" element={<CrmReports />} />
         <Route path="/crm/setup" element={<CrmSetup />} />
       </Route>

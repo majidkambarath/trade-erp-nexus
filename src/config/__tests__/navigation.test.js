@@ -220,7 +220,7 @@ describe("getMobileNav", () => {
   it("gives the CRM workspace its own bar, with no ERP page on it", () => {
     const { primary, rest } = getMobileNav(modulesIn("crm", getVisibleModules()));
     expect(ids(primary)).toEqual(["crm-dashboard", "crm-leads", "crm-contacts", "crm-pipeline"]);
-    expect(ids(rest)).toEqual(["crm-communications", "crm-follow-ups", "crm-reports", "crm-setup"]);
+    expect(ids(rest)).toEqual(["crm-communications", "crm-follow-ups", "crm-calendar", "crm-reports", "crm-setup"]);
   });
 
   it("splits every module into exactly one of the two", () => {
