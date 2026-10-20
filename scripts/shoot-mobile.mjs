@@ -64,7 +64,7 @@ const DEEP = {
   "crm-contacts": [
     { name: "contacts", page: true, clicks: [], settle: 1000 },
     { name: "contact-new", clicks: ["^New contact"], settle: 1000 },
-    { name: "contact-view", clicks: ["^Rajesh Kumar$"], settle: 1100 },
+    { name: "contact-view", page: true, clicks: ["^Rajesh Kumar$"], settle: 1100 },
     { name: "contact-edit", clicks: ["^Rajesh Kumar$", "^Edit$"], settle: 1000 },
   ],
   "crm-communications": [
@@ -74,7 +74,7 @@ const DEEP = {
   "crm-leads": [
     { name: "leads", page: true, clicks: [], settle: 1000 },
     { name: "lead-new", clicks: ["^New enquiry"], settle: 1000 },
-    { name: "lead-view", clicks: ["LD-2026-0001"], settle: 1100 },
+    { name: "lead-view", page: true, clicks: ["LD-2026-0001"], settle: 1100 },
     { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
     { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
   ],

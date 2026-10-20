@@ -387,7 +387,19 @@ export default function LeadsPage() {
             }
           />
         )}
-        {rows.length > 0 && <DataTable caption="Leads" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => record.open(r._id)} columns={columns} />}
+        {/* Six columns do not fit a tablet (the sweep measured 836px inside 820) and the last one was lost off the
+            edge. DataTable already owns the scroll box - `className` lands on it - so it only wanted `table-pin-first`:
+            the lead number freezes and the rest slides under it. Below md this never applies; DataTable draws cards. */}
+        {rows.length > 0 && (
+          <DataTable
+            className="table-pin-first"
+            caption="Leads"
+            rows={rows}
+            rowKey={(r) => r._id}
+            onRowClick={(r) => record.open(r._id)}
+            columns={columns}
+          />
+        )}
       </Panel>
 
       {dialog === "new" && <LeadForm owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); again(); }} />}

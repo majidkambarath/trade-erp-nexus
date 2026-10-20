@@ -108,7 +108,7 @@ export default function CommunicationsPage() {
       cell: (r) =>
         r.status === "OPEN" ? (
           <Can permission="crm.edit">
-            <button type="button" onClick={() => setDoing(r)} className="h-9 rounded-lg border border-input px-3 text-sm hover:bg-accent">
+            <button type="button" onClick={() => setDoing(r)} className="h-11 rounded-lg border border-input px-3 text-sm hover:bg-accent lg:h-10">
               Done
             </button>
           </Can>

@@ -76,7 +76,9 @@ function WonTrend({ rows }) {
 /** One automatic move, as a card. The document that caused it is the point, so it is named in full. */
 function MovedCard({ row }) {
   return (
-    <li className="rounded-xl border border-border bg-card p-3.5">
+    // min-w-0: a grid track's floor is its content's min-width, so without this a long deal name makes the card
+    // wider than the column and it bleeds off a phone.
+    <li className="min-w-0 rounded-xl border border-border bg-card p-3.5">
       <div className="flex items-start gap-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-teal-soft text-accent-teal">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
