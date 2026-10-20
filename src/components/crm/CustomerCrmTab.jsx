@@ -17,14 +17,48 @@ export default function CustomerCrmTab({ customerId }) {
   const [logging, setLogging] = useState(false);
   const [reload, setReload] = useState(0);
   const deals = useAsync(() => crm.deals({ customerId }), [customerId, reload]);
+  // The people. The same records the Details tab's contact list shows - one person, stored under one id.
+  const people = useAsync(() => crm.contacts({ customerId }), [customerId, reload]);
   const timeline = useAsync(() => crm.timeline({ customerId }), [customerId, reload]);
   const again = () => setReload((n) => n + 1);
 
   const rows = Array.isArray(deals.data) ? deals.data : [];
   const open = rows.filter((d) => d.status === "OPEN");
 
+  const contacts = Array.isArray(people.data) ? people.data : [];
+
   return (
     <div className="grid gap-6">
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Who we speak to</h3>
+          <Link to="/crm/contacts" className="text-sm text-muted-foreground hover:underline">
+            All contacts
+          </Link>
+        </div>
+        {people.loading && !people.data && <Spinner label="Reading the people" />}
+        {people.data && contacts.length === 0 && (
+          <EmptyState title="Nobody named yet" text="Add a person on the Details tab, or on Contacts, and they appear here." />
+        )}
+        {contacts.length > 0 && (
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {contacts.map((c) => (
+              <li key={c._id} className="rounded-xl border border-border bg-card p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <Link to={`/crm/contacts?contact=${c._id}`} className="font-medium text-foreground hover:underline">
+                    {c.name}
+                  </Link>
+                  {c.isPrimary && <Tag tone="info">Main</Tag>}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {[c.designation, c.phone, c.email].filter(Boolean).join(" · ") || "No details yet"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-foreground">Deals</h3>

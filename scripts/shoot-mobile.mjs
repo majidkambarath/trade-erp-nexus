@@ -59,6 +59,18 @@ const DEEP = {
     { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
     { name: "deal-edit", clicks: ["^Monthly rice and sunflower oil$", "^Edit$"], settle: 1000 },
   ],
+  // The CRM workspace's landing page: what is late, what is mine, and what the documents moved on their own.
+  "crm-dashboard": [{ name: "crm-home", page: true, clicks: [], settle: 1100 }],
+  "crm-contacts": [
+    { name: "contacts", page: true, clicks: [], settle: 1000 },
+    { name: "contact-new", clicks: ["^New contact"], settle: 1000 },
+    { name: "contact-view", clicks: ["^Rajesh Kumar$"], settle: 1100 },
+    { name: "contact-edit", clicks: ["^Rajesh Kumar$", "^Edit$"], settle: 1000 },
+  ],
+  "crm-communications": [
+    { name: "communications", page: true, clicks: [], settle: 1000 },
+    { name: "communications-calls", page: true, clicks: ["^Calls$"], settle: 900 },
+  ],
   "crm-leads": [
     { name: "leads", page: true, clicks: [], settle: 1000 },
     { name: "lead-new", clicks: ["^New enquiry"], settle: 1000 },
@@ -236,6 +248,9 @@ DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /production
+DEEP["dashboard"] = DEEP["crm-dashboard"]; // check:mobile -- /crm/dashboard
+DEEP["contacts"] = DEEP["crm-contacts"]; // check:mobile -- /crm/contacts
+DEEP["communications"] = DEEP["crm-communications"]; // check:mobile -- /crm/communications
 DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
 DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
 DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
@@ -396,8 +411,14 @@ const EXTRA_PAGES = [
 ];
 const PAGES = [
   ["login", "/"],
+  // <module id>-<tab slug>, except that a one-tab module whose id already ends in its own slug is not said twice:
+  // the CRM workspace's sections are ids like "crm-leads" with a single "Leads" tab, and this keeps their shot
+  // names (and their DEEP steps) exactly what they were when the CRM was one module with five tabs.
   ...MODULES.flatMap((m) =>
-    m.tabs.map((t) => [`${m.id}-${t.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, t.to])
+    m.tabs.map((t) => {
+      const slug = t.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      return [m.id.endsWith(slug) ? m.id : `${m.id}-${slug}`, t.to];
+    })
   ),
   ...EXTRA_PAGES,
 ];
@@ -956,6 +977,34 @@ function stubFor(pathname) {
     }));
 
     if (p.endsWith("/crm/summary")) return { today: "2026-10-19", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1 };
+    const contact = (i, over = {}) => ({
+      _id: `ct${i}`, name: "Rajesh Kumar", designation: "Purchase Manager", email: "rajesh@alnoor.ae", phone: "0507778888",
+      isPrimary: true, partyKind: "customer", partyId: "c1", partyName: "Al Noor Foods Trading", unlinked: false, notes: "Prefers a call before noon",
+      createdAt: "2026-10-01T06:00:00.000Z", actions: { edit: true, delete: true, logActivity: true }, ...over,
+    });
+    if (p.endsWith("/crm/dashboard")) {
+      return {
+        today: "2026-10-19", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1,
+        since: "2026-10-12",
+        late: [followUp(1)],
+        mine: [followUp(3, { _id: "ac3", subject: "Visit the Deira branch", kind: "visit", kindLabel: "Visit", dueAt: "2026-10-19", dueState: "today" })],
+        moved: [
+          { dealId: "op1", opportunityNo: "OPP-2026-0001", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", event: "quotation_sent", eventLabel: "Quotation sent", from: "qualified", to: "quoted", stageName: "Quotation sent", docNo: "QT-2026-0007", at: "2026-10-16T09:00:00.000Z" },
+          { dealId: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor Supermarket", event: "invoice_approved", eventLabel: "Invoice approved", from: "accepted", to: "won", stageName: "Won", docNo: "SO-2026-0042", at: "2026-10-18T11:00:00.000Z" },
+        ],
+        topDeals: [{ _id: "op1", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", stageName: "Quotation sent", probability: 50, value: 48500, weighted: 24250 }],
+        funnel: stageRows("funnel"),
+      };
+    }
+    if (p.endsWith("/crm/activities")) {
+      return [
+        followUp(2, { _id: "ac2", subject: "Rang about the rice price", status: "DONE", outcome: "interested", dueState: "done", completedAt: "2026-10-17T06:30:00.000Z", auto: false, createdAt: "2026-10-17T06:00:00.000Z" }),
+        followUp(1, { createdAt: "2026-10-16T05:00:00.000Z" }),
+        followUp(4, { _id: "ac4", kind: "note", kindLabel: "Note", subject: "Met at the trade fair", status: "DONE", outcome: "done", dueState: "done", regarding: { kind: "contact", id: "ct1" }, auto: false, createdAt: "2026-10-15T05:00:00.000Z" }),
+      ];
+    }
+    if (p.endsWith("/crm/contacts")) return [contact(1), contact(2, { _id: "ct2", name: "Fatima Noor", designation: "Owner", partyKind: null, partyId: null, partyName: "", unlinked: true, isPrimary: false, email: "", phone: "0501110000" })];
+    if (/\/crm\/contacts\/[^/]+$/.test(p)) return { ...contact(1), timeline, party: { kind: "customer", id: "c1", name: "Al Noor Foods Trading", code: "CUST2026001" } };
     if (p.endsWith("/crm/pipeline")) return { today: "2026-10-19", stages: stageRows("board"), totals: { count: 3, value: 96500, weighted: 59450, stale: 1, overdueAction: 1 } };
     if (p.endsWith("/crm/owners")) return [{ id: "a1", name: "Asif Rahman" }, { id: "a2", name: "Maya Khan" }];
     if (p.endsWith("/crm/stages")) return stages;

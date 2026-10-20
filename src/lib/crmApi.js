@@ -24,6 +24,16 @@ const announced = (promise) =>
 
 export const crm = {
   // the module's own figures
+  dashboard: () => api.get("/crm/dashboard"),
+  // Every activity ever logged, newest first: the communications LOG, as against followUps (the worklist).
+  activities: (params) => api.get("/crm/activities", { params }),
+
+  contacts: (params) => api.get("/crm/contacts", { params }),
+  contact: (id) => api.get(`/crm/contacts/${id}`),
+  createContact: (body) => announced(api.post("/crm/contacts", body)),
+  updateContact: (id, body) => announced(api.put(`/crm/contacts/${id}`, body)),
+  removeContact: (id) => announced(api.delete(`/crm/contacts/${id}`)),
+
   summary: () => api.get("/crm/summary"),
   analysis: (params) => api.get("/crm/analysis", params),
   pipeline: (params) => api.get("/crm/pipeline", params),

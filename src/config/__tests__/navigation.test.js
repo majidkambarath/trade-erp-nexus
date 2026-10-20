@@ -3,11 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ERP,
   MOBILE_SLOTS,
   MODULES,
   findActive,
   getMobileNav,
   getVisibleModules,
+  modulesIn,
   pageTitle,
   tabMatches,
 } from "../navigation";
@@ -192,14 +194,22 @@ describe("pageTitle", () => {
 describe("getMobileNav", () => {
   const ids = (list) => list.map((m) => m.id);
 
+  // The bottom bar belongs to the workspace being worked in, so it is fed that workspace's modules (Layout.jsx does
+  // the same). The ERP's bar is exactly what it has always been; the CRM has a bar of its own.
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
-    const { primary, rest } = getMobileNav(getVisibleModules());
+    const { primary, rest } = getMobileNav(modulesIn(ERP, getVisibleModules()));
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
-    expect(ids(rest)).toEqual(["crm", "inventory", "accounts", "reports", "people", "settings"]);
+    expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
+  });
+
+  it("gives the CRM workspace its own bar, with no ERP page on it", () => {
+    const { primary, rest } = getMobileNav(modulesIn("crm", getVisibleModules()));
+    expect(ids(primary)).toEqual(["crm-dashboard", "crm-leads", "crm-contacts", "crm-pipeline"]);
+    expect(ids(rest)).toEqual(["crm-communications", "crm-follow-ups", "crm-analysis", "crm-setup"]);
   });
 
   it("splits every module into exactly one of the two", () => {
-    const modules = getVisibleModules();
+    const modules = modulesIn(ERP, getVisibleModules());
     const { primary, rest } = getMobileNav(modules);
     expect([...ids(primary), ...ids(rest)].sort()).toEqual(ids(modules).sort());
   });

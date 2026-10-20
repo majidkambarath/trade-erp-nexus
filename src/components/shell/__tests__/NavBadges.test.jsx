@@ -161,12 +161,14 @@ describe("the my-work count (process steps given to the person)", () => {
   });
 });
 
-const CRM = MODULES.find((x) => x.id === "crm");
+// Follow-ups is a section of the CRM WORKSPACE now, so it is a one-tab module and draws no tab strip: the count
+// belongs to its rail item. (AppRail reads the same useModuleBadge, so this is the same sum, read where people see it.)
+const CRM = MODULES.filter((x) => x.workspace === "crm");
 
 describe("the CRM follow-ups count", () => {
-  it("is shown beside Follow-ups for somebody who holds the CRM, and refreshed when they act", async () => {
+  it("is shown on the Follow-ups rail item for somebody who holds the CRM, and refreshed when they act", async () => {
     m.crmCount.mockResolvedValue({ count: 2 });
-    await renderAs(["crm.view"], <ModuleTabs module={CRM} activeTab={CRM.tabs[0]} />);
+    await renderAs(["crm.view"], <AppRail modules={CRM} activeModuleId="crm-dashboard" />);
     expect(await screen.findByRole("link", { name: /Follow-ups.*2 waiting/ })).toHaveAttribute("href", "/crm/follow-ups");
 
     m.crmCount.mockResolvedValue({ count: 1 });

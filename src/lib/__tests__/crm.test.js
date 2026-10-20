@@ -189,3 +189,44 @@ describe("exports", () => {
     expect(funnel.rows[0]).toEqual(["Quotation sent", "50%", 2, 10000, 5000]);
   });
 });
+
+describe("people", () => {
+  it("asks for a name and nothing else", () => {
+    expect(crm.validateContact({})).toHaveProperty("name");
+    expect(crm.validateContact({ name: "Rajesh" })).toEqual({});
+    expect(crm.validateContact({ name: "Rajesh", email: "nope" })).toHaveProperty("email");
+    expect(crm.validateContact({ name: "Rajesh", email: "r@x.ae" })).toEqual({});
+  });
+
+  it("sends the one party that was chosen, and clears both when nobody was", () => {
+    const linked = crm.contactBody({ ...crm.emptyContact(), name: "Rajesh", partyKind: "customer", partyId: "c1" });
+    expect(linked.customerId).toBe("c1");
+    expect(linked.vendorId).toBeUndefined();
+
+    const supplier = crm.contactBody({ ...crm.emptyContact(), name: "Imran", partyKind: "vendor", partyId: "v1" });
+    expect(supplier.vendorId).toBe("v1");
+    expect(supplier.customerId).toBeUndefined();
+
+    // Nobody: both are cleared, which is how a person is taken off a company.
+    const loose = crm.contactBody({ ...crm.emptyContact(), name: "Omar" });
+    expect(loose.customerId).toBeNull();
+    expect(loose.vendorId).toBeNull();
+  });
+
+  it("exports what is on the screen, with the company spelt out", () => {
+    const csv = crm.contactsCsv([
+      { name: "Rajesh", designation: "Buyer", partyKind: "customer", partyName: "Al Noor", phone: "050", email: "r@x.ae", isPrimary: true },
+      { name: "Omar", partyKind: null },
+    ]);
+    expect(csv.headers[0]).toBe("Name");
+    expect(csv.rows[0]).toContain("Customer");
+    expect(csv.rows[0]).toContain("Yes");
+    expect(csv.rows[1]).toContain("Nobody yet");
+  });
+
+  it("the communications log exports the outcome in words", () => {
+    const csv = crm.communicationsCsv([{ kind: "call", subject: "Rang", status: "DONE", outcome: "interested", regarding: { kind: "opportunity" } }]);
+    expect(csv.rows[0]).toContain("Call");
+    expect(csv.rows[0]).toContain(crm.outcomeLabel("interested"));
+  });
+});

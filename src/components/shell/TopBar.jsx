@@ -8,6 +8,7 @@ import BrandMark from "./BrandMark";
 import { PRODUCT_NAME } from "../../config/product";
 import { useInstall } from "./InstallApp";
 import BranchSwitcher from "./BranchSwitcher";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import NotificationBell from "./NotificationBell";
 
 const isMac =
@@ -91,7 +92,7 @@ function UserMenu({ profile, onLogout }) {
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null }) {
   // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
@@ -111,6 +112,7 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
           </>
         )}
 
+        <WorkspaceSwitcher modules={modules} activeModule={activeModule} />
         <BranchSwitcher />
 
         <button

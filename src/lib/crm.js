@@ -320,3 +320,76 @@ export const pipelineCsv = (stages = []) => ({
   headers: ["Stage", "Chance", "Deals", "Value", "Weighted"],
   rows: stages.map((s) => [s.name, `${s.probability}%`, s.count, s.value, s.weighted]),
 });
+
+// ---- people ---------------------------------------------------------------------------------------------------
+
+export const emptyContact = (partyKind = "", partyId = "") => ({
+  name: "", designation: "", email: "", phone: "", isPrimary: false, notes: "",
+  partyKind: partyKind || "", partyId: partyId || "",
+});
+
+/** A person needs a name. Everything else is optional, because a contact is usually a business card. */
+export function validateContact(form = {}) {
+  const errors = {};
+  if (!String(form.name || "").trim()) errors.name = "Who is it?";
+  if (String(form.email || "").trim() && !isEmail(form.email)) errors.email = "That does not look like an email address";
+  return errors;
+}
+
+export const contactBody = (form = {}) => {
+  const body = {
+    name: String(form.name || "").trim(),
+    designation: String(form.designation || "").trim(),
+    email: String(form.email || "").trim(),
+    phone: String(form.phone || "").trim(),
+    isPrimary: Boolean(form.isPrimary),
+    notes: String(form.notes || "").trim(),
+  };
+  // A person works for a customer OR a supplier; the server refuses both, so only the chosen one is ever sent.
+  const id = String(form.partyId || "").trim();
+  if (form.partyKind === "customer") body.customerId = id || null;
+  else if (form.partyKind === "vendor") body.vendorId = id || null;
+  else {
+    body.customerId = null;
+    body.vendorId = null;
+  }
+  return body;
+};
+
+export const partyLabelOf = (row = {}) => (row.partyKind === "vendor" ? "Supplier" : row.partyKind === "customer" ? "Customer" : "Nobody yet");
+
+export const contactsCsv = (rows = []) => ({
+  headers: ["Name", "Job title", "Works for", "Company", "Phone", "Email", "Main contact"],
+  rows: rows.map((r) => [
+    r.name || "",
+    r.designation || "",
+    partyLabelOf(r),
+    r.partyName || "",
+    r.phone || "",
+    r.email || "",
+    r.isPrimary ? "Yes" : "",
+  ]),
+});
+
+export const communicationsCsv = (rows = []) => ({
+  headers: ["When", "Kind", "What", "About", "Owner", "Status", "Outcome", "Due"],
+  rows: rows.map((r) => [
+    r.createdAt || "",
+    kindLabel(r.kind),
+    r.subject || "",
+    r.regarding?.kind || "",
+    r.ownerName || "",
+    r.status || "",
+    outcomeLabel(r.outcome),
+    r.dueAt || "",
+  ]),
+});
+
+/** The Communications tabs: one log, read five ways. "all" is first because the log is the point. */
+export const COMM_TABS = [
+  ["all", "All"],
+  ["call", "Calls"],
+  ["visit", "Visits"],
+  ["whatsapp", "Messages"],
+  ["note", "Notes"],
+];

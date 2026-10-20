@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { findActive, getMobileNav, getVisibleModules, moduleHref, pageTitle } from "../config/navigation";
+import { findActive, getMobileNav, getVisibleModules, moduleHref, modulesIn, pageTitle, workspaceOf } from "../config/navigation";
 import { getBrand } from "../config/brands";
 import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
@@ -69,8 +69,13 @@ const LayoutShell = () => {
   const notAllowed = requested?.tab && !outOfPlan && !tabAllowed(requested.tab, status?.me) ? requested.tab : null;
   const home = modules[0] ? moduleHref(modules[0]) : null;
   const notice = useMemo(() => subscriptionNotice(status?.subscription), [status]);
-  // Four modules for the bottom bar, the remainder for the More sheet.
-  const { primary, rest } = useMemo(() => getMobileNav(modules), [modules]);
+  // Which half of the product the page belongs to. Derived from the address, never stored: Back, a reload and a
+  // pasted link all land in the right rail without anything to keep in step.
+  const workspace = workspaceOf(active?.module);
+  const railModules = useMemo(() => modulesIn(workspace, modules), [workspace, modules]);
+  // Four modules for the bottom bar, the remainder for the More sheet - of THIS workspace. The CRM's bottom bar is
+  // the CRM's own pages; the ERP's is unchanged.
+  const { primary, rest } = useMemo(() => getMobileNav(railModules), [railModules]);
 
   useEffect(() => {
     document.title = pageTitle(active, appName);
@@ -183,7 +188,7 @@ const LayoutShell = () => {
         Skip to content
       </a>
 
-      <AppRail modules={modules} activeModuleId={active?.module?.id} />
+      <AppRail modules={railModules} activeModuleId={active?.module?.id} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
@@ -191,6 +196,8 @@ const LayoutShell = () => {
           profile={profile}
           onLogout={logout}
           onOpenSearch={() => setSearchOpen(true)}
+          modules={modules}
+          activeModule={active?.module}
         />
         <SubscriptionNotice notice={notice} />
         <ModuleTabs module={active?.module} activeTab={active?.tab} />
@@ -231,6 +238,7 @@ const LayoutShell = () => {
         />
       </div>
 
+      {/* every module, both workspaces: searching for a page you cannot see the rail for is the point */}
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} modules={modules} />
       <KeyboardShortcuts />
       <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} modules={rest} active={active} />

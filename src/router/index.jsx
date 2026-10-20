@@ -59,6 +59,9 @@ const AgeingReport = lazy(() => import("../components/Reports/AgeingReport.jsx")
 const StatementOfAccount = lazy(() => import("../components/Reports/StatementOfAccount.jsx"));
 const BatchManagement = lazy(() => import("../components/Inventory/BatchManagement.jsx"));
 const ProductionPage = lazy(() => import("../components/Inventory/ProductionPage.jsx"));
+const CrmDashboard = lazy(() => import("../components/crm/CrmDashboard.jsx"));
+const CrmContacts = lazy(() => import("../components/crm/ContactsPage.jsx"));
+const CrmCommunications = lazy(() => import("../components/crm/CommunicationsPage.jsx"));
 const CrmPipeline = lazy(() => import("../components/crm/CrmPipeline.jsx"));
 const CrmLeads = lazy(() => import("../components/crm/LeadsPage.jsx"));
 const CrmFollowUps = lazy(() => import("../components/crm/FollowUpsPage.jsx"));
@@ -159,6 +162,9 @@ export default function AdminRouter() {
         <Route path="/statement" element={<StatementOfAccount />} />
         <Route path="/batches" element={<BatchManagement />} />
         <Route path="/production" element={<ProductionPage />} />
+        <Route path="/crm/dashboard" element={<CrmDashboard />} />
+        <Route path="/crm/contacts" element={<CrmContacts />} />
+        <Route path="/crm/communications" element={<CrmCommunications />} />
         <Route path="/crm/pipeline" element={<CrmPipeline />} />
         <Route path="/crm/leads" element={<CrmLeads />} />
         <Route path="/crm/follow-ups" element={<CrmFollowUps />} />
