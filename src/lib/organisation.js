@@ -86,6 +86,7 @@ export const FEATURE_LABELS = {
 // because no administrator of theirs can open that door.
 
 export const MODULE_LABELS = {
+  crm: "CRM",
   sales: "Sales",
   purchase: "Purchase",
   inventory: "Inventory",

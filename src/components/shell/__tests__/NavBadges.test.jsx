@@ -8,10 +8,11 @@ import "@testing-library/jest-dom";
 // refreshed when something is decided, and shown wherever the navigation names the tab (header tabs, rail, bottom bar, More).
 // A failure shows nothing rather than a wrong number.
 
-const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn(), unreadCount: vi.fn() }));
+const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn(), unreadCount: vi.fn(), crmCount: vi.fn() }));
 vi.mock("../../../lib/processOrderApi", () => ({ PROCESS_WORK_CHANGED: "process-work-changed", processOrders: { myWork: m.myWork } }));
 vi.mock("../../../lib/approvalsApi", async (importOriginal) => ({ ...(await importOriginal()), approvalQueue: { count: m.count, waiting: vi.fn() } }));
 vi.mock("../../../lib/notificationsApi", async (importOriginal) => ({ ...(await importOriginal()), notifications: { unreadCount: m.unreadCount } }));
+vi.mock("../../../lib/crmApi", async (importOriginal) => ({ ...(await importOriginal()), crm: { followUpCount: m.crmCount } }));
 let orgStatus = null;
 vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
 
@@ -54,6 +55,7 @@ beforeEach(() => {
   m.count.mockResolvedValue({ count: 4, others: 1, capped: false });
   m.myWork.mockResolvedValue({ count: 3 });
   m.unreadCount.mockResolvedValue({ count: 0 });
+  m.crmCount.mockResolvedValue({ count: 0 });
 });
 
 describe("the approvals count", () => {
@@ -156,6 +158,27 @@ describe("the my-work count (process steps given to the person)", () => {
     await renderAs(["inventory.view"], <ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} />);
     await waitFor(() => expect(m.count).not.toHaveBeenCalled());
     expect(m.myWork).not.toHaveBeenCalled();
+  });
+});
+
+const CRM = MODULES.find((x) => x.id === "crm");
+
+describe("the CRM follow-ups count", () => {
+  it("is shown beside Follow-ups for somebody who holds the CRM, and refreshed when they act", async () => {
+    m.crmCount.mockResolvedValue({ count: 2 });
+    await renderAs(["crm.view"], <ModuleTabs module={CRM} activeTab={CRM.tabs[0]} />);
+    expect(await screen.findByRole("link", { name: /Follow-ups.*2 waiting/ })).toHaveAttribute("href", "/crm/follow-ups");
+
+    m.crmCount.mockResolvedValue({ count: 1 });
+    await act(async () => window.dispatchEvent(new Event("crm-work-changed")));
+    expect(await screen.findByRole("link", { name: /Follow-ups.*1 waiting/ })).toBeInTheDocument();
+  });
+
+  it("is not asked for by somebody whose organisation did not buy the CRM", async () => {
+    // `can` is capped by what the organisation holds, so a person without crm.view asks nothing.
+    await renderAs(["sales.view"], <ModuleTabs module={HOME} activeTab={HOME.tabs[0]} />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalled());
+    expect(m.crmCount).not.toHaveBeenCalled();
   });
 });
 

@@ -13,6 +13,7 @@ import StatementTab from "./StatementTab";
 import OpenInvoicesTab from "./OpenInvoicesTab";
 import PartyDetailsTab from "./PartyDetailsTab";
 import CustomerDocumentsTab from "../../salesDocs/CustomerDocumentsTab";
+import CustomerCrmTab from "../../crm/CustomerCrmTab.jsx";
 import { taxIdWord } from "../../../lib/taxTerms";
 
 const TABS = [
@@ -21,7 +22,7 @@ const TABS = [
   { id: "details", label: "Details" },
 ];
 // A customer also has the story of its deals: quotation, order, delivery, invoice. Vendors do not.
-const CUSTOMER_TABS = [TABS[0], TABS[1], { id: "documents", label: "Documents" }, TABS[2]];
+const CUSTOMER_TABS = [TABS[0], TABS[1], { id: "documents", label: "Documents" }, { id: "crm", label: "CRM" }, TABS[2]];
 
 function balanceNote(k, balance) {
   const n = Number(balance) || 0;
@@ -215,6 +216,12 @@ export default function PartyAccountPage({ kind, partyId }) {
         {kind === "customer" && (
           <TabsContent value="documents">
             <CustomerDocumentsTab customerId={partyId} />
+          </TabsContent>
+        )}
+        {/* The document story is the tab above; this is the relationship: what is being worked on, and who said what. */}
+        {kind === "customer" && (
+          <TabsContent value="crm">
+            <CustomerCrmTab customerId={partyId} />
           </TabsContent>
         )}
         <TabsContent value="details">

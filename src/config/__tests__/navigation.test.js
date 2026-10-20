@@ -133,7 +133,12 @@ describe("what a role may open", () => {
     expect(home(grants("sales.view", "finance.create", "purchase.delete", "reports.view"))).toEqual(["Dashboard"]);
     for (const key of ["sales.approve", "purchase.approve", "finance.approve"]) expect(home(grants("reports.view", key))).toEqual(["Dashboard", "Approvals"]);
     expect(home(grants("finance.approve"))).toEqual(["Approvals"]); // an approver without the dashboard still has the list
-    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([["Approvals", "approvals"], ["Production", "myWork"]]);
+    // In module order: Home's approvals, the CRM's own follow-ups, then the process steps given to a person.
+    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([
+      ["Approvals", "approvals"],
+      ["Follow-ups", "crmFollowUps"],
+      ["Production", "myWork"],
+    ]);
   });
 
   it("guarding is the default: every tab names what it needs, or says it is open and why", () => {
@@ -190,7 +195,7 @@ describe("getMobileNav", () => {
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
     const { primary, rest } = getMobileNav(getVisibleModules());
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
-    expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
+    expect(ids(rest)).toEqual(["crm", "inventory", "accounts", "reports", "people", "settings"]);
   });
 
   it("splits every module into exactly one of the two", () => {

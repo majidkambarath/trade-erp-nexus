@@ -7,6 +7,7 @@
 import {
   BarChart3,
   BookOpen,
+  Handshake,
   LayoutDashboard,
   Landmark,
   Settings,
@@ -33,6 +34,21 @@ export const MODULES = [
       { label: "Dashboard", to: "/dashboard", permission: "reports.view", keywords: ["overview", "kpi"] },
       // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what is waiting for this person's approval
       { label: "Approvals", to: "/approvals", permission: ["sales.approve", "purchase.approve", "finance.approve"], badge: "approvals", keywords: ["approve", "waiting", "pending", "to approve", "second approver", "limit", "held", "review"] },
+    ],
+  },
+  // Before a sale exists. Deliberately NOT mobilePrimary: getMobileNav pins the first four flagged modules and
+  // exactly four are flagged, so flagging this one would silently drop Finance from the bottom bar. CRM lives in More.
+  {
+    id: "crm",
+    label: "CRM",
+    icon: Handshake,
+    tabs: [
+      { label: "Pipeline", to: "/crm/pipeline", permission: "crm.view", keywords: ["deals", "opportunities", "funnel", "stages", "forecast", "weighted", "board"] },
+      { label: "Leads", to: "/crm/leads", permission: "crm.view", keywords: ["enquiry", "enquiries", "prospect", "lead", "walk-in", "referral", "qualify", "score"] },
+      // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what this person owes today
+      { label: "Follow-ups", to: "/crm/follow-ups", permission: "crm.view", badge: "crmFollowUps", keywords: ["call", "visit", "reminder", "due", "overdue", "chase", "activity", "task"] },
+      { label: "Analysis", to: "/crm/analysis", permission: "crm.view", keywords: ["conversion", "win rate", "lost reasons", "by source", "pipeline report"] },
+      { label: "Setup", to: "/crm/setup", permission: "crm.manage", keywords: ["stages", "pipeline setup", "automation", "assignment", "round robin", "rules"] },
     ],
   },
   {

@@ -38,6 +38,7 @@ const { MODULES } = await import("../src/config/navigation.js");
 const ALL_GRANTS = [...new Set([
   ...MODULES.flatMap((m) => m.tabs.flatMap((t) => [].concat(t.permission || []))),
   ...Object.entries({
+    crm: ["view", "create", "edit", "delete", "assign", "manage"],
     sales: ["view", "create", "edit", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "edit", "approve", "delete"],
     inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete"], banking: ["view", "manage", "reconcile"],
     accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
@@ -45,6 +46,28 @@ const ALL_GRANTS = [...new Set([
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
 const DEEP = {
+  // CRM: the board with its stage columns, the lead form and one lead's own page, the worklist's Done dialog (which
+  // asks what came of it and plans the next one), and the pipeline editor - the tallest form of the five.
+  "crm-pipeline": [
+    { name: "board", page: true, clicks: [], settle: 1100 },
+    { name: "board-move", clicks: ["^Move$"], settle: 900 },
+    { name: "board-new-deal", clicks: ["^New deal"], settle: 1000 },
+    { name: "board-lost", clicks: ["^Lost$"], settle: 900 },
+  ],
+  "crm-leads": [
+    { name: "leads", page: true, clicks: [], settle: 1000 },
+    { name: "lead-new", clicks: ["^New enquiry"], settle: 1000 },
+    { name: "lead-view", clicks: ["LD-2026-0001"], settle: 1100 },
+    { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
+    { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
+  ],
+  "crm-follow-ups": [
+    { name: "followups", page: true, clicks: [], settle: 1000 },
+    { name: "followup-done", clicks: ["^Done$"], settle: 1000 },
+    { name: "followups-today", page: true, clicks: ["^Today"], settle: 900 },
+  ],
+  "crm-analysis": [{ name: "analysis", page: true, clicks: [], settle: 1100 }],
+  "crm-setup": [{ name: "setup", page: true, clicks: [], settle: 1100 }],
   // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
   "people-users-and-roles": [
     { name: "add-person", clicks: ["Add a person"], settle: 900 },
@@ -208,6 +231,9 @@ DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
 DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /production
+DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
+DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
+DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 
 /**
@@ -854,6 +880,100 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // CRM (Pipeline / Leads / Follow-ups / Analysis / Setup): one deal a quotation has already moved, one enquiry nobody
+  // has rung yet, and one follow-up that is late - the three states every CRM screen is about.
+  if (p.includes("/crm")) {
+    const stage = (key, name, order, probability, advanceOn, followUpDays, staleDays, type = "open") => ({ key, name, order, probability, advanceOn, followUpDays, staleDays, type });
+    const stages = [
+      stage("new", "New", 1, 10, null, 1, 7),
+      stage("qualified", "Qualified", 2, 25, null, 2, 10),
+      stage("quoted", "Quotation sent", 3, 50, "quotation_sent", 3, 14),
+      stage("accepted", "Offer accepted", 4, 90, "quotation_accepted", 2, 7),
+      stage("won", "Won", 5, 100, "invoice_approved", 0, 0, "won"),
+      stage("lost", "Lost", 6, 0, null, 0, 0, "lost"),
+    ];
+    const deal = (i, over = {}) => ({
+      _id: `op${i}`, opportunityNo: `OPP-2026-000${i}`, title: "Monthly rice and sunflower oil", customerId: "c1", customerName: "Al Noor Foods Trading",
+      stageKey: "quoted", stageName: "Quotation sent", probability: 50, status: "OPEN", value: 48500, expectedCloseDate: "2026-11-05",
+      ownerId: "a1", ownerName: "Asif Rahman", source: "referral", stageSinceDay: "2026-10-16", lastActivityDay: "2026-10-17",
+      nextActionAt: "2026-10-21", overdueAction: false, stale: { days: 3, isStale: false, limit: 14 }, weighted: 24250, daysInStage: 3,
+      links: { quotationId: "q1", quotationNo: "QT-2026-0007", orderId: null, orderNo: "" },
+      autoMoves: [{ key: "quotation_sent:q1", event: "quotation_sent", from: "qualified", to: "quoted", at: "2026-10-16T09:00:00.000Z", by: "automation", docNo: "QT-2026-0007" }],
+      actions: { edit: true, delete: true, move: true, win: true, lose: true, reopen: false, assign: true }, ...over,
+    });
+    const lead = (i, over = {}) => ({
+      _id: `ld${i}`, leadNo: `LD-2026-000${i}`, name: "Hassan Al Noor", company: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae",
+      source: "referral", sourceLabel: "Referral", sourceNote: "Sent by Gulf Trading", interest: "Monthly rice and oil for four branches",
+      expectedValue: 45000, status: "NEW", band: "warm", score: 47, ownerId: "a1", ownerName: "Asif Rahman",
+      nextActionAt: "2026-10-19", overdueAction: true, idleDays: 2, contactCount: 0, notes: "",
+      actions: { edit: true, delete: true, qualify: true, lose: true, assign: true, logActivity: true }, ...over,
+    });
+    const followUp = (i, over = {}) => ({
+      _id: `ac${i}`, kind: "call", kindLabel: "Call", subject: "Send the price for 200 bags", notes: "", regarding: { kind: "opportunity", id: "op1" },
+      customerId: "c1", ownerId: "a1", ownerName: "Asif Rahman", dueAt: "2026-10-18", dueState: "overdue", status: "OPEN", auto: true,
+      actions: { edit: true, done: true, delete: true }, ...over,
+    });
+    const timeline = [
+      followUp(1),
+      followUp(2, { _id: "ac2", subject: "Rang about the rice price", status: "DONE", outcome: "interested", dueState: "done", completedAt: "2026-10-17T06:30:00.000Z", auto: false }),
+    ];
+    const stageRows = (which) => stages.map((st) => ({
+      ...st,
+      count: st.key === "quoted" ? 2 : st.key === "accepted" ? 1 : 0,
+      value: st.key === "quoted" ? 68500 : st.key === "accepted" ? 28000 : 0,
+      weighted: st.key === "quoted" ? 34250 : st.key === "accepted" ? 25200 : 0,
+      ...(which === "board"
+        ? {
+            deals:
+              st.key === "quoted"
+                ? [deal(1), deal(2, { _id: "op2", opportunityNo: "OPP-2026-0002", title: "Ramadan hampers", value: 20000, ownerName: "Maya Khan", stale: { days: 21, isStale: true, limit: 14 }, overdueAction: true })]
+                : st.key === "accepted"
+                  ? [deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })]
+                  : [],
+          }
+        : {}),
+    }));
+
+    if (p.endsWith("/crm/summary")) return { today: "2026-10-19", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1 };
+    if (p.endsWith("/crm/pipeline")) return { today: "2026-10-19", stages: stageRows("board"), totals: { count: 3, value: 96500, weighted: 59450, stale: 1, overdueAction: 1 } };
+    if (p.endsWith("/crm/owners")) return [{ id: "a1", name: "Asif Rahman" }, { id: "a2", name: "Maya Khan" }];
+    if (p.endsWith("/crm/stages")) return stages;
+    if (p.endsWith("/crm/settings")) return { autoAdvance: true, autoFollowUp: true, assignmentMode: "round_robin", fixedOwnerId: null, uncontactedHours: 24, staleDays: 14, quotationExpiryDays: 3, lastAssignedOwnerId: "a1" };
+    if (p.endsWith("/crm/timeline")) return timeline;
+    if (p.endsWith("/crm/follow-ups/count")) return { count: 1 };
+    if (p.endsWith("/crm/follow-ups")) return [followUp(1), followUp(3, { _id: "ac3", subject: "Visit the Deira branch", kind: "visit", kindLabel: "Visit", dueAt: "2026-10-19", dueState: "today" })];
+    if (p.endsWith("/crm/leads/summary")) return { today: "2026-10-19", total: 9, open: 4, hot: 1, unassigned: 1, converted: 3, lost: 2, openValue: 128000, overdueFollowUps: 1 };
+    if (p.endsWith("/crm/leads/duplicates")) return { leads: [], customers: [] };
+    if (p.endsWith("/crm/leads")) return [lead(1), lead(2, { _id: "ld2", leadNo: "LD-2026-0002", name: "Fatima Noor", company: "Noor Supermarket", band: "hot", score: 78, source: "walk_in", sourceLabel: "Walk-in", ownerName: "Maya Khan", expectedValue: 83000, overdueAction: false, nextActionAt: "2026-10-21" })];
+    if (/\/crm\/leads\/[^/]+\/activity$/.test(p)) return activityRows();
+    if (/\/crm\/leads\/[^/]+$/.test(p)) return { ...lead(1), timeline, opportunity: null };
+    if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
+    if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
+    if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    if (p.endsWith("/crm/analysis")) {
+      return {
+        period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-19" },
+        leads: { total: 9, converted: 3, lost: 2, open: 4, conversionRate: 33.3 },
+        deals: { total: 6, open: 3, won: 2, lost: 1, winRate: 66.7, wonValue: 74000, lostValue: 12000, openValue: 96500, weightedValue: 59450, averageDaysToWin: 11.5 },
+        activity: { done: 18, open: 5, overdue: 1 },
+        funnel: stageRows("funnel"),
+        bySource: [
+          { source: "referral", label: "Referral", leads: 4, converted: 2, lost: 1, value: 96000, conversionRate: 50 },
+          { source: "walk_in", label: "Walk-in", leads: 3, converted: 1, lost: 1, value: 51000, conversionRate: 33.3 },
+          { source: "website", label: "Website", leads: 2, converted: 0, lost: 0, value: 14000, conversionRate: 0 },
+        ],
+        byOwner: [
+          { ownerId: "a1", name: "Asif Rahman", leads: 5, deals: 4, won: 2, lost: 1, wonValue: 74000, activities: 12, winRate: 66.7 },
+          { ownerId: "a2", name: "Maya Khan", leads: 3, deals: 2, won: 0, lost: 0, wonValue: 0, activities: 6, winRate: null },
+          { ownerId: null, name: "Unassigned", leads: 1, deals: 0, won: 0, lost: 0, wonValue: 0, activities: 0, winRate: null },
+        ],
+        lostReasons: [{ reason: "price", label: "Price too high", deals: 1, value: 12000 }],
+        capped: false,
+      };
+    }
+    return [];
   }
 
   // Process orders (Inventory > Production > Board / Process orders): one order mid-way (bending at Ravi, painting at the
