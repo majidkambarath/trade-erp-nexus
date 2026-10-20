@@ -612,6 +612,20 @@ function stubFor(pathname) {
     };
   }
 
+  // The bell's own feed (/api/v1/notifications), which no navigation tab names - it is read on every page, so a stub
+  // here is what puts a real count on the bell in every screenshot. `unread-count` and the list share the shape the
+  // feed's components read.
+  if (p.includes("/notifications")) {
+    const row = (id, kind, severity, title, body, link) => ({ id, kind, severity, title, body, link, occurredAt: "2026-10-19T05:30:00.000Z", createdAt: "2026-10-19T05:30:00.000Z", read: false });
+    const items = [
+      row("n1", "crm_followup", "warning", "2 days late: Send the price for 200 bags", "It was due on 2026-10-17.", "/crm/follow-ups"),
+      row("n2", "crm_stale", "warning", "Ramadan hampers has gone quiet", "Nothing for 21 days, on Quotation sent.", "/crm/pipeline"),
+      row("n3", "low_stock", "critical", "Basmati rice 5kg is low on stock", "2 left, at or below the reorder level of 10.", "/stock"),
+    ];
+    if (p.endsWith("/unread-count")) return { count: items.length, capped: false };
+    return { items, counts: { total: items.length, unread: items.length }, capped: false };
+  }
+
   // The approvals list (/api/v1/approvals/waiting). The navigation badge asks the same route with ?countOnly=1 and reads `count`,
   // so the one answer carries both. Long names, a long narration and long reasons are the point: they are what clips on a card.
   if (p.endsWith("/approvals/waiting")) {
