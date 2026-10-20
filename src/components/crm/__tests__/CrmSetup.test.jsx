@@ -224,3 +224,28 @@ describe("the automation", () => {
     await waitFor(() => expect(within(panel).getByText("0 means the usual 14 days")).toBeInTheDocument());
   });
 });
+
+describe("what must fit in the room a phone gives it", () => {
+  it("every choice in 'It moves here when' is short enough to read, and the values are untouched", async () => {
+    await open();
+    const select = screen.getAllByLabelText(/^It moves here when/)[1];
+    const options = within(select).getAllByRole("option");
+    // Inputs are 16px on a phone and the select gets ~175px of text: "The customer accepted the quotation" was cut to
+    // "The customer acc", and even 23 characters lost its last word. 18 is what fits; the values the server
+    // understands do not change.
+    for (const option of options) expect(option.textContent.length).toBeLessThanOrEqual(18);
+    expect(options.map((o) => o.value)).toEqual(["", "quotation_sent", "quotation_accepted", "invoice_approved"]);
+  });
+
+  it("the unit's padding follows the unit, so a percentage field keeps room for its number", async () => {
+    await open();
+    const chance = screen.getAllByLabelText(/^Chance/)[0];
+    // "%" needs about 2.25rem; the old fixed 4rem left a 96px field no room for "10", which showed as "1".
+    expect(chance.className).toMatch(/\bpe-9\b/);
+    expect(chance.className).not.toMatch(/\bpe-16\b/);
+    const timing = screen.getAllByRole("button", { name: /Follow-up in/ })[0];
+    fireEvent.click(timing);
+    const days = within(document.getElementById(timing.getAttribute("aria-controls"))).getByLabelText(/^Next follow-up in/);
+    expect(days.className).toMatch(/\bpe-16\b/);
+  });
+});

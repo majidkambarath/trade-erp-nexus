@@ -400,3 +400,86 @@ describe("a password someone else set", () => {
     expect(screen.queryByRole("heading", { name: "Choose your own password" })).toBeNull();
   });
 });
+
+// ---- the switch between the ERP and the CRM, from the organisation down to the person ---------------------------------
+//
+// The organisation's plan decides whether the CRM exists for anybody in it; the person's role decides whether they can
+// open any of it. The switch is drawn only when both halves are open to the same person.
+describe("the switch between the ERP and the CRM", () => {
+  const ALL_CRM = ["view", "create", "edit", "delete", "assign", "manage"];
+  const CRM_BOUGHT = { sales: { on: true, full: true, actions: ["view"] }, crm: { on: true, full: true, actions: ALL_CRM } };
+  const CRM_NOT_BOUGHT = { sales: { on: true, full: true, actions: ["view"] }, crm: { on: false, full: false, actions: [] } };
+  const ERP_KEYS = ["sales.view", "inventory.view", "reports.view", "lookups.view", "settings.view"];
+  const CRM_KEYS = ["crm.view", "crm.create", "crm.edit", "crm.manage"];
+  const person = (name, key, grants) => ({ name, role: { key, name, rank: 60 }, grants });
+  const switcher = () => screen.queryByRole("button", { name: /Workspace/ });
+
+  it("offers no switch to an organisation that did not buy the CRM, even to its owner", async () => {
+    status = { ...base(), modules: CRM_NOT_BOUGHT, me: person("Owner", "super_admin", ERP_KEYS) };
+    renderAt("/sales-order");
+    expect(await screen.findByRole("link", { name: "Quotations" })).toBeInTheDocument();
+    await waitFor(() => expect(switcher()).toBeNull());
+  });
+
+  it("says the CRM is not in the plan, rather than blaming the person's role, for a typed CRM address", async () => {
+    status = { ...base(), modules: CRM_NOT_BOUGHT, me: person("Owner", "super_admin", ERP_KEYS) };
+    renderAt("/crm/leads");
+    expect(await screen.findByText("CRM is not included in your plan")).toBeInTheDocument();
+    expect(screen.queryByText("the page itself")).toBeNull();
+    // and the rail they are left with is the ERP's, with no CRM page on it
+    expect(screen.queryAllByRole("link", { name: /Leads/ })).toEqual([]);
+  });
+
+  it("offers the switch to a person who holds both halves, naming the one they are in", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Sara", "sales", [...ERP_KEYS, ...CRM_KEYS]) };
+    renderAt("/sales-order");
+    expect(await screen.findByRole("button", { name: /Workspace: ERP/ })).toBeInTheDocument();
+  });
+
+  it("names the CRM when the page is a CRM page, and draws the CRM's own rail", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Sara", "sales", [...ERP_KEYS, ...CRM_KEYS]) };
+    renderAt("/crm/leads");
+    expect(await screen.findByRole("button", { name: /Workspace: CRM/ })).toBeInTheDocument();
+    expect((await screen.findAllByRole("link", { name: /Contacts/ })).length).toBeGreaterThan(0); // the rail, and the bottom bar below lg
+    expect(screen.queryAllByRole("link", { name: /Sales/ })).toEqual([]);
+  });
+
+  it("offers no switch to a person without crm.view in an organisation that DID buy it", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Storekeeper", "storekeeper", ERP_KEYS) };
+    renderAt("/sales-order");
+    expect(await screen.findByRole("link", { name: "Quotations" })).toBeInTheDocument();
+    await waitFor(() => expect(switcher()).toBeNull());
+  });
+
+  it("offers nothing while the status is still loading, so no one is shown a workspace they may not have", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Sara", "sales", [...ERP_KEYS, ...CRM_KEYS]) };
+    renderAt("/crm/leads");
+    expect(switcher()).toBeNull(); // the first paint, before the status has arrived
+    expect(await screen.findByRole("button", { name: /Workspace: CRM/ })).toBeInTheDocument();
+  });
+
+  it("lands a CRM-only person on the CRM at the front door, instead of telling them they have no access", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Rep", "crm-rep", [...CRM_KEYS, "lookups.view"]) };
+    renderAt("/dashboard"); // where signing in goes; the Home dashboard needs reports.view, which this role does not hold
+    // (the first paint is before the status arrives, and the redirect is one render behind the rail: wait for both)
+    expect((await screen.findAllByRole("link", { name: /Leads/ })).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText("the page itself")).toBeInTheDocument());
+    expect(screen.queryByText("You do not have access to this page")).toBeNull();
+    // one half only, so there is nothing to switch to
+    expect(switcher()).toBeNull();
+    expect(screen.queryAllByRole("link", { name: /Sales/ })).toEqual([]);
+  });
+
+  it("keeps that person on the CRM rail on their Settings page, so the rail is never one item with no way back", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Rep", "crm-rep", [...CRM_KEYS, "lookups.view"]) };
+    renderAt("/settings");
+    expect((await screen.findAllByRole("link", { name: /Leads/ })).length).toBeGreaterThan(0);
+    expect(screen.getByText("the page itself")).toBeInTheDocument();
+  });
+
+  it("still explains, rather than redirects, for somebody who holds nothing at all", async () => {
+    status = { ...base(), modules: CRM_BOUGHT, me: person("Nobody", "lead", []) };
+    renderAt("/dashboard");
+    expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+  });
+});

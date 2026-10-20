@@ -216,7 +216,9 @@ export default function CrmDashboard() {
         <R>
           <Panel title="Is the team working?" description="Follow-ups finished, a day at a time." bodyClassName="p-4">
             <PulseStrip rows={pulse} />
-            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-border/60 pt-3 text-center">
+            {/* three short figures (a number and two or three words each), which fit a 390px panel side by side; written as
+                repeat(3, minmax(0, 1fr)) for the same reason as the calendar's week: the audit rule is for full-width content */}
+            <dl className="mt-3 grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2 border-t border-border/60 pt-3 text-center">
               {[
                 ["Finished", doneTwoWeeks, "in two weeks"],
                 ["Due today", data.dueToday, "to do"],

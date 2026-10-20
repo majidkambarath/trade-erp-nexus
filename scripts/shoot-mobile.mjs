@@ -642,6 +642,9 @@ function stubFor(pathname) {
       limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},
+      // What the organisation bought. The ERP / CRM switch is offered only when this says the CRM is on AND the person
+      // holds a page of it, so the sweep must say so or the switch would not be drawn in any screenshot.
+      modules: { crm: { on: true, full: true, actions: ["view", "create", "edit", "delete", "assign", "manage"] } },
       support: { contact: "help@zarvia.example" },
       // Who is signed in and what the role holds. The sweep signs in as an administrator who holds every permission any page
       // asks for, so every page is still measured; the Users and roles screen needs a rank to offer anything.
@@ -1984,6 +1987,15 @@ for (const vp of VIEWPORTS) {
   });
   page.on("requestfailed", (req) => {
     if (req.url().includes("/api/")) problems.push(`api failed ${new URL(req.url()).pathname}: ${req.failure()?.errorText}`);
+  });
+  // A screen with unsaved work asks "Leave site?" when the page is navigated away (the CRM setup does, on purpose), and
+  // that native prompt BLOCKS the navigation until somebody answers it - the sweep reloads the page after every deep
+  // step, so without an answer it waits out its 30 seconds and reports a failure that is really the app working.
+  // Accepting is what a person clicking "Leave" does. The prompt is NOT hidden from the run: it is written down, so a
+  // screen that starts asking it where it should not can still be noticed.
+  page.on("dialog", (dialog) => {
+    if (dialog.type() === "beforeunload") problems.push("asked 'Leave site?' (unsaved work)");
+    dialog.accept().catch(() => {});
   });
 
   for (const [name, path] of pages) {

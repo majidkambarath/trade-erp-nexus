@@ -43,9 +43,12 @@ export function Switch({ checked, onChange, label, description, disabled = false
  * attach its id and its error to the INPUT rather than to this wrapper.
  */
 export const UnitInput = React.forwardRef(function UnitInput({ unit, className = "", ...props }, ref) {
+  // The padding follows the unit: a word ("days", "hours") needs about 4rem, a sign ("%") about 2.25rem. One fixed
+  // figure was sized for the words and, in a narrow percentage field, left no room for the number itself.
+  const room = String(unit || "").length <= 2 ? "pe-9" : "pe-16";
   return (
     <div className="relative">
-      <input ref={ref} type="number" inputMode="numeric" className={`${inputClass} pe-16 ${className}`} {...props} />
+      <input ref={ref} type="number" inputMode="numeric" className={`${inputClass} ${room} ${className}`} {...props} />
       <span className="pointer-events-none absolute inset-y-0 end-3 grid place-items-center text-xs text-muted-foreground">{unit}</span>
     </div>
   );

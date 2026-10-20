@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronDown } from "lucide-react";
-import { moduleHref, modulesIn, visibleWorkspaces, workspaceOf } from "../../config/navigation";
+import { moduleHref, modulesIn, offeredWorkspaces, workspaceInUse } from "../../config/navigation";
 
 const item =
   "flex cursor-pointer select-none items-start gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground outline-none data-[highlighted]:bg-accent";
@@ -14,12 +14,16 @@ const item =
 // Modelled on BranchSwitcher beside it, and it disappears the same way: a person who can only see one workspace is
 // offered nothing, because there is nowhere to switch to. Nothing is stored - the workspace in use is read from the
 // address (Layout.jsx), so Back, a reload and a pasted link all arrive in the right rail.
-export default function WorkspaceSwitcher({ modules = [], activeModule = null }) {
+//
+// WHICH workspaces are offered is decided in one place, `offeredWorkspaces`: the organisation must have bought the CRM
+// AND the person must be able to open one of its pages, and nothing is offered while the status is still loading.
+// `status` is the organisation status; leave it out and only the modules are judged.
+export default function WorkspaceSwitcher({ modules = [], activeModule = null, status }) {
   const navigate = useNavigate();
-  const choices = visibleWorkspaces(modules);
+  const choices = offeredWorkspaces(modules, status);
   if (choices.length < 2) return null;
 
-  const current = workspaceOf(activeModule);
+  const current = workspaceInUse(activeModule, modules, status);
   const open = (id) => {
     if (id === current) return;
     const first = modulesIn(id, modules)[0];

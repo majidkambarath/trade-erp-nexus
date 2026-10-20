@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { findActive, getMobileNav, getVisibleModules, moduleHref, modulesIn, pageTitle, workspaceOf } from "../config/navigation";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { findActive, getMobileNav, getVisibleModules, moduleHref, modulesIn, pageTitle, workspaceInUse } from "../config/navigation";
 import { getBrand } from "../config/brands";
 import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
@@ -68,10 +68,17 @@ const LayoutShell = () => {
   // ...or by a role that does not include it: the same kindness, with a way to somewhere they CAN go
   const notAllowed = requested?.tab && !outOfPlan && !tabAllowed(requested.tab, status?.me) ? requested.tab : null;
   const home = modules[0] ? moduleHref(modules[0]) : null;
+  // Signing in lands on /dashboard, which needs reports.view. A person whose role has none (a CRM-only role is the case:
+  // the CRM implies nothing in the ERP) would be told "you do not have access" at the front door, so the default landing
+  // - and only that address - sends them to the first page they CAN open. Anywhere else the explanation is kinder.
+  // (Settings does not count as somewhere to land: it is open to everyone, and a person who holds nothing else is
+  // better told so than sent to a page that looks like a way in.)
+  const landingModule = modules.find((m) => m.placement !== "footer");
+  const landsElsewhere = notAllowed && pathname === "/dashboard" && landingModule ? moduleHref(landingModule) : null;
   const notice = useMemo(() => subscriptionNotice(status?.subscription), [status]);
   // Which half of the product the page belongs to. Derived from the address, never stored: Back, a reload and a
   // pasted link all land in the right rail without anything to keep in step.
-  const workspace = workspaceOf(active?.module);
+  const workspace = workspaceInUse(active?.module, modules, status);
   const railModules = useMemo(() => modulesIn(workspace, modules), [workspace, modules]);
   // Four modules for the bottom bar, the remainder for the More sheet - of THIS workspace. The CRM's bottom bar is
   // the CRM's own pages; the ERP's is unchanged.
@@ -198,6 +205,7 @@ const LayoutShell = () => {
           onOpenSearch={() => setSearchOpen(true)}
           modules={modules}
           activeModule={active?.module}
+          status={status}
         />
         <SubscriptionNotice notice={notice} />
         <ModuleTabs module={active?.module} activeTab={active?.tab} />
@@ -219,6 +227,8 @@ const LayoutShell = () => {
           <PageErrorBoundary key={`${branchKey}:${localeKey}`} resetKey={pathname}>
             {outOfPlan ? (
               <NotInPlan feature={outOfPlan.kind === "feature" ? outOfPlan.key : null} module={outOfPlan.kind === "module" ? outOfPlan.key : null} />
+            ) : landsElsewhere ? (
+              <Navigate to={landsElsewhere} replace />
             ) : notAllowed ? (
               <NotAllowed me={status?.me} needed={notAllowed.permission} home={home} />
             ) : (

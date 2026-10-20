@@ -13,8 +13,14 @@ import { Field, Select, TextInput } from "../accounting/kit.jsx";
 import { UnitInput } from "./setupParts.jsx";
 import * as rules from "../../lib/crm";
 
-// A row, left to right: grip, colour dot, name, chance, what moves a deal here, timing, remove.
-const COLUMNS = "lg:grid-cols-[2rem_0.75rem_minmax(0,1.2fr)_6rem_minmax(0,1.4fr)_minmax(0,1.6fr)_2.75rem]";
+// A row, left to right: grip, colour dot, name, chance, what moves a deal here, timing, remove. The select and the timing
+// summary are the two long things, so they get the room: name is the one that can afford to be narrow.
+const COLUMNS = "lg:grid-cols-[2rem_0.75rem_minmax(0,0.9fr)_6rem_minmax(0,1.5fr)_minmax(0,1.6fr)_2.75rem]";
+
+// What the "moves here when" select SAYS. rules.ADVANCE_EVENTS reads as full sentences elsewhere ("Happens by itself: the
+// customer accepted the quotation"), but inputs are 16px on a phone (a smaller one makes iOS zoom in on focus) and the select gets
+// about 175px of text there: the full sentence was cut to "The customer acc", and even 23 characters lost its last word. Same values, same order; an event added later falls back to its full label.
+const WHEN = { "": "Nothing - by hand", quotation_sent: "Quotation sent", quotation_accepted: "Quotation accepted", invoice_approved: "Invoice approved" };
 
 // A row can only move up and down: the list is a column, and a drag that wandered sideways would look broken.
 const lockToY = ({ transform }) => ({ ...transform, x: 0 });
@@ -33,12 +39,12 @@ function Row({ stage, index, total, errors, may, hue, defaultQuietDays, open, on
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`rounded-xl border bg-card transition-shadow ${isDragging ? "relative z-20 border-brand shadow-elevated" : "border-border"}`}
     >
-      <div className={`grid grid-cols-[2rem_0.75rem_minmax(0,1fr)_2.75rem] items-start gap-x-2 gap-y-2 p-2.5 ${COLUMNS}`}>
+      <div className={`grid grid-cols-[2.75rem_0.75rem_minmax(0,1fr)_2.75rem] items-start gap-x-2 gap-y-2 p-2.5 ${COLUMNS}`}>
         {may ? (
           <button
             type="button"
             aria-label={`Reorder ${name}`}
-            className="grid h-11 w-8 cursor-grab touch-none place-items-center rounded-lg text-muted-foreground hover:bg-accent active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-10"
+            className="grid h-11 w-11 cursor-grab touch-none place-items-center rounded-lg lg:w-8 text-muted-foreground hover:bg-accent active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-10"
             {...attributes}
             {...listeners}
           >
@@ -68,15 +74,15 @@ function Row({ stage, index, total, errors, may, hue, defaultQuietDays, open, on
           <span />
         )}
         {/* Chance and what moves a deal here share a line on a phone and take a column each on a wide screen. */}
-        <div className="col-span-4 grid grid-cols-[6rem_minmax(0,1fr)] gap-2 lg:contents">
-          <Field label="Chance of closing" error={err("probability")} labelClassName="text-[11px] lg:sr-only" className="lg:col-start-4 lg:row-start-1">
+        <div className="col-span-4 grid grid-cols-[5rem_minmax(0,1fr)] gap-2 lg:contents">
+          <Field label="Chance" error={err("probability")} labelClassName="text-[11px] lg:sr-only" className="lg:col-start-4 lg:row-start-1">
             <UnitInput unit="%" min="0" max="100" value={stage.probability} onChange={set("probability")} disabled={!may} />
           </Field>
           <Field label="It moves here when" error={err("advanceOn")} labelClassName="text-[11px] lg:sr-only" className="lg:col-start-5 lg:row-start-1">
             <Select value={stage.advanceOn || ""} onChange={set("advanceOn")} disabled={!may}>
               {rules.ADVANCE_EVENTS.map(([value, label]) => (
                 <option key={value || "none"} value={value}>
-                  {label}
+                  {WHEN[value] ?? label}
                 </option>
               ))}
             </Select>

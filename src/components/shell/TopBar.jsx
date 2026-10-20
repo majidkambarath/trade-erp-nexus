@@ -92,7 +92,7 @@ function UserMenu({ profile, onLogout }) {
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null, status }) {
   // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
@@ -112,7 +112,7 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, modul
           </>
         )}
 
-        <WorkspaceSwitcher modules={modules} activeModule={activeModule} />
+        <WorkspaceSwitcher modules={modules} activeModule={activeModule} status={status} />
         <BranchSwitcher />
 
         <button

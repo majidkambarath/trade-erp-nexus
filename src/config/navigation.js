@@ -280,7 +280,9 @@ export const MODULES = [
 export const ERP = "erp";
 export const WORKSPACES = [
   { id: ERP, label: "ERP", icon: Building2, hint: "Buying, selling, stock and the books" },
-  { id: "crm", label: "CRM", icon: Handshake, hint: "Enquiries, people and the deals in front of the paperwork" },
+  // `module` is the permission module that SELLS the workspace (utils/plans.js): an organisation that has not bought it
+  // is never offered it, whatever its people's roles say. The ERP names none - it is the product itself.
+  { id: "crm", label: "CRM", icon: Handshake, module: "crm", hint: "Enquiries, people and the deals in front of the paperwork" },
 ];
 
 export const workspaceOf = (module) => module?.workspace || ERP;
@@ -291,9 +293,50 @@ export const modulesIn = (workspaceId, modules = MODULES) => modules.filter((m) 
 /**
  * The workspaces this person can actually open, in order. A role with no crm.view sees one, and the switcher then
  * draws nothing: there is nothing to switch to.
+ *
+ * A FOOTER module (Settings) does not count towards a workspace. It is open to every signed-in person - their own
+ * password and preferences are there - so counting it would give a CRM-only person an "ERP" made of one settings page
+ * and a switch into it.
  */
 export const visibleWorkspaces = (modules = MODULES) =>
-  WORKSPACES.filter((w) => modules.some((m) => workspaceOf(m) === w.id));
+  WORKSPACES.filter((w) => modules.some((m) => workspaceOf(m) === w.id && m.placement !== "footer"));
+
+/**
+ * The workspaces this person is OFFERED a switch between. Two things must both say yes, and the first is the one a
+ * person cannot change:
+ *
+ *   1. the ORGANISATION bought the workspace's module (`status.modules.crm.on`) - an organisation on the Standard or
+ *      Trade-only plan has the ERP and nothing to switch to;
+ *   2. the PERSON can open at least one of its pages (`modules` is already what their role may open).
+ *
+ * The first is already inside `me.grants` (the server caps them to what was bought), so on a healthy status the second
+ * check is enough; asking the module as well means a status that disagrees with itself can never offer a workspace
+ * whose every request the server will refuse.
+ *
+ * `status` undefined means the caller did not say, and only the modules are judged. `null`, or a status whose grants
+ * are not known yet, is "still loading": nothing is known about the plan, and the only workspace that cannot be wrong
+ * is the ERP - so an organisation without the CRM is not offered it for the half second the page takes to arrive.
+ */
+export const offeredWorkspaces = (modules = MODULES, status) => {
+  const open = visibleWorkspaces(modules);
+  if (status === undefined) return open;
+  if (!Array.isArray(status?.me?.grants)) return open.filter((w) => !w.module);
+  return open.filter((w) => !w.module || status.modules?.[w.module]?.on !== false);
+};
+
+/**
+ * Which rail to draw. Normally the half the page belongs to, read from the address. The exception is a page that
+ * belongs to a half the person is not offered - Settings, opened from the account menu by someone who works only in
+ * the CRM, is an ERP page - which would otherwise draw a rail of one item with no switch to get back out of it: they
+ * keep the rail of the half they do work in. Until the status has arrived nothing is known, and the address decides, so
+ * a reload on a CRM page never flashes the ERP rail first.
+ */
+export const workspaceInUse = (activeModule, modules = MODULES, status) => {
+  const own = workspaceOf(activeModule);
+  if (!Array.isArray(status?.me?.grants)) return own;
+  const offered = offeredWorkspaces(modules, status);
+  return offered.some((w) => w.id === own) ? own : offered[0]?.id || own;
+};
 
 /** Exact path, or a nested detail route (/debit-accounts/vendor/123). */
 export const isPathActive = (path, currentPath) => {
