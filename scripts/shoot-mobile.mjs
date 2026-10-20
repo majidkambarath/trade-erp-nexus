@@ -83,7 +83,7 @@ const DEEP = {
     { name: "followup-done", clicks: ["^Done$"], settle: 1000 },
     { name: "followups-today", page: true, clicks: ["^Today"], settle: 900 },
   ],
-  "crm-analysis": [{ name: "analysis", page: true, clicks: [], settle: 1100 }],
+  "crm-reports": [{ name: "reports", page: true, clicks: [], settle: 1100 }],
   "crm-setup": [{ name: "setup", page: true, clicks: [], settle: 1100 }],
   // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
   "people-users-and-roles": [
@@ -251,6 +251,7 @@ DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /productio
 DEEP["dashboard"] = DEEP["crm-dashboard"]; // check:mobile -- /crm/dashboard
 DEEP["contacts"] = DEEP["crm-contacts"]; // check:mobile -- /crm/contacts
 DEEP["communications"] = DEEP["crm-communications"]; // check:mobile -- /crm/communications
+DEEP["reports"] = DEEP["crm-reports"]; // check:mobile -- /crm/reports
 DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
 DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
 DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
@@ -1033,6 +1034,44 @@ function stubFor(pathname) {
     if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
     if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    if (p.endsWith("/crm/reports/aging")) {
+      const aged = (i, days, over = {}) => ({
+        id: `op${i}`, opportunityNo: `OPP-2026-000${i}`, title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading",
+        stageKey: "quoted", stageName: "Quotation sent", ownerName: "Asif Rahman", value: 48500, days, band: "0-7", bandLabel: "Up to a week",
+        stale: false, expectedCloseDate: "2026-11-05", overdueClose: false, ...over,
+      });
+      return {
+        today: "2026-10-19",
+        bands: [
+          { key: "0-7", label: "Up to a week", deals: 1, value: 48500 },
+          { key: "8-14", label: "1 to 2 weeks", deals: 0, value: 0 },
+          { key: "15-30", label: "2 to 4 weeks", deals: 0, value: 0 },
+          { key: "31-60", label: "1 to 2 months", deals: 1, value: 28000, },
+          { key: "60+", label: "Over 2 months", deals: 0, value: 0 },
+        ],
+        rows: [
+          aged(3, 47, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor Supermarket", value: 28000, band: "31-60", bandLabel: "1 to 2 months", stale: true, overdueClose: true, expectedCloseDate: "2026-10-01" }),
+          aged(1, 3),
+        ],
+        oldest: 47, average: 25, stale: 1, overdueClose: 1, capped: false,
+      };
+    }
+    if (p.endsWith("/crm/reports/activity")) {
+      return {
+        period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-19" },
+        byKind: [
+          { kind: "call", label: "Call", done: 9, open: 3, overdue: 1 },
+          { kind: "visit", label: "Visit", done: 4, open: 1, overdue: 0 },
+          { kind: "whatsapp", label: "WhatsApp", done: 5, open: 1, overdue: 0 },
+        ],
+        byPerson: [
+          { key: "a1", name: "Asif Rahman", done: 12, open: 3, overdue: 1, total: 15 },
+          { key: "a2", name: "Maya Khan", done: 6, open: 2, overdue: 0, total: 8 },
+        ],
+        byDay: [{ day: "2026-10-17", count: 4 }, { day: "2026-10-18", count: 6 }],
+        done: 18, open: 5, overdue: 1, capped: false,
+      };
+    }
     if (p.endsWith("/crm/analysis")) {
       return {
         period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-19" },

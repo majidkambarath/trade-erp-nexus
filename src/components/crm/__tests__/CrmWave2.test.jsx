@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/dom";
 import { MemoryRouter } from "react-router-dom";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const m = vi.hoisted(() => ({
   dashboard: vi.fn(),
@@ -14,6 +15,10 @@ const m = vi.hoisted(() => ({
   updateContact: vi.fn(),
   removeContact: vi.fn(),
   activities: vi.fn(),
+  analysis: vi.fn(),
+  aging: vi.fn(),
+  activityReport: vi.fn(),
+  deals: vi.fn(),
   completeActivity: vi.fn(),
   owners: vi.fn(),
   logActivity: vi.fn(),
@@ -29,6 +34,10 @@ vi.mock("../../../lib/crmApi", () => ({
     updateContact: m.updateContact,
     removeContact: m.removeContact,
     activities: m.activities,
+    analysis: m.analysis,
+    aging: m.aging,
+    activityReport: m.activityReport,
+    deals: m.deals,
     completeActivity: m.completeActivity,
     owners: m.owners,
     logActivity: m.logActivity,
@@ -61,6 +70,7 @@ vi.mock("recharts", async (orig) => {
 const CrmDashboard = (await import("../CrmDashboard.jsx")).default;
 const ContactsPage = (await import("../ContactsPage.jsx")).default;
 const CommunicationsPage = (await import("../CommunicationsPage.jsx")).default;
+const CrmReports = (await import("../CrmReports.jsx")).default;
 
 const person = (over = {}) => ({
   _id: "p1", name: "Rajesh Kumar", designation: "Purchase Manager", email: "rajesh@alnoor.ae", phone: "0507778888",
@@ -77,12 +87,40 @@ const logged = (over = {}) => ({
 const render_ = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 beforeEach(() => {
+  // The Reports screen remembers which report you were on (pageSession), so one test would otherwise
+  // open on the tab the test before it chose.
+  clearPageSessions();
   for (const key of Object.keys(m)) if (typeof m[key]?.mockReset === "function") m[key].mockReset();
   m.grants.allow = () => true;
   m.owners.mockResolvedValue([{ id: "u1", name: "Asif" }]);
   m.contacts.mockResolvedValue([person()]);
   m.contact.mockResolvedValue({ ...person(), timeline: [logged()], party: { kind: "customer", id: "c1", name: "Al Noor Foods" } });
   m.activities.mockResolvedValue([logged()]);
+  m.deals.mockResolvedValue([{ _id: "op1", opportunityNo: "OPP-2026-0001", title: "Monthly rice", customerName: "Al Noor", stageName: "Quotation sent", status: "OPEN", ownerName: "Asif", value: 48500, expectedCloseDate: "2026-11-05" }]);
+  m.analysis.mockResolvedValue({
+    period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-20" },
+    leads: { total: 9, converted: 3, lost: 2, open: 4, conversionRate: 33.3 },
+    deals: { total: 6, open: 3, won: 2, lost: 1, winRate: 66.7, wonValue: 74000, lostValue: 12000, openValue: 96500, weightedValue: 59450, averageDaysToWin: 11.5 },
+    activity: { done: 18, open: 5, overdue: 1 },
+    funnel: [{ key: "quoted", name: "Quotation sent", type: "open", probability: 50, count: 2, value: 68500, weighted: 34250 }],
+    bySource: [{ source: "referral", label: "Referral", leads: 4, converted: 2, lost: 1, value: 96000, conversionRate: 50 }],
+    byOwner: [{ ownerId: "a1", name: "Asif Rahman", leads: 5, deals: 4, won: 2, lost: 1, wonValue: 74000, activities: 12, winRate: 66.7 }],
+    lostReasons: [{ reason: "price", label: "Price too high", deals: 1, value: 12000 }],
+    capped: false,
+  });
+  m.aging.mockResolvedValue({
+    today: "2026-10-20",
+    bands: [{ key: "0-7", label: "Up to a week", deals: 1, value: 48500 }, { key: "31-60", label: "1 to 2 months", deals: 1, value: 28000 }],
+    rows: [{ id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor", stageName: "Quotation sent", ownerName: "Maya", value: 28000, days: 47, stale: true, overdueClose: true, expectedCloseDate: "2026-10-01" }],
+    oldest: 47, average: 25, stale: 1, overdueClose: 1,
+  });
+  m.activityReport.mockResolvedValue({
+    period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-20" },
+    byKind: [{ kind: "call", label: "Call", done: 9, open: 3, overdue: 1 }],
+    byPerson: [{ key: "a1", name: "Asif Rahman", done: 12, open: 3, overdue: 1, total: 15 }],
+    byDay: [{ day: "2026-10-18", count: 6 }],
+    done: 18, open: 5, overdue: 1,
+  });
   m.dashboard.mockResolvedValue({
     today: "2026-10-20", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1,
     late: [logged({ _id: "a2", subject: "Send the price", status: "OPEN", dueState: "overdue" })],
@@ -208,5 +246,54 @@ describe("the communications log", () => {
     render_(<CommunicationsPage />);
     await screen.findByRole("table", { name: "Communications" });
     expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+  });
+});
+
+describe("the reports", () => {
+  it("opens on the pipeline and offers all seven", async () => {
+    render_(<CrmReports />);
+    await screen.findByRole("heading", { name: "Reports" });
+    for (const name of ["Pipeline", "Lead conversion", "Win / loss", "Sales performance", "Aging", "Deals", "Communications"]) {
+      expect(screen.getByRole("tab", { name })).toBeInTheDocument();
+    }
+    expect(await screen.findByRole("table", { name: "Pipeline by stage" })).toBeInTheDocument();
+  });
+
+  it("reads the analysis once and shares it across the four reports that need it", async () => {
+    render_(<CrmReports />);
+    await screen.findByRole("table", { name: "Pipeline by stage" });
+    fireEvent.click(screen.getByRole("tab", { name: "Lead conversion" }));
+    expect(await screen.findByRole("table", { name: "Lead conversion by source" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Sales performance" }));
+    expect(await screen.findByRole("table", { name: "Sales performance" })).toBeInTheDocument();
+    // Four reports, one read: the figures cannot disagree with each other and the server is asked once.
+    expect(m.analysis).toHaveBeenCalledTimes(1);
+  });
+
+  it("aging is as at today, so it never asks for a period", async () => {
+    render_(<CrmReports />);
+    await screen.findByRole("table", { name: "Pipeline by stage" });
+    fireEvent.click(screen.getByRole("tab", { name: "Aging" }));
+    expect(await screen.findByRole("table", { name: "Opportunity aging" })).toBeInTheDocument();
+    expect(m.aging).toHaveBeenCalledWith();
+    // The dates are drawn but disabled, and the screen says why rather than hiding them.
+    expect(screen.getByText("This report is as at today.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^From/)).toBeDisabled();
+  });
+
+  it("communications reads the period and names who did the chasing", async () => {
+    render_(<CrmReports />);
+    await screen.findByRole("table", { name: "Pipeline by stage" });
+    fireEvent.click(screen.getByRole("tab", { name: "Communications" }));
+    expect(await screen.findByRole("table", { name: "Communication activity by kind" })).toBeInTheDocument();
+    expect(m.activityReport).toHaveBeenCalled();
+  });
+
+  it("the deals register lists every deal and links to it", async () => {
+    render_(<CrmReports />);
+    await screen.findByRole("table", { name: "Pipeline by stage" });
+    fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
+    const table = await screen.findByRole("table", { name: "Every deal" });
+    expect(within(table).getByRole("link", { name: "OPP-2026-0001" })).toHaveAttribute("href", "/crm/pipeline?deal=op1");
   });
 });

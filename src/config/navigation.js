@@ -104,11 +104,18 @@ export const MODULES = [
     tabs: [{ label: "Follow-ups", to: "/crm/follow-ups", permission: "crm.view", badge: "crmFollowUps", keywords: ["call", "visit", "reminder", "due", "overdue", "chase", "activity", "task", "worklist"] }],
   },
   {
-    id: "crm-analysis",
+    id: "crm-reports",
     workspace: "crm",
-    label: "Analysis",
+    label: "Reports",
     icon: BarChart3,
-    tabs: [{ label: "Analysis", to: "/crm/analysis", permission: "crm.view", keywords: ["conversion", "win rate", "lost reasons", "by source", "pipeline report"] }],
+    tabs: [
+      {
+        label: "Reports",
+        to: "/crm/reports",
+        permission: "crm.view",
+        keywords: ["analysis", "conversion", "win rate", "lost reasons", "by source", "pipeline report", "aging", "sales performance", "communication activity", "register"],
+      },
+    ],
   },
   {
     id: "crm-setup",

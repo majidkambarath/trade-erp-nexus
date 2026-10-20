@@ -25,6 +25,9 @@ const announced = (promise) =>
 export const crm = {
   // the module's own figures
   dashboard: () => api.get("/crm/dashboard"),
+  // The named reports. Aging is an "as at today" picture and takes no range; the rest read a period.
+  aging: () => api.get("/crm/reports/aging"),
+  activityReport: (params) => api.get("/crm/reports/activity", { params }),
   // Every activity ever logged, newest first: the communications LOG, as against followUps (the worklist).
   activities: (params) => api.get("/crm/activities", { params }),
 

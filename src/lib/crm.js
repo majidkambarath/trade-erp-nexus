@@ -393,3 +393,24 @@ export const COMM_TABS = [
   ["whatsapp", "Messages"],
   ["note", "Notes"],
 ];
+
+/** The named reports, in the order a sales manager reads them. */
+export const REPORT_TABS = [
+  ["pipeline", "Pipeline"],
+  ["conversion", "Lead conversion"],
+  ["winloss", "Win / loss"],
+  ["performance", "Sales performance"],
+  ["aging", "Aging"],
+  ["deals", "Deals"],
+  ["activity", "Communications"],
+];
+
+export const agingCsv = (rows = []) => ({
+  headers: ["Deal", "Customer", "Stage", "Owner", "Days on this stage", "Value", "Expected close", "Past its close date"],
+  rows: rows.map((r) => [r.opportunityNo, r.customerName, r.stageName, r.ownerName, r.days, r.value, r.expectedCloseDate || "", r.overdueClose ? "Yes" : ""]),
+});
+
+export const dealsCsv = (rows = []) => ({
+  headers: ["Deal", "Title", "Customer", "Stage", "Status", "Owner", "Value", "Expected close"],
+  rows: rows.map((r) => [r.opportunityNo, r.title, r.customerName, r.stageName, r.status, r.ownerName, r.value, r.expectedCloseDate || ""]),
+});
