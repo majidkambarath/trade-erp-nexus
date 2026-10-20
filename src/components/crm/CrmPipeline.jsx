@@ -11,6 +11,8 @@ import { Plus, TrendingUp, AlarmClock, Clock } from "lucide-react";
 import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, useAsync, useToasts, Field, TextInput, Textarea, DateInput, SearchSelect, inputClass } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
+import { useRecordRoute } from "../../lib/useRecordRoute";
+import DealView from "./DealView.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { api } from "../../lib/accountingApi";
@@ -122,6 +124,7 @@ export default function CrmPipeline() {
   const { can } = useOrganisation();
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
+  const record = useRecordRoute({ param: "deal" });
   const [reload, setReload] = useState(0);
   const [dialog, setDialog] = useState(null); // { kind, deal }
   const [mine, setMine] = useState("");
@@ -131,6 +134,9 @@ export default function CrmPipeline() {
   const again = () => setReload((n) => n + 1);
   const open = (deal, kind) => setDialog({ kind, deal });
   const today = board.data?.today;
+
+  // One deal, by its own address: the board, the follow-up worklist and the customer's CRM tab all link here.
+  if (record.recordId) return <DealView id={record.recordId} onBack={() => record.close()} onChanged={again} />;
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">

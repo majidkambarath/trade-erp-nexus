@@ -24,6 +24,11 @@ const m = vi.hoisted(() => ({
   saveSettings: vi.fn(),
   analysis: vi.fn(),
   deals: vi.fn(),
+  deal: vi.fn(),
+  reopenDeal: vi.fn(),
+  loseDeal: vi.fn(),
+  assignDeal: vi.fn(),
+  logActivity: vi.fn(),
   timeline: vi.fn(),
   grants: { allow: () => true },
 }));
@@ -33,7 +38,8 @@ vi.mock("../../../lib/crmApi", () => ({
     pipeline: m.pipeline, summary: m.summary, leads: m.leads, leadSummary: m.leadSummary, lead: m.lead,
     followUps: m.followUps, completeActivity: m.completeActivity, createLead: m.createLead, duplicates: m.duplicates,
     moveDeal: m.moveDeal, owners: m.owners, stages: m.stages, saveStages: m.saveStages, settings: m.settings,
-    saveSettings: m.saveSettings, analysis: m.analysis, deals: m.deals, timeline: m.timeline,
+    saveSettings: m.saveSettings, analysis: m.analysis, deals: m.deals, deal: m.deal, reopenDeal: m.reopenDeal,
+    loseDeal: m.loseDeal, assignDeal: m.assignDeal, logActivity: m.logActivity, timeline: m.timeline,
   },
   CRM_WORK_CHANGED: "crm-work-changed",
   announceCrmWorkChanged: () => {},
@@ -159,6 +165,66 @@ describe("the pipeline", () => {
     expect(screen.queryByRole("button", { name: "New deal" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Move" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Lost" })).toBeNull();
+  });
+});
+
+describe("one deal's own page", () => {
+  const full = () => ({
+    ...deal(),
+    weighted: 5000,
+    daysInStage: 3,
+    notes: "",
+    // The whole starter pipeline, so the stage KEYS the moves carry can be read back as the names people see
+    pipeline: [
+      STAGES[0],
+      { key: "qualified", name: "Qualified", order: 2, probability: 25, advanceOn: null, followUpDays: 2, staleDays: 10, type: "open" },
+      STAGES[1],
+      { key: "accepted", name: "Offer accepted", order: 4, probability: 90, advanceOn: "quotation_accepted", followUpDays: 2, staleDays: 7, type: "open" },
+      STAGES[2],
+      STAGES[3],
+    ],
+    customer: { _id: "c1", customerName: "Al Noor Foods", phone: "0501234567", paymentTerms: "Net 30", creditLimit: 50000 },
+    timeline: [followUp({ _id: "t1", subject: "Rang about the price", status: "DONE", outcome: "interested", dueState: "done", auto: false })],
+    autoMoves: [
+      { key: "quotation_sent:q1", event: "quotation_sent", from: "qualified", to: "quoted", at: "2026-10-16T09:00:00.000Z", by: "automation", docNo: "QT-2026-0007", undoneAt: null },
+    ],
+  });
+
+  it("says why the deal moved, and which document did it", async () => {
+    m.deal.mockResolvedValue(full());
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Monthly rice" })).toBeInTheDocument();
+    expect(screen.getByText("Qualified → Quotation sent")).toBeInTheDocument();
+    expect(screen.getByText(/A quotation was sent · QT-2026-0007/)).toBeInTheDocument();
+    expect(screen.getByText(/by itself/)).toBeInTheDocument();
+    // A stage the pipeline no longer has is shown by its key rather than vanishing
+    expect(screen.queryByText(/undefined/)).toBeNull();
+    expect(screen.getByText("Rang about the price")).toBeInTheDocument();
+    expect(m.deal).toHaveBeenCalledWith("d1");
+  });
+
+  it("marks a move that was taken back rather than hiding it", async () => {
+    m.deal.mockResolvedValue({
+      ...full(),
+      status: "OPEN",
+      autoMoves: [{ key: "invoice_approved:i1", event: "invoice_approved", from: "accepted", to: "won", at: "2026-10-18T09:00:00.000Z", by: "automation", docNo: "SO-2026-0012", undoneAt: "2026-10-19T09:00:00.000Z" }],
+    });
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByText("Offer accepted → Won")).toBeInTheDocument();
+    expect(screen.getByText("taken back")).toBeInTheDocument();
+  });
+
+  it("offers a closed deal its way back, and nothing a view-only role could press", async () => {
+    m.deal.mockResolvedValue({ ...full(), status: "WON", stageKey: "won", stageName: "Won", probability: 100 });
+    const won = render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByRole("button", { name: /reopen it/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Lost$/ })).toBeNull();
+    won.unmount(); // or the first render's buttons answer for the second
+
+    m.grants.allow = (key) => key === "crm.view";
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Monthly rice" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reopen it/i })).toBeNull();
   });
 });
 

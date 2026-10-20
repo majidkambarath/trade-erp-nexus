@@ -53,6 +53,10 @@ const DEEP = {
     { name: "board-move", clicks: ["^Move$"], settle: 900 },
     { name: "board-new-deal", clicks: ["^New deal"], settle: 1000 },
     { name: "board-lost", clicks: ["^Lost$"], settle: 900 },
+    // one deal's own page: how it got here (what the documents did) and what has happened
+    { name: "deal", page: true, clicks: ["^Monthly rice and sunflower oil$"], settle: 1100 },
+    { name: "deal-move", clicks: ["^Monthly rice and sunflower oil$", "^Move$"], settle: 1000 },
+    { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
   ],
   "crm-leads": [
     { name: "leads", page: true, clicks: [], settle: 1000 },
