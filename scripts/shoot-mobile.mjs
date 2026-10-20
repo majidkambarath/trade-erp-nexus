@@ -91,7 +91,13 @@ const DEEP = {
     { name: "followups-board-people", page: true, clicks: ["^Board$", "^By person$"], settle: 1100 },
   ],
   "crm-reports": [{ name: "reports", page: true, clicks: [], settle: 1100 }],
-  "crm-setup": [{ name: "setup", page: true, clicks: [], settle: 1100 }],
+  "crm-setup": [
+    { name: "setup", page: true, clicks: [], settle: 1100 },
+    // a stage's timing opened, then the unsaved-changes bar (adding a stage is the quickest edit) - the bar sticks to
+    // the bottom of its panel, so on a phone it has to sit clear of the bottom navigation
+    { name: "setup-timing", page: true, clicks: ["^Follow-up in 3 days"], settle: 900 },
+    { name: "setup-unsaved", page: true, clicks: ["^Add a stage"], settle: 1000 },
+  ],
   // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
   "people-users-and-roles": [
     { name: "add-person", clicks: ["Add a person"], settle: 900 },

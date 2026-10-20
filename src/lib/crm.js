@@ -572,3 +572,53 @@ export function fillDays(rows = [], from, to) {
 
 /** How long a deal has stood still, as a scale from healthy to worrying. Status colours, because age IS a state here. */
 export const AGE_HUES = ["var(--status-success)", "var(--chart-4)", "var(--status-warning)", "var(--chart-5)", "var(--status-danger)"];
+
+// ---- the setup screen: ordering, a plain-words summary of a stage, and "has anything changed" ------------------
+
+/** An item moved from one place to another. The same list back when there is nothing to do, so React skips the render. */
+export function moveItem(list, from, to) {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return list;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What a stage's timing means, in words. Two numbers are not what they look like, and the summary has to say what
+ * the server will actually do rather than what a form field seems to say:
+ *   - follow-up "0" is due the SAME DAY, not "never" (planFollowUp);
+ *   - quiet-after "0" means "use the organisation's usual number of days" (staleOf), so it is not "never goes quiet".
+ * A won or lost stage has nothing to chase and nothing to go quiet, whatever its fields still hold.
+ */
+export function stageSummary(stage = {}, { defaultQuietDays = null } = {}) {
+  if (stage.type === "won") return "Closed as won - nothing left to chase";
+  if (stage.type === "lost") return "Closed as lost - nothing left to chase";
+  const follow = Math.max(0, Math.round(Number(stage.followUpDays) || 0));
+  const quiet = Math.max(0, Math.round(Number(stage.staleDays) || 0));
+  const next = follow === 0 ? "Follow-up due the same day" : `Follow-up in ${plural(follow, "day", "days")}`;
+  const idle = quiet > 0 ? `quiet after ${plural(quiet, "day", "days")}` : defaultQuietDays ? `quiet after the usual ${plural(defaultQuietDays, "day", "days")}` : "quiet after the usual time";
+  return `${next} · ${idle}`;
+}
+
+/**
+ * One colour per row, in the order the rows are SHOWN. Open stages take the fixed chart order and won / lost take the
+ * status colours, so the dot beside a stage here is the same colour as that stage on the dashboard. Index-based, not
+ * key-based, because a stage that has just been added has no key yet and must still get its own colour.
+ */
+export function rowHues(stages = []) {
+  let open = 0;
+  return stages.map((s) => {
+    if (s.type === "won") return "var(--status-success)";
+    if (s.type === "lost") return "var(--status-danger)";
+    return hueFor(open++);
+  });
+}
+
+// What the server would be sent: the comparison for "has anything changed" is made on this, so a field the screen
+// adds for itself (a client-side row id) can never make a clean form look edited.
+const pipelineShape = (stages) => JSON.stringify(stagesBody(stages));
+export const pipelineDirty = (saved, current) => pipelineShape(saved || []) !== pipelineShape(current || []);
+export const settingsDirty = (saved, current) => JSON.stringify(settingsBody(saved || {})) !== JSON.stringify(settingsBody(current || {}));

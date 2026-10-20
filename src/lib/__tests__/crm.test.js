@@ -326,3 +326,70 @@ describe("filling a period", () => {
     expect(crm.AGE_HUES).toHaveLength(5);
   });
 });
+
+describe("the setup screen's rules", () => {
+  it("moves an item and hands back the same list when there is nothing to do", () => {
+    const list = ["a", "b", "c", "d"];
+    expect(crm.moveItem(list, 0, 2)).toEqual(["b", "c", "a", "d"]);
+    expect(crm.moveItem(list, 3, 0)).toEqual(["d", "a", "b", "c"]);
+    expect(list).toEqual(["a", "b", "c", "d"]); // never edited in place
+    expect(crm.moveItem(list, 1, 1)).toBe(list);
+    expect(crm.moveItem(list, 0, 9)).toBe(list);
+    expect(crm.moveItem(list, -1, 2)).toBe(list);
+  });
+
+  it("says what a stage's timing means - zero days is the same day, not never", () => {
+    const open = { type: "open", followUpDays: 3, staleDays: 14 };
+    expect(crm.stageSummary(open)).toBe("Follow-up in 3 days · quiet after 14 days");
+    expect(crm.stageSummary({ ...open, followUpDays: 1, staleDays: 1 })).toBe("Follow-up in 1 day · quiet after 1 day");
+    expect(crm.stageSummary({ ...open, followUpDays: 0 })).toMatch(/^Follow-up due the same day/);
+  });
+
+  it("quiet-after zero means the organisation's usual, and says so", () => {
+    const stage = { type: "open", followUpDays: 2, staleDays: 0 };
+    expect(crm.stageSummary(stage)).toBe("Follow-up in 2 days · quiet after the usual time");
+    expect(crm.stageSummary(stage, { defaultQuietDays: 14 })).toBe("Follow-up in 2 days · quiet after the usual 14 days");
+  });
+
+  it("a closed stage has nothing to chase, whatever its fields still hold", () => {
+    expect(crm.stageSummary({ type: "won", followUpDays: 5, staleDays: 9 })).toBe("Closed as won - nothing left to chase");
+    expect(crm.stageSummary({ type: "lost", followUpDays: 5 })).toBe("Closed as lost - nothing left to chase");
+  });
+
+  it("gives each row its own colour in the order shown, with won and lost as status", () => {
+    const hues = crm.rowHues([{ type: "open" }, { type: "open" }, { type: "won" }, { type: "lost" }, { type: "open" }]);
+    expect(hues[0]).toBe(crm.CHART_HUES[0]);
+    expect(hues[1]).toBe(crm.CHART_HUES[1]);
+    expect(hues[2]).toBe("var(--status-success)");
+    expect(hues[3]).toBe("var(--status-danger)");
+    // The third OPEN stage is the third hue, not the fifth: closed stages do not use up the chart colours.
+    expect(hues[4]).toBe(crm.CHART_HUES[2]);
+    // A row with no key yet (just added) still gets a colour, which is why this is by position.
+    expect(crm.rowHues([{ type: "open", key: "" }])).toHaveLength(1);
+  });
+
+  it("knows a pipeline is unchanged by what the server would be sent, not by what the screen adds", () => {
+    const saved = [
+      { key: "new", name: "New", order: 1, probability: 10, advanceOn: null, followUpDays: 1, staleDays: 7, type: "open" },
+      { key: "won", name: "Won", order: 2, probability: 100, advanceOn: "invoice_approved", followUpDays: 0, staleDays: 0, type: "won" },
+    ];
+    // The screen gives every row a client-side id; that must never read as an edit.
+    const shown = saved.map((s, i) => ({ ...s, uid: `s${i}` }));
+    expect(crm.pipelineDirty(saved, shown)).toBe(false);
+    expect(crm.pipelineDirty(saved, shown.map((s) => (s.key === "new" ? { ...s, name: "Fresh" } : s)))).toBe(true);
+    expect(crm.pipelineDirty(saved, [...shown].reverse())).toBe(true); // order is part of the pipeline
+    expect(crm.pipelineDirty(saved, [...shown, { uid: "s9", name: "Quoted", type: "open" }])).toBe(true);
+    expect(crm.pipelineDirty(saved, shown.slice(0, 1))).toBe(true);
+  });
+
+  it("knows settings are unchanged, including when a number was typed as text", () => {
+    const saved = { autoAdvance: true, autoFollowUp: true, assignmentMode: "round_robin", fixedOwnerId: null, uncontactedHours: 24, staleDays: 14, quotationExpiryDays: 3, lastAssignedOwnerId: "u1" };
+    expect(crm.settingsDirty(saved, { ...saved })).toBe(false);
+    // A form field hands numbers back as strings; "24" is not a change from 24.
+    expect(crm.settingsDirty(saved, { ...saved, uncontactedHours: "24", staleDays: "14" })).toBe(false);
+    // And a bookkeeping field the person never sees is not an edit either.
+    expect(crm.settingsDirty(saved, { ...saved, lastAssignedOwnerId: "u2" })).toBe(false);
+    expect(crm.settingsDirty(saved, { ...saved, autoAdvance: false })).toBe(true);
+    expect(crm.settingsDirty(saved, { ...saved, staleDays: "30" })).toBe(true);
+  });
+});
