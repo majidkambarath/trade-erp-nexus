@@ -57,6 +57,7 @@ const DEEP = {
     { name: "deal", page: true, clicks: ["^Monthly rice and sunflower oil$"], settle: 1100 },
     { name: "deal-move", clicks: ["^Monthly rice and sunflower oil$", "^Move$"], settle: 1000 },
     { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
+    { name: "deal-edit", clicks: ["^Monthly rice and sunflower oil$", "^Edit$"], settle: 1000 },
   ],
   "crm-leads": [
     { name: "leads", page: true, clicks: [], settle: 1000 },

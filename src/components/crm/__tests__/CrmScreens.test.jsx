@@ -25,6 +25,7 @@ const m = vi.hoisted(() => ({
   analysis: vi.fn(),
   deals: vi.fn(),
   deal: vi.fn(),
+  updateDeal: vi.fn(),
   reopenDeal: vi.fn(),
   loseDeal: vi.fn(),
   assignDeal: vi.fn(),
@@ -38,7 +39,7 @@ vi.mock("../../../lib/crmApi", () => ({
     pipeline: m.pipeline, summary: m.summary, leads: m.leads, leadSummary: m.leadSummary, lead: m.lead,
     followUps: m.followUps, completeActivity: m.completeActivity, createLead: m.createLead, duplicates: m.duplicates,
     moveDeal: m.moveDeal, owners: m.owners, stages: m.stages, saveStages: m.saveStages, settings: m.settings,
-    saveSettings: m.saveSettings, analysis: m.analysis, deals: m.deals, deal: m.deal, reopenDeal: m.reopenDeal,
+    saveSettings: m.saveSettings, analysis: m.analysis, deals: m.deals, deal: m.deal, updateDeal: m.updateDeal, reopenDeal: m.reopenDeal,
     loseDeal: m.loseDeal, assignDeal: m.assignDeal, logActivity: m.logActivity, timeline: m.timeline,
   },
   CRM_WORK_CHANGED: "crm-work-changed",
@@ -201,6 +202,21 @@ describe("one deal's own page", () => {
     expect(screen.queryByText(/undefined/)).toBeNull();
     expect(screen.getByText("Rang about the price")).toBeInTheDocument();
     expect(m.deal).toHaveBeenCalledWith("d1");
+  });
+
+  it("lets a wrong figure be put right, without touching the stage or the customer", async () => {
+    m.deal.mockResolvedValue(full());
+    m.updateDeal.mockResolvedValue(full());
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/^What it is worth/), { target: { value: "52000" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(m.updateDeal).toHaveBeenCalledWith("d1", expect.objectContaining({ value: 52000 })));
+    // the stage is Move's business, and the customer would make it another deal
+    expect(m.updateDeal.mock.calls[0][1].stageKey).toBeUndefined();
+    expect(m.updateDeal.mock.calls[0][1].customerId).toBeUndefined();
   });
 
   it("marks a move that was taken back rather than hiding it", async () => {

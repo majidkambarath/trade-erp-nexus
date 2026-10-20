@@ -3,13 +3,13 @@
 // touched it" has an answer on the screen rather than in a log.
 import React, { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, useAsync, useToasts } from "../accounting/kit.jsx";
+import { PageHeader, Panel, Spinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
-import { StagePill, Tag, ActivityTimeline, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import { StagePill, Tag, ActivityTimeline, CrmDialog, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
 
 const Fact = ({ label, children }) => (
   <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-1.5 last:border-0">
@@ -97,6 +97,13 @@ export default function DealView({ id, onBack, onChanged }) {
             )}
             {open && (
               <Can permission="crm.edit">
+                <button type="button" onClick={() => setDialog("edit")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Edit
+                </button>
+              </Can>
+            )}
+            {open && (
+              <Can permission="crm.edit">
                 <button type="button" onClick={() => setDialog("lose")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium text-status-danger lg:h-10">
                   Lost
                 </button>
@@ -161,6 +168,7 @@ export default function DealView({ id, onBack, onChanged }) {
 
       {deal.notes && <Note className="mt-4">{deal.notes}</Note>}
 
+      {dialog === "edit" && <EditDealDialog deal={deal} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "move" && <MoveStageDialog deal={deal} stages={deal.pipeline || []} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && (
         <LogActivityDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
@@ -174,6 +182,62 @@ export default function DealView({ id, onBack, onChanged }) {
       )}
       {toastNode}
     </div>
+  );
+}
+
+/** What a person can put right afterwards: what it is for, what it is worth, when it should close, the notes. The
+ * stage is not here - that is Move, which records why - and nor is the customer, which would make it another deal. */
+function EditDealDialog({ deal, notify, onClose, onSaved }) {
+  const [form, setForm] = useState(() => ({
+    title: deal.title || "",
+    value: deal.value ?? "",
+    expectedCloseDate: deal.expectedCloseDate || "",
+    notes: deal.notes || "",
+  }));
+  const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState(null);
+  const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event?.target ? event.target.value : event }));
+
+  const save = async () => {
+    const found = rules.validateDeal({ ...form, customerId: deal.customerId });
+    setErrors(found);
+    if (Object.keys(found).length) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      await crm.updateDeal(deal._id, {
+        title: form.title.trim(),
+        value: Number(form.value) || 0,
+        expectedCloseDate: form.expectedCloseDate || undefined,
+        notes: form.notes.trim(),
+      });
+      notify?.("Saved");
+      onSaved?.();
+    } catch (error) {
+      setProblem(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <CrmDialog title={`Edit ${deal.opportunityNo}`} confirmLabel="Save" size="md" busy={busy} problem={problem} onClose={onClose} onConfirm={save}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="What the deal is for" required error={errors.title} className="sm:col-span-2">
+          <TextInput value={form.title} onChange={set("title")} />
+        </Field>
+        <Field label="What it is worth" error={errors.value}>
+          <input className={inputClass} type="number" min="0" value={form.value} onChange={set("value")} />
+        </Field>
+        <Field label="Expected to close">
+          <DateInput value={form.expectedCloseDate} onChange={set("expectedCloseDate")} />
+        </Field>
+        <Field label="Notes" className="sm:col-span-2">
+          <Textarea rows={3} value={form.notes} onChange={set("notes")} />
+        </Field>
+      </div>
+    </CrmDialog>
   );
 }
 
