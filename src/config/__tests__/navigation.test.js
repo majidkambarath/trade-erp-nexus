@@ -46,6 +46,21 @@ describe("route coverage", () => {
     for (const { tab } of allTabs) expect(routes).toContain(tab.to);
   });
 
+  // The rail is 88px wide and the bottom bar is a quarter of a phone, so a module's rail name has to be a short
+  // word. "Communications" bled straight over the edge of the rail; `short` is how a long name says itself there.
+  // Ten characters is "Follow-ups", which fits; anything longer needs a `short`.
+  it("every module has a name short enough for the rail", () => {
+    const tooLong = MODULES.map((m) => m.short || m.label).filter((name) => name.length > 10);
+    expect(tooLong).toEqual([]);
+  });
+
+  it("a short name is only ever an abbreviation, never a different word", () => {
+    for (const m of MODULES.filter((x) => x.short)) {
+      // "Comms" for "Communications": the rail must not say one thing and the page another.
+      expect(m.label.toLowerCase().startsWith(m.short.toLowerCase().slice(0, 3))).toBe(true);
+    }
+  });
+
   it("module ids are unique", () => {
     const ids = MODULES.map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);

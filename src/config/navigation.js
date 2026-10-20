@@ -89,6 +89,9 @@ export const MODULES = [
     id: "crm-communications",
     workspace: "crm",
     label: "Communications",
+    // `short` is what the 88px rail and the bottom bar say when the full name will not fit in them. Everything that
+    // has room - the tab strip, the command palette, the More sheet, the page itself - still says the whole word.
+    short: "Comms",
     icon: MessagesSquare,
     tabs: [{ label: "Communications", to: "/crm/communications", permission: "crm.view", keywords: ["calls", "visits", "messages", "notes", "log", "history", "what was said"] }],
   },

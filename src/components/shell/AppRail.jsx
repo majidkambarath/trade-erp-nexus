@@ -38,7 +38,9 @@ function RailItem({ module, isActive }) {
           "aria-hidden": "true",
           strokeWidth: isActive ? 2.2 : 1.8,
         })}
-        <span className="max-w-full text-center">{module.label}</span>
+        {/* `short` when the module has one (config/navigation.js); `break-words` is the backstop, so a long name
+            wraps inside the rail instead of bleeding over its edge - there are only 88px here. */}
+        <span className="w-full break-words text-center">{module.short || module.label}</span>
         {/* what is waiting behind one of its tabs (config/navigation.js `badge`) */}
         <CountPill count={waiting} className="absolute end-1 top-1" />
         {module.tabs.some((t) => t.soon) && (

@@ -47,6 +47,17 @@ vi.mock("../../shell/OrganisationContext.jsx", () => ({
 
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: vi.fn(() => Promise.resolve([])) } }));
 
+// jsdom has no layout and no ResizeObserver, so a responsive chart cannot measure itself: give it a size.
+// (The same stub as components/Dashborad/__tests__/businessFlow.test.jsx, for the same reason.)
+vi.mock("recharts", async (orig) => {
+  const actual = await orig();
+  const { cloneElement } = await import("react");
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children, height }) => cloneElement(children, { width: 320, height: typeof height === "number" ? height : 220 }),
+  };
+});
+
 const CrmDashboard = (await import("../CrmDashboard.jsx")).default;
 const ContactsPage = (await import("../ContactsPage.jsx")).default;
 const CommunicationsPage = (await import("../CommunicationsPage.jsx")).default;
@@ -87,29 +98,42 @@ describe("the CRM dashboard", () => {
     render_(<CrmDashboard />);
     await screen.findByRole("heading", { name: "CRM" });
 
-    const late = await screen.findByRole("table", { name: "Late follow-ups" });
-    expect(within(late).getByText("Send the price")).toBeInTheDocument();
-
-    const mine = screen.getByRole("table", { name: "My follow-ups" });
-    expect(within(mine).getByText("Visit the Deira branch")).toBeInTheDocument();
+    // The two worklists are read at a glance, so they are lists, not tables.
+    expect(screen.getByText("Send the price")).toBeInTheDocument();
+    expect(screen.getByText("Visit the Deira branch")).toBeInTheDocument();
 
     // The point of the module: the deal moved, and the document that did it is named.
-    const moved = screen.getByRole("table", { name: "Moved by itself" });
-    expect(within(moved).getAllByText(/Quotation sent/).length).toBeGreaterThan(0);
-    expect(within(moved).getByText(/QT-2026-0007/)).toBeInTheDocument();
-    expect(within(moved).getByRole("link", { name: "Monthly rice" })).toHaveAttribute("href", "/crm/pipeline?deal=op1");
+    expect(screen.getByRole("link", { name: "Monthly rice" })).toHaveAttribute("href", "/crm/pipeline?deal=op1");
+    expect(screen.getByText("QT-2026-0007")).toBeInTheDocument();
+
+    // Every panel a person expects is drawn, charts included.
+    for (const title of ["Where the pipeline sits", "Won, six months", "Moved by itself", "Worth the most", "Who is carrying what"]) {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    }
   });
 
-  it("says plainly when nothing has moved, rather than showing an empty table", async () => {
+  it("says plainly when there is nothing, rather than drawing an empty chart", async () => {
     m.dashboard.mockResolvedValue({
       today: "2026-10-20", openLeads: 0, openDeals: 0, pipelineValue: 0, weightedValue: 0, staleDeals: 0, dueToday: 0, overdue: 0,
-      late: [], mine: [], moved: [], topDeals: [], funnel: [],
+      late: [], mine: [], moved: [], topDeals: [], byOwner: [], funnel: [],
+      trend: [{ month: "2026-05", deals: 0, value: 0 }, { month: "2026-06", deals: 0, value: 0 }],
     });
     render_(<CrmDashboard />);
     expect(await screen.findByText("Nothing has moved this week")).toBeInTheDocument();
-
     expect(screen.getByText("Every follow-up is either done or still has time.")).toBeInTheDocument();
     expect(screen.getByText("When a deal moves, the next follow-up appears here by itself.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing in the pipeline")).toBeInTheDocument();
+    // A trend of six empty months is not a chart of zeroes; it says so.
+    expect(screen.getByText("Nothing won yet")).toBeInTheDocument();
+  });
+
+  it("leads somewhere: the figures are the way in to the screen behind them", async () => {
+    render_(<CrmDashboard />);
+    await screen.findByRole("heading", { name: "CRM" });
+    // A tile with somewhere to go is a button; one that is only a figure is not.
+    expect(screen.getByRole("button", { name: /Open enquiries/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Deals in play/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Late/ })).toBeInTheDocument();
   });
 });
 

@@ -992,7 +992,20 @@ function stubFor(pathname) {
           { dealId: "op1", opportunityNo: "OPP-2026-0001", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", event: "quotation_sent", eventLabel: "Quotation sent", from: "qualified", to: "quoted", stageName: "Quotation sent", docNo: "QT-2026-0007", at: "2026-10-16T09:00:00.000Z" },
           { dealId: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor Supermarket", event: "invoice_approved", eventLabel: "Invoice approved", from: "accepted", to: "won", stageName: "Won", docNo: "SO-2026-0042", at: "2026-10-18T11:00:00.000Z" },
         ],
-        topDeals: [{ _id: "op1", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", stageName: "Quotation sent", probability: 50, value: 48500, weighted: 24250 }],
+        topDeals: [
+          { _id: "op1", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", stageName: "Quotation sent", probability: 50, value: 48500, weighted: 24250 },
+          { _id: "op3", title: "Dates and nuts", customerName: "Noor Supermarket", stageName: "Offer accepted", probability: 90, value: 28000, weighted: 25200 },
+        ],
+        byOwner: [
+          { key: "Asif Rahman", name: "Asif Rahman", deals: 2, value: 68500, weighted: 34250 },
+          { key: "Maya Khan", name: "Maya Khan", deals: 1, value: 28000, weighted: 25200 },
+          { key: "Unassigned", name: "Unassigned", deals: 1, value: 12000, weighted: 1200 },
+        ],
+        trend: [
+          { month: "2026-05", deals: 2, value: 41000 }, { month: "2026-06", deals: 1, value: 18000 },
+          { month: "2026-07", deals: 3, value: 62000 }, { month: "2026-08", deals: 0, value: 0 },
+          { month: "2026-09", deals: 4, value: 88000 }, { month: "2026-10", deals: 2, value: 74000 },
+        ],
         funnel: stageRows("funnel"),
       };
     }

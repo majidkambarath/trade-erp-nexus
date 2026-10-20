@@ -60,7 +60,7 @@ function ModuleButton({ module, isActive }) {
     <NavButton
       to={moduleHref(module)}
       icon={module.icon}
-      label={module.label}
+      label={module.short || module.label}
       isActive={isActive}
       badge={module.tabs.some((t) => t.soon)}
       count={waiting}
