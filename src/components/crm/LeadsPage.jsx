@@ -4,7 +4,7 @@
 // and the screen says so after saving instead of leaving the person to wonder.
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft } from "lucide-react";
+import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download } from "lucide-react";
 import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
@@ -13,7 +13,7 @@ import { useOrganisation } from "../shell/OrganisationContext.jsx";
 import Can from "../shell/Can.jsx";
 import { useRecordRoute } from "../../lib/useRecordRoute";
 import { pageSession } from "../../lib/pageSession";
-import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
+import { formatCurrencyAED, formatDate, formatDateTime, downloadCSV } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import {
@@ -279,6 +279,11 @@ export default function LeadsPage() {
   const again = () => setReload((n) => n + 1);
   const rows = Array.isArray(list.data) ? list.data : [];
   const filtersOn = Boolean(source || band || owner || search);
+  // What is on the screen, with the filters that made it - not a different list from a second request.
+  const exportLeads = () => {
+    const { headers, rows: lines } = rules.leadsCsv(rows);
+    downloadCSV(`crm-leads-${new Date().toISOString().slice(0, 10)}.csv`, headers, lines);
+  };
 
   if (record.recordId) {
     return (
@@ -332,11 +337,18 @@ export default function LeadsPage() {
         title="Leads"
         description="Enquiries from people who are not customers yet. Every one gets an owner and a first call by itself."
         actions={
-          <Can permission="crm.create">
-            <button type="button" data-shortcut="new" onClick={() => setDialog("new")} className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
-              <Plus className="h-4 w-4" aria-hidden="true" /> New enquiry
-            </button>
-          </Can>
+          <div className="flex flex-wrap gap-2">
+            {rows.length > 0 && (
+              <button type="button" onClick={exportLeads} className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                <Download className="h-4 w-4" aria-hidden="true" /> Export
+              </button>
+            )}
+            <Can permission="crm.create">
+              <button type="button" data-shortcut="new" onClick={() => setDialog("new")} className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
+                <Plus className="h-4 w-4" aria-hidden="true" /> New enquiry
+              </button>
+            </Can>
+          </div>
         }
       />
 
