@@ -159,7 +159,7 @@ export default function CrmPipeline() {
         </Field>
         {board.data && (
           <p className="pb-2 text-sm text-muted-foreground">
-            {board.data.totals.count} {board.data.totals.count === 1 ? "deal" : "deals"} · {formatCurrencyAED(board.data.totals.value)} · likely {formatCurrencyAED(board.data.totals.weighted)}
+            {board.data.totals?.count ?? 0} {board.data.totals?.count === 1 ? "deal" : "deals"} · {formatCurrencyAED(board.data.totals?.value)} · likely {formatCurrencyAED(board.data.totals?.weighted)}
           </p>
         )}
       </div>
@@ -169,7 +169,7 @@ export default function CrmPipeline() {
 
       {board.data && (
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {board.data.stages.map((stage) => (
+          {(board.data.stages || []).map((stage) => (
             <section key={stage.key} className="rounded-xl border border-border bg-background/50 p-3">
               <header className="flex items-baseline justify-between gap-2">
                 <h2 className="text-sm font-semibold text-foreground">
@@ -180,11 +180,11 @@ export default function CrmPipeline() {
                 </p>
               </header>
               {stage.advanceOn && <p className="mt-1 text-xs text-muted-foreground">Happens by itself: {rules.eventLabel(stage.advanceOn).toLowerCase()}</p>}
-              {stage.deals.length === 0 ? (
+              {(stage.deals || []).length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">Nothing here</p>
               ) : (
                 <ul className="mt-3 grid gap-2">
-                  {stage.deals.map((deal) => (
+                  {(stage.deals || []).map((deal) => (
                     <DealCard key={deal._id} deal={deal} today={today} onOpen={open} can={can} />
                   ))}
                 </ul>
@@ -194,7 +194,7 @@ export default function CrmPipeline() {
         </div>
       )}
 
-      {board.data && board.data.totals.count === 0 && (
+      {board.data && board.data.totals?.count === 0 && (
         <EmptyState
           title="No deals yet"
           text="A deal is a customer you are working on. An enquiry from somebody who is not a customer yet starts as a lead."

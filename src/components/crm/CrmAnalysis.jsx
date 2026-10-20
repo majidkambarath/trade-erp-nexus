@@ -21,14 +21,14 @@ export default function CrmAnalysis() {
   const exportFunnel = () => {
     if (!data) return;
     const { headers, rows } = rules.pipelineCsv(data.funnel);
-    downloadCSV(`crm-pipeline-${data.period.from}-to-${data.period.to}.csv`, headers, rows);
+    downloadCSV(`crm-pipeline-${data.period?.from}-to-${data.period?.to}.csv`, headers, rows);
   };
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="CRM analysis"
-        description={data ? `${formatDate(data.period.from)} to ${formatDate(data.period.to)}` : "The last 30 days"}
+        description={data ? `${formatDate(data.period?.from)} to ${formatDate(data.period?.to)}` : "The last 30 days"}
         actions={
           data && (
             <button type="button" onClick={exportFunnel} className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
@@ -53,16 +53,16 @@ export default function CrmAnalysis() {
       {data && (
         <>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard title="Enquiries" count={data.leads.total} subText={`${data.leads.converted} became customers`} />
-            <StatCard title="Enquiries converted" count={rate(data.leads.conversionRate)} tone="teal" subText={`${data.leads.lost} came to nothing`} />
-            <StatCard title="Deals won" count={data.deals.won} subText={formatCurrencyAED(data.deals.wonValue)} tone="teal" />
-            <StatCard title="Win rate" count={rate(data.deals.winRate)} subText={`${days(data.deals.averageDaysToWin)} to win, on average`} />
+            <StatCard title="Enquiries" count={data.leads?.total} subText={`${data.leads?.converted} became customers`} />
+            <StatCard title="Enquiries converted" count={rate(data.leads?.conversionRate)} tone="teal" subText={`${data.leads?.lost} came to nothing`} />
+            <StatCard title="Deals won" count={data.deals?.won} subText={formatCurrencyAED(data.deals?.wonValue)} tone="teal" />
+            <StatCard title="Win rate" count={rate(data.deals?.winRate)} subText={`${days(data.deals?.averageDaysToWin)} to win, on average`} />
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <StatCard title="Open deals" count={data.deals.open} subText={formatCurrencyAED(data.deals.openValue)} />
-            <StatCard title="Likely to close" count={formatCurrencyAED(data.deals.weightedValue)} subText="Weighted by each stage's chance" />
-            <StatCard title="Follow-ups" count={data.activity.done} subText={`${data.activity.open} open, ${data.activity.overdue} late`} tone={data.activity.overdue ? "warning" : undefined} />
+            <StatCard title="Open deals" count={data.deals?.open} subText={formatCurrencyAED(data.deals?.openValue)} />
+            <StatCard title="Likely to close" count={formatCurrencyAED(data.deals?.weightedValue)} subText="Weighted by each stage's chance" />
+            <StatCard title="Follow-ups" count={data.activity?.done} subText={`${data.activity?.open} open, ${data.activity?.overdue} late`} tone={data.activity?.overdue ? "warning" : undefined} />
           </div>
 
           <Panel title="The funnel" description="Open deals by stage, in pipeline order" className="mt-6" bodyClassName="p-0">
@@ -79,7 +79,7 @@ export default function CrmAnalysis() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.funnel.map((s) => (
+                  {(data.funnel || []).map((s) => (
                     <tr key={s.key} className="border-b border-border/60 last:border-0">
                       <th scope="row" className="px-4 py-2 text-start font-medium">{s.name}</th>
                       <td className="px-4 py-2 text-end tabular-nums">{s.probability}%</td>
@@ -95,12 +95,12 @@ export default function CrmAnalysis() {
 
           <div className="mt-6 grid gap-4 xl:grid-cols-2">
             <Panel title="Where the enquiries come from" bodyClassName="p-0">
-              {data.bySource.length === 0 ? (
+              {(data.bySource || []).length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">No enquiries in this period.</p>
               ) : (
                 <DataTable
                   caption="Enquiries by source"
-                  rows={data.bySource}
+                  rows={data.bySource || []}
                   rowKey={(r) => r.source}
                   columns={[
                     { key: "label", header: "Source", card: "primary", cell: (r) => r.label },
@@ -114,12 +114,12 @@ export default function CrmAnalysis() {
             </Panel>
 
             <Panel title="Who is selling" bodyClassName="p-0">
-              {data.byOwner.length === 0 ? (
+              {(data.byOwner || []).length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nothing to show yet.</p>
               ) : (
                 <DataTable
                   caption="By person"
-                  rows={data.byOwner}
+                  rows={data.byOwner || []}
                   rowKey={(r) => r.ownerId || "unassigned"}
                   columns={[
                     { key: "name", header: "Who", card: "primary", cell: (r) => r.name },
@@ -134,12 +134,12 @@ export default function CrmAnalysis() {
           </div>
 
           <Panel title="Why deals are lost" description="The reason is required when a deal is marked lost, which is what makes this list worth reading" className="mt-6" bodyClassName="p-0">
-            {data.lostReasons.length === 0 ? (
+            {(data.lostReasons || []).length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nothing was lost in this period.</p>
             ) : (
               <DataTable
                 caption="Lost reasons"
-                rows={data.lostReasons}
+                rows={data.lostReasons || []}
                 rowKey={(r) => r.reason}
                 columns={[
                   { key: "label", header: "Reason", card: "primary", cell: (r) => r.label },
