@@ -73,6 +73,7 @@ const DEEP = {
     { name: "deal-move", clicks: ["^Monthly rice and sunflower oil$", "^Move$"], settle: 1000 },
     { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
     { name: "deal-edit", clicks: ["^Monthly rice and sunflower oil$", "^Edit$"], settle: 1000 },
+    { name: "deal-email", clicks: ["^Monthly rice and sunflower oil$", "^Write to the customer$"], settle: 1100 },
   ],
   // The CRM workspace's landing page: what is late, what is mine, and what the documents moved on their own.
   "crm-dashboard": [{ name: "crm-home", page: true, clicks: [], settle: 1100 }],
@@ -97,6 +98,8 @@ const DEEP = {
     // bringing a spreadsheet in: choosing the file, matching its columns (eleven fields, the tallest step), and the preview
     // arranging a meeting: the tallest dialog in the CRM (a date, a time, a length, a place, people and a note)
     { name: "lead-meeting", clicks: ["LD-2026-0001", "^Arrange a meeting$"], settle: 1100 },
+    // writing to the customer: a tall dialog (template picker, addresses, the people chips, subject, a nine-row message)
+    { name: "lead-email", clicks: ["LD-2026-0001", "^Write to them$"], settle: 1100 },
     { name: "lead-import", clicks: ["^Import$"], settle: 900 },
     { name: "lead-import-match", clicks: ["^Import$"], upload: "leads", settle: 1300 },
     { name: "lead-import-preview", clicks: ["^Import$"], upload: "leads", after: ["^Check the file$"], settle: 1500 },
@@ -1163,6 +1166,29 @@ function stubFor(pathname) {
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
     // A day's meetings, for the agenda and the clash warning in the schedule dialog.
     // A person's own Google connection: connected, so the panel draws its fullest state.
+    // Writing to a customer: the templates a person picks from, and the people we already hold for the deal.
+    if (p.endsWith("/crm/email/templates")) {
+      return {
+        starters: false,
+        signature: "Asif Rahman\nAl Noor Trading",
+        placeholders: [{ key: "contact.firstName", label: "Their first name" }, { key: "deal.title", label: "What the deal is for" }],
+        templates: [
+          { key: "after-a-call", name: "After a call", subject: "Following up on our call", body: "Hello {{contact.firstName}},\n\nThank you for your time today." },
+          { key: "sending-a-quotation", name: "Sending a quotation", subject: "Our quotation for {{deal.title}}", body: "Hello {{contact.firstName}},\n\nPlease find our quotation attached." },
+        ],
+      };
+    }
+    if (p.endsWith("/crm/email/recipients")) {
+      return {
+        regarding: { kind: "opportunity", id: "op1", name: "Flour for the new branch" },
+        deal: { title: "Flour for the new branch", value: 48000 },
+        customer: { name: "Al Noor Foods Trading" },
+        people: [
+          { id: "ct1", name: "Rajesh Kumar", email: "rajesh@alnoor.test", designation: "Purchase Manager", primary: true },
+          { id: "ct2", name: "Fatima Noor", email: "fatima@alnoor.test", designation: "Owner", primary: false },
+        ],
+      };
+    }
     if (p.endsWith("/crm/google/status")) return { available: true, connected: true, label: "Connected as asif@gmail.test", detail: "", email: "asif@gmail.test", connectedAt: "2026-10-20T09:00:00.000Z" };
     if (p.endsWith("/crm/meetings/day")) {
       return [

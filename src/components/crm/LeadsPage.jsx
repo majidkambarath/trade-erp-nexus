@@ -21,6 +21,7 @@ import {
 } from "./crmShared.jsx";
 import ImportDialog from "./ImportDialog.jsx";
 import MeetingDialog from "./MeetingDialog.jsx";
+import EmailDialog from "./EmailDialog.jsx";
 
 const session = pageSession("crm-leads");
 
@@ -173,6 +174,13 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
                 </button>
               </Can>
             )}
+            {open && lead.email && (
+              <Can permission="crm.create">
+                <button type="button" onClick={() => setDialog("email")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Write to them
+                </button>
+              </Can>
+            )}
             {open && (
               <Can permission="crm.edit">
                 <button type="button" onClick={() => setDialog("lose")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium text-status-danger lg:h-10">
@@ -243,6 +251,16 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
 
       {dialog === "edit" && <LeadForm lead={lead} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && <LogActivityDialog regarding={{ kind: "lead", id: lead._id }} defaultOwnerId={lead.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
+      {dialog === "email" && (
+        <EmailDialog
+          regarding={{ kind: "lead", id: lead._id }}
+          to={lead.email ? [lead.email] : []}
+          subject={lead.interest ? `About ${lead.interest}`.slice(0, 120) : ""}
+          notify={notify}
+          onClose={() => setDialog(null)}
+          onSent={() => refresh()}
+        />
+      )}
       {dialog === "meet" && <MeetingDialog regarding={{ kind: "lead", id: lead._id }} defaultOwnerId={lead.ownerId} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "lose" && <LoseDialog title={`${lead.name} came to nothing`} onLose={(body) => crm.loseLead(lead._id, body)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "assign" && <AssignDialog title={`Hand over ${lead.name}`} owners={owners} current={lead.ownerId} onAssign={(ownerId) => crm.assignLead(lead._id, ownerId)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}

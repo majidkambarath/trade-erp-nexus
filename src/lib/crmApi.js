@@ -98,6 +98,13 @@ export const crm = {
   inviteToMeeting: (id, body) => api.post(`/crm/meetings/${id}/invite`, body || {}),
   recordRsvp: (id, body) => api.post(`/crm/meetings/${id}/rsvp`, body),
 
+  // email: writing to a customer from here, so the letter lands on their record. Sending announces, because it adds
+  // to the timeline the badge and the screens read; reading the templates does not.
+  emailTemplates: () => api.get("/crm/email/templates"),
+  saveEmailTemplates: (body) => api.put("/crm/email/templates", body),
+  emailRecipients: (params) => api.get("/crm/email/recipients", params),
+  sendEmail: (body) => announced(api.post("/crm/email/send", body)),
+
   // follow-ups
   followUps: (params) => api.get("/crm/follow-ups", params),
   followUpCount: () => api.get("/crm/follow-ups/count"),

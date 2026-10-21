@@ -11,6 +11,7 @@ import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import { StagePill, Tag, ActivityTimeline, CrmDialog, CrmFiles, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
 import MeetingDialog from "./MeetingDialog.jsx";
+import EmailDialog from "./EmailDialog.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const Fact = ({ label, children }) => (
@@ -78,7 +79,9 @@ export default function DealView({ id, onBack, onChanged }) {
         title={deal.title}
         description={`${deal.opportunityNo} · ${deal.customerName}`}
         actions={
-          <div className="flex flex-wrap gap-2">
+          // Seven actions is more than fits beside the title on a tablet, so below a wide screen they take a row of
+          // their own rather than squeezing the heading out of the viewport (found by check:mobile at 820px).
+          <div className="flex w-full flex-wrap gap-2 lg:w-auto">
             {open && (
               <Can permission="crm.edit">
                 <button type="button" onClick={() => setDialog("move")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
@@ -98,6 +101,11 @@ export default function DealView({ id, onBack, onChanged }) {
                 </button>
               </Can>
             )}
+            <Can permission="crm.create">
+              <button type="button" onClick={() => setDialog("email")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                Write to the customer
+              </button>
+            </Can>
             {open && (
               <Can permission="crm.assign">
                 <button type="button" onClick={() => setDialog("assign")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
@@ -187,6 +195,15 @@ export default function DealView({ id, onBack, onChanged }) {
       {dialog === "move" && <MoveStageDialog deal={deal} stages={deal.pipeline || []} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && (
         <LogActivityDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
+      )}
+      {dialog === "email" && (
+        <EmailDialog
+          regarding={{ kind: "opportunity", id: deal._id }}
+          subject={deal.title ? `About ${deal.title}` : ""}
+          notify={notify}
+          onClose={() => setDialog(null)}
+          onSent={() => refresh()}
+        />
       )}
       {dialog === "meet" && (
         <MeetingDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
