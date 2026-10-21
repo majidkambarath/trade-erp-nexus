@@ -1,0 +1,5 @@
+# Files that are read on Linux (a build host, nvm) must be LF even when checked out on Windows.
+.nvmrc       text eol=lf
+render.yaml  text eol=lf
+public/_headers   text eol=lf
+public/_redirects text eol=lf

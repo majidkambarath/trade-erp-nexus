@@ -1,0 +1,74 @@
+# Continuous integration for the frontend.
+#
+#   check    lint, the static mobile audit, the unit tests and a production build. Needs no browser,
+#            so the puppeteer download is skipped.
+#   pwa      builds, serves and inspects the installable app: manifest, icons, the worker, and that
+#            no API response is ever cached. Launches Chromium.
+#   mobile   the full 390 / 820 / 1440 sweep with its drill-down steps. Slow, so it runs on pushes
+#            to main and on request, not on every pull request.
+#
+# `pwa` and `mobile` have not run on GitHub yet: they pass locally on Windows, and the first run on
+# a Linux runner is the real test. `check` is the same set of commands verified in a clean checkout.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run audit:mobile
+      - run: npm run test:run
+      - run: npm run build
+
+  pwa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check:pwa
+
+  mobile:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run check:mobile
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mobile-shots
+          path: .shots/
+          retention-days: 7
