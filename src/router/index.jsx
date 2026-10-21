@@ -107,6 +107,8 @@ export default function AdminRouter() {
         <Route path="/unit-setup" element={<UnitOfMeasure />} />
         <Route path="/staff-records" element={<Staff />} />
         <Route path="/users" element={<UsersPage />} />
+        {/* the same screen from the CRM's own rail: an organisation with the CRM alone has no People module (config/navigation.js) */}
+        <Route path="/crm/team" element={<UsersPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />
         <Route path="/sales-order" element={<SalesOrderPage />} />

@@ -57,6 +57,18 @@ export function planRefusalMessage(error) {
  */
 export const featureOn = (status, key) => !key || status?.features?.[key] !== false;
 
+// The modules that ARE the ERP: what an organisation buys when it buys the trade and the books. An organisation holding none of
+// them has bought the CRM and nothing else (the `crm` plan, utils/plans.js on the server). Users, Settings, Reports and the pick
+// lists are deliberately NOT here - every organisation holds them, so they say nothing about what it bought.
+export const ERP_MODULES = ["sales", "purchase", "inventory", "finance", "banking", "accounts", "staff"];
+
+/**
+ * Did the organisation buy any of the ERP? Only an explicit `on: false` from the server says no: a status that does not
+ * mention a module (an older server, a partial status, one not loaded yet) hides nothing, and the server refuses what was
+ * not sold. Used to decide whether there is an ERP half to switch into, and which Settings tabs mean anything.
+ */
+export const hasErpModules = (status) => ERP_MODULES.some((m) => status?.modules?.[m]?.on !== false);
+
 /** A navigation tab is shown when it has no `feature`, or its feature is on. */
 export const tabInPlan = (tab, status) => featureOn(status, tab.feature);
 
@@ -128,6 +140,10 @@ export function tabOutOfPlan(tab, status) {
   if (!tab) return null;
   if (tab.feature && !featureOn(status, tab.feature)) return { kind: "feature", key: tab.feature };
   if (!status?.modules) return null;
+  // `requires` names whose rail the tab is on (config/navigation.js): the organisation not holding that module is the answer
+  // to give, ahead of the tab's own permission, which another module's screen may well be sold.
+  const unsold = [].concat(tab.requires || []).find((k) => typeof k === "string" && !moduleHolds(status, k));
+  if (unsold) return { kind: "module", key: unsold.split(".")[0] };
   const needed = [].concat(tab.permission || []).filter((k) => typeof k === "string");
   if (!needed.length || needed.some((k) => moduleHolds(status, k))) return null;
   return { kind: "module", key: needed[0].split(".")[0] };

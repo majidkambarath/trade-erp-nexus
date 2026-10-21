@@ -4,7 +4,7 @@ import { accounting } from "../../../lib/accountingApi";
 import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
-import { ConfirmDialog, ErrorNote, Panel, Pill, SearchSelect, Spinner, errorMessage, useAsync } from "../kit";
+import { ConfirmDialog, ErrorNote, Panel, Pill, SearchSelect, PageSpinner, errorMessage, useAsync } from "../kit";
 import { say, taxWord } from "../../../lib/taxTerms";
 
 const CATEGORY_LABEL = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
@@ -88,7 +88,7 @@ export default function PostingAccounts({ notify }) {
   const groups = useMemo(() => flatGroups(chart.data), [chart.data]);
   const accounts = useMemo(() => flatAccounts(chart.data), [chart.data]);
 
-  if ((cfg.loading && !cfg.data) || (chart.loading && !chart.data)) return <Spinner label="Loading posting accounts" />;
+  if ((cfg.loading && !cfg.data) || (chart.loading && !chart.data)) return <PageSpinner label="Loading posting accounts" />;
   if (cfg.error || chart.error) return <ErrorNote error={cfg.error || chart.error} onRetry={() => { cfg.reload(); chart.reload(); }} />;
 
   const rows = cfg.data.accountConfiguration;

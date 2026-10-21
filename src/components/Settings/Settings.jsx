@@ -9,6 +9,7 @@ import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { hasErpModules } from "../../lib/organisation";
 import { orgCurrency, orgTimezone } from "../../utils/orgLocale";
 import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
@@ -23,11 +24,13 @@ import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinne
 // accounts live in Accounting setup, not here. Every control on this page does something; what is
 // not built yet is listed as "coming soon" rather than shown as a control that saves nothing.
 
+// `trade` marks the tabs that are about the trade documents (credit control, returns, the tax identity, the bank details printed on an
+// invoice): an organisation that bought the CRM alone makes no invoice, so they are not offered to it (hasErpModules).
 const TABS = [
   { id: "company", label: "Company" },
   { id: "branches", label: "Branches" },
-  { id: "rules", label: "Business rules" },
-  { id: "bank", label: "Invoice bank details" },
+  { id: "rules", label: "Business rules", trade: true },
+  { id: "bank", label: "Invoice bank details", trade: true },
   { id: "sending", label: "Sending" },
   { id: "preferences", label: "Preferences" },
   { id: "security", label: "Security" },
@@ -80,10 +83,12 @@ function fromProfile(info) {
 export default function SettingsModule() {
   const [params, setParams] = useSearchParams();
   const { notify, toastNode } = useToasts();
-  const { can } = useOrganisation();
+  const { can, status } = useOrganisation();
   // The letterhead is the company's, not the person's: anyone reads it, only someone who may change settings edits it.
   const canEdit = can("settings.manage");
-  const active = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "company";
+  const trade = hasErpModules(status);
+  const tabs = TABS.filter((t) => trade || !t.trade);
+  const active = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "company";
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -176,12 +181,12 @@ export default function SettingsModule() {
     <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Settings"
-        description="Your company profile, the bank details printed on invoices, and your account password."
-        actions={<Button variant="outline" asChild><Link to="/accounting-setup">Tax codes and numbering</Link></Button>}
+        description={trade ? "Your company profile, the bank details printed on invoices, and your account password." : "Your company profile, how the app looks for you, and your account password."}
+        actions={trade ? <Button variant="outline" asChild><Link to="/accounting-setup">Tax codes and numbering</Link></Button> : undefined}
       />
       {loading && !saved ? <Spinner label="Loading settings" /> : loadError && !saved ? <ErrorNote error={loadError} onRetry={load} /> : (
         <Tabs value={active} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
-          <div className="overflow-x-auto"><TabsList>{TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList></div>
+          <div className="overflow-x-auto"><TabsList>{tabs.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList></div>
 
           <TabsContent value="company" className="space-y-5">
             {!canEdit && <ReadOnlyNote />}
@@ -247,14 +252,17 @@ export default function SettingsModule() {
             <BranchSettings notify={notify} />
           </TabsContent>
 
-          <TabsContent value="rules">
-            <BusinessRules notify={notify} companyDefaults={saved?.company} />
-          </TabsContent>
+          {trade && (
+            <TabsContent value="rules">
+              <BusinessRules notify={notify} companyDefaults={saved?.company} />
+            </TabsContent>
+          )}
 
           <TabsContent value="sending">
             <SendingSettings notify={notify} />
           </TabsContent>
 
+          {trade && (
           <TabsContent value="bank" className="space-y-5">
             {!canEdit && <ReadOnlyNote />}
             <fieldset disabled={!canEdit} className="m-0 min-w-0 space-y-5 border-0 p-0">
@@ -286,6 +294,7 @@ export default function SettingsModule() {
             </Panel>
             </fieldset>
           </TabsContent>
+          )}
 
           <TabsContent value="preferences" className="space-y-5">
             <PreferencesPanel />

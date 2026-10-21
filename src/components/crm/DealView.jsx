@@ -3,13 +3,14 @@
 // touched it" has an answer on the screen rather than in a log.
 import React, { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
-import { StagePill, Tag, ActivityTimeline, CrmDialog, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import { StagePill, Tag, ActivityTimeline, CrmDialog, CrmFiles, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const Fact = ({ label, children }) => (
   <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-1.5 last:border-0">
@@ -51,6 +52,7 @@ function HowItGotHere({ moves = [], stages = [] }) {
 }
 
 export default function DealView({ id, onBack, onChanged }) {
+  const { can } = useOrganisation();
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
   const [dialog, setDialog] = useState(null);
@@ -61,7 +63,7 @@ export default function DealView({ id, onBack, onChanged }) {
     onChanged?.();
   };
 
-  if (loading && !deal) return <Spinner label="Reading the deal" />;
+  if (loading && !deal) return <PageSpinner label="Reading the deal" />;
   if (error) return <ErrorNote error={error} onRetry={again} />;
   if (!deal) return null;
 
@@ -113,7 +115,9 @@ export default function DealView({ id, onBack, onChanged }) {
         }
       />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      {/* grid-cols-1 on both grids: below lg a grid has one implicit AUTO column, which is as wide as its widest unbreakable text -
+          a file's long name made this page 712px wide on a 390px phone (found by check:mobile). minmax(0, 1fr) lets it shrink, so truncate works. */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel title="The deal" className="lg:col-span-1">
           <dl className="grid gap-2 text-sm">
             <Fact label="Stage">
@@ -152,7 +156,7 @@ export default function DealView({ id, onBack, onChanged }) {
           )}
         </Panel>
 
-        <div className="grid gap-4 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-4 lg:col-span-2">
           <Panel title="How it got here" description="What the documents did, without anybody pressing anything" bodyClassName="p-0 sm:px-4">
             <div className="px-4 sm:px-0">
               <HowItGotHere moves={deal.autoMoves} stages={deal.pipeline} />
@@ -162,6 +166,9 @@ export default function DealView({ id, onBack, onChanged }) {
             <div className="px-4 sm:px-0">
               <ActivityTimeline rows={deal.timeline} empty="Nothing has been recorded against this deal yet." />
             </div>
+          </Panel>
+          <Panel title="Files" description="Contracts, specifications and photos, kept with the deal">
+            <CrmFiles kind="deal" id={deal._id} readOnly={!can("crm.edit")} />
           </Panel>
         </div>
       </div>

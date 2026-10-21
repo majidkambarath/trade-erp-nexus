@@ -5,7 +5,7 @@ import { processOrders } from "../../../lib/processOrderApi";
 import { DUE_LABEL, DUE_TONE, processErrorText, stepLabel } from "../../../lib/processOrders";
 import { formatDate, formatNumber } from "../../../utils/format";
 import { orgCurrency } from "../../../utils/orgLocale";
-import { EmptyState, ErrorNote, Panel, Pill, Spinner, useAsync, useToasts } from "../../accounting/kit";
+import { EmptyState, ErrorNote, Panel, Pill, PageSpinner, useAsync, useToasts } from "../../accounting/kit";
 import { CompleteStepDialog, ProcessOrderView } from "./ProcessOrdersTab";
 
 // The owner's board (Inventory > Production > Board): what is pending, in progress, late, due today or tomorrow, where
@@ -67,7 +67,7 @@ export default function ProcessBoard() {
   // an older or partial answer must not blank the page: every part defaults to empty
   const d = raw && { counts: raw.counts || {}, columns: raw.columns || [], mine: raw.mine || [], overdue: raw.overdue || [], dueToday: raw.dueToday || [], dueTomorrow: raw.dueTomorrow || [], withJobWorkers: raw.withJobWorkers || [] };
 
-  if (board.loading && !raw) return <Spinner label="Loading the board" />;
+  if (board.loading && !raw) return <PageSpinner label="Loading the board" />;
   if (board.error) return <ErrorNote error={board.error} onRetry={board.reload} />;
   if (!d) return null;
 

@@ -9,11 +9,8 @@
 // kind of screen as Customers and Vendors: it earns saved views and sorting. The Leads list is still hand-built.
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Download, Plus } from "lucide-react";
-import {
-  PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts,
-  Field, TextInput, Textarea, Select, SearchSelect,
-} from "../accounting/kit.jsx";
+import { ArrowLeft, Download, Plus, Upload } from "lucide-react";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect } from "../accounting/kit.jsx";
 import ListPage from "../lists/ListPage";
 import { FilterSelect } from "../lists/FilterBar.jsx";
 import { useListView } from "../../lib/useListView";
@@ -24,6 +21,8 @@ import { api } from "../../lib/accountingApi";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import { ActivityTimeline, CrmDialog, KindIcon, LogActivityDialog, Tag, useOwners } from "./crmShared.jsx";
+import ImportDialog from "./ImportDialog.jsx";
+import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const Fact = ({ label, children }) => (
   <div className="flex justify-between gap-4 border-b border-border/60 py-2 last:border-0">
@@ -130,6 +129,10 @@ function ContactForm({ contact, onClose, onSaved, notify }) {
 
 /** One person's page: who they are, who they work for, and everything that has been said to them. */
 function ContactView({ id, notify, onBack, onChanged }) {
+  const { can } = useOrganisation();
+  // The company's own page is a Sales / Accounts page. An organisation that bought the CRM alone, or a role that holds
+  // neither, is shown the company's name: a link to a screen they will be told they cannot open helps nobody.
+  const partyOpens = can("sales.view") || can("accounts.view");
   const [reload, setReload] = useState(0);
   const [dialog, setDialog] = useState(null);
   const owners = useOwners();
@@ -139,7 +142,7 @@ function ContactView({ id, notify, onBack, onChanged }) {
     onChanged?.();
   };
 
-  if (loading && !data) return <Spinner label="Reading the person" />;
+  if (loading && !data) return <PageSpinner label="Reading the person" />;
   if (error) return <ErrorNote error={error} onRetry={again} />;
   if (!data) return null;
 
@@ -191,12 +194,16 @@ function ContactView({ id, notify, onBack, onChanged }) {
             <Fact label="Email">{data.email}</Fact>
             <Fact label="Works for">
               {data.party ? (
-                <Link
-                  to={data.party.kind === "vendor" ? `/debit-accounts/vendor/${data.party.id}` : `/credit-accounts/customer/${data.party.id}?tab=crm`}
-                  className="hover:underline"
-                >
-                  {data.party.name}
-                </Link>
+                partyOpens ? (
+                  <Link
+                    to={data.party.kind === "vendor" ? `/debit-accounts/vendor/${data.party.id}` : `/credit-accounts/customer/${data.party.id}?tab=crm`}
+                    className="hover:underline"
+                  >
+                    {data.party.name}
+                  </Link>
+                ) : (
+                  data.party.name
+                )
               ) : (
                 <PartyTag row={data} />
               )}
@@ -243,6 +250,7 @@ export default function ContactsPage() {
   const { notify, toastNode } = useToasts();
   const record = useRecordRoute({ param: "contact" });
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [reload, setReload] = useState(0);
   const again = () => setReload((n) => n + 1);
 
@@ -277,6 +285,11 @@ export default function ContactsPage() {
             >
               <Download className="h-4 w-4" aria-hidden="true" /> Export
             </button>
+            <Can permission="crm.create">
+              <button type="button" onClick={() => setImporting(true)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-input px-3 text-sm hover:bg-accent">
+                <Upload className="h-4 w-4" aria-hidden="true" /> Import
+              </button>
+            </Can>
             <Can permission="crm.create">
               <button
                 type="button"
@@ -336,6 +349,17 @@ export default function ContactsPage() {
           { key: "primary", header: "Main", card: "hidden", cell: (r) => (r.isPrimary ? "Yes" : "") },
         ]}
       />
+      {importing && (
+        <ImportDialog
+          kind="contact"
+          notify={notify}
+          onClose={() => setImporting(false)}
+          onDone={() => {
+            setImporting(false);
+            again();
+          }}
+        />
+      )}
       {adding && (
         <ContactForm
           notify={notify}

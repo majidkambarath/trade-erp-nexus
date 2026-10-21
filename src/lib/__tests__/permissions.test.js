@@ -151,3 +151,26 @@ describe("planBulkDelete", () => {
     expect(postedDeleteText(2)).toMatch(/2 of them are approved: deleting those REVERSES their stock and ledger postings/);
   });
 });
+
+describe("a tab that names `requires`", () => {
+  // The CRM's Team page is the Users and roles screen on the CRM's own rail: `permission` is what the SCREEN needs,
+  // `requires` is whose rail it is on.
+  const team = { permission: "users.view", requires: "crm.view" };
+
+  it("needs every key it requires, as well as one of its permissions", () => {
+    expect(tabAllowed(team, me("users.view", "crm.view"))).toBe(true);
+    expect(tabAllowed(team, me("users.view"))).toBe(false); // may see users, but is not in the CRM
+    expect(tabAllowed(team, me("crm.view"))).toBe(false); // is in the CRM, but may not see users
+    expect(tabAllowed({ permission: "users.view", requires: ["crm.view", "crm.edit"] }, me("users.view", "crm.view"))).toBe(false);
+  });
+
+  it("changes nothing for a tab that names none", () => {
+    expect(tabAllowed({ permission: "users.view" }, me("users.view"))).toBe(true);
+    expect(tabAllowed({ permission: "users.view", requires: [] }, me("users.view"))).toBe(true);
+  });
+
+  it("hides nothing while the grants are not known", () => {
+    expect(tabAllowed(team, { grants: undefined })).toBe(true);
+    expect(tabAllowed(team, null)).toBe(true);
+  });
+});

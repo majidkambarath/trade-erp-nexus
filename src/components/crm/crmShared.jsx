@@ -8,7 +8,9 @@ import { Note } from "../salesDocs/parts.jsx";
 import { statusClasses } from "../../lib/status";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
 import * as rules from "../../lib/crm";
-import { crm } from "../../lib/crmApi";
+import { crm, filesFor } from "../../lib/crmApi";
+import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
+import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const TONE_CLASS = {
   danger: "bg-status-danger/10 text-status-danger",
@@ -370,6 +372,10 @@ export function LoseDialog({ title, onLose, onClose, onSaved, notify }) {
  * exactly that before anybody presses it.
  */
 export function QualifyDialog({ lead, onClose, onSaved, notify }) {
+  // Said in the organisation's own terms: a customer has an account in the books where there are books, and is simply a
+  // customer where the CRM was bought alone (nobody there can see an account they have no screen for).
+  const { can } = useOrganisation();
+  const books = can("sales.view") || can("accounts.view");
   const [form, setForm] = useState(() => ({
     customerName: lead.company || lead.name || "",
     creditLimit: "",
@@ -406,7 +412,7 @@ export function QualifyDialog({ lead, onClose, onSaved, notify }) {
   return (
     <CrmDialog
       title={`Qualify ${lead.name}`}
-      description="This makes a real customer, with its own account in the books, and opens a deal in the pipeline."
+      description={books ? "This makes a real customer, with its own account in the books, and opens a deal in the pipeline." : "This adds the company to your customers and opens a deal in the pipeline."}
       confirmLabel="Qualify"
       busy={busy}
       problem={problem}
@@ -465,4 +471,14 @@ export function AssignDialog({ title, owners, current, onAssign, onClose, onSave
       </Field>
     </CrmDialog>
   );
+}
+
+/**
+ * The files on a lead or a deal. The panel is the accounting documents' own (type and size checks, drag and drop, the
+ * list), pointed at the CRM's door onto files by `source`: that has to be the same object between renders or the list
+ * is read again on every one, hence the memo. `kind` is "lead" or "deal".
+ */
+export function CrmFiles({ kind, id, readOnly = false }) {
+  const source = useMemo(() => filesFor(kind, id), [kind, id]);
+  return <AttachmentPanel source={source} readOnly={readOnly} label="Files" />;
 }

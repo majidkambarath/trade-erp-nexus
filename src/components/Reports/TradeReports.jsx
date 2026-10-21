@@ -9,7 +9,7 @@ import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { EmptyState, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { EmptyState, Field, PageHeader, Panel, Pill, SearchSelect, Select, PageSpinner, TextInput, useAsync } from "../accounting/kit";
 import { DateRange, Frame, monthStart } from "./reportKit";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { taxWord } from "../../lib/taxTerms";
@@ -140,7 +140,7 @@ function Trade({ direction, range }) {
       <Frame state={state} label="Working out the report">
         {(data) => {
           // while the other view's figures load, the previous answer is still in hand: do not hand it to the wrong table
-          if (Boolean(data.pagination) !== isRegister) return <Spinner label="Working out the report" />;
+          if (Boolean(data.pagination) !== isRegister) return <PageSpinner label="Working out the report" />;
           return isRegister
             ? <Register data={data} page={page} setPage={setPage} />
             : <Summary data={data} view={view} partyLabel={sales ? "Customer" : "Vendor"} sales={sales} onParty={drillParty} onItem={drillItem} />;

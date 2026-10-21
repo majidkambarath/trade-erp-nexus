@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ERP,
+  ERP_MODULES,
   MOBILE_SLOTS,
   MODULES,
   findActive,
@@ -360,5 +361,68 @@ describe("which workspaces a person is offered", () => {
     const status = as(allKeys.filter((k) => !k.startsWith("crm.")), false);
     const ids = getVisibleModules(status).map((m) => m.id);
     expect(ids.filter((id) => id.startsWith("crm-"))).toEqual([]);
+  });
+
+  // ---- an organisation that bought the CRM and nothing else (the `crm` plan) ------------------------------------------
+  //
+  // Every organisation holds the always-on floor (reports.view, settings.view, lookups.view), so the owner of a CRM-only
+  // organisation can still see Home's dashboard and Settings. Those say nothing about what was BOUGHT, and must not make an
+  // "ERP" out of a dashboard of zeros.
+  const OFF = { on: false, full: false, actions: [] };
+  const SOLO_MODULES = {
+    crm: { on: true }, users: { on: true }, settings: { on: true }, reports: { on: true },
+    sales: OFF, purchase: OFF, inventory: OFF, finance: OFF, banking: OFF, accounts: OFF, staff: OFF,
+  };
+  const SOLO_KEYS = [...CRM_KEYS, "crm.assign", "crm.delete", "users.view", "users.manage", "settings.view", "settings.manage", "reports.view", "lookups.view"];
+  const SOLO = { me: { grants: SOLO_KEYS }, modules: SOLO_MODULES };
+
+  it("a CRM-only organisation has no ERP half, so its owner is offered the CRM alone", () => {
+    const visible = getVisibleModules(SOLO).map((m) => m.id);
+    expect(visible).toContain("home"); // the dashboard IS visible to them (reports.view is the floor) ...
+    expect(offered(SOLO)).toEqual(["crm"]); // ... and still there is no ERP to be offered
+  });
+
+  it("names the ERP modules, and none of the ones every organisation holds", () => {
+    expect(ERP_MODULES).toEqual(["sales", "purchase", "inventory", "finance", "banking", "accounts", "staff"]);
+    for (const everyone of ["users", "settings", "reports", "lookups", "crm"]) expect(ERP_MODULES).not.toContain(everyone);
+  });
+
+  it("any one ERP module bought brings the ERP back", () => {
+    for (const bought of ERP_MODULES) {
+      const status = { me: { grants: [...SOLO_KEYS, `${bought}.view`] }, modules: { ...SOLO_MODULES, [bought]: { on: true } } };
+      expect(offered(status), bought).toEqual(["erp", "crm"]);
+    }
+  });
+
+  it("only an explicit off from the server says an ERP module is not bought", () => {
+    // a status that does not mention the ERP modules at all (an older server) hides nothing: the server refuses what was not sold
+    const quiet = { me: { grants: SOLO_KEYS }, modules: { crm: { on: true } } };
+    expect(offered(quiet)).toEqual(["erp", "crm"]);
+    expect(offered({ me: { grants: SOLO_KEYS } })).toEqual(["erp", "crm"]);
+  });
+
+  it("keeps a CRM-only owner on the CRM rail on every page, the ERP-owned ones included", () => {
+    const modules = getVisibleModules(SOLO);
+    for (const path of ["/dashboard", "/settings", "/users", "/crm/leads"]) {
+      expect(workspaceInUse(findActive(path, modules).module, modules, SOLO), path).toBe("crm");
+    }
+  });
+
+  it("gives the CRM Setup module a Team tab, shown to whoever may see users", () => {
+    const setup = (status) => getVisibleModules(status).find((m) => m.id === "crm-setup")?.tabs.map((t) => t.label);
+    expect(setup(SOLO)).toEqual(["Setup", "Team"]);
+    // may add people but not set up the pipeline: Team alone
+    expect(setup({ me: { grants: ["crm.view", "users.view"] }, modules: SOLO_MODULES })).toEqual(["Team"]);
+    // may set up the pipeline but not see users: Setup alone, exactly as before
+    expect(setup({ me: { grants: ["crm.view", "crm.manage"] }, modules: SOLO_MODULES })).toEqual(["Setup"]);
+    // and nobody sees it without either
+    expect(setup({ me: { grants: ["crm.view"] }, modules: SOLO_MODULES })).toBeUndefined();
+  });
+
+  it("the Team tab is the same screen as People > Users and roles, one address each", () => {
+    expect(findActive("/crm/team").module.id).toBe("crm-setup");
+    expect(findActive("/users").module.id).toBe("people");
+    const owners = MODULES.flatMap((m) => m.tabs.filter((t) => t.to === "/crm/team" || t.to === "/users"));
+    expect(owners.map((t) => t.to).sort()).toEqual(["/crm/team", "/users"]);
   });
 });

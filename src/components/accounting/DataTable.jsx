@@ -17,6 +17,20 @@ export function Spinner({ label = "Loading" }) {
   );
 }
 
+// The loader when the loader IS the page: a screen waiting for its first read has nothing else on
+// it, and a line of text at the top of an empty page reads as a page that failed rather than one
+// that is busy. So this one takes the room the content will take and sits in the middle of it, with
+// the same ring the shell draws between routes - one loading state for the whole product.
+// `flex-1` is there for a parent that is a flex column; the min-height carries the ordinary case.
+export function PageSpinner({ label = "Loading" }) {
+  return (
+    <div role="status" aria-live="polite" className="flex min-h-[calc(100dvh-13rem)] flex-1 flex-col items-center justify-center gap-3">
+      <span className="h-7 w-7 animate-spin rounded-full border-2 border-border border-t-brand" aria-hidden="true" />
+      {label ? <span className="text-sm text-muted-foreground">{label}…</span> : <span className="sr-only">Loading</span>}
+    </div>
+  );
+}
+
 export function ErrorNote({ error, onRetry }) {
   if (!error) return null;
   return (

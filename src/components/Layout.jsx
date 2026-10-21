@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { findActive, getMobileNav, getVisibleModules, moduleHref, modulesIn, pageTitle, workspaceInUse } from "../config/navigation";
+import { ERP, findActive, getMobileNav, getVisibleModules, moduleHref, modulesIn, offeredWorkspaces, pageTitle, workspaceInUse } from "../config/navigation";
 import { getBrand } from "../config/brands";
 import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
@@ -12,6 +12,7 @@ import BottomNav from "./shell/BottomNav";
 import MoreSheet from "./shell/MoreSheet";
 import { UpdateNotice } from "./shell/InstallApp";
 import PageErrorBoundary from "./shell/PageErrorBoundary";
+import { PageSpinner } from "./accounting/DataTable";
 import { useSession } from "./shell/useSession";
 import { OrganisationProvider, useOrganisation } from "./shell/OrganisationContext";
 import OrganisationBlocked from "./shell/OrganisationBlocked";
@@ -28,14 +29,11 @@ import { NavBadgesProvider } from "./shell/NavBadges";
 import { subscriptionNotice } from "../lib/subscriptionText";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
-// the workspace reads as a failure; this reads as a pause.
+// the workspace reads as a failure; this reads as a pause. It is the shared page loader with
+// its words left off, so the ring sits where the page's own "Reading ..." loader will sit a
+// moment later: the chunk arriving swaps the words in rather than moving the loader.
 function PageLoading() {
-  return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center p-10">
-      <span className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-brand" />
-      <span className="sr-only">Loading page</span>
-    </div>
-  );
+  return <PageSpinner label={null} />;
 }
 
 // Workspace-first shell (Aurify ERP Redesign): a narrow labelled rail for modules, a top
@@ -73,8 +71,16 @@ const LayoutShell = () => {
   // - and only that address - sends them to the first page they CAN open. Anywhere else the explanation is kinder.
   // (Settings does not count as somewhere to land: it is open to everyone, and a person who holds nothing else is
   // better told so than sent to a page that looks like a way in.)
-  const landingModule = modules.find((m) => m.placement !== "footer");
-  const landsElsewhere = notAllowed && pathname === "/dashboard" && landingModule ? moduleHref(landingModule) : null;
+  //
+  // The second reason to land elsewhere: the organisation has no ERP half at all (it bought the CRM alone). Its owner DOES
+  // hold reports.view - every organisation does, the dashboard is on the always-on floor - so nothing is "not allowed", yet
+  // /dashboard would open an ERP dashboard of zeros. The first page of the half they ARE offered is their front door.
+  // The landing module is taken from that half: from the whole list it would be Home, and /dashboard would send itself there.
+  const statusKnown = Array.isArray(status?.me?.grants);
+  const offered = useMemo(() => offeredWorkspaces(modules, status), [modules, status]);
+  const noErpHere = statusKnown && offered.length > 0 && !offered.some((w) => w.id === ERP);
+  const landingModule = modulesIn(offered[0]?.id || ERP, modules).find((m) => m.placement !== "footer") || modules.find((m) => m.placement !== "footer");
+  const landsElsewhere = (notAllowed || noErpHere) && pathname === "/dashboard" && landingModule ? moduleHref(landingModule) : null;
   const notice = useMemo(() => subscriptionNotice(status?.subscription), [status]);
   // Which half of the product the page belongs to. Derived from the address, never stored: Back, a reload and a
   // pasted link all land in the right rail without anything to keep in step.

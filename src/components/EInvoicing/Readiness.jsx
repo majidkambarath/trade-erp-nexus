@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, CircleAlert, Pencil } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, PageSpinner, TextInput, useAsync } from "../accounting/kit";
 
 // Where to go to fix each company-level check.
 const FIX = {
@@ -17,7 +17,7 @@ const FIX = {
 export default function Readiness({ notify, onChanged }) {
   const { data, loading, error, reload } = useAsync(() => einvoice.readiness(), []);
   const [editing, setEditing] = useState(null);
-  if (loading && !data) return <Spinner label="Checking readiness" />;
+  if (loading && !data) return <PageSpinner label="Checking readiness" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
 
   return (

@@ -5,7 +5,7 @@ import CreatableSelect from "react-select/creatable";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
 import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
-import { DataTable, ErrorNote, Spinner, TableScroll } from "./DataTable";
+import { DataTable, ErrorNote, PageSpinner, Spinner, TableScroll } from "./DataTable";
 
 export { DataTable, TableScroll };
 
@@ -63,7 +63,7 @@ export function EmptyState({ title, text, action }) {
   );
 }
 
-export { Spinner, ErrorNote };
+export { Spinner, PageSpinner, ErrorNote };
 
 // ---------- status ----------
 

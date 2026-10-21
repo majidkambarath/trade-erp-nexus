@@ -11,7 +11,7 @@ import React, { useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlarmClock, ArrowRight, Handshake, Sparkles, Target, TrendingUp } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, useAsync } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, useAsync } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { RankedBars } from "../Dashborad/FlowCharts.jsx";
 import { CountUp } from "../Dashborad/CountUp.jsx";
@@ -118,7 +118,7 @@ export default function CrmDashboard() {
   const { data, loading, error, reload } = useAsync(() => crm.dashboard(), []);
   useReveal(page, Boolean(data));
 
-  if (loading && !data) return <Spinner label="Reading the pipeline" />;
+  if (loading && !data) return <PageSpinner label="Reading the pipeline" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   if (!data) return null;
 

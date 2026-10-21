@@ -11,7 +11,7 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Balance, DateInput, ErrorNote, Field, PageHeader, Panel, Select, Spinner, useAsync, useToasts } from "../accounting/kit";
+import { Balance, DateInput, ErrorNote, Field, PageHeader, Panel, Select, PageSpinner, useAsync, useToasts } from "../accounting/kit";
 
 const thisYear = () => todayInput().slice(0, 4);
 const monthStart = () => `${todayInput().slice(0, 7)}-01`;
@@ -84,7 +84,7 @@ function StatementTab({ tab, range, compare, detail }) {
   const data = state.data;
   const doc = useMemo(() => (data ? buildDocument(tab, data, { detail }) : null), [tab, data, detail]);
 
-  if (state.loading && !data) return <Spinner label="Preparing the statement" />;
+  if (state.loading && !data) return <PageSpinner label="Preparing the statement" />;
   if (state.error && !data) return <ErrorNote error={state.error} onRetry={state.reload} />;
   if (!doc) return null;
 

@@ -40,7 +40,9 @@ export default function WorkspaceSwitcher({ modules = [], activeModule = null, s
         className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-input bg-background px-2.5 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="truncate">{now.label}</span>
+        {/* Below sm the chip is its icon: the top bar has three controls on the right that must stay
+            reachable, and the trigger's own aria-label already names the workspace. */}
+        <span className="truncate max-sm:hidden">{now.label}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

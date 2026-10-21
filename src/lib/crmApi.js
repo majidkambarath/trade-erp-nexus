@@ -4,7 +4,8 @@
 // Anything that changes what somebody owes fires CRM_WORK_CHANGED, which is what refreshes the "follow-ups" count
 // beside the navigation tab (components/shell/NavBadges.jsx) without the badge having to poll faster. Same pattern as
 // PROCESS_WORK_CHANGED in processOrderApi.js and APPROVALS_CHANGED in approvalsApi.js.
-import { api } from "./accountingApi";
+import axiosInstance from "../axios/axios";
+import { api, unwrap } from "./accountingApi";
 
 export const CRM_WORK_CHANGED = "crm-work-changed";
 
@@ -38,11 +39,14 @@ export const crm = {
   createContact: (body) => announced(api.post("/crm/contacts", body)),
   updateContact: (id, body) => announced(api.put(`/crm/contacts/${id}`, body)),
   removeContact: (id) => announced(api.delete(`/crm/contacts/${id}`)),
+  importContacts: (body) => api.post("/crm/contacts/import", body),
 
   summary: () => api.get("/crm/summary"),
   analysis: (params) => api.get("/crm/analysis", params),
   pipeline: (params) => api.get("/crm/pipeline", params),
   owners: () => api.get("/crm/owners"),
+  // The customers a deal can be opened on: an id, a name and a code. The CRM's own narrow read, so choosing one needs no Sales key.
+  customers: (params) => api.get("/crm/customers", params),
   timeline: (params) => api.get("/crm/timeline", params),
 
   // the pipeline and the automation
@@ -63,6 +67,8 @@ export const crm = {
   assignLead: (id, ownerId) => announced(api.post(`/crm/leads/${id}/assign`, { ownerId })),
   loseLead: (id, body) => announced(api.post(`/crm/leads/${id}/lose`, body)),
   qualifyLead: (id, body) => announced(api.post(`/crm/leads/${id}/qualify`, body)),
+  // A spreadsheet of enquiries. `dryRun: false` writes; anything else is the preview. Only a real import changes what is owed.
+  importLeads: (body) => (body?.dryRun === false ? announced(api.post("/crm/leads/import", body)) : api.post("/crm/leads/import", body)),
 
   // deals
   deals: (params) => api.get("/crm/opportunities", params),
@@ -85,5 +91,34 @@ export const crm = {
   completeActivity: (id, body) => announced(api.post(`/crm/activities/${id}/done`, body)),
   removeActivity: (id) => announced(api.del(`/crm/activities/${id}`)),
 };
+
+// Files on a lead or a deal, in the shape components/accounting/AttachmentPanel.jsx takes as its `source`: list, upload,
+// remove and download, so the one panel serves both the accounting documents and these. `kind` is "lead" or "deal".
+// An upload sets its own multipart content type: the shared axios instance defaults to JSON and would flatten the file.
+export function filesFor(kind, id) {
+  const base = kind === "deal" ? `/crm/opportunities/${id}/attachments` : `/crm/leads/${id}/attachments`;
+  return {
+    list: () => api.get(base),
+    upload: (file, label) => {
+      const form = new FormData();
+      form.append("file", file);
+      if (label) form.append("label", label);
+      return unwrap(axiosInstance.post(base, form, { headers: { "Content-Type": "multipart/form-data" } }));
+    },
+    remove: (item) => api.del(`/crm/attachments/${item.attachmentId}`),
+    // through the authenticated API (a plain link would carry no token), then handed to the browser as a blob
+    download: async (item) => {
+      const res = await axiosInstance.get(`/crm/attachments/${item.attachmentId}`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  };
+}
 
 export default crm;

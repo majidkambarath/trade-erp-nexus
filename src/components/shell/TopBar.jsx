@@ -97,12 +97,15 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, modul
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
     <header className="pt-safe shrink-0 border-b border-border bg-card">
-      <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
+      {/* Every control in this row is shrink-0, so at 390px the row used to run past the right edge and the
+          bell and the account menu were clipped out of reach (the shell is overflow-hidden - nothing can be
+          scrolled to). Below sm the identity gives way instead: the mark alone, and icon-only switchers. */}
+      <div className="flex h-14 min-w-0 items-center gap-2 px-4 lg:gap-3 lg:px-6">
         {/* The rail carries the mark on a pointer; on touch the rail is gone, so it sits here.
             Navigation itself is the bottom bar - there is deliberately no hamburger. */}
         <BrandMark className="h-8 w-8 lg:hidden" iconClassName="h-4 w-4" />
-        {/* The product leads; the client whose data this is follows it, quieter. */}
-        <span className="shrink-0 text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+        {/* The product leads; the client whose data this is follows it, quieter. On a phone the mark says it. */}
+        <span className="hidden shrink-0 text-sm font-extrabold tracking-tight sm:inline">{PRODUCT_NAME}</span>
         {appName && (
           <>
             <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:block" />

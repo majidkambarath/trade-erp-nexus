@@ -11,7 +11,7 @@
 //  - a new stage opens with its name ready to type in, and Save takes you to the first thing that is wrong.
 import React, { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, useAsync, useToasts, Field, Select } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, Select } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import Guarded from "../shell/Guarded.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
@@ -41,8 +41,7 @@ function useLeaveWarning(active) {
   }, [active]);
 }
 
-function Stages({ may, notify, defaultQuietDays }) {
-  const loaded = useAsync(() => crm.stages(), []);
+function Stages({ loaded, may, notify, defaultQuietDays }) {
   const root = useRef(null);
   const [saved, setSaved] = useState(null); // what the server has
   const [stages, setStages] = useState(null); // what is on the screen
@@ -125,9 +124,7 @@ function Stages({ may, notify, defaultQuietDays }) {
     }
   };
 
-  if (loaded.loading && !stages) return <Spinner label="Reading the pipeline" />;
-  if (loaded.error) return <ErrorNote error={loaded.error} onRetry={loaded.reload} />;
-  if (!stages) return null;
+  if (!stages) return null; // the page holds the one loader and the one error note
 
   return (
     <div ref={root}>
@@ -186,9 +183,8 @@ function Group({ title, children }) {
   );
 }
 
-function Automation({ may, notify, onSettled }) {
+function Automation({ loaded, may, notify, onSettled }) {
   const owners = useOwners();
-  const loaded = useAsync(() => crm.settings(), []);
   const root = useRef(null);
   const [saved, setSaved] = useState(null);
   const [form, setForm] = useState(null);
@@ -238,9 +234,7 @@ function Automation({ may, notify, onSettled }) {
     }
   };
 
-  if (loaded.loading && !form) return <Spinner label="Reading the settings" />;
-  if (loaded.error) return <ErrorNote error={loaded.error} onRetry={loaded.reload} />;
-  if (!form) return null;
+  if (!form) return null; // the page holds the one loader and the one error note
 
   return (
     <div ref={root}>
@@ -320,17 +314,37 @@ export default function CrmSetup() {
   // The pipeline's "0 means the usual" hint needs the organisation's usual, which the automation panel owns.
   const [quietDays, setQuietDays] = useState(null);
 
+  // ONE loader for the screen, the app's own (kit's Spinner), not one per panel. The two reads are started
+  // here together and the panels are drawn once both have answered: each panel loading on its own left two
+  // spinners floating in an empty page, which reads as a screen that is broken rather than one that is busy.
+  const pipeline = useAsync(() => crm.stages(), []);
+  const settings = useAsync(() => crm.settings(), []);
+  const loading = (pipeline.loading && !pipeline.data) || (settings.loading && !settings.data);
+  const error = pipeline.error || settings.error;
+  const retry = () => {
+    if (pipeline.error) pipeline.reload();
+    if (settings.error) settings.reload();
+  };
+
   return (
     <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="CRM setup" description="The stages a deal goes through, and what moves it." />
-      <div className="mt-6 grid gap-4">
-        <Guarded permission="crm.manage" what="the pipeline and the automation">
-          <Stages may={may} notify={notify} defaultQuietDays={quietDays} />
-        </Guarded>
-        <Guarded permission="crm.manage" what="the automation settings">
-          <Automation may={may} notify={notify} onSettled={(s) => setQuietDays(Number(s.staleDays) || null)} />
-        </Guarded>
-      </div>
+      {loading && <PageSpinner label="Loading the CRM setup" />}
+      {!loading && error && (
+        <div className="mt-6">
+          <ErrorNote error={error} onRetry={retry} />
+        </div>
+      )}
+      {!loading && !error && (
+        <div className="mt-6 grid gap-4">
+          <Guarded permission="crm.manage" what="the pipeline and the automation">
+            <Stages loaded={pipeline} may={may} notify={notify} defaultQuietDays={quietDays} />
+          </Guarded>
+          <Guarded permission="crm.manage" what="the automation settings">
+            <Automation loaded={settings} may={may} notify={notify} onSettled={(s) => setQuietDays(Number(s.staleDays) || null)} />
+          </Guarded>
+        </div>
+      )}
       {toastNode}
     </div>
   );

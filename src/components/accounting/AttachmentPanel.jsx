@@ -29,8 +29,11 @@ const iconFor = (type = "") =>
 //  - New document:    omit ownerId and pass value + onChange. Files are uploaded now (unlinked) and
 //                     the references kept in `value`; after the document is created, call
 //                     linkPending(value, ownerType, newId).
-export default function AttachmentPanel({ ownerType, ownerId, value, onChange, label = "Attachments", readOnly = false, className }) {
-  const saved = Boolean(ownerId);
+//  - `source`:        another module's own door onto files ({ list, upload, remove, download }, see lib/crmApi.js filesFor): the
+//                     panel is then always in the saved mode and talks to it instead of the accounting endpoints. It must be
+//                     stable between renders (useMemo), or the list is read again on every one.
+export default function AttachmentPanel({ ownerType, ownerId, value, onChange, label = "Attachments", readOnly = false, className, source }) {
+  const saved = Boolean(ownerId) || Boolean(source);
   const [items, setItems] = useState(value || []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -40,11 +43,11 @@ export default function AttachmentPanel({ ownerType, ownerId, value, onChange, l
   const load = useCallback(async () => {
     if (!saved) return;
     try {
-      setItems(await accounting.attachments(ownerType, ownerId));
+      setItems(source ? await source.list() : await accounting.attachments(ownerType, ownerId));
     } catch (e) {
       setError(e);
     }
-  }, [saved, ownerType, ownerId]);
+  }, [saved, ownerType, ownerId, source]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (!saved) setItems(value || []); }, [value, saved]);
 
@@ -64,7 +67,7 @@ export default function AttachmentPanel({ ownerType, ownerId, value, onChange, l
     let next = items;
     for (const file of ok) {
       try {
-        const ref = await uploadAttachment(file, saved ? { ownerType, ownerId } : {});
+        const ref = source ? await source.upload(file) : await uploadAttachment(file, saved ? { ownerType, ownerId } : {});
         next = [...next, ref];
         push(next);
       } catch (e) {
@@ -77,7 +80,7 @@ export default function AttachmentPanel({ ownerType, ownerId, value, onChange, l
 
   async function remove(item) {
     try {
-      await accounting.deleteAttachment(item.attachmentId);
+      await (source ? source.remove(item) : accounting.deleteAttachment(item.attachmentId));
       push(items.filter((x) => x.attachmentId !== item.attachmentId));
     } catch (e) {
       setError(e);
@@ -85,7 +88,7 @@ export default function AttachmentPanel({ ownerType, ownerId, value, onChange, l
   }
 
   async function download(item) {
-    try { await downloadAttachment(item); } catch (e) { setError(e); }
+    try { await (source ? source.download(item) : downloadAttachment(item)); } catch (e) { setError(e); }
   }
 
   return (

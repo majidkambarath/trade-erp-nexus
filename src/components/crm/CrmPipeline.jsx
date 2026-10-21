@@ -8,14 +8,13 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, TrendingUp, AlarmClock, Clock } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, useAsync, useToasts, Field, TextInput, Textarea, DateInput, SearchSelect, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, useAsync, useToasts, Field, TextInput, Textarea, DateInput, SearchSelect, inputClass } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
 import { useRecordRoute } from "../../lib/useRecordRoute";
 import DealView from "./DealView.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
-import { api } from "../../lib/accountingApi";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import { StagePill, Tag, CrmDialog, MoveStageDialog, LoseDialog, AssignDialog, LogActivityDialog, useOwners } from "./crmShared.jsx";
@@ -72,12 +71,13 @@ function NewDealDialog({ onClose, onSaved, notify }) {
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
-  const customers = useAsync(() => api.get("/customers/customers", { limit: 500 }), []);
+  // The CRM's own narrow list (id, name, code): choosing a customer needs no Sales key, so a CRM-only organisation can open a deal.
+  const customers = useAsync(() => crm.customers({ limit: 500 }), []);
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event?.target ? event.target.value : event }));
 
   const options = useMemo(() => {
-    const rows = Array.isArray(customers.data) ? customers.data : customers.data?.customers || [];
-    return rows.map((c) => ({ value: c._id, label: c.customerName, hint: c.customerId }));
+    const rows = Array.isArray(customers.data) ? customers.data : [];
+    return rows.map((c) => ({ value: c.id, label: c.name, hint: c.code }));
   }, [customers.data]);
 
   const save = async () => {
@@ -170,7 +170,7 @@ export default function CrmPipeline() {
         )}
       </div>
 
-      {board.loading && !board.data && <Spinner label="Reading the pipeline" />}
+      {board.loading && !board.data && <PageSpinner label="Reading the pipeline" />}
       {board.error && <ErrorNote error={board.error} onRetry={board.reload} />}
 
       {board.data && (

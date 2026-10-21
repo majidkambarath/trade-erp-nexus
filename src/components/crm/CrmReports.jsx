@@ -9,7 +9,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, TableScroll, useAsync, Field, DateInput } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, DataTable, TableScroll, useAsync, Field, DateInput } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import { RankedBars } from "../Dashborad/FlowCharts.jsx";
@@ -268,7 +268,7 @@ function Performance({ data }) {
 
 function Aging() {
   const { data, loading, error, reload } = useAsync(() => crm.aging(), []);
-  if (loading && !data) return <Spinner label="Reading the open deals" />;
+  if (loading && !data) return <PageSpinner label="Reading the open deals" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const rows = data?.rows || [];
   return (
@@ -352,7 +352,7 @@ function Aging() {
 /** The register: every deal, as a list. No chart - this one is for finding a particular deal, not for a shape. */
 function Deals() {
   const { data, loading, error, reload } = useAsync(() => crm.deals({ limit: 300 }), []);
-  if (loading && !data) return <Spinner label="Reading the deals" />;
+  if (loading && !data) return <PageSpinner label="Reading the deals" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const rows = data || [];
   return (
@@ -406,7 +406,7 @@ function Deals() {
 
 function Communications({ from, to }) {
   const { data, loading, error, reload } = useAsync(() => crm.activityReport({ from, to }), [from, to]);
-  if (loading && !data) return <Spinner label="Reading what was done" />;
+  if (loading && !data) return <PageSpinner label="Reading what was done" />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const people = data?.byPerson || [];
   const kinds = data?.byKind || [];
@@ -512,7 +512,7 @@ export default function CrmReports() {
       </div>
 
       <div className="mt-4">
-        {needsAnalysis && shared.loading && !shared.data && <Spinner label="Reading the CRM" />}
+        {needsAnalysis && shared.loading && !shared.data && <PageSpinner label="Reading the CRM" />}
         {needsAnalysis && shared.error && <ErrorNote error={shared.error} onRetry={shared.reload} />}
         {needsAnalysis && shared.data && (
           <>

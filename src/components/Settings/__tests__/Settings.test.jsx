@@ -222,3 +222,43 @@ describe("who may change the company profile", () => {
     expect(sent().companyName).toBe("Harbour Trading LLC");
   });
 });
+
+// An organisation that bought the CRM alone makes no invoice, so the tabs about invoices (credit control, returns, the tax
+// identity, the bank details printed on a document) and the link to Accounting setup are not offered to it.
+describe("an organisation that bought the CRM alone", () => {
+  const off = { on: false, full: false, actions: [] };
+  const on = (actions) => ({ on: true, full: true, actions });
+  const MODULES = { crm: on(["view", "manage"]), users: on(["view", "manage"]), settings: on(["view", "manage"]), sales: off, purchase: off, inventory: off, finance: off, banking: off, accounts: off, staff: off };
+  const atSolo = (tab, modules = MODULES) => {
+    orgStatus = {
+      organisation: { legalName: "Harbour Trading" }, subscription: { state: "active", blocked: false }, features: {}, modules,
+      me: { id: "u1", name: "Owner", role: { key: "super_admin", name: "Owner", rank: 100 }, grants: ["settings.view", "settings.manage", "crm.view"] },
+    };
+    return render(
+      <ThemeProvider><MemoryRouter initialEntries={[tab ? `/settings?tab=${tab}` : "/settings"]}><OrganisationProvider><Settings /></OrganisationProvider></MemoryRouter></ThemeProvider>
+    );
+  };
+
+  it("is offered the tabs that mean something to it, and no link to the books' setup", async () => {
+    atSolo();
+    await screen.findByRole("tab", { name: "Company", selected: true });
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Sending", "Preferences", "Security"]);
+    expect(screen.queryByRole("link", { name: "Tax codes and numbering" })).toBeNull();
+    expect(screen.getByText(/Your company profile, how the app looks for you, and your account password/)).toBeInTheDocument();
+  });
+
+  it("falls back to the company tab for a typed address that names a tab it does not have", async () => {
+    atSolo("rules");
+    expect(await screen.findByRole("tab", { name: "Company", selected: true })).toBeInTheDocument();
+    expect(screen.queryByText("Credit control")).toBeNull();
+    atSolo("bank");
+    expect(await screen.findAllByRole("tab", { name: "Company", selected: true })).not.toHaveLength(0);
+  });
+
+  it("changes nothing for an organisation that has the trade, however little of it", async () => {
+    atSolo(undefined, { ...MODULES, sales: on(["view"]) });
+    await screen.findByRole("tab", { name: "Company", selected: true });
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
+    expect(screen.getByRole("link", { name: "Tax codes and numbering" })).toBeInTheDocument();
+  });
+});

@@ -14,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-const unwrap = (promise) =>
+export const unwrap = (promise) =>
   promise
     .then((res) => res.data?.data)
     .catch((err) => {
