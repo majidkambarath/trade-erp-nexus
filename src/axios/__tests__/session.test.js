@@ -55,3 +55,30 @@ describe("session refresh", () => {
     expect(getAccessToken()).toBeNull();
   });
 });
+
+// The access token is deliberately memory-only, so that a script injected into any screen finds no token to steal.
+// This is easy to undo by accident - storing it would make a reload keep the session, which looks like a feature -
+// so the rule is pinned here rather than left to the comment in session.js.
+describe("the access token is never written to browser storage", () => {
+  const everyValue = (store) =>
+    Object.keys(store).map((k) => String(store.getItem(k) ?? ""));
+
+  beforeEach(() => {
+    post.mockReset();
+    clearSession();
+    sessionStorage.clear();
+    localStorage.clear();
+  });
+
+  it("holds a refreshed token in memory and puts it in neither store", async () => {
+    const token = "tok-must-not-be-stored";
+    post.mockResolvedValue({ data: { success: true, data: { accessToken: token, admin: { id: "x" } } } });
+
+    await refreshSession();
+
+    expect(getAccessToken()).toBe(token);
+    for (const store of [sessionStorage, localStorage]) {
+      expect(everyValue(store).some((v) => v.includes(token))).toBe(false);
+    }
+  });
+});

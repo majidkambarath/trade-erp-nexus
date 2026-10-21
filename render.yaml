@@ -45,3 +45,9 @@ services:
       - path: /sw.js
         name: Cache-Control
         value: no-cache
+      # A customer's document link carries its secret in the address, so the PAGE must not be indexed. The share API already
+      # answers noindex and no-store, but the page the customer actually opens is /d/<token> here on the static site, and a
+      # token pasted anywhere a crawler can reach would otherwise be indexed with the document behind it.
+      - path: /d/*
+        name: X-Robots-Tag
+        value: noindex, nofollow, noarchive
