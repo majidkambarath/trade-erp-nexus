@@ -66,6 +66,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [tip, setTip] = useState("");
+  const [suggested, setSuggested] = useState([]);
   const [failed, setFailed] = useState("");
   const endRef = useRef(null);
   const conversationRef = useRef(session.get("conversationId", ""));
@@ -79,7 +80,11 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
     assistant
       .screen(screen)
       .then((data) => {
-        if (alive) setTip(openingTip(screen, data?.topics || []));
+        if (!alive) return;
+        setTip(openingTip(screen, data?.topics || []));
+        // Offered questions come from the documentation's own front matter, so they are whatever
+        // the guide says THIS screen is about, and they grow as the corpus does.
+        setSuggested(Array.isArray(data?.suggestions) ? data.suggestions : []);
       })
       .catch(() => {});
     return () => {
@@ -164,7 +169,12 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   };
 
   const reason = whyNotSend(text, { busy });
-  const chips = refusalRef.current ? [`Why did it say: ${refusalRef.current.message}`, ...SUGGESTIONS] : SUGGESTIONS;
+  // What was just refused comes first - it is why most people open this - then the screen's own
+  // questions, and the general ones only when the screen has none of its own.
+  const chips = [
+    ...(refusalRef.current ? [`Why did it say: ${refusalRef.current.message}`] : []),
+    ...(suggested.length ? suggested : SUGGESTIONS),
+  ];
 
   return (
     <Modal
@@ -180,6 +190,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
               <Bot className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <span>{tip || "Ask me how something works, or why Zarvia would not let you do something."}</span>
             </p>
+            <p className="text-xs font-medium text-muted-foreground">Try one of these</p>
             <div className="flex flex-wrap gap-2">
               {chips.map((s) => (
                 <button key={s} type="button" onClick={() => send(s)} className="rounded-full border px-3 py-1.5 text-start text-xs hover:bg-accent">
@@ -187,6 +198,11 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
                 </button>
               ))}
             </div>
+            <p className="border-t pt-3 text-xs text-muted-foreground">
+              I answer from the product guide. Asking about your own figures - what a customer owes,
+              why a total looks wrong - is <span className="font-medium">coming soon</span>; for now I
+              can show you the screen that has them.
+            </p>
           </div>
         )}
 

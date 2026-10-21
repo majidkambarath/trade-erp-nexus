@@ -22,6 +22,7 @@ vi.mock("../../../lib/assistantApi", () => ({
 }));
 
 import { clearPageSessions } from "../../../lib/pageSession";
+import { clearRefusal, noteRefusal } from "../../../lib/lastRefusal";
 import AssistantPanel from "../AssistantPanel";
 
 const draw = (onClose = vi.fn()) =>
@@ -40,6 +41,7 @@ beforeEach(() => {
   // The panel keeps its conversation while it is shut, which is the point - so each test starts
   // from an empty one, exactly as signing out leaves it.
   clearPageSessions();
+  clearRefusal();
   screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }] });
 });
 
@@ -201,5 +203,43 @@ describe("the chat itself", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Copy this answer" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("Open Sales, then Orders."));
+  });
+});
+
+describe("what it offers before anybody has asked", () => {
+  it("offers the screen's own questions when the documentation has them", async () => {
+    screenTip.mockResolvedValue({
+      topics: [{ title: "Order to cash" }],
+      suggestions: ["How do I sell something?", "How is cost of goods booked?"],
+    });
+    draw();
+    expect(await screen.findByRole("button", { name: "How do I sell something?" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "How is cost of goods booked?" })).toBeInTheDocument();
+    // the general ones step aside when the screen has its own
+    expect(screen.queryByRole("button", { name: "How do I record a payment?" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to the general questions when a screen has none of its own", async () => {
+    screenTip.mockResolvedValue({ topics: [], suggestions: [] });
+    draw();
+    expect(await screen.findByRole("button", { name: "How do I raise an invoice?" })).toBeInTheDocument();
+  });
+
+  it("puts the refusal they just hit first, because that is why most people open it", async () => {
+    noteRefusal({ response: { data: { errorCode: "PERIOD_CLOSED", message: "Posting is closed up to 31 Aug 2026" } } });
+    screenTip.mockResolvedValue({ topics: [], suggestions: ["How do I sell something?"] });
+    draw();
+    // wait for the screen's own question to arrive before judging the order: the chips render once
+    // on mount with the general ones, and again when the documentation answers.
+    await screen.findByRole("button", { name: "How do I sell something?" });
+    const chips = screen.getAllByRole("button", { name: /^(Why did it say|How do I)/ });
+    expect(chips[0]).toHaveAccessibleName("Why did it say: Posting is closed up to 31 Aug 2026");
+    expect(chips[1]).toHaveAccessibleName("How do I sell something?");
+  });
+
+  it("says plainly that asking about their own figures is not built yet", async () => {
+    draw();
+    expect(await screen.findByText(/Asking about your own figures/)).toBeInTheDocument();
+    expect(screen.getByText("coming soon")).toBeInTheDocument();
   });
 });
