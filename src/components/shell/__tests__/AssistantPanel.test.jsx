@@ -21,6 +21,7 @@ vi.mock("../../../lib/assistantApi", () => ({
   },
 }));
 
+import { clearPageSessions } from "../../../lib/pageSession";
 import AssistantPanel from "../AssistantPanel";
 
 const draw = (onClose = vi.fn()) =>
@@ -36,6 +37,9 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The panel keeps its conversation while it is shut, which is the point - so each test starts
+  // from an empty one, exactly as signing out leaves it.
+  clearPageSessions();
   screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }] });
 });
 
@@ -139,5 +143,63 @@ describe("test mode", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
     await screen.findByText("A real answer.");
     expect(screen.queryByText(/Test mode/)).not.toBeInTheDocument();
+  });
+});
+
+describe("the chat itself", () => {
+  const stepsAnswer = {
+    messageId: "m7",
+    answer: "To raise an invoice:\n1. Open Sales, then Orders.\n2. Add the lines.\n3. Press Approve.",
+    citations: [],
+    links: [],
+  };
+
+  it("draws numbered steps as steps, because that is how the guide is written", async () => {
+    ask.mockResolvedValue(stepsAnswer);
+    draw();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "how do I raise an invoice" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    const list = await screen.findByRole("list");
+    expect(list.tagName).toBe("OL");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Press Approve.")).toBeInTheDocument();
+  });
+
+  it("keeps the conversation when the panel is closed and opened again", async () => {
+    ask.mockResolvedValue(stepsAnswer);
+    const { unmount } = draw();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "how do I raise an invoice" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    await screen.findByRole("list");
+    unmount();
+    draw();
+    // it is there without asking again
+    expect(await screen.findByText("Press Approve.")).toBeInTheDocument();
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts again on request, and the button is not there until there is something to clear", async () => {
+    ask.mockResolvedValue(stepsAnswer);
+    draw();
+    expect(screen.queryByRole("button", { name: /Start again/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "anything" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    await screen.findByRole("list");
+    fireEvent.click(screen.getByRole("button", { name: /Start again/ }));
+    await waitFor(() => expect(screen.queryByText("Press Approve.")).not.toBeInTheDocument());
+    // the empty state is back, suggestions and all, rather than an answer merely hidden
+    expect(screen.getByRole("button", { name: "How do I raise an invoice?" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start again/ })).not.toBeInTheDocument();
+  });
+
+  it("copies an answer as plain text, without the markup", async () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    ask.mockResolvedValue({ messageId: "m8", answer: "Open **Sales**, then Orders.", citations: [], links: [] });
+    draw();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "where" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy this answer" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("Open Sales, then Orders."));
   });
 });

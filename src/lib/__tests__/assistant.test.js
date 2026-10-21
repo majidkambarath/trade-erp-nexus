@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { canSend, knownPaths, openingTip, safeLinks, toExchange, whyNotSend, MAX_QUESTION } from "../assistant";
+import { formatAnswer, plainAnswer } from "../answerFormat";
 import { clearRefusal, noteRefusal, recentRefusal } from "../lastRefusal";
 
 const MODULES = [
@@ -97,5 +98,46 @@ describe("the refusal it explains", () => {
     expect(recentRefusal()).not.toBeNull();
     clearRefusal();
     expect(recentRefusal()).toBeNull();
+  });
+});
+
+describe("an answer turned into something readable", () => {
+  it("keeps numbered steps as steps, which is what the guide is written in", () => {
+    const blocks = formatAnswer("To raise an invoice:\n1. Open Sales.\n2. Add the lines.\n3. Press Approve.");
+    expect(blocks.map((b) => b.type)).toEqual(["p", "ol"]);
+    expect(blocks[1].items).toHaveLength(3);
+    expect(blocks[1].items[1].map((s) => s.text).join("")).toBe("Add the lines.");
+  });
+
+  it("recognises a list even when nothing separates it from the sentence before", () => {
+    // A model writing steps often runs them together, and steps that lose their numbering are the
+    // one thing somebody following instructions cannot afford.
+    const blocks = formatAnswer("Do this:\n- first\n- second");
+    expect(blocks.map((b) => b.type)).toEqual(["p", "ul"]);
+    expect(blocks[1].items).toHaveLength(2);
+  });
+
+  it("marks bold runs as data, never as markup", () => {
+    const [p] = formatAnswer("Open **Sales**, then Orders.");
+    expect(p.spans).toEqual([
+      { text: "Open ", bold: false },
+      { text: "Sales", bold: true },
+      { text: ", then Orders.", bold: false },
+    ]);
+    // nothing that could be injected survives as anything but text
+    const [risky] = formatAnswer("<img src=x onerror=alert(1)>");
+    expect(risky.spans[0].text).toBe("<img src=x onerror=alert(1)>");
+    expect(risky.spans[0].bold).toBe(false);
+  });
+
+  it("joins wrapped lines into one paragraph and keeps blank lines apart", () => {
+    const blocks = formatAnswer("one line\nwrapped on.\n\nA second paragraph.");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].spans[0].text).toBe("one line wrapped on.");
+  });
+
+  it("gives back plain text for the clipboard", () => {
+    expect(plainAnswer("Do this:\n1. Open **Sales**.\n2. Approve.")).toBe("Do this:\n\n1. Open Sales.\n2. Approve.");
+    expect(plainAnswer("")).toBe("");
   });
 });

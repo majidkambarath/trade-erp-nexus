@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bot, ExternalLink, Send, ThumbsDown, ThumbsUp, LifeBuoy } from "lucide-react";
+import { Bot, Check, Copy, ExternalLink, RotateCcw, Send, ThumbsDown, ThumbsUp, LifeBuoy } from "lucide-react";
 import { Modal } from "../accounting/kit";
 import { assistant } from "../../lib/assistantApi";
 import { recentRefusal } from "../../lib/lastRefusal";
 import { canSend, openingTip, toExchange, whyNotSend, MAX_QUESTION } from "../../lib/assistant";
+import { formatAnswer, plainAnswer } from "../../lib/answerFormat";
+import { pageSession } from "../../lib/pageSession";
 import { findActive } from "../../config/navigation";
 
 // Zarvia AI. Drawn inside the existing Modal rather than as a new overlay of its own: that one
@@ -13,6 +15,39 @@ import { findActive } from "../../config/navigation";
 //
 // It reads no business data. Everything it says comes from the product's documentation and from the
 // table of refusal codes, so there is nothing here to scope to a branch or a party.
+
+// What the conversation remembers while the panel is shut and the person works somewhere else.
+// This tab's memory and nothing else: a question can quote a document number, which is why the
+// access token does not go in storage either.
+const session = pageSession("assistant");
+
+// An answer, drawn from the blocks the formatter found: paragraphs, numbered steps, bullets. The
+// product guide is written in steps, and a chat that flattens them is harder to follow than the
+// guide it came from. Built as elements, never as HTML.
+function Answer({ text }) {
+  const runs = (spans) => spans.map((s, i) => (s.bold ? <strong key={i}>{s.text}</strong> : <span key={i}>{s.text}</span>));
+  return (
+    <div className="space-y-2 text-sm">
+      {formatAnswer(text).map((b, i) =>
+        b.type === "p" ? (
+          <p key={i}>{runs(b.spans)}</p>
+        ) : b.type === "ol" ? (
+          <ol key={i} className="ms-4 list-decimal space-y-1">
+            {b.items.map((it, j) => (
+              <li key={j}>{runs(it)}</li>
+            ))}
+          </ol>
+        ) : (
+          <ul key={i} className="ms-4 list-disc space-y-1">
+            {b.items.map((it, j) => (
+              <li key={j}>{runs(it)}</li>
+            ))}
+          </ul>
+        )
+      )}
+    </div>
+  );
+}
 
 const SUGGESTIONS = [
   "How do I raise an invoice?",
@@ -27,13 +62,14 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   const screen = active?.tab?.to || location.pathname;
   const screenName = active?.tab?.label || "";
 
-  const [exchanges, setExchanges] = useState(initialExchanges || []);
+  const [exchanges, setExchanges] = useState(() => initialExchanges || session.get("exchanges", []));
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [tip, setTip] = useState("");
   const [failed, setFailed] = useState("");
   const endRef = useRef(null);
-  const conversationRef = useRef("");
+  const conversationRef = useRef(session.get("conversationId", ""));
+  const [copied, setCopied] = useState("");
   // Read once, on open: by the time an answer comes back the refusal may have been cleared, and the
   // suggestion should still say what they were stuck on.
   const refusalRef = useRef(recentRefusal());
@@ -54,6 +90,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   useEffect(() => {
     // jsdom has no scrollIntoView, and a panel that cannot scroll is not a reason to fail a test.
     endRef.current?.scrollIntoView?.({ block: "end" });
+    session.set("exchanges", exchanges);
   }, [exchanges, busy]);
 
   const send = useCallback(
@@ -65,7 +102,10 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
       setText("");
       try {
         const answer = await assistant.ask({ question, screen, screenName, conversationId: conversationRef.current });
-        if (answer?.conversationId) conversationRef.current = answer.conversationId;
+        if (answer?.conversationId) {
+          conversationRef.current = answer.conversationId;
+          session.set("conversationId", answer.conversationId);
+        }
         setExchanges((xs) => [...xs, toExchange(question, answer)]);
       } catch (err) {
         setFailed(err?.message || "I could not reach the assistant just now.");
@@ -98,6 +138,24 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
     } catch (err) {
       setFailed(err?.message || "I could not pass that on. Please contact the team directly.");
     }
+  };
+
+  const copy = async (x) => {
+    try {
+      await navigator.clipboard?.writeText(plainAnswer(x.answer));
+      setCopied(x.id);
+      setTimeout(() => setCopied(""), 1500);
+    } catch {
+      // No clipboard permission is not worth an error message; the text is on screen to select.
+    }
+  };
+
+  const startAgain = () => {
+    setExchanges([]);
+    setFailed("");
+    conversationRef.current = "";
+    session.remove("conversationId");
+    session.remove("exchanges");
   };
 
   const go = (path) => {
@@ -136,7 +194,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
           <div key={x.id} className="space-y-2">
             <p className="ms-auto max-w-[85%] rounded-lg bg-accent px-3 py-2 text-sm">{x.question}</p>
             <div className="max-w-[92%] space-y-2">
-              <p className="whitespace-pre-line text-sm">{x.answer}</p>
+              <Answer text={x.answer} />
               {Boolean(x.citations.length) && <p className="text-xs text-muted-foreground">From: {x.citations.join(" and ")}</p>}
               {Boolean(x.links.length) && (
                 <div className="flex flex-wrap gap-2">
@@ -154,6 +212,9 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
                 </button>
                 <button type="button" aria-label="This did not help" aria-pressed={x.helpful === false} onClick={() => rate(x.id, false)} className="rounded p-1.5 text-muted-foreground hover:bg-accent aria-pressed:text-destructive">
                   <ThumbsDown className="size-3.5" aria-hidden="true" />
+                </button>
+                <button type="button" aria-label="Copy this answer" onClick={() => copy(x)} className="rounded p-1.5 text-muted-foreground hover:bg-accent">
+                  {copied === x.id ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
                 </button>
                 {x.escalated ? (
                   <span className="text-xs text-muted-foreground">Passed to the Zarvia team.</span>
@@ -179,6 +240,15 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
         {Boolean(failed) && <p role="status" className="text-sm text-destructive">{failed}</p>}
         <div ref={endRef} />
       </div>
+
+      {Boolean(exchanges.length) && (
+        <div className="mt-3 flex justify-end">
+          <button type="button" onClick={startAgain} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent">
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+            Start again
+          </button>
+        </div>
+      )}
 
       <form
         className="mt-4 flex items-end gap-2"
