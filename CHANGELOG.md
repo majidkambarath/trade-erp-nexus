@@ -1,5 +1,60 @@
 # Changelog
 
+## 1.4.0.0 — 21 October 2026
+
+Three streams of work that had been sitting on branches since 17 October, plus the fixes from a security
+review of the live deployment. Backend 1.4.0.0.
+
+### Added
+
+- **Production (Inventory → Production).** For a manufacturer: a **Board** the owner opens on, showing what is
+  pending, in progress, late, due today or tomorrow and out with job workers; **Process orders** for a product
+  made in several steps, each done in house by a named person or sent out; **Productions**, which move materials
+  and expenses into a finished item's cost so its sale books the true cost of goods; **Job work**, which sends
+  parts to an outside worker and prints the delivery challan (three copies and the Rule 55 notice in India, two
+  elsewhere); saved **Routes** per product; and **Analysis** — lead time, on-time rate, yield, rejects and their
+  reasons, per step and per worker. Sold as an opt-in feature: off unless an organisation is given it.
+- **A CRM, as its own workspace.** A switcher in the header moves between the ERP and the CRM, each with its own
+  rail. Leads, contacts (the same people as the party masters, sharing one id), a pipeline whose deals **move
+  themselves** as quotations are sent and invoices approved, a follow-up worklist with a list and a drag-and-drop
+  board, a calendar, a communications log, seven named reports, and a setup screen where the stages *are* the
+  rules. Sold per organisation: not in the Standard or Trade-only plans.
+- **Tax wording follows the organisation's country.** An Indian organisation reads GST and GSTIN, not VAT and
+  TRN, down to the printed sheets; the UAE VAT return and e-invoicing are hidden outside the UAE.
+- **The list platform, on the master lists.** Sorting, selection with a bulk bar, a column chooser, a density
+  choice and saved views. All eight of the original hand-rolled screens — categories, items, stock detail, units,
+  customers, vendors, staff, inventory — now use it. Saved views are kept per person in the browser until the
+  server has a real store for them.
+- **A notification bell**, backed by the new feed, with a live count.
+- **A document screen's open record lives in the address**, so a quotation, delivery note, trade order, goods
+  receipt or production can be linked to and survives a reload.
+- **Quick-add pickers**: a master can be created from the picker that needed it, without leaving the form.
+- **Console:** modules are sold per organisation as one switch each, with the optional features nested inside the
+  module they belong to; choosing a country sets its time zone and usual currency.
+
+### Security
+
+Findings from a review of the live deployment on 21 October. See the backend changelog for the main one.
+
+- **The customer's document page is no longer indexable.** `noindex` was set on the share API but not on the
+  `/d/<token>` page the customer actually opens, so a link pasted anywhere a crawler reaches could be indexed
+  with the document behind it. (Needs the matching header rule in the Render dashboard, which ignores this
+  repository's `render.yaml`.)
+- **`xlsx` moved to the fixed SheetJS build (0.20.3).** The version on npm has a prototype-pollution advisory
+  with no fix published there, and it parses bank statements — the one file this app reads that arrives from
+  outside the company, in the tab that holds the session.
+- **`html2pdf.js` and `jspdf-autotable` removed.** Two critical advisories for packages that were imported
+  nowhere. The production audit went from three vulnerabilities to one.
+- **The access token must never reach browser storage**, now pinned by a test. It is held in memory on purpose,
+  and the developer console's token — which is the higher-privilege one — is the exception that is documented
+  rather than copied.
+
+### Internal
+
+- Node 22 pinned (`engines`, `.nvmrc`) and GitHub CI workflows added.
+- An experiment that routed the API through this site to hide the backend's address was **reverted**: a
+  static-site rewrite destroys the visitor's IP address, which every rate limit and audit row depends on.
+
 ## 1.3.0.1 — 13 October 2026
 
 A phone fix on top of 1.3.0.0. Backend unchanged (still 1.3.0.0).
