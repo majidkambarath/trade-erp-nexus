@@ -68,6 +68,9 @@ export function toExchange(question, answer) {
     outcome: answer?.outcome || "answered",
     canEscalate: Boolean(answer?.canEscalate),
     escalated: Boolean(answer?.escalated || answer?.supportRequestId),
+    // The stub provider is answering. Said plainly, because a canned answer that reads as real is
+    // worse than no assistant - the same honesty as "Recorded only" on a document that was not sent.
+    testMode: Boolean(answer?.testMode),
     helpful: null,
   };
 }

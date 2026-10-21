@@ -170,6 +170,11 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
           </div>
         ))}
 
+        {exchanges.some((x) => x.testMode) && (
+          <p role="status" className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            Test mode: these answers are canned examples, not real ones. Nobody has connected the AI service yet.
+          </p>
+        )}
         {busy && <p className="text-sm text-muted-foreground">Reading the documentation...</p>}
         {Boolean(failed) && <p role="status" className="text-sm text-destructive">{failed}</p>}
         <div ref={endRef} />

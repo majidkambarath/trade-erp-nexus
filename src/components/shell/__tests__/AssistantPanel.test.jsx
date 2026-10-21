@@ -122,3 +122,22 @@ describe("Zarvia AI panel", () => {
     expect(screen.getByLabelText("Your question")).toHaveValue("how do I raise an invoice");
   });
 });
+
+describe("test mode", () => {
+  it("says plainly when the answers are canned, because one that reads as real is worse than none", async () => {
+    ask.mockResolvedValue({ messageId: "m5", answer: "A canned example.", citations: [], links: [], testMode: true });
+    draw();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "anything" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    expect(await screen.findByText(/Test mode: these answers are canned examples/)).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort once the real service is answering", async () => {
+    ask.mockResolvedValue({ messageId: "m6", answer: "A real answer.", citations: [], links: [], testMode: false });
+    draw();
+    fireEvent.change(screen.getByLabelText("Your question"), { target: { value: "anything" } });
+    fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    await screen.findByText("A real answer.");
+    expect(screen.queryByText(/Test mode/)).not.toBeInTheDocument();
+  });
+});
