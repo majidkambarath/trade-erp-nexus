@@ -25,6 +25,8 @@ const feed = () => ({
     { id: "a3", type: "activity", day: "2026-10-20", title: "Met at the fair", sub: "Note", kind: "note", status: "DONE", overdue: false, movable: false },
     { id: "d1", type: "deal", day: "2026-10-20", title: "Rice contract", sub: "Al Noor", value: 90000, status: "OPEN", overdue: false, movable: false },
     { id: "l1", type: "lead", day: "2026-10-20", title: "Priya Nair", sub: "Nair Metal", status: "NEW", overdue: false, movable: false },
+    // a scheduled meeting: it has an hour, which a follow-up does not, and the server says it cannot be dragged
+    { id: "m1", type: "activity", day: "2026-10-20", title: "Price review", sub: "Meeting", kind: "meeting", status: "OPEN", overdue: false, movable: false, time: "14:30", online: true, hasLink: true, ownerName: "Asif" },
   ],
 });
 
@@ -128,5 +130,44 @@ describe("moving a follow-up", () => {
     expect(within(day).getByText("Ring about the rice")).toBeInTheDocument();
     expect(within(day).queryByLabelText("New day for Ring about the rice")).toBeNull();
     expect(screen.getByText(/moving things needs permission to edit/)).toBeInTheDocument();
+  });
+});
+
+// A meeting is the one entry with an hour. Everything else on the calendar is owed on a day, and the two must read
+// differently at a glance.
+describe("a meeting on the calendar", () => {
+  it("leads with its time, in the grid and in the day's list", async () => {
+    show();
+    await screen.findByRole("heading", { name: "October 2026" });
+    const times = await screen.findAllByText("14:30");
+    expect(times.length).toBeGreaterThan(0);
+    const day = await agenda();
+    expect(within(day).getByText("14:30")).toBeInTheDocument();
+    expect(within(day).getByText(/Online/)).toBeInTheDocument();
+  });
+
+  it("puts the day's meetings before the things only owed that day", async () => {
+    show();
+    const day = await agenda();
+    const titles = within(day).getAllByRole("link").map((a) => a.textContent);
+    expect(titles[0]).toBe("Price review", "the meeting has an hour, so it comes first");
+  });
+
+  it("offers no date field for a meeting: it is moved from its own dialog, where the hour can be set too", async () => {
+    show();
+    const day = await agenda();
+    expect(within(day).queryByLabelText(/New day for Price review/)).toBeNull();
+    // ...while an ordinary follow-up still has one
+    expect(within(day).getByLabelText(/New day for Ring about the rice/)).toBeInTheDocument();
+  });
+
+  it("says when an online meeting has no link yet", async () => {
+    m.calendar.mockResolvedValue({
+      ...feed(),
+      items: [{ id: "m2", type: "activity", day: "2026-10-20", title: "Catch-up call", sub: "Meeting", kind: "meeting", status: "OPEN", overdue: false, movable: false, time: "09:00", online: true, hasLink: false }],
+    });
+    show();
+    const day = await agenda();
+    expect(within(day).getByText(/no link yet/i)).toBeInTheDocument();
   });
 });

@@ -95,6 +95,8 @@ const DEEP = {
     { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
     { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
     // bringing a spreadsheet in: choosing the file, matching its columns (eleven fields, the tallest step), and the preview
+    // arranging a meeting: the tallest dialog in the CRM (a date, a time, a length, a place, people and a note)
+    { name: "lead-meeting", clicks: ["LD-2026-0001", "^Arrange a meeting$"], settle: 1100 },
     { name: "lead-import", clicks: ["^Import$"], settle: 900 },
     { name: "lead-import-match", clicks: ["^Import$"], upload: "leads", settle: 1300 },
     { name: "lead-import-preview", clicks: ["^Import$"], upload: "leads", after: ["^Check the file$"], settle: 1500 },
@@ -1159,6 +1161,13 @@ function stubFor(pathname) {
     if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
     if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    // A day's meetings, for the agenda and the clash warning in the schedule dialog.
+    if (p.endsWith("/crm/meetings/day")) {
+      return [
+        { _id: "mt1", subject: "Price review for 200 bags of flour", kind: "meeting", status: "OPEN", meeting: { time: "14:30", timeRange: "14:30 - 15:00", minutes: 30, where: "online", joinUrl: "https://meet.example.com/abc-defg-hij", cancelled: false, attendees: [{ kind: "contact", id: "ct1", name: "Rajesh Kumar", email: "rajesh@alnoor.test", rsvp: "accepted" }] } },
+        { _id: "mt2", subject: "Site visit", kind: "meeting", status: "OPEN", meeting: { time: "16:00", timeRange: "16:00 - 17:00", minutes: 60, where: "in_person", location: "Deira office", cancelled: false, attendees: [] } },
+      ];
+    }
     if (p.endsWith("/crm/calendar")) {
       const at = (id, type, day, title, over = {}) => ({ id, type, day, title, sub: "", status: "OPEN", overdue: false, movable: false, ...over });
       return {
@@ -1170,6 +1179,8 @@ function stubFor(pathname) {
           at("c4", "activity", "2026-10-19", "Met at the trade fair", { sub: "Note", kind: "note", status: "DONE" }),
           at("c5", "deal", "2026-10-19", "Monthly rice and sunflower oil", { sub: "Al Noor Foods Trading", value: 48500 }),
           at("c6", "activity", "2026-10-22", "Works visit with the production head", { sub: "Meeting", kind: "meeting", movable: true }),
+          // a scheduled meeting: it leads with its hour on the chip, which is the one entry that is not a whole day
+          at("c9", "activity", "2026-10-19", "Price review for 200 bags of flour", { sub: "Meeting", kind: "meeting", time: "14:30", online: true, hasLink: true, ownerName: "Asif Rahman" }),
           at("c7", "deal", "2026-10-30", "Dates and nuts", { sub: "Noor Supermarket", value: 28000 }),
           at("c8", "lead", "2026-10-07", "Hassan Al Noor", { sub: "Al Noor Foods", status: "NEW" }),
         ],

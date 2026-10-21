@@ -19,6 +19,7 @@ import { pageSession } from "../../lib/pageSession";
 import { formatCurrencyAED, formatDate, todayInput } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
+import * as meetingRules from "../../lib/meetings";
 import { DuePill, KindIcon } from "./crmShared.jsx";
 
 const session = pageSession("crm-calendar");
@@ -68,6 +69,8 @@ function Chip({ item, canMove, onPick }) {
       {...(draggable ? listeners : {})}
     >
       <Icon item={item} />
+      {/* A meeting has an hour and everything else does not: the time leads, so a day reads as a timetable. */}
+      {item.time && <span className="shrink-0 tabular-nums opacity-80">{item.time}</span>}
       <span className="truncate">{item.title}</span>
     </button>
   );
@@ -141,13 +144,17 @@ function Agenda({ day, items, canMove, today, onReschedule }) {
                     {item.title}
                   </Link>
                   <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    {item.time ? <span className="font-medium text-foreground tabular-nums">{item.time}</span> : null}
                     <span>{item.type === "deal" ? "Expected to close" : item.type === "lead" ? "Enquiry came in" : item.sub}</span>
+                    {item.time && item.online ? <span>· {item.hasLink ? "Online" : "Online, no link yet"}</span> : null}
                     {item.type === "deal" && item.value ? <span>· {formatCurrencyAED(item.value)}</span> : null}
                     {item.sub && item.type !== "activity" ? <span>· {item.sub}</span> : null}
                     {item.ownerName ? <span>· {item.ownerName}</span> : null}
                     {item.type === "activity" && item.status === "OPEN" ? <DuePill state={item.overdue ? "overdue" : item.day === today ? "today" : "soon"} /> : null}
                     {item.status === "DONE" ? <span>· Done</span> : null}
                   </p>
+                  {/* A follow-up is moved to another DAY here. A meeting has an hour as well, so it is moved from the
+                      deal or the lead it belongs to, where the whole dialog is - never by dropping it on a date. */}
                   {canMove && item.movable && (
                     <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="shrink-0">Move to</span>
@@ -186,7 +193,8 @@ export default function CrmCalendar() {
     () => (data?.items || []).map((i) => (pending[i.id] ? { ...i, ...pending[i.id] } : i)).filter((i) => layers[i.type]),
     [data, pending, layers]
   );
-  const byDay = useMemo(() => rules.itemsByDay(items), [items]);
+  // Within a day: meetings first in time order, then everything that is only owed on the day.
+  const byDay = useMemo(() => rules.itemsByDay(items.slice().sort(meetingRules.byTime)), [items]);
   const weeks = useMemo(() => rules.monthWeeks(month), [month]);
 
   const keep = (setter, key) => (value) => {

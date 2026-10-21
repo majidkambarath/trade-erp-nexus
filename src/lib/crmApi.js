@@ -83,6 +83,15 @@ export const crm = {
   reopenDeal: (id) => announced(api.post(`/crm/opportunities/${id}/reopen`, {})),
   assignDeal: (id, ownerId) => announced(api.post(`/crm/opportunities/${id}/assign`, { ownerId })),
 
+  // meetings: a follow-up with a time, attendees and an invitation. Each one changes what somebody is owed, so they
+  // all announce it (the follow-up badge counts a meeting like any other open thing).
+  meetingsOnDay: (params) => api.get("/crm/meetings/day", params),
+  scheduleMeeting: (body) => announced(api.post("/crm/meetings", body)),
+  rescheduleMeeting: (id, body) => announced(api.put(`/crm/meetings/${id}`, body)),
+  cancelMeeting: (id, body) => announced(api.post(`/crm/meetings/${id}/cancel`, body || {})),
+  inviteToMeeting: (id, body) => api.post(`/crm/meetings/${id}/invite`, body || {}),
+  recordRsvp: (id, body) => api.post(`/crm/meetings/${id}/rsvp`, body),
+
   // follow-ups
   followUps: (params) => api.get("/crm/follow-ups", params),
   followUpCount: () => api.get("/crm/follow-ups/count"),

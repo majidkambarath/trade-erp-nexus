@@ -10,6 +10,7 @@ import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/forma
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import { StagePill, Tag, ActivityTimeline, CrmDialog, CrmFiles, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import MeetingDialog from "./MeetingDialog.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const Fact = ({ label, children }) => (
@@ -90,6 +91,13 @@ export default function DealView({ id, onBack, onChanged }) {
                 Log a follow-up
               </button>
             </Can>
+            {open && (
+              <Can permission="crm.create">
+                <button type="button" onClick={() => setDialog("meet")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Arrange a meeting
+                </button>
+              </Can>
+            )}
             {open && (
               <Can permission="crm.assign">
                 <button type="button" onClick={() => setDialog("assign")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
@@ -179,6 +187,9 @@ export default function DealView({ id, onBack, onChanged }) {
       {dialog === "move" && <MoveStageDialog deal={deal} stages={deal.pipeline || []} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && (
         <LogActivityDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
+      )}
+      {dialog === "meet" && (
+        <MeetingDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
       )}
       {dialog === "lose" && <LoseDialog title={`${deal.title} was lost`} onLose={(body) => crm.loseDeal(deal._id, body)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "assign" && (
