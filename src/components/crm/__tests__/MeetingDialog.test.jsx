@@ -11,10 +11,11 @@ const m = vi.hoisted(() => ({
   contacts: vi.fn(),
   owners: vi.fn(),
   readiness: vi.fn(),
+  googleStatus: vi.fn(),
 }));
 
 vi.mock("../../../lib/crmApi", () => ({
-  crm: { scheduleMeeting: m.scheduleMeeting, rescheduleMeeting: m.rescheduleMeeting, meetingsOnDay: m.meetingsOnDay, contacts: m.contacts, owners: m.owners },
+  crm: { scheduleMeeting: m.scheduleMeeting, rescheduleMeeting: m.rescheduleMeeting, meetingsOnDay: m.meetingsOnDay, contacts: m.contacts, owners: m.owners, googleStatus: m.googleStatus },
   CRM_WORK_CHANGED: "crm-work-changed",
   announceCrmWorkChanged: () => {},
 }));
@@ -55,6 +56,7 @@ beforeEach(() => {
   m.owners.mockResolvedValue([{ id: "u1", name: "Maya Khan" }]);
   m.meetingsOnDay.mockResolvedValue([]);
   m.readiness.mockResolvedValue({ ready: true });
+  m.googleStatus.mockResolvedValue({ available: true, connected: false });
   m.scheduleMeeting.mockResolvedValue(booked());
 });
 
@@ -217,5 +219,58 @@ describe("moving a meeting", () => {
     await screen.findByRole("heading", { name: "Move the meeting" });
     await waitFor(() => expect(m.meetingsOnDay).toHaveBeenCalled());
     expect(screen.queryByText(/overlaps/i)).toBeNull();
+  });
+});
+
+// A Meet link made by Google is offered ONLY to somebody who has connected their own account, so the form never
+// promises a link it cannot make.
+describe("a Google Meet link", () => {
+  it("is not offered to somebody who has not connected Google", async () => {
+    open();
+    await screen.findByRole("dialog");
+    await waitFor(() => expect(m.googleStatus).toHaveBeenCalled());
+    expect(screen.queryByLabelText(/Make a Google Meet link/i)).toBeNull();
+    expect(screen.getByLabelText(/Joining link/)).toBeInTheDocument();
+  });
+
+  it("is offered once connected, and asked for only when ticked", async () => {
+    m.googleStatus.mockResolvedValue({ available: true, connected: true, email: "asif@gmail.test" });
+    open();
+    const tick = await screen.findByLabelText(/Make a Google Meet link/i);
+    expect(tick).not.toBeChecked();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Arrange it" }));
+    await waitFor(() => expect(m.scheduleMeeting).toHaveBeenCalled());
+    expect(m.scheduleMeeting.mock.calls[0][0].googleMeet).toBe(false);
+  });
+
+  it("asks Google when ticked, and says so when the link was made", async () => {
+    m.googleStatus.mockResolvedValue({ available: true, connected: true });
+    m.scheduleMeeting.mockResolvedValue(booked({ google: { ok: true, meetLink: "https://meet.google.com/abc", error: null } }));
+    const { notify } = open();
+    fireEvent.click(await screen.findByLabelText(/Make a Google Meet link/i));
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Arrange it" }));
+    await waitFor(() => expect(m.scheduleMeeting.mock.calls[0][0].googleMeet).toBe(true));
+    // the link was made, so the toast stays the plain happy one
+    await waitFor(() => expect(notify).toHaveBeenCalledWith("Meeting arranged, and everybody was told", undefined));
+  });
+
+  it("says the meeting is still arranged when Google refuses the link", async () => {
+    m.googleStatus.mockResolvedValue({ available: true, connected: true });
+    m.scheduleMeeting.mockResolvedValue(booked({ google: { ok: false, error: "The Google connection has expired." } }));
+    const { notify, onSaved } = open();
+    fireEvent.click(await screen.findByLabelText(/Make a Google Meet link/i));
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: "Arrange it" }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(expect.stringMatching(/Meeting arranged.*Google could not make the link|The Google connection has expired/), "error"));
+    expect(onSaved).toHaveBeenCalled(); // the meeting exists, so the screen still refreshes
+  });
+
+  it("tells the person Google will fill the link, rather than leaving the field unexplained", async () => {
+    m.googleStatus.mockResolvedValue({ available: true, connected: true });
+    open();
+    fireEvent.click(await screen.findByLabelText(/Make a Google Meet link/i));
+    expect(screen.getByText(/Google will fill it/i)).toBeInTheDocument();
   });
 });

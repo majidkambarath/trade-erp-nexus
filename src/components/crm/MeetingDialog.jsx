@@ -54,11 +54,18 @@ export default function MeetingDialog({ regarding, activity = null, today = "", 
   // Whether an invitation can actually reach anybody. It starts as "yes" so a slow or refused answer never warns
   // wrongly; only a definite "not ready" from the server says so. Read once, when the dialog opens.
   const [emailReady, setEmailReady] = useState(true);
+  // Whether THIS person has connected their own Google account. Only then is a Meet link offered, so the form never
+  // promises one it cannot make. Unknown means not offered, which is the safe way round.
+  const [google, setGoogle] = useState({ available: false, connected: false });
   useEffect(() => {
     let alive = true;
     sendSettings
       .readiness()
       .then((r) => alive && setEmailReady(r?.ready !== false))
+      .catch(() => {});
+    crm
+      .googleStatus()
+      .then((g) => alive && setGoogle(g || { available: false, connected: false }))
       .catch(() => {});
     return () => {
       alive = false;
@@ -94,7 +101,9 @@ export default function MeetingDialog({ regarding, activity = null, today = "", 
       // A booking that went in but whose invitation did not is still a booking: say which happened, do not pretend.
       const invite = out?.invite;
       const told = invite?.sent ? ", and everybody was told" : invite?.error ? `, but the invitation did not go out: ${invite.error}` : "";
-      notify?.(`${moving ? "Meeting moved" : "Meeting arranged"}${told}`, invite && !invite.sent && form.notify !== false ? "error" : undefined);
+      const link = rules.googleResult(out?.google);
+      const bad = (invite && !invite.sent && form.notify !== false) || link?.tone === "danger";
+      notify?.(`${moving ? "Meeting moved" : "Meeting arranged"}${told}${link && link.tone !== "success" ? `. ${link.text}` : ""}`, bad ? "error" : undefined);
       onSaved?.(out);
     } catch (error) {
       setProblem(error.message);
@@ -165,14 +174,29 @@ export default function MeetingDialog({ regarding, activity = null, today = "", 
             <TextInput value={form.location} onChange={set("location")} placeholder="Our Deira office, meeting room 2" />
           </Field>
         ) : (
-          <Field
-            label="Joining link"
-            error={errors.joinUrl}
-            className="sm:col-span-2"
-            hint="Your own Meet, Zoom or Teams link. It goes in the invitation, and can be added later."
-          >
-            <TextInput value={form.joinUrl} onChange={set("joinUrl")} placeholder="https://meet.google.com/abc-defg-hij" inputMode="url" />
-          </Field>
+          <>
+            {google.connected && !moving && (
+              <label className="sm:col-span-2 flex min-h-11 items-start gap-2 text-sm lg:min-h-0">
+                <input type="checkbox" className="mt-1 h-4 w-4" checked={form.googleMeet === true} onChange={(e) => setForm((f) => ({ ...f, googleMeet: e.target.checked }))} />
+                <span>
+                  Make a Google Meet link for me
+                  <span className="block text-xs text-muted-foreground">It also puts the meeting in your own Google Calendar.</span>
+                </span>
+              </label>
+            )}
+            <Field
+              label="Joining link"
+              error={errors.joinUrl}
+              className="sm:col-span-2"
+              hint={
+                form.googleMeet
+                  ? "Leave this empty and Google will fill it. Anything typed here is used instead."
+                  : "Your own Meet, Zoom or Teams link. It goes in the invitation, and can be added later."
+              }
+            >
+              <TextInput value={form.joinUrl} onChange={set("joinUrl")} placeholder="https://meet.google.com/abc-defg-hij" inputMode="url" />
+            </Field>
+          </>
         )}
 
         <Field label="Who is coming" required error={errors.attendees} className="sm:col-span-2">

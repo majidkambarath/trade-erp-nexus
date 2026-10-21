@@ -10,6 +10,7 @@ import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { hasErpModules } from "../../lib/organisation";
+import GoogleConnect from "../crm/GoogleConnect.jsx";
 import { orgCurrency, orgTimezone } from "../../utils/orgLocale";
 import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
@@ -87,6 +88,9 @@ export default function SettingsModule() {
   // The letterhead is the company's, not the person's: anyone reads it, only someone who may change settings edits it.
   const canEdit = can("settings.manage");
   const trade = hasErpModules(status);
+  // The Google connection is only meaningful where the CRM was bought and this person can open it; judged strictly
+  // (grants known AND holding crm.view), the same way the CRM's other cross-module touches are.
+  const crmHeld = Array.isArray(status?.me?.grants) && can("crm.view") && status?.modules?.crm?.on !== false;
   const tabs = TABS.filter((t) => trade || !t.trade);
   const active = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "company";
 
@@ -303,6 +307,9 @@ export default function SettingsModule() {
           <TabsContent value="security" className="space-y-5">
             <PasswordPanel notify={notify} />
             <TwoFactorSection notify={notify} />
+            {/* Connecting your own Google account belongs beside your password and your two-factor: it is yours, not
+                the organisation's. It draws nothing at all where the CRM was not bought or Google is not set up. */}
+            {crmHeld && <GoogleConnect notify={notify} />}
           </TabsContent>
 
           {canEdit && (active === "company" || active === "bank") && (

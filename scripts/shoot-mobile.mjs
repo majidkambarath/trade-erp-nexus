@@ -1162,6 +1162,8 @@ function stubFor(pathname) {
     if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
     // A day's meetings, for the agenda and the clash warning in the schedule dialog.
+    // A person's own Google connection: connected, so the panel draws its fullest state.
+    if (p.endsWith("/crm/google/status")) return { available: true, connected: true, label: "Connected as asif@gmail.test", detail: "", email: "asif@gmail.test", connectedAt: "2026-10-20T09:00:00.000Z" };
     if (p.endsWith("/crm/meetings/day")) {
       return [
         { _id: "mt1", subject: "Price review for 200 bags of flour", kind: "meeting", status: "OPEN", meeting: { time: "14:30", timeRange: "14:30 - 15:00", minutes: 30, where: "online", joinUrl: "https://meet.example.com/abc-defg-hij", cancelled: false, attendees: [{ kind: "contact", id: "ct1", name: "Rajesh Kumar", email: "rajesh@alnoor.test", rsvp: "accepted" }] } },

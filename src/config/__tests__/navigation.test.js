@@ -25,7 +25,9 @@ const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8")
 // Login, the 404 catch-all, the page a customer opens from an emailed link (/d/:token, outside the
 // app shell and the session guard) and the developer console (/platform, its own sign-in and frame) have
 // no navigation. Neither have the two pages reached while signed out: "forgot my password" and the emailed reset link.
-const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/forgot-password", "/reset-password"]);
+// ...and the address Google returns the browser to after a person connects their calendar, which is a machine
+// redirect rather than a page anybody opens.
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/forgot-password", "/reset-password", "/crm/google/callback"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));

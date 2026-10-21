@@ -57,6 +57,9 @@ export const emptyMeeting = (today = "", now = new Date()) => ({
   note: "",
   attendees: [],
   notify: true,
+  // Ask Google for a Meet link. Only offered where the person has connected their own Google account; off for
+  // anybody who has not, so the form never promises a link that cannot be made.
+  googleMeet: false,
 });
 
 /** A meeting read back from the server, filled into the form for a reschedule. */
@@ -119,6 +122,7 @@ export const meetingBody = (form = {}, regarding) => ({
   note: text(form.note, 500),
   attendees: (form.attendees || []).map((a) => ({ kind: a.kind, id: a.id })),
   notify: form.notify !== false,
+  googleMeet: form.googleMeet === true,
   ownerId: form.ownerId || undefined,
 });
 
@@ -174,6 +178,14 @@ const toMinutes = (hhmm) => {
   const m = TIME_RE.exec(text(hhmm, 5));
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
+
+/** What the screen says after Google was asked for a link, which must never claim one that was not made. */
+export function googleResult(google) {
+  if (!google) return null;
+  if (google.ok && google.meetLink) return { tone: "success", text: "A Google Meet link was created." };
+  if (google.ok) return { tone: "warning", text: google.error || "Google made the event but no Meet link." };
+  return { tone: "danger", text: google.error || "Google could not make the link. The meeting is still arranged." };
+}
 
 /** "14:30" plus 45 minutes is "15:15"; past midnight it stops at the end of the day, because a meeting does not wrap. */
 export function endTimeOf(start, minutes) {

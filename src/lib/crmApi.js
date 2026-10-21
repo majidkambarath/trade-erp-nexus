@@ -83,6 +83,12 @@ export const crm = {
   reopenDeal: (id) => announced(api.post(`/crm/opportunities/${id}/reopen`, {})),
   assignDeal: (id, ownerId) => announced(api.post(`/crm/opportunities/${id}/assign`, { ownerId })),
 
+  // a person's own Google account, for a real Meet link and the event in their own Google Calendar
+  googleStatus: () => api.get("/crm/google/status"),
+  googleStart: () => api.post("/crm/google/start", {}),
+  googleConnect: (body) => api.post("/crm/google/connect", body),
+  googleDisconnect: () => api.post("/crm/google/disconnect", {}),
+
   // meetings: a follow-up with a time, attendees and an invitation. Each one changes what somebody is owed, so they
   // all announce it (the follow-up badge counts a meeting like any other open thing).
   meetingsOnDay: (params) => api.get("/crm/meetings/day", params),
