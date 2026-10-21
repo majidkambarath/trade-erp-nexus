@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Download, LogOut, Moon, Search, Settings } from "lucide-react";
+import { Bot, Download, LogOut, Moon, Search, Settings } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { initials } from "./useSession";
 import BrandMark from "./BrandMark";
@@ -92,17 +92,20 @@ function UserMenu({ profile, onLogout }) {
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null, status }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch, onOpenAssistant, modules = [], activeModule = null, status }) {
   // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
     <header className="pt-safe shrink-0 border-b border-border bg-card">
-      <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
+      {/* Every control in this row is shrink-0, so at 390px the row used to run past the right edge and the
+          bell and the account menu were clipped out of reach (the shell is overflow-hidden - nothing can be
+          scrolled to). Below sm the identity gives way instead: the mark alone, and icon-only switchers. */}
+      <div className="flex h-14 min-w-0 items-center gap-2 px-4 lg:gap-3 lg:px-6">
         {/* The rail carries the mark on a pointer; on touch the rail is gone, so it sits here.
             Navigation itself is the bottom bar - there is deliberately no hamburger. */}
         <BrandMark className="h-8 w-8 lg:hidden" iconClassName="h-4 w-4" />
-        {/* The product leads; the client whose data this is follows it, quieter. */}
-        <span className="shrink-0 text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+        {/* The product leads; the client whose data this is follows it, quieter. On a phone the mark says it. */}
+        <span className="hidden shrink-0 text-sm font-extrabold tracking-tight sm:inline">{PRODUCT_NAME}</span>
         {appName && (
           <>
             <span aria-hidden="true" className="hidden h-4 w-px bg-border sm:block" />
@@ -128,6 +131,18 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, modul
           <span className="sr-only lg:hidden">Search pages</span>
         </button>
 
+        {/* Zarvia AI. Hidden where the organisation does not have it, like any other feature. */}
+        {Boolean(onOpenAssistant) && (
+          <button
+            type="button"
+            onClick={onOpenAssistant}
+            title="Ask Zarvia AI"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Bot className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Ask Zarvia AI</span>
+          </button>
+        )}
         <NotificationBell />
 
         <UserMenu profile={profile} onLogout={onLogout} />

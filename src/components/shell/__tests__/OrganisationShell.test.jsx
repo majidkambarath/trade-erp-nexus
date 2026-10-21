@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "../../theme-provider";
 import Layout from "../../Layout";
 import { BLOCKED_EVENT, BRANCH_RESET_EVENT } from "../../../lib/organisation";
@@ -481,5 +481,80 @@ describe("the switch between the ERP and the CRM", () => {
     status = { ...base(), modules: CRM_BOUGHT, me: person("Nobody", "lead", []) };
     renderAt("/dashboard");
     expect(await screen.findByText("You do not have access to this page")).toBeInTheDocument();
+  });
+});
+
+// ---- an organisation that bought the CRM and nothing else ---------------------------------------------------------------
+//
+// The `crm` plan sells the CRM, its own people and its own settings. Its owner still holds reports.view (every organisation
+// does: the dashboard is on the always-on floor), so nothing is "not allowed" - and without a rule of its own /dashboard
+// would open an ERP dashboard of zeros and offer a switch into an ERP that is not there.
+describe("an organisation that bought the CRM alone", () => {
+  const off = { on: false, full: false, actions: [] };
+  const on = (actions) => ({ on: true, full: true, actions });
+  const SOLO = {
+    crm: on(["view", "create", "edit", "delete", "assign", "manage"]),
+    users: on(["view", "manage"]),
+    settings: on(["view", "manage"]),
+    reports: { on: true, full: false, actions: ["view"] },
+    sales: off, purchase: off, inventory: off, finance: off, banking: off, accounts: off, staff: off,
+  };
+  const OWNER_KEYS = ["crm.view", "crm.create", "crm.edit", "crm.delete", "crm.assign", "crm.manage", "users.view", "users.manage", "settings.view", "settings.manage", "reports.view", "lookups.view"];
+  const owner = () => ({ name: "Owner", role: { key: "super_admin", name: "Owner", rank: 100 }, grants: OWNER_KEYS });
+  const WhereAmI = () => <p data-testid="where">{useLocation().pathname}</p>;
+  const renderWhere = (url) =>
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={[url]}>
+          <Routes>
+            <Route path="/" element={<p>login page</p>} />
+            <Route element={<Layout />}>
+              <Route path="*" element={<WhereAmI />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+  const switcher = () => screen.queryByRole("button", { name: /Workspace/ });
+
+  it("lands its owner on the CRM dashboard, although they hold reports.view and could open the ERP one", async () => {
+    status = { ...base(), modules: SOLO, me: owner() };
+    renderWhere("/dashboard"); // where signing in goes
+    expect((await screen.findAllByRole("link", { name: /Leads/ })).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/crm/dashboard"));
+    expect(switcher()).toBeNull(); // one half only: nothing to switch to
+    expect(screen.queryAllByRole("link", { name: /Sales/ })).toEqual([]);
+  });
+
+  it("gives its owner the Team page from the CRM's own rail, so they can add the colleagues who will use it", async () => {
+    status = { ...base(), modules: SOLO, me: owner() };
+    renderWhere("/crm/team");
+    expect(await screen.findByRole("link", { name: "Team" })).toBeInTheDocument(); // a tab under Setup
+    expect(screen.getByTestId("where")).toHaveTextContent("/crm/team");
+    expect(screen.queryByText("You do not have access to this page")).toBeNull();
+    expect(screen.queryAllByRole("link", { name: /People/ })).toEqual([]); // no ERP People module to find it in
+  });
+
+  it("keeps the owner on the CRM rail on their Settings page", async () => {
+    status = { ...base(), modules: SOLO, me: owner() };
+    renderWhere("/settings");
+    expect((await screen.findAllByRole("link", { name: /Leads/ })).length).toBeGreaterThan(0);
+    expect(switcher()).toBeNull();
+  });
+
+  it("does not touch an organisation that has the ERP: its owner still lands on the dashboard", async () => {
+    // Premium: every module sold, the CRM and the trade. /dashboard is the ERP's front door and stays so.
+    const FULL = { ...SOLO, sales: on(["view"]), purchase: on(["view"]), inventory: on(["view"]), finance: on(["view"]) };
+    status = { ...base(), modules: FULL, me: { ...owner(), grants: [...OWNER_KEYS, "sales.view", "inventory.view"] } };
+    renderWhere("/dashboard");
+    expect(await screen.findByRole("button", { name: /Workspace: ERP/ })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/dashboard");
+  });
+
+  it("does not redirect while the status is still loading", async () => {
+    status = { ...base(), modules: SOLO, me: owner() };
+    renderWhere("/dashboard");
+    expect(screen.getByTestId("where")).toHaveTextContent("/dashboard"); // the first paint: nothing is known yet
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/crm/dashboard"));
   });
 });

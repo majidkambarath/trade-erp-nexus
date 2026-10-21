@@ -31,6 +31,8 @@ const m = vi.hoisted(() => ({
   assignDeal: vi.fn(),
   logActivity: vi.fn(),
   timeline: vi.fn(),
+  customers: vi.fn(),
+  createDeal: vi.fn(),
   grants: { allow: () => true },
 }));
 
@@ -40,8 +42,10 @@ vi.mock("../../../lib/crmApi", () => ({
     followUps: m.followUps, completeActivity: m.completeActivity, createLead: m.createLead, duplicates: m.duplicates,
     moveDeal: m.moveDeal, owners: m.owners, stages: m.stages, saveStages: m.saveStages, settings: m.settings,
     saveSettings: m.saveSettings, analysis: m.analysis, deals: m.deals, deal: m.deal, updateDeal: m.updateDeal, reopenDeal: m.reopenDeal,
-    loseDeal: m.loseDeal, assignDeal: m.assignDeal, logActivity: m.logActivity, timeline: m.timeline,
+    loseDeal: m.loseDeal, assignDeal: m.assignDeal, logActivity: m.logActivity, timeline: m.timeline, customers: m.customers, createDeal: m.createDeal,
   },
+  // The files panel on a lead and a deal asks for its source once; a screen test has none to show.
+  filesFor: () => ({ list: () => Promise.resolve([]), upload: vi.fn(), remove: vi.fn(), download: vi.fn() }),
   CRM_WORK_CHANGED: "crm-work-changed",
   announceCrmWorkChanged: () => {},
 }));
@@ -56,6 +60,7 @@ vi.mock("../../shell/OrganisationContext.jsx", () => ({
 
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: vi.fn(() => Promise.resolve([])) } }));
 
+import { api as accountingApi } from "../../../lib/accountingApi";
 import CrmPipeline from "../CrmPipeline.jsx";
 import LeadsPage from "../LeadsPage.jsx";
 import FollowUpsPage from "../FollowUpsPage.jsx";
@@ -166,6 +171,27 @@ describe("the pipeline", () => {
     expect(screen.queryByRole("button", { name: "New deal" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Move" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Lost" })).toBeNull();
+  });
+
+  it("opens a deal on a customer chosen from the CRM's own narrow list, which needs no Sales key", async () => {
+    // Before this the form read the Sales customer master, so an organisation that bought the CRM alone could not open a deal.
+    m.customers.mockResolvedValue([
+      { id: "c1", name: "Al Noor Foods", code: "CUST-0001", active: true },
+      { id: "c2", name: "Brisk Traders", code: "CUST-0002", active: true },
+    ]);
+    render_(<CrmPipeline />);
+    fireEvent.click(await screen.findByRole("button", { name: "New deal" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(m.customers).toHaveBeenCalledWith({ limit: 500 }));
+    fireEvent.keyDown(within(dialog).getByRole("combobox"), { key: "ArrowDown" });
+    // the code sits beside the name, to tell two customers of one name apart
+    fireEvent.click(await screen.findByRole("option", { name: /Brisk Traders.*CUST-0002/ }));
+    fireEvent.change(within(dialog).getByLabelText(/What the deal is for/), { target: { value: "Pallets for Q4" } });
+    m.createDeal.mockResolvedValue(deal({ opportunityNo: "OPP-2026-0002" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Open the deal" }));
+    // the id that leaves is the one the CRM's own list handed over, and the Sales customer master was never asked
+    await waitFor(() => expect(m.createDeal).toHaveBeenCalledWith(expect.objectContaining({ customerId: "c2", title: "Pallets for Q4" })));
+    expect(accountingApi.get).not.toHaveBeenCalledWith("/customers/customers", expect.anything());
   });
 });
 
@@ -279,6 +305,28 @@ describe("leads", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /save the enquiry/i }));
     expect(await within(dialog).findByText(/a phone number or an email address/i)).toBeInTheDocument();
     expect(m.createLead).not.toHaveBeenCalled();
+  });
+
+  describe("qualifying, in the organisation's own terms", () => {
+    const LEAD = { _id: "l1", leadNo: "LD-2026-0001", name: "Hassan Al Noor", company: "Al Noor Foods", phone: "0501234567", source: "referral", status: "NEW", band: "warm", score: 47, ownerName: "Asif", expectedValue: 45000, interest: "Rice", actions: { qualify: true, edit: true, lose: true, assign: true, logActivity: true }, timeline: [], opportunity: null };
+    const openQualify = async () => {
+      m.lead.mockResolvedValue(LEAD);
+      render(<MemoryRouter initialEntries={["/crm/leads?lead=l1"]}><LeadsPage /></MemoryRouter>);
+      fireEvent.click(await screen.findByRole("button", { name: "Qualify" }));
+      return screen.findByRole("dialog");
+    };
+
+    it("says a customer gets an account in the books where there are books", async () => {
+      const dialog = await openQualify();
+      expect(within(dialog).getByText(/with its own account in the books/)).toBeInTheDocument();
+    });
+
+    it("says only that the company is added to the customers where the CRM was bought alone", async () => {
+      m.grants.allow = (key) => key.startsWith("crm.") || key === "lookups.view"; // no sales.view, no accounts.view
+      const dialog = await openQualify();
+      expect(within(dialog).getByText(/adds the company to your customers and opens a deal/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/books/)).toBeNull();
+    });
   });
 
   it("hides Qualify and New enquiry from a role that may only look", async () => {

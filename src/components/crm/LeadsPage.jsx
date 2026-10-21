@@ -4,8 +4,8 @@
 // and the screen says so after saving instead of leaving the person to wonder.
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
+import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download, Upload } from "lucide-react";
+import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
 import { PillTabs, Note } from "../salesDocs/parts.jsx";
@@ -17,8 +17,11 @@ import { formatCurrencyAED, formatDate, formatDateTime, downloadCSV } from "../.
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
 import {
-  StatusPill, BandPill, ActivityTimeline, CrmDialog, LogActivityDialog, LoseDialog, AssignDialog, QualifyDialog, OwnerSelect, useOwners,
+  StatusPill, BandPill, ActivityTimeline, CrmDialog, CrmFiles, LogActivityDialog, LoseDialog, AssignDialog, QualifyDialog, OwnerSelect, useOwners,
 } from "./crmShared.jsx";
+import ImportDialog from "./ImportDialog.jsx";
+import MeetingDialog from "./MeetingDialog.jsx";
+import EmailDialog from "./EmailDialog.jsx";
 
 const session = pageSession("crm-leads");
 
@@ -135,7 +138,7 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
     onChanged?.();
   };
 
-  if (loading && !lead) return <Spinner label="Reading the enquiry" />;
+  if (loading && !lead) return <PageSpinner label="Reading the enquiry" />;
   if (error) return <ErrorNote error={error} onRetry={again} />;
   if (!lead) return null;
 
@@ -161,6 +164,20 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
               <Can permission="crm.create">
                 <button type="button" onClick={() => setDialog("log")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
                   Log a follow-up
+                </button>
+              </Can>
+            )}
+            {open && (
+              <Can permission="crm.create">
+                <button type="button" onClick={() => setDialog("meet")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Arrange a meeting
+                </button>
+              </Can>
+            )}
+            {open && lead.email && (
+              <Can permission="crm.create">
+                <button type="button" onClick={() => setDialog("email")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Write to them
                 </button>
               </Can>
             )}
@@ -222,6 +239,10 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
         </Panel>
       </div>
 
+      <Panel title="Files" description="The specification, the photo, the signed quotation: kept with the enquiry, not in somebody's email" className="mt-4">
+        <CrmFiles kind="lead" id={lead._id} readOnly={!can("crm.edit")} />
+      </Panel>
+
       {lead.opportunity && (
         <Note tone="teal" className="mt-4">
           It became {lead.opportunity.opportunityNo} ({lead.opportunity.title}), now on {lead.opportunity.stageName}.
@@ -230,6 +251,17 @@ function LeadView({ id, onBack, onChanged, notify, owners }) {
 
       {dialog === "edit" && <LeadForm lead={lead} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && <LogActivityDialog regarding={{ kind: "lead", id: lead._id }} defaultOwnerId={lead.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
+      {dialog === "email" && (
+        <EmailDialog
+          regarding={{ kind: "lead", id: lead._id }}
+          to={lead.email ? [lead.email] : []}
+          subject={lead.interest ? `About ${lead.interest}`.slice(0, 120) : ""}
+          notify={notify}
+          onClose={() => setDialog(null)}
+          onSent={() => refresh()}
+        />
+      )}
+      {dialog === "meet" && <MeetingDialog regarding={{ kind: "lead", id: lead._id }} defaultOwnerId={lead.ownerId} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "lose" && <LoseDialog title={`${lead.name} came to nothing`} onLose={(body) => crm.loseLead(lead._id, body)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "assign" && <AssignDialog title={`Hand over ${lead.name}`} owners={owners} current={lead.ownerId} onAssign={(ownerId) => crm.assignLead(lead._id, ownerId)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "qualify" && <QualifyDialog lead={lead} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
@@ -344,6 +376,11 @@ export default function LeadsPage() {
               </button>
             )}
             <Can permission="crm.create">
+              <button type="button" onClick={() => setDialog("import")} className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                <Upload className="h-4 w-4" aria-hidden="true" /> Import
+              </button>
+            </Can>
+            <Can permission="crm.create">
               <button type="button" data-shortcut="new" onClick={() => setDialog("new")} className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
                 <Plus className="h-4 w-4" aria-hidden="true" /> New enquiry
               </button>
@@ -380,9 +417,14 @@ export default function LeadsPage() {
             text={filtersOn ? "Clear the filters to see the rest." : "The first enquiry you take goes here, and the app gives it an owner and a first call."}
             action={
               !filtersOn && can("crm.create") ? (
-                <button type="button" onClick={() => setDialog("new")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
-                  New enquiry
-                </button>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button type="button" onClick={() => setDialog("new")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
+                    New enquiry
+                  </button>
+                  <button type="button" onClick={() => setDialog("import")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                    Import a spreadsheet
+                  </button>
+                </div>
               ) : null
             }
           />
@@ -403,6 +445,7 @@ export default function LeadsPage() {
       </Panel>
 
       {dialog === "new" && <LeadForm owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); again(); }} />}
+      {dialog === "import" && <ImportDialog kind="lead" notify={notify} onClose={() => setDialog(null)} onDone={() => { setDialog(null); again(); }} />}
       {toastNode}
     </div>
   );

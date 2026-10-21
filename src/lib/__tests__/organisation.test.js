@@ -308,6 +308,19 @@ describe("modules the organisation bought", () => {
     expect(tabOutOfPlan(null, status(ALL))).toBeNull();
   });
 
+  it("names the module a tab's rail belongs to when that was never sold, ahead of the screen's own permission", () => {
+    // the CRM's Team page is the Users and roles screen: users.view is held everywhere, so without `requires` an organisation
+    // that never bought the CRM would be told its role "does not allow" a page that is not in its plan at all
+    const team = { permission: "users.view", requires: "crm.view" };
+    // (the real status lists every module, an unsold one as off; a module it does not mention at all is "not known", and shown)
+    const noCrm = status({ ...ALL, users: { on: true, full: true, actions: ["view", "manage"] }, crm: { on: false, full: false, actions: [] } });
+    const withCrm = status({ ...ALL, users: { on: true, full: true, actions: ["view", "manage"] }, crm: { on: true, full: true, actions: ["view"] } });
+    expect(tabOutOfPlan(team, noCrm)).toEqual({ kind: "module", key: "crm" });
+    expect(tabOutOfPlan(team, withCrm)).toBeNull(); // bought: the tab is in the plan
+    expect(tabOutOfPlan({ permission: "users.view" }, noCrm)).toBeNull(); // without `requires`, the same screen is fine
+    expect(tabOutOfPlan(team, null)).toBeNull(); // not loaded: nothing hidden
+  });
+
   it("recognises the server's own refusal and names the module plainly", () => {
     const error = { response: { status: 403, data: { errorCode: "MODULE_NOT_IN_PLAN", message: "Finance is not included in this organisation's plan.", details: { module: "finance" } } } };
     expect(isModuleError(error)).toBe(true);

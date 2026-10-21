@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Spinner, TextInput, DateInput } from "../accounting/kit";
+import { ErrorNote, Field, PageSpinner, TextInput, DateInput } from "../accounting/kit";
 import { todayInput } from "../../utils/format";
 
 // Small pieces the report screens share: the date range with its presets, and the loading / error frame.
@@ -72,7 +72,7 @@ export function ClosingEntriesToggle({ checked, onChange }) {
 
 // Loading, error and data states for a useAsync result.
 export function Frame({ state, label = "Working out the figures", children }) {
-  if (state.loading && !state.data) return <Spinner label={label} />;
+  if (state.loading && !state.data) return <PageSpinner label={label} />;
   if (state.error) return <ErrorNote error={state.error} onRetry={state.reload} />;
   return state.data ? children(state.data) : null;
 }

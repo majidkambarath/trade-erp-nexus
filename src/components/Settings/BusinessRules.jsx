@@ -5,7 +5,7 @@ import { orgCurrency } from "../../utils/orgLocale";
 import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
 import { useOrganisation } from "../shell/OrganisationContext";
-import { ErrorNote, Field, Panel, Select, Spinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
+import { ErrorNote, Field, Panel, Select, PageSpinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
 import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
 import { isValidTrn, taxIdRule } from "../../lib/partyForms";
 
@@ -21,7 +21,7 @@ const MODES = [
 // nothing is typed twice.
 export default function BusinessRules({ notify, companyDefaults }) {
   const { data, loading, error, reload } = useAsync(() => accounting.settings(), []);
-  if (loading && !data) return <Spinner />;
+  if (loading && !data) return <PageSpinner />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   return (
     <Guarded permission="settings.manage" what="the business rules">

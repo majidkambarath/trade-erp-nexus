@@ -68,6 +68,7 @@ const CrmFollowUps = lazy(() => import("../components/crm/FollowUpsPage.jsx"));
 const CrmCalendar = lazy(() => import("../components/crm/CrmCalendar.jsx"));
 const CrmReports = lazy(() => import("../components/crm/CrmReports.jsx"));
 const CrmSetup = lazy(() => import("../components/crm/CrmSetup.jsx"));
+const GoogleCallback = lazy(() => import("../components/crm/GoogleCallback.jsx"));
 const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
 const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
@@ -107,6 +108,8 @@ export default function AdminRouter() {
         <Route path="/unit-setup" element={<UnitOfMeasure />} />
         <Route path="/staff-records" element={<Staff />} />
         <Route path="/users" element={<UsersPage />} />
+        {/* the same screen from the CRM's own rail: an organisation with the CRM alone has no People module (config/navigation.js) */}
+        <Route path="/crm/team" element={<UsersPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/purchase-order" element={<PurchaseOrderPage />} />
         <Route path="/sales-order" element={<SalesOrderPage />} />
@@ -172,6 +175,9 @@ export default function AdminRouter() {
         <Route path="/crm/calendar" element={<CrmCalendar />} />
         <Route path="/crm/reports" element={<CrmReports />} />
         <Route path="/crm/setup" element={<CrmSetup />} />
+        {/* Where Google returns the browser after consent. Not a page anybody navigates to: it finishes the
+            connection and sends the person back to Settings. */}
+        <Route path="/crm/google/callback" element={<GoogleCallback />} />
       </Route>
       </Route>
       <Route path="*" element={<NotFound />} />

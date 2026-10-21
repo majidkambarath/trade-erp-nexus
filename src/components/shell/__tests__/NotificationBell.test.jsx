@@ -117,3 +117,56 @@ describe("the feed", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
+
+// On a pointer the feed hangs off the bell; below md it is the bottom sheet. jsdom has no matchMedia, which
+// useMediaQuery reads as a wide window, so the tests above all exercise the panel.
+describe("where the feed opens", () => {
+  it("hangs the panel off the bell on a wide window, and a press outside closes it", async () => {
+    await renderBell();
+    const bell = screen.getByRole("button", { name: "Notifications" });
+    fireEvent.click(bell);
+    const panel = await screen.findByRole("dialog", { name: "Notifications" });
+    // jsdom loads no stylesheet, so the `fixed` class is read as a class; the placement is the inline style
+    expect(panel.className).toMatch(/\bfixed\b/);
+    expect(panel.style.top).not.toBe("");
+    expect(bell).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(bell).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("the bell toggles: a second press on it closes the panel again", async () => {
+    await renderBell();
+    const bell = screen.getByRole("button", { name: "Notifications" });
+    fireEvent.click(bell);
+    await screen.findByRole("dialog", { name: "Notifications" });
+    fireEvent.pointerDown(bell); // the press that precedes the click must not close it on its own
+    fireEvent.click(bell);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("Escape closes it and puts focus back on the bell", async () => {
+    await renderBell();
+    const bell = screen.getByRole("button", { name: "Notifications" });
+    fireEvent.click(bell);
+    await screen.findByRole("dialog", { name: "Notifications" });
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(document.activeElement).toBe(bell);
+  });
+
+  it("is the bottom sheet, not a panel, on a narrow window", async () => {
+    window.matchMedia = vi.fn().mockImplementation((query) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    try {
+      await renderBell();
+      fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+      const sheet = await screen.findByRole("dialog");
+      // the sheet is kit.jsx's Modal: its title is a heading inside the dialog, not an aria-label on it
+      expect(sheet).not.toHaveAttribute("aria-label");
+      expect(await screen.findByRole("heading", { name: "Notifications" })).toBeInTheDocument();
+    } finally {
+      delete window.matchMedia;
+    }
+  });
+});

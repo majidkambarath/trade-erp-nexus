@@ -6,7 +6,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, AlarmClock, CalendarDays } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts } from "../accounting/kit.jsx";
+import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
@@ -134,7 +134,7 @@ export default function FollowUpsPage() {
 
       {view === "board" && (
         <div className="mt-4">
-          {list.loading && !list.data && <Spinner label="Reading your follow-ups" />}
+          {list.loading && !list.data && <PageSpinner label="Reading your follow-ups" />}
           {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
           {list.data && (
             <TaskBoard rows={all} today={today} owners={owners} canEdit={can("crm.edit")} notify={notify} onChanged={again} onDone={setDoing} />

@@ -4,13 +4,13 @@ import { AlertTriangle, CheckCircle2, FileCheck2, Inbox, Percent, Send } from "l
 import { einvoice } from "../../lib/accountingApi";
 import { formatNumber } from "../../utils/format";
 import StatCard from "../ui/stat-card";
-import { EmptyState, ErrorNote, Panel, Spinner, formatDateTime, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Panel, PageSpinner, formatDateTime, useAsync } from "../accounting/kit";
 import { StatusPill } from "./shared";
 import MandateTimeline from "./MandateTimeline";
 
 export default function EInvoiceDashboard({ settings }) {
   const { data, loading, error, reload } = useAsync(() => einvoice.dashboard(), []);
-  if (loading && !data) return <Spinner />;
+  if (loading && !data) return <PageSpinner />;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
   const o = data.outbound;
   const inboundWaiting = data.inbound.RECEIVED || 0;

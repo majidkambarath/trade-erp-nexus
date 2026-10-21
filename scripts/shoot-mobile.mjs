@@ -7,7 +7,8 @@
 // The stub answers every /api/v1 call with a small, plausible payload: enough rows to show a
 // list, a party, a voucher. It is for looking at layout, nothing else.
 import { createServer } from "node:http";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
@@ -45,6 +46,20 @@ const ALL_GRANTS = [...new Set([
     audit: ["view"], lookups: ["view"],
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
+// Files a step can choose in a dialog's file input (`upload: "leads"`), written once to a throwaway folder. The lead sheet has
+// every column, a blank row and a row with no name, so the preview has something to say about each kind of row.
+const FIXTURE_DIR = mkdtempSync(join(tmpdir(), "erp-sweep-"));
+const FIXTURES = Object.fromEntries(
+  Object.entries({
+    leads: ["leads.csv", "Name,Company,Phone,Email,City,Source,Wants,Value,Owner,Notes\nHassan Al Noor,Al Noor Foods Trading,+971 50 123 4567,hassan@alnoor.example,Dubai,Referral,200 bags of flour a week,45000,,\nFatima Noor,Noor Supermarket,0501110000,,Sharjah,Walk-in,Price list,12000,Maya Khan,Asked on Friday\n,,,,,,,,,\n,Brand New Co,0502223333,,Ajman,Website,,,,\n"],
+    people: ["people.csv", "Name,Job title,Email,Phone,Company,Notes\nOmar Hassan,Purchasing manager,omar@alnoor.example,+971 50 123 4567,Al Noor Foods Trading,Prefers a call before 11\nPriya Nair,Owner,priya@example.com,+971 55 987 6543,,Met at the expo\n"],
+  }).map(([key, [file, text]]) => {
+    const path = join(FIXTURE_DIR, file);
+    writeFileSync(path, text);
+    return [key, path];
+  })
+);
+
 const DEEP = {
   // CRM: the board with its stage columns, the lead form and one lead's own page, the worklist's Done dialog (which
   // asks what came of it and plans the next one), and the pipeline editor - the tallest form of the five.
@@ -58,6 +73,7 @@ const DEEP = {
     { name: "deal-move", clicks: ["^Monthly rice and sunflower oil$", "^Move$"], settle: 1000 },
     { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
     { name: "deal-edit", clicks: ["^Monthly rice and sunflower oil$", "^Edit$"], settle: 1000 },
+    { name: "deal-email", clicks: ["^Monthly rice and sunflower oil$", "^Write to the customer$"], settle: 1100 },
   ],
   // The CRM workspace's landing page: what is late, what is mine, and what the documents moved on their own.
   "crm-dashboard": [{ name: "crm-home", page: true, clicks: [], settle: 1100 }],
@@ -66,6 +82,8 @@ const DEEP = {
     { name: "contact-new", clicks: ["^New contact"], settle: 1000 },
     { name: "contact-view", page: true, clicks: ["^Rajesh Kumar$"], settle: 1100 },
     { name: "contact-edit", clicks: ["^Rajesh Kumar$", "^Edit$"], settle: 1000 },
+    { name: "contact-import", clicks: ["^Import$"], settle: 900 },
+    { name: "contact-import-match", clicks: ["^Import$"], upload: "people", settle: 1300 },
   ],
   "crm-communications": [
     { name: "communications", page: true, clicks: [], settle: 1000 },
@@ -77,6 +95,14 @@ const DEEP = {
     { name: "lead-view", page: true, clicks: ["LD-2026-0001"], settle: 1100 },
     { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
     { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
+    // bringing a spreadsheet in: choosing the file, matching its columns (eleven fields, the tallest step), and the preview
+    // arranging a meeting: the tallest dialog in the CRM (a date, a time, a length, a place, people and a note)
+    { name: "lead-meeting", clicks: ["LD-2026-0001", "^Arrange a meeting$"], settle: 1100 },
+    // writing to the customer: a tall dialog (template picker, addresses, the people chips, subject, a nine-row message)
+    { name: "lead-email", clicks: ["LD-2026-0001", "^Write to them$"], settle: 1100 },
+    { name: "lead-import", clicks: ["^Import$"], settle: 900 },
+    { name: "lead-import-match", clicks: ["^Import$"], upload: "leads", settle: 1300 },
+    { name: "lead-import-preview", clicks: ["^Import$"], upload: "leads", after: ["^Check the file$"], settle: 1500 },
   ],
   "crm-calendar": [
     { name: "calendar", page: true, clicks: [], settle: 1100 },
@@ -150,7 +176,12 @@ const DEEP = {
     { name: "job-work-receive", clicks: ["^Job work$", "^View JWC-2026-0001", "Receive back"], settle: 1100 },
   ],
   // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
-  "home-approvals": [{ name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 }],
+  "home-approvals": [
+    { name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 },
+    // The bell's feed. It is in the top bar of every page, so one step is enough: it is a panel hanging off
+    // the bell from md up and the bottom sheet below, and this sweep measures both widths.
+    { name: "notifications", clicks: ["^Notifications"], settle: 900 },
+  ],
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
@@ -208,6 +239,10 @@ const DEEP = {
   // with the number) on a wide screen and the word View on a card, so the match is "View" then a number or the end.
   "sales-invoices": [
     { name: "list", page: true, clicks: ["^View all invoices"], settle: 1200 },
+    // Zarvia AI opens from the top bar on every screen, so it is measured on this one: the panel
+    // with its suggestions, then a real exchange with its citation and its link button.
+    { name: "assistant", clicks: ["^Ask Zarvia AI$"], settle: 900 },
+    { name: "assistant-answer", clicks: ["^Ask Zarvia AI$", "^How do I raise an invoice\?$"], settle: 1100 },
     { name: "document", page: true, clicks: ["^View all invoices", "^View( [0-9]|$)"], settle: 1600 },
     { name: "send", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
     { name: "send-row", clicks: ["^View all invoices", "^Send (SO|[0-9])"], settle: 1600 },
@@ -260,6 +295,7 @@ DEEP["purchase-return"] = DEEP["purchase-returns"];
 DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
+DEEP["approvals"] = DEEP["home-approvals"]; // check:mobile -- /approvals (the bell's feed is one of its steps)
 DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /production
 DEEP["dashboard"] = DEEP["crm-dashboard"]; // check:mobile -- /crm/dashboard
 DEEP["contacts"] = DEEP["crm-contacts"]; // check:mobile -- /crm/contacts
@@ -637,6 +673,24 @@ function stubFor(pathname) {
   const p = pathname;
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
 
+  // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
+  // citations and a link, so the deep step below measures a real exchange rather than an empty box.
+  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }] };
+  if (p.includes("/assistant/ask")) {
+    return {
+      conversationId: "c1",
+      messageId: "m1",
+      answer: "Save the order as a draft first, then press Approve on it. Approving is what moves stock and posts the books, which is why it is its own step.",
+      citations: [{ id: "guide-4-5", title: "Order to cash" }],
+      links: [{ path: "/accounting-setup", label: "Open Accounting setup" }],
+      outcome: "answered",
+      canEscalate: false,
+    };
+  }
+  if (p.includes("/assistant/mine")) return [];
+  if (p.includes("/assistant/usage")) return { days: [], totals: { questions: 0, costMicros: 0 }, unanswered: [], corpus: { topics: 128 } };
+  if (p.includes("/assistant/settings")) return { enabled: true, provider: "echo", model: "claude-opus-5-5", hasApiKey: false, models: ["claude-opus-5-5"], corpus: { topics: 128 } };
+
   // The session is restored from a cookie, not from storage: src/axios/axios.js asks for a
   // token on every page load and sends the tab to sign-in when it does not get one. Without
   // this the harness measures the sign-in page on every route and calls it fine.
@@ -652,7 +706,7 @@ function stubFor(pathname) {
     return {
       organisation: { code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "premium", planName: "Premium" },
       subscription: { state: "active", blocked: false, canRead: true, canWrite: true, endsAt: null, daysLeft: null, onExpiry: "block" },
-      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true },
+      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true, assistant: true },
       limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},
@@ -1083,6 +1137,25 @@ function stubFor(pathname) {
     if (p.endsWith("/crm/timeline")) return timeline;
     if (p.endsWith("/crm/follow-ups/count")) return { count: 1 };
     if (p.endsWith("/crm/follow-ups")) return [followUp(1), followUp(3, { _id: "ac3", subject: "Visit the Deira branch", kind: "visit", kindLabel: "Visit", dueAt: "2026-10-19", dueState: "today" })];
+    // A spreadsheet preview: two rows to be made, one with a problem (what the dialog's last step before the import shows).
+    // Declared before the one-lead pattern below, which would otherwise read "import" as a lead's id.
+    if (p.endsWith("/crm/leads/import") || p.endsWith("/crm/contacts/import")) {
+      return {
+        dryRun: true,
+        summary: { total: 3, create: 2, invalid: 1, duplicate: 0, skipped: 0 },
+        issues: [{ line: 4, status: "invalid", errors: [{ message: "Give the person or company a name" }] }],
+        sample: [{ name: "Hassan Al Noor", company: "Al Noor Foods Trading", phone: "0501234567" }, { name: "Fatima Noor", company: "Noor Supermarket", phone: "0501110000" }],
+      };
+    }
+    // The customers a deal can be opened on: the CRM's own narrow list
+    if (p.endsWith("/crm/customers")) return [{ id: "c1", name: "Al Noor Foods Trading", code: "CUST2026001", active: true }, { id: "c2", name: "Noor Supermarket", code: "CUST2026002", active: true }];
+    // Files on a lead or a deal: one with a long name on purpose, because that is what breaks a row
+    if (/\/crm\/(leads|opportunities)\/[^/]+\/attachments$/.test(p)) {
+      return [
+        { attachmentId: "f1", fileName: "Signed quotation QT-2026-0007 - Al Noor Foods Trading - final version.pdf", fileType: "application/pdf", fileSize: 184320, label: "Quotation" },
+        { attachmentId: "f2", fileName: "Site photo.jpg", fileType: "image/jpeg", fileSize: 2411724, label: "" },
+      ];
+    }
     if (p.endsWith("/crm/leads/summary")) return { today: "2026-10-19", total: 9, open: 4, hot: 1, unassigned: 1, converted: 3, lost: 2, openValue: 128000, overdueFollowUps: 1 };
     if (p.endsWith("/crm/leads/duplicates")) return { leads: [], customers: [] };
     if (p.endsWith("/crm/leads")) return [lead(1), lead(2, { _id: "ld2", leadNo: "LD-2026-0002", name: "Fatima Noor", company: "Noor Supermarket", band: "hot", score: 78, source: "walk_in", sourceLabel: "Walk-in", ownerName: "Maya Khan", expectedValue: 83000, overdueAction: false, nextActionAt: "2026-10-21" })];
@@ -1091,6 +1164,38 @@ function stubFor(pathname) {
     if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
     if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
     if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    // A day's meetings, for the agenda and the clash warning in the schedule dialog.
+    // A person's own Google connection: connected, so the panel draws its fullest state.
+    // Writing to a customer: the templates a person picks from, and the people we already hold for the deal.
+    if (p.endsWith("/crm/email/templates")) {
+      return {
+        starters: false,
+        signature: "Asif Rahman\nAl Noor Trading",
+        placeholders: [{ key: "contact.firstName", label: "Their first name" }, { key: "deal.title", label: "What the deal is for" }],
+        templates: [
+          { key: "after-a-call", name: "After a call", subject: "Following up on our call", body: "Hello {{contact.firstName}},\n\nThank you for your time today." },
+          { key: "sending-a-quotation", name: "Sending a quotation", subject: "Our quotation for {{deal.title}}", body: "Hello {{contact.firstName}},\n\nPlease find our quotation attached." },
+        ],
+      };
+    }
+    if (p.endsWith("/crm/email/recipients")) {
+      return {
+        regarding: { kind: "opportunity", id: "op1", name: "Flour for the new branch" },
+        deal: { title: "Flour for the new branch", value: 48000 },
+        customer: { name: "Al Noor Foods Trading" },
+        people: [
+          { id: "ct1", name: "Rajesh Kumar", email: "rajesh@alnoor.test", designation: "Purchase Manager", primary: true },
+          { id: "ct2", name: "Fatima Noor", email: "fatima@alnoor.test", designation: "Owner", primary: false },
+        ],
+      };
+    }
+    if (p.endsWith("/crm/google/status")) return { available: true, connected: true, label: "Connected as asif@gmail.test", detail: "", email: "asif@gmail.test", connectedAt: "2026-10-20T09:00:00.000Z" };
+    if (p.endsWith("/crm/meetings/day")) {
+      return [
+        { _id: "mt1", subject: "Price review for 200 bags of flour", kind: "meeting", status: "OPEN", meeting: { time: "14:30", timeRange: "14:30 - 15:00", minutes: 30, where: "online", joinUrl: "https://meet.example.com/abc-defg-hij", cancelled: false, attendees: [{ kind: "contact", id: "ct1", name: "Rajesh Kumar", email: "rajesh@alnoor.test", rsvp: "accepted" }] } },
+        { _id: "mt2", subject: "Site visit", kind: "meeting", status: "OPEN", meeting: { time: "16:00", timeRange: "16:00 - 17:00", minutes: 60, where: "in_person", location: "Deira office", cancelled: false, attendees: [] } },
+      ];
+    }
     if (p.endsWith("/crm/calendar")) {
       const at = (id, type, day, title, over = {}) => ({ id, type, day, title, sub: "", status: "OPEN", overdue: false, movable: false, ...over });
       return {
@@ -1102,6 +1207,8 @@ function stubFor(pathname) {
           at("c4", "activity", "2026-10-19", "Met at the trade fair", { sub: "Note", kind: "note", status: "DONE" }),
           at("c5", "deal", "2026-10-19", "Monthly rice and sunflower oil", { sub: "Al Noor Foods Trading", value: 48500 }),
           at("c6", "activity", "2026-10-22", "Works visit with the production head", { sub: "Meeting", kind: "meeting", movable: true }),
+          // a scheduled meeting: it leads with its hour on the chip, which is the one entry that is not a whole day
+          at("c9", "activity", "2026-10-19", "Price review for 200 bags of flour", { sub: "Meeting", kind: "meeting", time: "14:30", online: true, hasLink: true, ownerName: "Asif Rahman" }),
           at("c7", "deal", "2026-10-30", "Dates and nuts", { sub: "Noor Supermarket", value: 28000 }),
           at("c8", "lead", "2026-10-07", "Hassan Al Noor", { sub: "Al Noor Foods", status: "NEW" }),
         ],
@@ -1931,6 +2038,9 @@ const api = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   if (req.method === "OPTIONS") return res.writeHead(204).end();
+  // SHOT_HOLD=<regex> leaves the matching reads unanswered, so a run captures the LOADING state a
+  // person sees on a slow line instead of the instant one a stub gives. Off unless it is set.
+  if (process.env.SHOT_HOLD && new RegExp(process.env.SHOT_HOLD).test(url.pathname)) return;
   res.setHeader("Content-Type", "application/json");
   const data = stubFor(url.pathname);
   res.end(
@@ -2201,6 +2311,19 @@ for (const vp of VIEWPORTS) {
             }
             await hit.click();
             await wait(step.settle ?? 1000);
+          }
+          // `upload`: choose a fixture file in the open dialog's file input, then `after` are the clicks that follow it
+          if (step.upload) {
+            const input = await page.$('[role="dialog"] input[type="file"]');
+            if (!input) throw new Error(`no file input in the dialog to upload ${step.upload} to`);
+            await input.uploadFile(FIXTURES[step.upload]);
+            await wait(step.settle ?? 1000);
+            for (const label of step.after || []) {
+              const next = await findByText(page, label);
+              if (!next) throw new Error(`nothing matching ${label} after the upload`);
+              await next.click();
+              await wait(step.settle ?? 1000);
+            }
           }
           // `reveal`: scroll the first element whose text matches into view, so the screenshot shows the part
           // of a long page the step is about

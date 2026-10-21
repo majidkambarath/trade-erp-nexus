@@ -25,7 +25,7 @@ import {
   Warehouse,
 } from "lucide-react";
 // (with its extension: the mobile sweep loads this file straight from node, which does not guess one)
-import { tabInPlan } from "../lib/organisation.js";
+import { ERP_MODULES, tabInPlan } from "../lib/organisation.js";
 import { tabAllowed } from "../lib/permissions.js";
 
 // A tab names the `permission` it needs (one, or a list of which any will do) and may name a `feature` of the plan. It is
@@ -130,7 +130,14 @@ export const MODULES = [
     workspace: "crm",
     label: "Setup",
     icon: SlidersHorizontal,
-    tabs: [{ label: "Setup", to: "/crm/setup", permission: "crm.manage", keywords: ["stages", "pipeline setup", "automation", "assignment", "round robin", "rules"] }],
+    tabs: [
+      { label: "Setup", to: "/crm/setup", permission: "crm.manage", keywords: ["stages", "pipeline setup", "automation", "assignment", "round robin", "rules"] },
+      // The same screen as People > Users and roles, reached from here. An organisation that bought the CRM alone has no ERP half
+      // and so no People module in front of it, yet its owner still has to add the colleagues who will use the CRM. Two
+      // addresses for one screen, each belonging to one tab (the route-coverage test requires exactly one), so the rail the
+      // person is working in stays the rail they are working in.
+      { label: "Team", to: "/crm/team", permission: "users.view", requires: "crm.view", keywords: ["users", "people", "add user", "roles", "permissions", "colleagues", "invite", "who can"] },
+    ],
   },
   {
     id: "sales",
@@ -278,8 +285,14 @@ export const MODULES = [
  * move an existing page.
  */
 export const ERP = "erp";
+
+// The modules that ARE the ERP are named in lib/organisation.js (ERP_MODULES), because Settings reads them too. An organisation
+// holding none of them has bought the CRM and nothing else (the `crm` plan), so there is no ERP for it to switch into: Home,
+// Reports and People would be an ERP of a dashboard full of zeros.
+export { ERP_MODULES };
+
 export const WORKSPACES = [
-  { id: ERP, label: "ERP", icon: Building2, hint: "Buying, selling, stock and the books" },
+  { id: ERP, label: "ERP", icon: Building2, hint: "Buying, selling, stock and the books", anyModule: ERP_MODULES },
   // `module` is the permission module that SELLS the workspace (utils/plans.js): an organisation that has not bought it
   // is never offered it, whatever its people's roles say. The ERP names none - it is the product itself.
   { id: "crm", label: "CRM", icon: Handshake, module: "crm", hint: "Enquiries, people and the deals in front of the paperwork" },
@@ -321,7 +334,20 @@ export const offeredWorkspaces = (modules = MODULES, status) => {
   const open = visibleWorkspaces(modules);
   if (status === undefined) return open;
   if (!Array.isArray(status?.me?.grants)) return open.filter((w) => !w.module);
-  return open.filter((w) => !w.module || status.modules?.[w.module]?.on !== false);
+  return open.filter((w) => boughtWorkspace(w, status));
+};
+
+/**
+ * Did the ORGANISATION buy this workspace? Only an explicit `on: false` from the server says no - a status that does not
+ * mention a module (an older server, a partial status) hides nothing, and the server refuses what was not sold. The CRM is
+ * bought when its one module is on; the ERP when ANY of its modules is, so an organisation on the CRM-only plan has no ERP
+ * half at all, and its owner is not offered a switch into one.
+ */
+const boughtWorkspace = (workspace, status) => {
+  const on = (m) => status.modules?.[m]?.on !== false;
+  if (workspace.module && !on(workspace.module)) return false;
+  if (workspace.anyModule && !workspace.anyModule.some(on)) return false;
+  return true;
 };
 
 /**

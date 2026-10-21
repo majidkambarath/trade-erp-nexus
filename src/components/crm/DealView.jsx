@@ -3,13 +3,16 @@
 // touched it" has an answer on the screen rather than in a log.
 import React, { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, Spinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
-import { StagePill, Tag, ActivityTimeline, CrmDialog, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import { StagePill, Tag, ActivityTimeline, CrmDialog, CrmFiles, LogActivityDialog, MoveStageDialog, LoseDialog, AssignDialog, useOwners } from "./crmShared.jsx";
+import MeetingDialog from "./MeetingDialog.jsx";
+import EmailDialog from "./EmailDialog.jsx";
+import { useOrganisation } from "../shell/OrganisationContext.jsx";
 
 const Fact = ({ label, children }) => (
   <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 pb-1.5 last:border-0">
@@ -51,6 +54,7 @@ function HowItGotHere({ moves = [], stages = [] }) {
 }
 
 export default function DealView({ id, onBack, onChanged }) {
+  const { can } = useOrganisation();
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
   const [dialog, setDialog] = useState(null);
@@ -61,7 +65,7 @@ export default function DealView({ id, onBack, onChanged }) {
     onChanged?.();
   };
 
-  if (loading && !deal) return <Spinner label="Reading the deal" />;
+  if (loading && !deal) return <PageSpinner label="Reading the deal" />;
   if (error) return <ErrorNote error={error} onRetry={again} />;
   if (!deal) return null;
 
@@ -75,7 +79,9 @@ export default function DealView({ id, onBack, onChanged }) {
         title={deal.title}
         description={`${deal.opportunityNo} · ${deal.customerName}`}
         actions={
-          <div className="flex flex-wrap gap-2">
+          // Seven actions is more than fits beside the title on a tablet, so below a wide screen they take a row of
+          // their own rather than squeezing the heading out of the viewport (found by check:mobile at 820px).
+          <div className="flex w-full flex-wrap gap-2 lg:w-auto">
             {open && (
               <Can permission="crm.edit">
                 <button type="button" onClick={() => setDialog("move")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
@@ -86,6 +92,18 @@ export default function DealView({ id, onBack, onChanged }) {
             <Can permission="crm.create">
               <button type="button" onClick={() => setDialog("log")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
                 Log a follow-up
+              </button>
+            </Can>
+            {open && (
+              <Can permission="crm.create">
+                <button type="button" onClick={() => setDialog("meet")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                  Arrange a meeting
+                </button>
+              </Can>
+            )}
+            <Can permission="crm.create">
+              <button type="button" onClick={() => setDialog("email")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                Write to the customer
               </button>
             </Can>
             {open && (
@@ -113,7 +131,9 @@ export default function DealView({ id, onBack, onChanged }) {
         }
       />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      {/* grid-cols-1 on both grids: below lg a grid has one implicit AUTO column, which is as wide as its widest unbreakable text -
+          a file's long name made this page 712px wide on a 390px phone (found by check:mobile). minmax(0, 1fr) lets it shrink, so truncate works. */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel title="The deal" className="lg:col-span-1">
           <dl className="grid gap-2 text-sm">
             <Fact label="Stage">
@@ -152,7 +172,7 @@ export default function DealView({ id, onBack, onChanged }) {
           )}
         </Panel>
 
-        <div className="grid gap-4 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-4 lg:col-span-2">
           <Panel title="How it got here" description="What the documents did, without anybody pressing anything" bodyClassName="p-0 sm:px-4">
             <div className="px-4 sm:px-0">
               <HowItGotHere moves={deal.autoMoves} stages={deal.pipeline} />
@@ -163,6 +183,9 @@ export default function DealView({ id, onBack, onChanged }) {
               <ActivityTimeline rows={deal.timeline} empty="Nothing has been recorded against this deal yet." />
             </div>
           </Panel>
+          <Panel title="Files" description="Contracts, specifications and photos, kept with the deal">
+            <CrmFiles kind="deal" id={deal._id} readOnly={!can("crm.edit")} />
+          </Panel>
         </div>
       </div>
 
@@ -172,6 +195,18 @@ export default function DealView({ id, onBack, onChanged }) {
       {dialog === "move" && <MoveStageDialog deal={deal} stages={deal.pipeline || []} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "log" && (
         <LogActivityDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
+      )}
+      {dialog === "email" && (
+        <EmailDialog
+          regarding={{ kind: "opportunity", id: deal._id }}
+          subject={deal.title ? `About ${deal.title}` : ""}
+          notify={notify}
+          onClose={() => setDialog(null)}
+          onSent={() => refresh()}
+        />
+      )}
+      {dialog === "meet" && (
+        <MeetingDialog regarding={{ kind: "opportunity", id: deal._id }} defaultOwnerId={deal.ownerId} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />
       )}
       {dialog === "lose" && <LoseDialog title={`${deal.title} was lost`} onLose={(body) => crm.loseDeal(deal._id, body)} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); refresh(); }} />}
       {dialog === "assign" && (

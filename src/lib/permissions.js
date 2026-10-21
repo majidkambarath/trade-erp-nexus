@@ -23,11 +23,15 @@ export const canAny = (me, keys) => {
 /**
  * Is a navigation tab open to them? A tab names the permission(s) it needs (any one will do) or says it is `open` to
  * everyone, with a reason. A tab that does neither is refused once the grants are known: guarding is the default.
+ *
+ * A tab may also name `requires`: permissions the person must hold ALL of, besides one of `permission`. It is for a page that
+ * belongs to one module's rail but is another module's screen (the CRM's Team page is Users and roles): `permission` says what
+ * the screen needs, `requires` says whose rail it is on, so an organisation without that module never sees it.
  */
 export const tabAllowed = (tab, me) => {
   if (!known(me)) return true;
   if (tab.open) return true;
-  return canAny(me, tab.permission);
+  return canAny(me, tab.permission) && [].concat(tab.requires || []).every((k) => me.grants.includes(k));
 };
 
 /** The name a person sees for their role, for the top bar and the "not allowed" page. */

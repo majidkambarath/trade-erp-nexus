@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.5.0.0 — 21 October 2026
+
+The CRM becomes something we can sell on its own, a salesperson can arrange a meeting and write to a
+customer without leaving it, and an assistant answers questions about Zarvia from the product guide.
+Backend 1.5.0.0.
+
+### The CRM on its own
+
+- **No ERP half to switch into** where no ERP module was bought: the workspace switcher is not drawn,
+  and signing in lands on the CRM dashboard rather than an ERP dashboard of zeros.
+- **Team** is a second tab under CRM Setup, because People lives in the ERP rail and the owner of a
+  CRM-only organisation still has to add the colleagues who will use it.
+- **Settings** hides Business rules, Invoice bank details and the tax-codes link from an organisation
+  that makes no invoice; a typed `?tab=rules` falls back to Company.
+- **Import a spreadsheet** of leads or of people: choose the file, match its columns, read the preview,
+  then import. The preview is the server's own answer, and a file bigger than one request is sent in
+  lots, one after another.
+- **Files on a lead and on a deal**, reusing the attachment panel the documents already use.
+
+### Arrange a meeting, and write to the customer
+
+- **Arrange a meeting** beside Log a follow-up, on a lead and on a deal: a day, a time on the
+  organisation's own clock, a length, where, the people, and a note. It warns about an overlap rather
+  than refusing one, and says before you save when the organisation has not set its email up, so
+  nothing would leave the building.
+- **Connect your own Google account** in Settings - Security, beside your password and two-factor,
+  and the meeting form then offers "Make a Google Meet link for me". The tick is shown only to somebody
+  who has connected, so the form never promises a link it cannot make.
+- **Write to the customer**: a template, the addresses we already hold offered as chips, a subject and
+  a message, with the placeholders filled. It warns about a placeholder nothing can fill, and never
+  replaces what you have typed without saying so.
+- **Sent, recorded-only and failed never read the same.** With no mailbox set up the toast says the
+  letter was recorded and NOT emailed, and the record says so for good.
+- **Replies are not shown here**, and every screen says it: the customer's answer goes to your own
+  mailbox.
+
+### A bug worth recording
+
+- **The To box seeded itself over an address somebody had already typed.** The guard has to live inside
+  the state updater, not in the effect: the effect commits while the contact list is still arriving and
+  its update lands afterwards, by which time the check it made is stale. Found by a test, not by a
+  person losing an address.
+
+### Zarvia AI
+
+A panel that answers a person's questions about Zarvia, from the product guide, and can hand the
+question to the Zarvia team. Opened from the bot button in the top bar on every screen, and hidden
+where the organisation does not have the feature.
+
+- **The question is sent with the screen they are on and the refusal they just hit.** The API already
+  answers every refusal with a structured error code, so `src/lib/lastRefusal.js` keeps the last one -
+  in memory only, one slot, cleared at sign-out, because a refusal names what somebody was doing. "Why
+  did it say Posting is closed up to 31 Aug 2026" is then offered as a suggestion they can tap.
+- **A link in an answer is checked against the app's own routes before it is drawn.** The server
+  already refuses a path the documentation does not name; the browser checks again, from
+  `config/navigation.js`, which is the same source the rail, the palette and the mobile sweep use. Two
+  gates because a link is the one part of an answer somebody clicks without reading.
+- **A thumbs-down is kept.** It is the list of help articles to write next.
+- Drawn inside the shared `Modal` rather than a new overlay: that one already handles the device
+  insets, the focus trap and the body scroll lock, and the mobile sweep already measures it.
+
 ## 1.4.0.0 — 21 October 2026
 
 Three streams of work that had been sitting on branches since 17 October, plus the fixes from a security

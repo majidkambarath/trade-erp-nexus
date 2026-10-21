@@ -3,7 +3,7 @@ import { CheckCircle2, CircleDashed } from "lucide-react";
 import { sendSettings } from "../../lib/sendDocumentsApi";
 import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
-import { ErrorNote, Field, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync } from "../accounting/kit";
+import { ErrorNote, Field, Panel, Pill, Select, PageSpinner, TextInput, Textarea, errorMessage, useAsync } from "../accounting/kit";
 
 // Sending documents to customers: where the email comes from and how it is sent. Admins only change this
 // (the server enforces it); everyone can see it. The email service key is write-only: once saved the
@@ -29,7 +29,7 @@ export default function SendingSettings({ notify }) {
   const ready = useAsync(() => sendSettings.readiness(), []);
   const s = settings.data;
   const refresh = () => Promise.all([settings.reload(), ready.reload()]);
-  if (settings.loading && !s) return <Spinner />;
+  if (settings.loading && !s) return <PageSpinner />;
   if (settings.error && !s) return <ErrorNote error={settings.error} onRetry={settings.reload} />;
   return (
     <Guarded permission="settings.manage" what="how documents are sent">
