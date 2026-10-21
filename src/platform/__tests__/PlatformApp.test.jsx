@@ -35,25 +35,35 @@ vi.mock("../platformApi", () => ({
   consoleErrorCode: (e) => e?.response?.data?.errorCode || null,
 }));
 
+const act = (action, short, label) => ({ action, short, label: label || `${short} things` });
 const CATALOG = {
   plans: [
-    { code: "trial", name: "Trial", trialDays: 14, features: { quotations: true }, modules: { sales: true, finance: true, reports: true }, limits: { users: 3, branches: 1, documentsPerMonth: 200 } },
-    { code: "standard", name: "Standard", features: { quotations: true, banking: true }, modules: { sales: true, finance: true, reports: true }, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
+    { code: "trial", name: "Trial", trialDays: 14, features: { quotations: true }, modules: { sales: true, inventory: true, finance: true, reports: true }, limits: { users: 3, branches: 1, documentsPerMonth: 200 } },
+    { code: "standard", name: "Standard", features: { quotations: true, banking: true }, modules: { sales: true, inventory: true, finance: true, reports: true }, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
   ],
+  groups: [{ key: "trade", label: "Buying, selling and stock" }, { key: "money", label: "Money and books" }],
   modules: [
-    { key: "sales", label: "Sales", hint: "Sales documents and customers", actions: [{ action: "view" }, { action: "create" }, { action: "approve" }], alwaysOn: [] },
-    { key: "finance", label: "Finance", hint: "Vouchers", actions: [{ action: "view" }, { action: "create" }], alwaysOn: [] },
-    { key: "reports", label: "Reports", hint: "The dashboard and reports", actions: [{ action: "view" }, { action: "financial" }], alwaysOn: ["view"] },
+    { key: "sales", label: "Sales", hint: "Sales documents and customers", group: "trade", sections: [{ feature: "quotations" }, "Orders", "Invoices"], actions: [act("view", "View", "See sales documents"), act("create", "Add"), act("approve", "Approve")], alwaysOn: [] },
+    { key: "inventory", label: "Inventory", hint: "Items and stock", group: "trade", sections: ["Stock items", { feature: "production" }], actions: [act("view", "View"), act("adjust", "Adjust stock")], alwaysOn: [] },
+    { key: "finance", label: "Finance", hint: "Vouchers", group: "money", sections: ["Receipts", { feature: "banking" }], actions: [act("view", "View"), act("create", "Add")], alwaysOn: [] },
+    { key: "reports", label: "Reports", hint: "The dashboard and reports", group: "money", sections: ["Dashboard", { feature: "einvoicing" }], actions: [act("view", "View"), act("financial", "Financial reports")], alwaysOn: ["view"] },
   ],
   features: [
-    { key: "quotations", label: "Quotations" },
-    { key: "banking", label: "Banks, cards and cheques" },
-    { key: "einvoicing", label: "E-invoicing" },
+    { key: "quotations", label: "Quotations", hint: "Price offers that become orders", module: "sales", optIn: false, onlyIn: null },
+    { key: "production", label: "Production", hint: "Materials and expenses moved into a product's cost", module: "inventory", optIn: true, onlyIn: null },
+    { key: "banking", label: "Banks, cards and cheques", hint: "Bank and card masters and cheques", module: "finance", optIn: false, onlyIn: null },
+    { key: "einvoicing", label: "E-invoicing", hint: "Electronic tax invoices", module: "reports", optIn: false, onlyIn: ["AE"] },
+  ],
+  // what each ready-made role holds in each module: the panel says who gets what is sold
+  roles: [
+    { key: "super_admin", name: "Owner", rank: 100, modules: { sales: ["view", "create", "approve"], inventory: ["view", "adjust"], finance: ["view", "create"], reports: ["view", "financial"] } },
+    { key: "viewer", name: "Viewer", rank: 20, modules: { sales: ["view"], inventory: ["view"], reports: ["view"] } },
+    { key: "storekeeper", name: "Storekeeper", rank: 40, modules: { inventory: ["view", "adjust"], sales: ["view"] } },
   ],
   limits: ["users", "branches", "documentsPerMonth"],
-  currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }],
+  currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "INR", name: "Indian Rupee" }],
   unsupportedCurrencies: ["KWD"],
-  timezones: ["Asia/Dubai", "Asia/Riyadh"],
+  timezones: ["Asia/Dubai", "Asia/Riyadh", "Asia/Kolkata"],
 };
 
 const ORG = {
@@ -202,7 +212,8 @@ describe("creating an organisation", () => {
     await screen.findByRole("heading", { name: "New organisation" });
     expect(await screen.findByText("Everything the plan includes.")).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Finance" }));
+    fireEvent.click(await screen.findByRole("switch", { name: "Finance" }));
+    expect(screen.getByRole("switch", { name: "Finance" })).toHaveAttribute("aria-checked", "false");
     // the line above the list says what this customer is getting instead, before anything is sent
     expect(await screen.findByText("Different from the plan: Finance.")).toBeInTheDocument();
 
@@ -215,6 +226,112 @@ describe("creating an organisation", () => {
     await waitFor(() => expect(api.createOrganisation).toHaveBeenCalledTimes(1));
     // Sales and Reports were left alone, so the organisation carries nothing about them
     expect(api.createOrganisation.mock.calls[0][0].moduleOverrides).toEqual({ finance: false });
+    expect(api.createOrganisation.mock.calls[0][0].featureOverrides).toBeUndefined();
+  });
+
+  it("groups the modules, and opens one to show its parts inside it: Production under Inventory", async () => {
+    signIn();
+    api.createOrganisation.mockResolvedValue({
+      organisation: { ...ORG, legalName: "Brivox Production", code: "brivox" },
+      provisioning: { complete: true, steps: {} },
+      firstAdmin: { id: "1", email: "owner@brivox.example", type: "super_admin" },
+    });
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    expect(await screen.findByRole("heading", { name: "Buying, selling and stock" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Money and books" })).toBeInTheDocument();
+    // nothing is open until asked, and the part is not a loose switch on the page
+    expect(screen.queryByRole("switch", { name: "Production" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Inventory details" }));
+    const production = screen.getByRole("switch", { name: "Production" });
+    expect(production).toHaveAttribute("aria-checked", "false"); // in no plan: switched on one customer at a time
+    expect(screen.getByText("Optional extra")).toBeInTheDocument();
+    fireEvent.click(production);
+    expect(production).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Different from the plan: Production.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Legal name/), { target: { value: "Brivox Production" } });
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "Owner Three" } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "owner@brivox.example" } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "a-long-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create organisation" }));
+    await waitFor(() => expect(api.createOrganisation).toHaveBeenCalledTimes(1));
+    // a part is a feature override, and only the one that differs from the plan is sent
+    expect(api.createOrganisation.mock.calls[0][0].featureOverrides).toEqual({ production: true });
+    expect(api.createOrganisation.mock.calls[0][0].moduleOverrides).toBeUndefined();
+  });
+
+  it("says who gets a module, from the ready-made roles, and nobody when it is switched off", async () => {
+    signIn();
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    fireEvent.click(await screen.findByRole("button", { name: "Sales details" }));
+    const sales = screen.getByRole("switch", { name: "Sales" }).closest("li");
+    const reach = () => within(sales).getAllByRole("term").map((t, i) => `${t.textContent}: ${within(sales).getAllByRole("definition")[i].textContent}`);
+    expect(reach()).toEqual(["Owner: Full access", "Storekeeper: View only", "Viewer: View only"]);
+    // selling Sales as far as looking only cuts every role down to that, exactly as the server does
+    fireEvent.click(within(sales).getByRole("button", { name: "Sales: view only" }));
+    expect(reach()).toEqual(["Owner: Full access", "Storekeeper: Full access", "Viewer: Full access"]);
+    fireEvent.click(screen.getByRole("switch", { name: "Sales" }));
+    expect(within(sales).getByText(/Nobody: Sales is not included/)).toBeInTheDocument();
+  });
+
+  it("sets the time zone and currency from the country, for India as for every other country", async () => {
+    signIn();
+    api.createOrganisation.mockResolvedValue({
+      organisation: { ...ORG, legalName: "Kerala Spices Pvt Ltd", code: "kerala", country: "IN" },
+      provisioning: { complete: true, steps: {} },
+      firstAdmin: { id: "1", email: "owner@kerala.example", type: "super_admin" },
+    });
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    const pick = async (name, text) => {
+      fireEvent.keyDown(screen.getByRole("combobox", { name }), { key: "ArrowDown" });
+      fireEvent.click(await screen.findByRole("option", { name: new RegExp(text) }));
+    };
+    await pick(/Country/, "^India");
+    // the zone is the one India uses, by the name the server accepts, and the clock there is shown beside it
+    expect(await screen.findByText(/Set from India\. It is .* there now \(UTC\+05:30\)\./)).toBeInTheDocument();
+    expect(screen.getByText("Asia/Kolkata")).toBeInTheDocument();
+    expect(screen.getByText(/INR/)).toBeInTheDocument();
+    // VAT return and e-invoicing are the UAE's own: the form says so instead of offering them
+    fireEvent.click(screen.getByRole("button", { name: "Reports details" }));
+    expect(screen.getByRole("switch", { name: "E-invoicing" })).toBeDisabled();
+    expect(screen.getByText(/Only for organisations in United Arab Emirates, so it is not available in India\./)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Legal name/), { target: { value: "Kerala Spices Pvt Ltd" } });
+    fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "Owner Four" } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "owner@kerala.example" } });
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "a-long-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create organisation" }));
+    await waitFor(() => expect(api.createOrganisation).toHaveBeenCalledTimes(1));
+    expect(api.createOrganisation.mock.calls[0][0]).toMatchObject({ country: "IN", baseCurrency: "INR", timezone: "Asia/Kolkata" });
+  });
+
+  it("puts the country that was typed first, so typing India and pressing Enter chooses India", async () => {
+    signIn();
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    const box = screen.getByRole("combobox", { name: /Country/ });
+    fireEvent.change(box, { target: { value: "india" } });
+    // the list is alphabetical, and "British Indian Ocean Territory" contains the word: it must not come first
+    const options = within(await screen.findByRole("listbox")).getAllByRole("option"); // the Plan box has native options too
+    expect(options[0]).toHaveTextContent(/^India/);
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(await screen.findByText(/Set from India\./)).toBeInTheDocument();
+    expect(screen.getByText("Asia/Kolkata")).toBeInTheDocument();
+  });
+
+  it("does not let a country whose time zones the books cannot use be created, and says why", async () => {
+    signIn();
+    renderConsole("/platform/new");
+    await screen.findByRole("heading", { name: "New organisation" });
+    fireEvent.keyDown(screen.getByRole("combobox", { name: /Country/ }), { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: /United States/ }));
+    expect(await screen.findByText(/United States cannot be set up yet: its time zones are west of UTC/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create organisation" }));
+    expect(api.createOrganisation).not.toHaveBeenCalled();
   });
 
   it("says plainly when the organisation exists but its first administrator could not be made", async () => {
@@ -261,32 +378,87 @@ describe("one organisation", () => {
     signIn();
     renderConsole("/platform/organisations/acme?tab=plan");
     await screen.findByRole("heading", { name: "Modules" });
-    // Finance is not bought at all: one tick
-    fireEvent.click(screen.getByRole("checkbox", { name: "Finance" }));
-    expect(screen.getByRole("checkbox", { name: "Finance" })).not.toBeChecked();
-    // Reports is sold as far as looking only, which is the rarer answer and lives behind its own line
-    const reports = screen.getByRole("checkbox", { name: "Reports" }).closest("li");
-    fireEvent.click(within(reports).getByRole("button", { name: "Choose what they can do" }));
-    const view = within(reports).getByRole("checkbox", { name: /view \(always on\)/ });
+    // Finance is not bought at all: one switch
+    fireEvent.click(screen.getByRole("switch", { name: "Finance" }));
+    expect(screen.getByRole("switch", { name: "Finance" })).toHaveAttribute("aria-checked", "false");
+    // Reports is sold as far as looking only, which is the rarer answer and lives inside the module
+    fireEvent.click(screen.getByRole("button", { name: "Reports details" }));
+    const reports = screen.getByRole("switch", { name: "Reports" }).closest("li");
+    const view = within(reports).getByRole("checkbox", { name: /View/ });
     expect(view).toBeChecked();
     expect(view).toBeDisabled(); // the server puts it back whatever is ticked, so the tick cannot pretend otherwise
-    fireEvent.click(within(reports).getByRole("checkbox", { name: "financial" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save modules" }));
+    expect(within(reports).getByText("(always on)")).toBeInTheDocument();
+    fireEvent.click(within(reports).getByRole("checkbox", { name: "Financial reports" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.updateOrganisation).toHaveBeenCalledTimes(1));
     // Sales was not touched, so it is not in the body; Reports keeps only what the plan can never take away
     expect(api.updateOrganisation).toHaveBeenCalledWith("acme", { moduleOverrides: { finance: false, reports: ["view"] } });
   });
 
-  it("sends only the features that changed, as an override or a reset", async () => {
+  it("sends only the parts that changed, as an override or a reset, in the same save as a module", async () => {
     signIn();
     renderConsole("/platform/organisations/acme?tab=plan");
-    await screen.findByRole("heading", { name: "Features" });
-    // e-invoicing is overridden on; switching it back to the plan, and Quotations off, is two changes
-    fireEvent.change(screen.getByLabelText("E-invoicing"), { target: { value: "default" } });
-    fireEvent.change(screen.getByLabelText("Quotations"), { target: { value: "off" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save features" }));
+    await screen.findByRole("heading", { name: "Modules" });
+    // e-invoicing is stored as overridden on: put it back to the plan (a reset), then Quotations off (an override)
+    fireEvent.click(screen.getByRole("button", { name: "Reports details" }));
+    fireEvent.click(screen.getByRole("button", { name: "E-invoicing: follow the plan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sales details" }));
+    expect(screen.getByRole("switch", { name: "Quotations" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("switch", { name: "Quotations" }));
+    expect(screen.getByRole("switch", { name: "Quotations" })).toHaveAttribute("aria-checked", "false");
+    // Finance too, so one Save carries a module and a part together
+    fireEvent.click(screen.getByRole("switch", { name: "Finance" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(api.updateOrganisation).toHaveBeenCalledTimes(1));
-    expect(api.updateOrganisation).toHaveBeenCalledWith("acme", { featureOverrides: { quotations: false }, resetFeatures: ["einvoicing"] });
+    expect(api.updateOrganisation).toHaveBeenCalledWith("acme", { moduleOverrides: { finance: false }, featureOverrides: { quotations: false }, resetFeatures: ["einvoicing"] });
+  });
+
+  it("switching a part back to what the plan says stores nothing for it", async () => {
+    signIn();
+    renderConsole("/platform/organisations/acme?tab=plan");
+    await screen.findByRole("heading", { name: "Modules" });
+    fireEvent.click(screen.getByRole("button", { name: "Sales details" }));
+    // nothing to save, so no save bar
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: "Quotations" })); // off: differs from the plan
+    expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("switch", { name: "Quotations" })); // on again: the plan's own answer
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    expect(api.updateOrganisation).not.toHaveBeenCalled();
+  });
+
+  it("offers to discard what was changed and not yet saved", async () => {
+    signIn();
+    renderConsole("/platform/organisations/acme?tab=plan");
+    await screen.findByRole("heading", { name: "Modules" });
+    const finance = screen.getByRole("switch", { name: "Finance" });
+    expect(finance).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(finance);
+    expect(finance).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.getByRole("switch", { name: "Finance" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+    expect(api.updateOrganisation).not.toHaveBeenCalled();
+  });
+
+  it("does not offer the UAE's own features to an organisation elsewhere", async () => {
+    signIn();
+    api.organisation.mockResolvedValue(detail({ organisation: { country: "IN", baseCurrency: "INR", timezone: "Asia/Kolkata", featureOverrides: {} } }));
+    renderConsole("/platform/organisations/acme?tab=plan");
+    await screen.findByRole("heading", { name: "Modules" });
+    fireEvent.click(screen.getByRole("button", { name: "Reports details" }));
+    expect(screen.getByRole("switch", { name: "E-invoicing" })).toBeDisabled();
+    expect(screen.getByText(/not available in India/)).toBeInTheDocument();
+  });
+
+  it("draws the features on their own when an older server sends no module catalogue", async () => {
+    signIn();
+    const { modules, groups, roles, ...older } = CATALOG; // eslint-disable-line no-unused-vars
+    api.catalog.mockResolvedValue({ ...older, features: older.features.map(({ module, hint, ...f }) => f) }); // eslint-disable-line no-unused-vars
+    renderConsole("/platform/organisations/acme?tab=plan");
+    expect(await screen.findByRole("heading", { name: "More features" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Quotations" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("sets a limit to a number, to unlimited, or back to the plan, and refuses a bad number", async () => {

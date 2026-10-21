@@ -3,15 +3,12 @@ import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
 import { formatDate, formatDateTime } from "../utils/format";
 import { consoleError, platform } from "./platformApi";
-import ModuleRow from "./ModulesPicker";
+import ModulesPanel from "./ModulesPanel";
+import { featureChoiceOf, moduleStateOf } from "./modulesModel";
 import {
   roleLabel,
   roleOptions,
-  featureChoice,
   featurePatch,
-  featureResult,
-  moduleActionsOf,
-  moduleChoice,
   modulePatch,
   isoDay,
   limitChoice,
@@ -91,12 +88,6 @@ export function OverviewTab({ detail, run, busy }) {
 
 // -------------------------------------------------------------------------------------------- plan and features
 
-const FEATURE_CHOICES = [
-  { value: "default", label: "Follow the plan" },
-  { value: "on", label: "Always on" },
-  { value: "off", label: "Always off" },
-];
-
 function LimitRow({ label, planValue, org, limitKey, busy, run }) {
   const stored = limitChoice(org, limitKey);
   const [choice, setChoice] = useState(stored);
@@ -151,14 +142,14 @@ export function PlanTab({ detail, catalog, run, busy }) {
   }, [org.code]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!catalog) return <Spinner label="Loading plans" />;
-  // An older server sends no module catalogue: the panel is simply absent rather than drawn empty.
+  // One save for the whole panel: a module and the parts inside it are changed together, so a half-saved change cannot be left
+  // behind. The server merges both in one update. An older server sends no module catalogue: its features are drawn on their own.
   const moduleCatalog = catalog.modules || [];
-  const moduleState = (m) => modules[m.key] ?? { choice: moduleChoice(org, m.key), actions: moduleActionsOf(org, plan, m.key, m.actions.map((a) => a.action)) };
-  const modulesBody = modulePatch(org, Object.fromEntries(moduleCatalog.map((m) => [m.key, moduleState(m)])));
-  const modulesDirty = Object.keys(modulesBody).length > 0;
-  const chosen = (key) => choices[key] ?? featureChoice(org, key);
-  const patch = featurePatch(org, Object.fromEntries(catalog.features.map((f) => [f.key, chosen(f.key)])));
-  const featuresDirty = Object.keys(patch).length > 0;
+  const modulesBody = modulePatch(org, Object.fromEntries(moduleCatalog.map((m) => [m.key, moduleStateOf(org, plan, m, modules)])));
+  const chosen = (key) => featureChoiceOf(org, key, choices);
+  const featuresBody = featurePatch(org, Object.fromEntries(catalog.features.map((f) => [f.key, chosen(f.key)])));
+  const body = { ...modulesBody, ...featuresBody };
+  const dirty = Object.keys(body).length > 0;
 
   return (
     <div className="space-y-4">
@@ -175,44 +166,32 @@ export function PlanTab({ detail, catalog, run, busy }) {
         </div>
       </Panel>
 
-      {moduleCatalog.length ? (
-        <Panel
-          title="Modules"
-          description="What this organisation bought. It is the ceiling every role inside it is capped to, so not even its owner can hold what is not here - and the screens it does not have are not offered at all."
-          actions={<button type="button" disabled={busy || !modulesDirty} onClick={() => run(() => platform.updateOrganisation(org.code, modulesBody), "Modules saved")} className={primaryButton}>Save modules</button>}
-        >
-          <ul>
-            {moduleCatalog.map((m) => (
-              <ModuleRow key={m.key} module={m} plan={plan} state={moduleState(m)} onChange={(next) => setModules((c) => ({ ...c, [m.key]: next }))} />
-            ))}
-          </ul>
-        </Panel>
+      <ModulesPanel
+        catalog={catalog}
+        plan={plan}
+        organisation={org}
+        country={org.country}
+        edits={modules}
+        featureEdits={choices}
+        onModule={(key, next) => setModules((c) => ({ ...c, [key]: next }))}
+        onFeature={(key, choice) => setChoices((c) => ({ ...c, [key]: choice }))}
+      />
+      {/* Fixed to the window, not sticky: the app's html and body are scroll containers (overflow hidden), which stops sticky working
+          on a plain page. The panel is long, so the way to save must not be a scroll away from the card that was just changed. */}
+      {dirty ? (
+        <>
+          <div role="region" aria-label="Unsaved changes" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <p className="text-sm font-medium">You have unsaved changes to the modules</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={busy} onClick={() => { setModules({}); setChoices({}); }} className={secondaryButton}>Discard</button>
+                <button type="button" disabled={busy} onClick={() => run(() => platform.updateOrganisation(org.code, body), "Modules saved")} className={primaryButton}>Save changes</button>
+              </div>
+            </div>
+          </div>
+          <div className="h-16" aria-hidden="true" />
+        </>
       ) : null}
-
-      <Panel
-        title="Features"
-        description="Each can follow the plan or be forced on or off for this organisation. A change applies on the person's very next request."
-        actions={<button type="button" disabled={busy || !featuresDirty} onClick={() => run(() => platform.updateOrganisation(org.code, patch), "Features saved")} className={primaryButton}>Save features</button>}
-      >
-        <ul>
-          {catalog.features.map((f) => {
-            const choice = chosen(f.key);
-            const on = featureResult(choice, plan?.features?.[f.key]);
-            return (
-              <li key={f.key} className="grid items-center gap-2 border-t border-border py-2.5 first:border-t-0 sm:grid-cols-[1fr_auto_auto]">
-                <div>
-                  <p className="text-sm font-medium">{f.label}</p>
-                  <p className="text-xs text-muted-foreground">{plan?.features?.[f.key] ? "In the plan" : "Not in the plan"}</p>
-                </div>
-                <Select aria-label={f.label} value={choice} onChange={(e) => setChoices((c) => ({ ...c, [f.key]: e.target.value }))} className="sm:w-44">
-                  {FEATURE_CHOICES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </Select>
-                <Pill tone={on ? "success" : "neutral"} className="justify-self-start sm:w-16 sm:justify-center">{on ? "On" : "Off"}</Pill>
-              </li>
-            );
-          })}
-        </ul>
-      </Panel>
 
       <Panel title="Limits" description="The plan's number, a number of its own, or none.">
         {catalog.limits.map((key) => (

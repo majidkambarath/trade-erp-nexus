@@ -253,11 +253,31 @@ const matches = (option, input) => {
   return q.split(/\s+/).every((word) => norm(hay).includes(word));
 };
 
+// With `rankMatches`, what was typed puts the best match first: the name itself, then names that begin with it, then a word that
+// begins with it, then the rest (each group in the list's own order). react-select keeps the list's order, so typing "India" and
+// pressing Enter chose "British Indian Ocean Territory", which is alphabetically first. Opt-in, so no other list changes order.
+const rankOf = (option, q) => {
+  const label = norm(option.label);
+  if (label === q) return 0;
+  if (label.startsWith(q)) return 1;
+  if (label.split(/[\s\-/_(),]+/).some((word) => word.startsWith(q))) return 2;
+  return 3;
+};
+const rankedBy = (options, typed) => {
+  const q = norm(typed).trim();
+  if (!q) return options;
+  return options
+    .map((option, index) => [option, index, rankOf(option, q)])
+    .sort((a, b) => a[2] - b[2] || a[1] - b[1])
+    .map(([option]) => option);
+};
+
 export function SearchSelect({
   id, value, onChange, options, placeholder = "Choose…", clearable = false, disabled = false, loading = false,
-  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", className, ...aria
+  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", rankMatches = false, className, ...aria
 }) {
   const selected = options.find((o) => String(o.value) === String(value ?? "")) || null;
+  const [typed, setTyped] = useState("");
   // Escape closes the list when it is open; only an Escape pressed with the list already closed
   // reaches the dialog around it. The list is flagged on the native event so the dialog can tell.
   const listOpen = useRef(false);
@@ -270,7 +290,8 @@ export function SearchSelect({
       className={className}
       classNamePrefix="search-select"
       styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact)}
-      options={options}
+      options={rankMatches ? rankedBy(options, typed) : options}
+      onInputChange={rankMatches ? (text, meta) => setTyped(meta.action === "input-change" ? text : "") : undefined}
       value={selected}
       onChange={(opt) => onChange?.(opt ? String(opt.value) : "")}
       isClearable={clearable}

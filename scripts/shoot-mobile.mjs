@@ -270,6 +270,19 @@ DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
 DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
 DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
+// The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
+// opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
+// not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
+const MODULE_STEPS = [
+  { name: "module-open", page: true, clicks: ["^Inventory details "], reveal: "^Parts of Inventory", settle: 700 },
+  { name: "modules-open", page: true, clicks: ["^Expand all$"], reveal: "^Who gets it", settle: 900 },
+  // a switch changed: the unsaved-changes bar is fixed to the bottom of the window, clear of the last card (Plan tab only)
+  { name: "modules-unsaved", page: true, clicks: ["^Finance$"], settle: 600 },
+];
+DEEP["console-new-organisation"] = MODULE_STEPS;
+DEEP["platform-new"] = MODULE_STEPS; // check:mobile -- /platform/new
+DEEP["console-organisation-plan"] = MODULE_STEPS;
+DEEP["platform-organisations-gulf-fresh-tab-plan"] = MODULE_STEPS; // check:mobile -- /platform/organisations/gulf-fresh?tab=plan
 
 /**
  * The first visible, enabled control whose text or label matches. It looks again for up to `patience` ms: the first viewport of
@@ -417,6 +430,7 @@ const EXTRA_PAGES = [
   ["console-organisations", "/platform"],
   ["console-new-organisation", "/platform/new"],
   ["console-organisation", "/platform/organisations/gulf-fresh"],
+  ["console-organisation-plan", "/platform/organisations/gulf-fresh?tab=plan"],
   ["console-activity", "/platform/activity"],
   ["console-developers", "/platform/developers"],
   ["console-security", "/platform/security"],
@@ -775,7 +789,9 @@ function stubFor(pathname) {
   if (p.includes("/platform/")) {
     if (p.endsWith("/me/2fa")) return { enabled: false, enabledAt: null, recoveryCodesLeft: 0 };
     // every module of the product, as a plan that includes all of it says so (utils/plans.js ALL_MODULES)
-    const ALL_STUB_MODULES = Object.fromEntries(["sales", "purchase", "inventory", "finance", "banking", "accounts", "reports", "users", "staff", "settings", "audit", "lookups"].map((m) => [m, true]));
+    const ALL_STUB_MODULES = Object.fromEntries(["crm", "sales", "purchase", "inventory", "finance", "banking", "accounts", "reports", "users", "staff", "settings", "audit", "lookups"].map((m) => [m, true]));
+    // what the role editor names each action (utils/permissions.js SHORT), so the console's checkboxes carry real words
+    const SHORT = { view: "View", create: "Add", edit: "Edit", approve: "Approve", delete: "Delete", deletePosted: "Delete approved", send: "Send to customers", creditOverride: "Override credit limit", adjust: "Adjust stock", manage: "Manage", reconcile: "Reconcile", close: "Close periods", financial: "Financial reports", vat: "File VAT", assign: "Assign to someone" };
     const org = (over) => ({ code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "standard", status: "active", featureOverrides: { einvoicing: true }, moduleOverrides: { finance: false, reports: ["view", "financial"] }, limitOverrides: { users: 25 }, subscription: { endsAt: "2026-12-31T23:59:59.999Z", graceDays: 7, onExpiry: "block" }, provisioning: { complete: true, steps: { settings: { state: "done" }, chart: { state: "done" }, taxCodes: { state: "done" } } }, ...over });
     if (p.endsWith("/catalog")) {
       return {
@@ -784,25 +800,44 @@ function stubFor(pathname) {
           { code: "standard", name: "Standard", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, currencies: true, vatReturn: true, messaging: true }, modules: ALL_STUB_MODULES, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
           { code: "premium", name: "Premium", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true }, modules: ALL_STUB_MODULES, limits: { users: 50, branches: 20, documentsPerMonth: 20000 } },
         ],
+        // the same shape the server sends (utils/consoleCatalog.js): a group for each module, the screens it includes with the
+        // optional features filed inside it, and each action named and explained
+        groups: [{ key: "crm", label: "CRM workspace" }, { key: "trade", label: "Buying, selling and stock" }, { key: "money", label: "Money and books" }, { key: "organisation", label: "People and settings" }, { key: "core", label: "Always on" }],
         modules: [
-          ["sales", "Sales", "Quotations, sales orders, delivery notes, sales returns and customers", ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], []],
-          ["purchase", "Purchase", "Purchase orders, purchase returns and vendors", ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
-          ["inventory", "Inventory", "Items, categories, units, batches and stock movements", ["view", "create", "edit", "delete", "adjust"], []],
-          ["finance", "Finance", "Receipts, payments, journals, contra, expenses, notes and cheques", ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
-          ["banking", "Banking", "Bank and card masters, statements and reconciliation", ["view", "manage", "reconcile"], []],
-          ["accounts", "Accounts", "Chart of accounts, tax codes, opening balances and the period lock", ["view", "manage", "close"], []],
-          ["reports", "Reports", "The dashboard and reports", ["view", "financial", "vat"], ["view"]],
-          ["users", "Users and roles", "The people who sign in, and what each may do", ["view", "manage"], []],
-          ["staff", "Staff records", "Employee records (HR)", ["view", "manage"], []],
-          ["settings", "Settings", "Company profile, sending, e-invoicing and business rules", ["view", "manage"], ["view"]],
-          ["audit", "Activity trail", "Who did what", ["view"], []],
-          ["lookups", "Pick lists", "The lists a form chooses from", ["view"], ["view"]],
-        ].map(([key, label, hint, actions, alwaysOn]) => ({ key, label, hint, actions: actions.map((action) => ({ action, label: action })), alwaysOn })),
-        features: [["quotations", "Quotations"], ["deliveryNotes", "Delivery notes"], ["batches", "Batches and expiry"], ["banking", "Banks, cards and cheques"], ["reconciliation", "Bank and card reconciliation"], ["currencies", "Foreign currency"], ["vatReturn", "VAT return"], ["ifrsStatements", "IFRS statements"], ["einvoicing", "E-invoicing"], ["messaging", "Send documents to customers"], ["multiBranch", "More than one branch"], ["production", "Production (materials and expenses into a product's cost)"]].map(([key, label]) => ({ key, label })),
+          ["crm", "CRM", "The CRM workspace: leads, contacts, deals, follow-ups, calendar and reports, with an ERP / CRM switch for the people who hold it", "crm", ["Dashboard", "Leads", "Contacts", "Pipeline", "Follow-ups", "Calendar", "Reports", "Setup"], ["view", "create", "edit", "delete", "assign", "manage"], []],
+          ["sales", "Sales", "Quotations, sales orders, delivery notes, sales returns and customers", "trade", [{ feature: "quotations" }, "Orders", { feature: "deliveryNotes" }, "Invoices", "Returns", "Customers", { feature: "messaging" }], ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], []],
+          ["purchase", "Purchase", "Purchase orders, purchase returns and vendors", "trade", ["Orders", "Goods received", "Invoices", "Returns", "Vendors"], ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
+          ["inventory", "Inventory", "Items, categories, units, batches and stock movements", "trade", ["Stock items", "Movements", "Categories", "Units", { feature: "batches" }, { feature: "production" }], ["view", "create", "edit", "delete", "adjust"], []],
+          ["finance", "Finance", "Receipts, payments, journals, contra, expenses, notes and cheques", "money", ["Receipts", "Payments", "Journal", "Contra", "Expenses", "Debit and credit notes", "Ledger"], ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
+          ["banking", "Banking", "Bank and card masters, statements and reconciliation", "money", [{ feature: "banking" }, { feature: "reconciliation" }], ["view", "manage", "reconcile"], []],
+          ["accounts", "Accounts", "Chart of accounts, tax codes, opening balances and the period lock", "money", ["Chart of accounts", "Accounting setup and tax codes", "Opening balances", "Period lock", { feature: "currencies" }], ["view", "manage", "close"], []],
+          ["reports", "Reports", "The dashboard and reports", "money", ["Dashboard", "Financial statements", "Ledger reports", "Trade analysis", "Ageing", { feature: "ifrsStatements" }, { feature: "vatReturn" }, { feature: "einvoicing" }], ["view", "financial", "vat"], ["view"]],
+          ["users", "Users and roles", "The people who sign in, and what each may do", "organisation", ["Users", "Roles and permissions"], ["view", "manage"], []],
+          ["staff", "Staff records", "Employee records (HR)", "organisation", ["Staff records"], ["view", "manage"], []],
+          ["settings", "Settings", "Company profile, sending, e-invoicing and business rules", "organisation", ["Company profile", "Business rules", "Security", { feature: "multiBranch" }], ["view", "manage"], ["view"]],
+          ["audit", "Activity trail", "Who did what", "organisation", ["Activity trail"], ["view"], []],
+          ["lookups", "Pick lists", "The lists a form chooses from", "core", [], ["view"], ["view"]],
+        ].map(([key, label, hint, group, sections, actions, alwaysOn]) => ({ key, label, hint, group, sections, actions: actions.map((action) => ({ action, short: SHORT[action] || action, label: `${SHORT[action] || action}: what a person holding it may do in ${label}`, read: action === "view" })), alwaysOn })),
+        features: [
+          ["quotations", "Quotations", "Price offers that the customer accepts and that turn into orders", "sales"], ["deliveryNotes", "Delivery notes", "Delivery notes, signed for on delivery and invoiced afterwards", "sales"],
+          ["messaging", "Send documents to customers", "Email or WhatsApp an invoice to the customer with a secure link", "sales"], ["batches", "Batches and expiry", "Batch numbers, expiry dates and first-expiry-first-out stock", "inventory"],
+          ["production", "Production", "Materials and expenses moved into a product's cost, job work and process orders. Off for everyone unless switched on here", "inventory", true],
+          ["banking", "Banks, cards and cheques", "Bank and card masters, cheques, and card and bank payment modes", "banking"], ["reconciliation", "Bank and card reconciliation", "Import a bank statement and match it to the books", "banking"],
+          ["currencies", "Foreign currency", "Receipts and payments in a foreign currency, with exchange rates", "accounts"], ["ifrsStatements", "IFRS statements", "Statement of financial position, profit or loss, cash flows and notes", "reports"],
+          ["vatReturn", "VAT return", "The VAT 201 return, built from the approved documents", "reports", false, ["AE"]], ["einvoicing", "E-invoicing", "Electronic tax invoices sent to the tax authority", "reports", false, ["AE"]],
+          ["multiBranch", "More than one branch", "More than one branch, each with its own documents and numbering", "settings"],
+        ].map(([key, label, hint, module, optIn, onlyIn]) => ({ key, label, hint, module, optIn: Boolean(optIn), onlyIn: onlyIn || null })),
+        // what each ready-made role holds in each module (the panel says who gets what is sold)
+        roles: [
+          { key: "super_admin", name: "Owner", rank: 100, modules: { sales: ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete", "deletePosted"], reports: ["view", "financial", "vat"] } },
+          { key: "manager", name: "Manager", rank: 60, modules: { sales: ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve"], reports: ["view", "financial"] } },
+          { key: "storekeeper", name: "Storekeeper", rank: 40, modules: { inventory: ["view", "create", "edit", "adjust"], sales: ["view"], reports: ["view"] } },
+          { key: "viewer", name: "Viewer", rank: 20, modules: { sales: ["view"], inventory: ["view"], finance: ["view"], reports: ["view", "financial"] } },
+        ],
         limits: ["users", "branches", "documentsPerMonth"],
-        currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }],
+        currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }, { code: "INR", name: "Indian Rupee" }],
         unsupportedCurrencies: ["KWD", "BHD", "OMR"],
-        timezones: ["Asia/Dubai", "Asia/Riyadh", "Europe/London"],
+        timezones: ["Asia/Dubai", "Asia/Kolkata", "Asia/Riyadh", "Europe/London"],
         accountTypes: ["super_admin", "admin", "manager", "operator", "viewer"],
       };
     }
@@ -2171,7 +2206,7 @@ for (const vp of VIEWPORTS) {
           // of a long page the step is about
           if (step.reveal) {
             await page.evaluate((t) => {
-              const el = [...document.querySelectorAll('label, legend, h2, h3, p, span')].find((e) => e.getBoundingClientRect().height > 0 && new RegExp(t, 'i').test((e.textContent || '').trim()));
+              const el = [...document.querySelectorAll('label, legend, h2, h3, h4, p, span')].find((e) => e.getBoundingClientRect().height > 0 && new RegExp(t, 'i').test((e.textContent || '').trim()));
               el?.scrollIntoView({ block: 'start' });
             }, step.reveal);
             await wait(300);

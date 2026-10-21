@@ -9,7 +9,7 @@ import { ActivityTab, BranchesTab, CompanyTab, OverviewTab, PeopleTab, PlanTab, 
 
 const TABS = [
   { id: "overview", label: "Overview", Component: OverviewTab },
-  { id: "plan", label: "Plan and features", Component: PlanTab },
+  { id: "plan", label: "Plan and modules", Component: PlanTab },
   { id: "subscription", label: "Subscription", Component: SubscriptionTab },
   { id: "company", label: "Company", Component: CompanyTab },
   { id: "people", label: "People", Component: PeopleTab },
