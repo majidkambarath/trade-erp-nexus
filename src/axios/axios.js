@@ -5,6 +5,10 @@ import { BLOCKED_EVENT, BRANCH_RESET_EVENT, blockedFrom, isBranchRefusal, isPerm
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
 // environment variable) to point the app at another backend; with nothing set it is the local
 // server, as before.
+//
+// Deployed, it is the PATH "/api/v1" (see .env.production): the browser calls the site's own
+// address and the host forwards /api/* to the backend, so the backend's address is in neither the
+// bundle nor the Network tab. A full URL still works for local work and for tests.
 const API_PATH = "/api/v1";
 
 // Every route is mounted under /api/v1, but a deployment dashboard invites you to paste the bare
