@@ -42,7 +42,7 @@ import { toastClasses } from "../../lib/status";
 import { pageSession } from "../../lib/pageSession";
 import StatCard from "../ui/stat-card";
 
-import { DateInput, Field, SearchSelect } from "../accounting/kit";
+import { DateInput, Field, QuickAddSelect, SearchSelect } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
@@ -231,15 +231,6 @@ const StockManagement = () => {
   const [isDraftSaved, setIsDraftSaved] = useState(() => Boolean(draft));
   const [lastSaveTime, setLastSaveTime] = useState(() => (draft ? session.get("lastSaveTime") : null));
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [categoryFormData, setCategoryFormData] = useState({
-    name: "",
-    description: "",
-    status: "Active",
-  });
-  const [categoryErrors, setCategoryErrors] = useState({});
-  const [isCategorySubmitting, setIsCategorySubmitting] = useState(false);
 
   const formRef = useRef(null);
   const autoSaveInterval = useRef(null);
@@ -763,68 +754,17 @@ const StockManagement = () => {
   // low stock and stock value are about goods; services are counted apart (lib/itemTypes.js)
   const stockStats = useMemo(() => itemStats(stockItems), [stockItems]);
 
-  const handleCategoryChange = useCallback(
-    (e) => {
-      const { name, value } = e.target;
-      setCategoryFormData((prev) => ({ ...prev, [name]: value }));
-      if (categoryErrors[name])
-        setCategoryErrors((prev) => ({ ...prev, [name]: "" }));
-    },
-    [categoryErrors]
-  );
-
-  const validateCategoryForm = useCallback(() => {
-    const newErrors = {};
-    if (!categoryFormData.name.trim())
-      newErrors.name = "Category name is required";
-    return newErrors;
-  }, [categoryFormData]);
-
-  const handleCreateCategory = useCallback(async () => {
-    const newErrors = validateCategoryForm();
-    if (Object.keys(newErrors).length > 0) {
-      setCategoryErrors(newErrors);
-      return;
-    }
-
-    setIsCategorySubmitting(true);
-    try {
-      const payload = {
-        name: categoryFormData.name,
-        description: categoryFormData.name,
-        status: categoryFormData.status,
-      };
-
-      const response = await axiosInstance.post(
-        "/categories/categories",
-        payload
-      );
-      const newCategory = response.data.data;
-
-      await fetchCategories();
-      setFormData((prev) => ({ ...prev, category: newCategory._id }));
-      showToastMessage("Category created successfully!", "success");
-      setShowCategoryModal(false);
-      setCategoryFormData({
-        name: "",
-        description: "",
-        status: "Active",
-      });
-      setCategoryErrors({});
-    } catch (error) {
-      showToastMessage(
-        error.response?.data?.message || "Failed to create category.",
-        "error"
-      );
-    } finally {
-      setIsCategorySubmitting(false);
-    }
-  }, [
-    categoryFormData,
-    validateCategoryForm,
-    fetchCategories,
-    showToastMessage,
-  ]);
+  // The category picker's quick-add (kit.QuickAddSelect): a category needs only a name to exist (the
+  // model's `description`/`status` both have defaults), so typing one that does not exist and choosing
+  // "Add ..." creates it for real, in place, with no separate button or modal. Vendor and Unit of Measure
+  // keep their plain pickers below - a vendor needs a contact person and an address, and a unit needs a
+  // category of its own, so a bare typed name cannot create either safely; quick-add is not offered there
+  // until there is a real design for the rest of what those need.
+  const createCategory = useCallback(async (name) => {
+    const response = await axiosInstance.post("/categories/categories", { name, description: name, status: "Active" });
+    const created = response.data.data;
+    return { value: created._id, label: created.name };
+  }, []);
 
 //   const handleDownloadBarcode = useCallback(() => {
 //   if (barcodeRef.current && barcodeRef.current.canvas) {
@@ -1146,6 +1086,7 @@ const StockManagement = () => {
                           <div className="text-end">
                             <p className="text-sm font-bold text-gray-900">{item.currentStock}</p>
                             <p className={`text-xs font-normal ${stockStatus.color}`}>Reorder: {item.reorderLevel}</p>
+                            {item.withJobWorker > 0 && <p className="text-xs font-normal text-muted-foreground">{item.withJobWorker} with job worker</p>}
                           </div>
                         </div>
                       );
@@ -1179,7 +1120,9 @@ const StockManagement = () => {
                 ].map((c) => ({
                   ...c,
                   header: (
-                    <button type="button" onClick={() => handleSort(c.key)} className="flex items-center space-x-1 hover:text-foreground">
+                    // -my-3.5/py-3.5 grows the tap target past the 40px floor without moving the text,
+                    // same invisible-expansion trick as DataTable's own sort buttons (accounting/DataTable.jsx).
+                    <button type="button" onClick={() => handleSort(c.key)} className="-my-3.5 flex items-center space-x-1 py-3.5 hover:text-foreground">
                       <span>{c.label}</span>
                       {sortConfig.key === c.key && <span className="text-indigo-600">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
                     </button>
@@ -1199,12 +1142,12 @@ const StockManagement = () => {
                   cell: (item) => (
                     <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
                       <Can permission="inventory.edit">
-                        <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200" title="Edit item">
+                        <button onClick={() => handleEdit(item)} className="grid h-10 w-10 place-items-center rounded-lg text-indigo-600 transition-all duration-200 hover:bg-indigo-50 hover:text-indigo-800 lg:h-8 lg:w-8" title="Edit item">
                           <Edit size={16} />
                         </button>
                       </Can>
                       <Can permission="inventory.delete">
-                        <button onClick={() => showDeleteConfirmation(item)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all duration-200" title="Delete item">
+                        <button onClick={() => showDeleteConfirmation(item)} className="grid h-10 w-10 place-items-center rounded-lg text-red-600 transition-all duration-200 hover:bg-red-50 hover:text-red-800 lg:h-8 lg:w-8" title="Delete item">
                           <Trash2 size={16} />
                         </button>
                       </Can>
@@ -1299,7 +1242,7 @@ const StockManagement = () => {
               </div>
               <button
                 onClick={resetForm}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
+                className="grid h-10 w-10 place-items-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white hover:text-gray-600 md:h-8 md:w-8"
               >
                 <X size={22} />
               </button>
@@ -1325,20 +1268,17 @@ const StockManagement = () => {
                 </div>
 
                 <div>
-                  <FormSelect
-                    label="Category"
-                    icon={Tag}
-                    error={errors.category}
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    options={categories.map((cat) => ({
-                      value: cat._id,
-                      label: cat.name,
-                    }))}
-                    data={true}
-                    onAddNew={() => setShowCategoryModal(true)}
-                  />
+                  <Field label="Category" required error={errors.category}>
+                    <QuickAddSelect
+                      value={formData.category}
+                      onChange={(value) => handleChange({ target: { name: "category", value } })}
+                      options={categories.map((cat) => ({ value: cat._id, label: cat.name }))}
+                      onCreate={createCategory}
+                      onCreated={fetchCategories}
+                      onCreateError={(err) => showToastMessage(err.response?.data?.message || "Failed to create category.", "error")}
+                      placeholder="Search or add a category…"
+                    />
+                  </Field>
                 </div>
 
                 <div>
@@ -1749,94 +1689,6 @@ const StockManagement = () => {
         </div>
       )}
 
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-              <h3 className="text-xl font-bold text-gray-900">
-                Add New Category
-              </h3>
-              <button
-                onClick={() => setShowCategoryModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all duration-200"
-              >
-                <X size={22} />
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={categoryFormData.name}
-                    onChange={handleCategoryChange}
-                    placeholder="Enter category name"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
-                      categoryErrors.name
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {categoryErrors.name && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <AlertCircle size={12} className="mr-1" />
-                      {categoryErrors.name}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={categoryFormData.status}
-                    onChange={handleCategoryChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryModal(false)}
-                  disabled={isCategorySubmitting}
-                  className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateCategory}
-                  disabled={isCategorySubmitting}
-                  className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl flex items-center"
-                >
-                  {isCategorySubmitting ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin mr-2" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={16} className="mr-2" />
-                      Create Category
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

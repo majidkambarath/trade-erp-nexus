@@ -4,6 +4,7 @@
 // tested without rendering.
 
 import { formatNumber } from "../utils/format";
+import { taxWord } from "./taxTerms";
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const cents = (n) => Math.round((Number(n) || 0) * 100);
@@ -28,13 +29,13 @@ export function postingKinds(amount) {
   if (isIn(amount)) {
     return [
       { value: "receipt", label: "Customer receipt", help: "A customer paid by transfer and it was not booked" },
-      { value: "interest", label: "Interest received", help: "Credit interest from the bank (no VAT)" },
+      { value: "interest", label: "Interest received", get help() { return `Credit interest from the bank (no ${taxWord()})`; } },
       { value: "transfer", label: "From another account", help: "Money moved in from one of your own accounts" },
       { value: "journal", label: "Something else", help: "Post it to an account you choose" },
     ];
   }
   return [
-    { value: "fee", label: "Bank charge", help: "A fee the bank took, with its VAT" },
+    { value: "fee", label: "Bank charge", get help() { return `A fee the bank took, with its ${taxWord()}`; } },
     { value: "payment", label: "Vendor payment", help: "You paid a vendor by transfer and it was not booked" },
     { value: "transfer", label: "To another account", help: "Money moved out to one of your own accounts" },
     { value: "journal", label: "Something else", help: "Post it to an account you choose" },
@@ -137,7 +138,7 @@ export function settlementCheck({ expected, fees, received }) {
   const maxKept = Math.max(500, Math.round(e * 0.1));
   const maxReturned = Math.max(50, cents(fees));
   if (diff > maxKept) {
-    return { ok: false, code: "too-large", text: `The bank paid ${((diff) / 100).toFixed(2)} less than these sales are worth. That is more than commission and VAT could be (at most ${(maxKept / 100).toFixed(2)}). Check you ticked the right sales; refunds and chargebacks taken off a payment are posted as a journal first.` };
+    return { ok: false, code: "too-large", text: `The bank paid ${((diff) / 100).toFixed(2)} less than these sales are worth. That is more than commission and ${taxWord()} could be (at most ${(maxKept / 100).toFixed(2)}). Check you ticked the right sales; refunds and chargebacks taken off a payment are posted as a journal first.` };
   }
   if (-diff > maxReturned) {
     return { ok: false, code: "exceeds", text: `The bank paid ${((-diff) / 100).toFixed(2)} more than these sales are worth after commission. Tick the other sales this payment covers.` };

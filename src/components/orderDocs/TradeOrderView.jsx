@@ -18,6 +18,8 @@ import ApproveNow from "./ApproveNow";
 import { payHref } from "../lists/PayAction";
 import OrderProgress from "./OrderProgress";
 import OrderInvoices from "./OrderInvoices";
+import { useDocumentTitle } from "../../lib/useRecordRoute";
+import { PRODUCT_NAME } from "../../config/product";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -32,6 +34,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   const currency = orgCurrency();
   const { data: order, loading, error, reload } = useAsync(() => tradeOrders.get(id), [id]);
   const activity = useAsync(() => tradeOrders.activity(id), [id]);
+  useDocumentTitle(order ? `${order.orderNo} · ${sales ? "Sales" : "Purchase"} orders · ${PRODUCT_NAME}` : null);
   const [dialog, setDialog] = useState(null); // confirm | cancel | close | reopen | invoice | delete
   const [form, setForm] = useState({ reason: "", date: todayInput(), vendorInvoiceNo: "", approveNow: true });
   const [approving, setApproving] = useState(null);

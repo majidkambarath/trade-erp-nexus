@@ -7,6 +7,15 @@
 import {
   BarChart3,
   BookOpen,
+  Building2,
+  CalendarClock,
+  CalendarDays,
+  Contact,
+  Gauge,
+  Handshake,
+  MessagesSquare,
+  SlidersHorizontal,
+  Target,
   LayoutDashboard,
   Landmark,
   Settings,
@@ -34,6 +43,94 @@ export const MODULES = [
       // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what is waiting for this person's approval
       { label: "Approvals", to: "/approvals", permission: ["sales.approve", "purchase.approve", "finance.approve"], badge: "approvals", keywords: ["approve", "waiting", "pending", "to approve", "second approver", "limit", "held", "review"] },
     ],
+  },
+  // ---- the CRM workspace -------------------------------------------------------------------------------------
+  //
+  // A module names the `workspace` it belongs to; absent means "erp". Only the rail and the bottom bar filter on it
+  // (src/components/Layout.jsx), so findActive, getVisibleModules, the route-coverage test and the mobile sweep's
+  // page list all still read ONE flat list and needed no change.
+  //
+  // Each of these is a single-tab module on purpose: ModuleTabs draws no strip below two tabs, so each is a plain
+  // rail item and the CRM reads as its own sidebar rather than as one tab strip among ten.
+  //
+  // There is deliberately no `/crm` route: a tab's path prefix-matches its children, so it would own every page
+  // below it and navigation.test.js requires each route to belong to exactly one tab. Hence /crm/dashboard.
+  //
+  // The ids are chosen so the mobile sweep's `${m.id}-${slug}` screenshot names come out unchanged (it drops a slug
+  // the id already ends with), which is why the wave-1 DEEP steps and .shots filenames still work.
+  {
+    id: "crm-dashboard",
+    workspace: "crm",
+    label: "Dashboard",
+    icon: Gauge,
+    tabs: [{ label: "Dashboard", to: "/crm/dashboard", permission: "crm.view", keywords: ["crm", "today", "my work", "late", "forecast", "moved by itself", "automation"] }],
+  },
+  {
+    id: "crm-leads",
+    workspace: "crm",
+    label: "Leads",
+    icon: Target,
+    tabs: [{ label: "Leads", to: "/crm/leads", permission: "crm.view", keywords: ["enquiry", "enquiries", "prospect", "lead", "walk-in", "referral", "qualify", "score"] }],
+  },
+  {
+    id: "crm-contacts",
+    workspace: "crm",
+    label: "Contacts",
+    icon: Contact,
+    tabs: [{ label: "Contacts", to: "/crm/contacts", permission: "crm.view", keywords: ["people", "person", "contact", "who to call", "decision maker", "address book"] }],
+  },
+  {
+    id: "crm-pipeline",
+    workspace: "crm",
+    label: "Pipeline",
+    icon: Handshake,
+    tabs: [{ label: "Pipeline", to: "/crm/pipeline", permission: "crm.view", keywords: ["deals", "opportunities", "funnel", "stages", "forecast", "weighted", "board"] }],
+  },
+  {
+    id: "crm-communications",
+    workspace: "crm",
+    label: "Communications",
+    // `short` is what the 88px rail and the bottom bar say when the full name will not fit in them. Everything that
+    // has room - the tab strip, the command palette, the More sheet, the page itself - still says the whole word.
+    short: "Comms",
+    icon: MessagesSquare,
+    tabs: [{ label: "Communications", to: "/crm/communications", permission: "crm.view", keywords: ["calls", "visits", "messages", "notes", "log", "history", "what was said"] }],
+  },
+  {
+    id: "crm-follow-ups",
+    workspace: "crm",
+    label: "Follow-ups",
+    icon: CalendarClock,
+    // `badge` names the count shown beside the tab (components/shell/NavBadges.jsx): what this person owes today
+    tabs: [{ label: "Follow-ups", to: "/crm/follow-ups", permission: "crm.view", badge: "crmFollowUps", keywords: ["call", "visit", "reminder", "due", "overdue", "chase", "activity", "task", "worklist"] }],
+  },
+  {
+    id: "crm-calendar",
+    workspace: "crm",
+    label: "Calendar",
+    icon: CalendarDays,
+    tabs: [{ label: "Calendar", to: "/crm/calendar", permission: "crm.view", keywords: ["schedule", "diary", "agenda", "month", "events", "due", "reschedule", "drag", "what is on"] }],
+  },
+  {
+    id: "crm-reports",
+    workspace: "crm",
+    label: "Reports",
+    icon: BarChart3,
+    tabs: [
+      {
+        label: "Reports",
+        to: "/crm/reports",
+        permission: "crm.view",
+        keywords: ["analysis", "conversion", "win rate", "lost reasons", "by source", "pipeline report", "aging", "sales performance", "communication activity", "register"],
+      },
+    ],
+  },
+  {
+    id: "crm-setup",
+    workspace: "crm",
+    label: "Setup",
+    icon: SlidersHorizontal,
+    tabs: [{ label: "Setup", to: "/crm/setup", permission: "crm.manage", keywords: ["stages", "pipeline setup", "automation", "assignment", "round robin", "rules"] }],
   },
   {
     id: "sales",
@@ -94,6 +191,7 @@ export const MODULES = [
         keywords: ["products", "sku", "items"],
       },
       { label: "Movements", to: "/inventory", permission: "inventory.view", keywords: ["inventory", "stock movement"] },
+      { label: "Production", to: "/production", permission: "inventory.view", feature: "production", badge: "myWork", keywords: ["manufacture", "make", "assembly", "product cost", "costing", "bill of materials"] },
       { label: "Categories", to: "/category-management", permission: "inventory.view" },
       { label: "Units", to: "/unit-setup", permission: "inventory.view", keywords: ["unit of measure", "uom"] },
       { label: "Batches", to: "/batches", permission: "inventory.view", feature: "batches", keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },
@@ -170,6 +268,75 @@ export const MODULES = [
     tabs: [{ label: "Settings", to: "/settings", open: "every person has their own preferences and password here; what else the page shows is up to the server", keywords: ["profile", "company", "credit control", "returns", "trn", "tax registration", "password", "theme", "date format"] }],
   },
 ];
+
+/**
+ * The two halves of the product. A workspace is one level ABOVE a module: it decides which rail you are looking at,
+ * and nothing else. Everything that answers "which page is this" still reads the one flat MODULES list, which is why
+ * findActive, getVisibleModules, pageTitle, the route-coverage test and the mobile sweep needed no change at all.
+ *
+ * The ERP is the default and a module that names no workspace belongs to it, so adding a workspace could not quietly
+ * move an existing page.
+ */
+export const ERP = "erp";
+export const WORKSPACES = [
+  { id: ERP, label: "ERP", icon: Building2, hint: "Buying, selling, stock and the books" },
+  // `module` is the permission module that SELLS the workspace (utils/plans.js): an organisation that has not bought it
+  // is never offered it, whatever its people's roles say. The ERP names none - it is the product itself.
+  { id: "crm", label: "CRM", icon: Handshake, module: "crm", hint: "Enquiries, people and the deals in front of the paperwork" },
+];
+
+export const workspaceOf = (module) => module?.workspace || ERP;
+
+/** The modules of one workspace, in rail order. */
+export const modulesIn = (workspaceId, modules = MODULES) => modules.filter((m) => workspaceOf(m) === (workspaceId || ERP));
+
+/**
+ * The workspaces this person can actually open, in order. A role with no crm.view sees one, and the switcher then
+ * draws nothing: there is nothing to switch to.
+ *
+ * A FOOTER module (Settings) does not count towards a workspace. It is open to every signed-in person - their own
+ * password and preferences are there - so counting it would give a CRM-only person an "ERP" made of one settings page
+ * and a switch into it.
+ */
+export const visibleWorkspaces = (modules = MODULES) =>
+  WORKSPACES.filter((w) => modules.some((m) => workspaceOf(m) === w.id && m.placement !== "footer"));
+
+/**
+ * The workspaces this person is OFFERED a switch between. Two things must both say yes, and the first is the one a
+ * person cannot change:
+ *
+ *   1. the ORGANISATION bought the workspace's module (`status.modules.crm.on`) - an organisation on the Standard or
+ *      Trade-only plan has the ERP and nothing to switch to;
+ *   2. the PERSON can open at least one of its pages (`modules` is already what their role may open).
+ *
+ * The first is already inside `me.grants` (the server caps them to what was bought), so on a healthy status the second
+ * check is enough; asking the module as well means a status that disagrees with itself can never offer a workspace
+ * whose every request the server will refuse.
+ *
+ * `status` undefined means the caller did not say, and only the modules are judged. `null`, or a status whose grants
+ * are not known yet, is "still loading": nothing is known about the plan, and the only workspace that cannot be wrong
+ * is the ERP - so an organisation without the CRM is not offered it for the half second the page takes to arrive.
+ */
+export const offeredWorkspaces = (modules = MODULES, status) => {
+  const open = visibleWorkspaces(modules);
+  if (status === undefined) return open;
+  if (!Array.isArray(status?.me?.grants)) return open.filter((w) => !w.module);
+  return open.filter((w) => !w.module || status.modules?.[w.module]?.on !== false);
+};
+
+/**
+ * Which rail to draw. Normally the half the page belongs to, read from the address. The exception is a page that
+ * belongs to a half the person is not offered - Settings, opened from the account menu by someone who works only in
+ * the CRM, is an ERP page - which would otherwise draw a rail of one item with no switch to get back out of it: they
+ * keep the rail of the half they do work in. Until the status has arrived nothing is known, and the address decides, so
+ * a reload on a CRM page never flashes the ERP rail first.
+ */
+export const workspaceInUse = (activeModule, modules = MODULES, status) => {
+  const own = workspaceOf(activeModule);
+  if (!Array.isArray(status?.me?.grants)) return own;
+  const offered = offeredWorkspaces(modules, status);
+  return offered.some((w) => w.id === own) ? own : offered[0]?.id || own;
+};
 
 /** Exact path, or a nested detail route (/debit-accounts/vendor/123). */
 export const isPathActive = (path, currentPath) => {

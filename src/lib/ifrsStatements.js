@@ -1,5 +1,6 @@
 import { formatDate, formatNumber } from "../utils/format";
 import { orgCurrency } from "../utils/orgLocale";
+import { taxIdWord, taxWord } from "./taxTerms";
 
 // Pure rules for the IFRS statements screen: turning what the API returns into the rows of a
 // statement, the CSV, the printed page, the headline figures and the warnings. No rendering here,
@@ -301,7 +302,7 @@ export function notesDocument(data) {
       type: "table", title: numbered("Value added tax"), columns,
       rows: [
         ...t.vat.rows.map((r) => ({ kind: "line", level: 0, label: r.label, values: values(r) })),
-        { kind: "total", level: 0, label: "Net VAT payable / (recoverable)", values: values(t.vat.net) },
+        { kind: "total", level: 0, label: `Net ${taxWord()} payable / (recoverable)`, values: values(t.vat.net) },
       ],
     });
   }
@@ -449,7 +450,7 @@ export function documentHtml(doc, { company = "", trn = "", currency = orgCurren
     tr.s td{font-weight:600;border-top:1px solid #999} tr.t td{font-weight:600;border-top:1px solid #111;border-bottom:3px double #111} small{color:#666}
     p{margin:0 0 6px;line-height:1.45} .f{color:#555;font-size:11px;margin-top:14px}
   </style></head><body>
-    <h1>${esc(company)}</h1>${trn ? `<div class="meta">TRN ${esc(trn)}</div>` : ""}
+    <h1>${esc(company)}</h1>${trn ? `<div class="meta">${esc(taxIdWord())} ${esc(trn)}</div>` : ""}
     <h2>${esc(doc.title)}</h2><div class="meta">${esc(doc.period)} &middot; Amounts in ${esc(currency)}</div>
     ${blocks}
     <script>window.onload=function(){window.print()}</script></body></html>`;

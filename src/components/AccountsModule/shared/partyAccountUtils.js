@@ -74,6 +74,7 @@ const VOUCHER_LABELS = {
   expense: "Expense",
   opening: "Opening balance",
   stock_writeoff: "Stock write-off",
+  production: "Production",
 };
 
 const titleCase = (s) =>

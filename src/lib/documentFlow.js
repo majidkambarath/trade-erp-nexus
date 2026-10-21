@@ -9,6 +9,7 @@ import { orgCurrency } from "../utils/orgLocale";
 import { statusTone } from "./status";
 import { sendLine, sendStateOf } from "./sendState";
 import { paymentStatus } from "./paymentStatus";
+import { taxWord } from "./taxTerms.js";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -177,7 +178,7 @@ export function nextAction(c, now = Date.now(), opts = {}) {
     const draft = (cs.returns || []).find((r) => r.status === "DRAFT");
     return draft
       ? { label: "Approve the sales return", why: `${draft.transactionNo} is still a draft: approving it puts the undelivered goods back in stock and credits the customer`, to: "/sales-return" }
-      : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about ${orgCurrency()} ${formatNumber(cs.valueShort, 2)} with VAT). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
+      : { label: "Raise a sales return", why: `${leftText(cs.left)} was invoiced but never delivered (about ${orgCurrency()} ${formatNumber(cs.valueShort, 2)} with ${taxWord()}). A sales return puts it back in stock and credits the customer`, to: "/sales-return" };
   }
   // an approved invoice that has not gone to the customer, while it still should
   if (opts.canSend !== false && o && o.status === "APPROVED" && !o.lastSend && isRecent(o.date, now)) {

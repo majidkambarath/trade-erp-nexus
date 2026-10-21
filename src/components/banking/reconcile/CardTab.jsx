@@ -3,6 +3,7 @@ import StatCard from "../../ui/stat-card";
 import { DataTable, EmptyState, ErrorNote, Panel, Spinner, useAsync } from "../../accounting/kit";
 import { reconcile } from "../../../lib/bankReconcileApi";
 import { formatDate, formatNumber } from "../../../utils/format";
+import { taxWord } from "../../../lib/taxTerms";
 
 // Card sales as the acquirer pays them. A card sale is booked on the day it is made; the acquirer pays
 // days later, in one lump, less its commission and VAT. This tab shows what is still waiting to be
@@ -74,7 +75,7 @@ export default function CardTab({ account, version }) {
               { key: "ref", header: "Reference", card: "title", className: "text-muted-foreground", cell: (s) => s.settlementRef || "-" },
               { key: "sales", header: "Sales", align: "end", card: "meta", className: "tabular-nums", cell: (s) => `${s.receiptCount} · ${formatNumber(s.gross, 2)}` },
               { key: "extra", header: "Extra commission", align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.extraCommission, 2) },
-              { key: "vat", header: "VAT", align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.vat, 2) },
+              { key: "vat", header: taxWord(), align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.vat, 2) },
               { key: "rate", header: "Commission", align: "end", card: "meta", className: "tabular-nums", cell: (s) => pct(s.effectiveRate) },
               { key: "paid", header: "Received", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (s) => formatNumber(s.received, 2) },
             ]}

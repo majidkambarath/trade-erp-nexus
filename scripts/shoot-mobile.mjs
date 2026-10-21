@@ -38,6 +38,7 @@ const { MODULES } = await import("../src/config/navigation.js");
 const ALL_GRANTS = [...new Set([
   ...MODULES.flatMap((m) => m.tabs.flatMap((t) => [].concat(t.permission || []))),
   ...Object.entries({
+    crm: ["view", "create", "edit", "delete", "assign", "manage"],
     sales: ["view", "create", "edit", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "edit", "approve", "delete"],
     inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete"], banking: ["view", "manage", "reconcile"],
     accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
@@ -45,6 +46,58 @@ const ALL_GRANTS = [...new Set([
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
 const DEEP = {
+  // CRM: the board with its stage columns, the lead form and one lead's own page, the worklist's Done dialog (which
+  // asks what came of it and plans the next one), and the pipeline editor - the tallest form of the five.
+  "crm-pipeline": [
+    { name: "board", page: true, clicks: [], settle: 1100 },
+    { name: "board-move", clicks: ["^Move$"], settle: 900 },
+    { name: "board-new-deal", clicks: ["^New deal"], settle: 1000 },
+    { name: "board-lost", clicks: ["^Lost$"], settle: 900 },
+    // one deal's own page: how it got here (what the documents did) and what has happened
+    { name: "deal", page: true, clicks: ["^Monthly rice and sunflower oil$"], settle: 1100 },
+    { name: "deal-move", clicks: ["^Monthly rice and sunflower oil$", "^Move$"], settle: 1000 },
+    { name: "deal-log", clicks: ["^Monthly rice and sunflower oil$", "^Log a follow-up$"], settle: 1000 },
+    { name: "deal-edit", clicks: ["^Monthly rice and sunflower oil$", "^Edit$"], settle: 1000 },
+  ],
+  // The CRM workspace's landing page: what is late, what is mine, and what the documents moved on their own.
+  "crm-dashboard": [{ name: "crm-home", page: true, clicks: [], settle: 1100 }],
+  "crm-contacts": [
+    { name: "contacts", page: true, clicks: [], settle: 1000 },
+    { name: "contact-new", clicks: ["^New contact"], settle: 1000 },
+    { name: "contact-view", page: true, clicks: ["^Rajesh Kumar$"], settle: 1100 },
+    { name: "contact-edit", clicks: ["^Rajesh Kumar$", "^Edit$"], settle: 1000 },
+  ],
+  "crm-communications": [
+    { name: "communications", page: true, clicks: [], settle: 1000 },
+    { name: "communications-calls", page: true, clicks: ["^Calls$"], settle: 900 },
+  ],
+  "crm-leads": [
+    { name: "leads", page: true, clicks: [], settle: 1000 },
+    { name: "lead-new", clicks: ["^New enquiry"], settle: 1000 },
+    { name: "lead-view", page: true, clicks: ["LD-2026-0001"], settle: 1100 },
+    { name: "lead-qualify", clicks: ["LD-2026-0001", "^Qualify$"], settle: 1100 },
+    { name: "lead-log", clicks: ["LD-2026-0001", "^Log a follow-up$"], settle: 1000 },
+  ],
+  "crm-calendar": [
+    { name: "calendar", page: true, clicks: [], settle: 1100 },
+    { name: "calendar-enquiries", page: true, clicks: ["^Enquiries$"], settle: 900 },
+    { name: "calendar-next", page: true, clicks: ["^Next month$"], settle: 1000 },
+  ],
+  "crm-follow-ups": [
+    { name: "followups", page: true, clicks: [], settle: 1000 },
+    { name: "followup-done", clicks: ["^Done$"], settle: 1000 },
+    { name: "followups-today", page: true, clicks: ["^Today"], settle: 900 },
+    { name: "followups-board", page: true, clicks: ["^Board$"], settle: 1100 },
+    { name: "followups-board-people", page: true, clicks: ["^Board$", "^By person$"], settle: 1100 },
+  ],
+  "crm-reports": [{ name: "reports", page: true, clicks: [], settle: 1100 }],
+  "crm-setup": [
+    { name: "setup", page: true, clicks: [], settle: 1100 },
+    // a stage's timing opened, then the unsaved-changes bar (adding a stage is the quickest edit) - the bar sticks to
+    // the bottom of its panel, so on a phone it has to sit clear of the bottom navigation
+    { name: "setup-timing", page: true, clicks: ["^Follow-up in 3 days"], settle: 900 },
+    { name: "setup-unsaved", page: true, clicks: ["^Add a stage"], settle: 1000 },
+  ],
   // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
   "people-users-and-roles": [
     { name: "add-person", clicks: ["Add a person"], settle: 900 },
@@ -71,6 +124,30 @@ const DEEP = {
   "inventory-stock-items": [
     { name: "add-item", clicks: ["^Add Stock Item"], settle: 900 },
     { name: "add-service", clicks: ["^Add Stock Item", "^Service"], settle: 900 },
+  ],
+  // Production: the form (materials and cost lines, the live unit cost) and one posted production with its breakdown
+  "inventory-production": [
+    // the board (opens first): counts, columns per step, my work, what is with job workers; Done on my work
+    { name: "board", page: true, clicks: [], settle: 1100 },
+    { name: "board-done", clicks: ["^Done$"], settle: 900 },
+    // process orders: the list, the form with its steps, one order's step timeline, the finish dialog
+    { name: "process", page: true, clicks: ["^Process orders$"], settle: 1000 },
+    { name: "process-new", clicks: ["^Process orders$", "^New process order"], settle: 1100 },
+    { name: "process-view", clicks: ["^Process orders$", "^View PRO-2026-0001"], settle: 1100 },
+    { name: "process-finish", clicks: ["^Process orders$", "^View PRO-2026-0002", "^Finish$"], settle: 1100 },
+    { name: "process-add-cost", clicks: ["^Process orders$", "^View PRO-2026-0001", "^Add cost$"], settle: 1100 },
+    // phase 2: saved routes (the list and one route's form) and the analysis
+    { name: "routes", page: true, clicks: ["^Routes$"], settle: 1000 },
+    { name: "route-form", clicks: ["^Routes$", "^Open the route for"], settle: 1100 },
+    { name: "analysis", page: true, clicks: ["^Analysis$"], settle: 1100 },
+    { name: "new", clicks: ["^Productions$", "^New production"], settle: 1100 },
+    { name: "posted", clicks: ["^Productions$", "^View PRD-2026-0001"], settle: 1100 },
+    { name: "cost", page: true, clicks: ["^Product cost$"], settle: 1000 },
+    // job work: the send form, one job's challan with what came back, and the receive dialog
+    { name: "job-work", page: true, clicks: ["^Job work$"], settle: 1000 },
+    { name: "job-work-send", clicks: ["^Job work$", "Send to job worker"], settle: 1100 },
+    { name: "job-work-challan", page: true, clicks: ["^Job work$", "^View JWC-2026-0001"], settle: 1300 },
+    { name: "job-work-receive", clicks: ["^Job work$", "^View JWC-2026-0001", "Receive back"], settle: 1100 },
   ],
   // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
   "home-approvals": [{ name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 }],
@@ -183,7 +260,29 @@ DEEP["purchase-return"] = DEEP["purchase-returns"];
 DEEP["goods-received"] = DEEP["purchase-goods-received"];
 DEEP["delivery-notes"] = DEEP["sales-delivery-notes"]; // a single page run (check:mobile -- /delivery-notes) is named by its path
 DEEP["settings"] = DEEP["settings-settings"]; // check:mobile -- /settings
+DEEP["production"] = DEEP["inventory-production"]; // check:mobile -- /production
+DEEP["dashboard"] = DEEP["crm-dashboard"]; // check:mobile -- /crm/dashboard
+DEEP["contacts"] = DEEP["crm-contacts"]; // check:mobile -- /crm/contacts
+DEEP["communications"] = DEEP["crm-communications"]; // check:mobile -- /crm/communications
+DEEP["calendar"] = DEEP["crm-calendar"]; // check:mobile -- /crm/calendar
+DEEP["reports"] = DEEP["crm-reports"]; // check:mobile -- /crm/reports
+DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
+DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
+DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
+// The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
+// opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
+// not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
+const MODULE_STEPS = [
+  { name: "module-open", page: true, clicks: ["^Inventory details "], reveal: "^Parts of Inventory", settle: 700 },
+  { name: "modules-open", page: true, clicks: ["^Expand all$"], reveal: "^Who gets it", settle: 900 },
+  // a switch changed: the unsaved-changes bar is fixed to the bottom of the window, clear of the last card (Plan tab only)
+  { name: "modules-unsaved", page: true, clicks: ["^Finance$"], settle: 600 },
+];
+DEEP["console-new-organisation"] = MODULE_STEPS;
+DEEP["platform-new"] = MODULE_STEPS; // check:mobile -- /platform/new
+DEEP["console-organisation-plan"] = MODULE_STEPS;
+DEEP["platform-organisations-gulf-fresh-tab-plan"] = MODULE_STEPS; // check:mobile -- /platform/organisations/gulf-fresh?tab=plan
 
 /**
  * The first visible, enabled control whose text or label matches. It looks again for up to `patience` ms: the first viewport of
@@ -331,6 +430,7 @@ const EXTRA_PAGES = [
   ["console-organisations", "/platform"],
   ["console-new-organisation", "/platform/new"],
   ["console-organisation", "/platform/organisations/gulf-fresh"],
+  ["console-organisation-plan", "/platform/organisations/gulf-fresh?tab=plan"],
   ["console-activity", "/platform/activity"],
   ["console-developers", "/platform/developers"],
   ["console-security", "/platform/security"],
@@ -340,8 +440,14 @@ const EXTRA_PAGES = [
 ];
 const PAGES = [
   ["login", "/"],
+  // <module id>-<tab slug>, except that a one-tab module whose id already ends in its own slug is not said twice:
+  // the CRM workspace's sections are ids like "crm-leads" with a single "Leads" tab, and this keeps their shot
+  // names (and their DEEP steps) exactly what they were when the CRM was one module with five tabs.
   ...MODULES.flatMap((m) =>
-    m.tabs.map((t) => [`${m.id}-${t.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, t.to])
+    m.tabs.map((t) => {
+      const slug = t.label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      return [m.id.endsWith(slug) ? m.id : `${m.id}-${slug}`, t.to];
+    })
   ),
   ...EXTRA_PAGES,
 ];
@@ -546,10 +652,13 @@ function stubFor(pathname) {
     return {
       organisation: { code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "premium", planName: "Premium" },
       subscription: { state: "active", blocked: false, canRead: true, canWrite: true, endsAt: null, daysLeft: null, onExpiry: "block" },
-      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true },
+      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true },
       limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},
+      // What the organisation bought. The ERP / CRM switch is offered only when this says the CRM is on AND the person
+      // holds a page of it, so the sweep must say so or the switch would not be drawn in any screenshot.
+      modules: { crm: { on: true, full: true, actions: ["view", "create", "edit", "delete", "assign", "manage"] } },
       support: { contact: "help@zarvia.example" },
       // Who is signed in and what the role holds. The sweep signs in as an administrator who holds every permission any page
       // asks for, so every page is still measured; the Users and roles screen needs a rank to offer anything.
@@ -559,6 +668,20 @@ function stubFor(pathname) {
       // Who must approve what (Settings -> Business rules -> Approvals); off until the organisation sets it. And whether it requires two-factor.
       policy: { approvals: { separateApprover: false, secondApprovalAbove: null }, security: { requireTwoFactor: false } },
     };
+  }
+
+  // The bell's own feed (/api/v1/notifications), which no navigation tab names - it is read on every page, so a stub
+  // here is what puts a real count on the bell in every screenshot. `unread-count` and the list share the shape the
+  // feed's components read.
+  if (p.includes("/notifications")) {
+    const row = (id, kind, severity, title, body, link) => ({ id, kind, severity, title, body, link, occurredAt: "2026-10-19T05:30:00.000Z", createdAt: "2026-10-19T05:30:00.000Z", read: false });
+    const items = [
+      row("n1", "crm_followup", "warning", "2 days late: Send the price for 200 bags", "It was due on 2026-10-17.", "/crm/follow-ups"),
+      row("n2", "crm_stale", "warning", "Ramadan hampers has gone quiet", "Nothing for 21 days, on Quotation sent.", "/crm/pipeline"),
+      row("n3", "low_stock", "critical", "Basmati rice 5kg is low on stock", "2 left, at or below the reorder level of 10.", "/stock"),
+    ];
+    if (p.endsWith("/unread-count")) return { count: items.length, capped: false };
+    return { items, counts: { total: items.length, unread: items.length }, capped: false };
   }
 
   // The approvals list (/api/v1/approvals/waiting). The navigation badge asks the same route with ?countOnly=1 and reads `count`,
@@ -666,7 +789,9 @@ function stubFor(pathname) {
   if (p.includes("/platform/")) {
     if (p.endsWith("/me/2fa")) return { enabled: false, enabledAt: null, recoveryCodesLeft: 0 };
     // every module of the product, as a plan that includes all of it says so (utils/plans.js ALL_MODULES)
-    const ALL_STUB_MODULES = Object.fromEntries(["sales", "purchase", "inventory", "finance", "banking", "accounts", "reports", "users", "staff", "settings", "audit", "lookups"].map((m) => [m, true]));
+    const ALL_STUB_MODULES = Object.fromEntries(["crm", "sales", "purchase", "inventory", "finance", "banking", "accounts", "reports", "users", "staff", "settings", "audit", "lookups"].map((m) => [m, true]));
+    // what the role editor names each action (utils/permissions.js SHORT), so the console's checkboxes carry real words
+    const SHORT = { view: "View", create: "Add", edit: "Edit", approve: "Approve", delete: "Delete", deletePosted: "Delete approved", send: "Send to customers", creditOverride: "Override credit limit", adjust: "Adjust stock", manage: "Manage", reconcile: "Reconcile", close: "Close periods", financial: "Financial reports", vat: "File VAT", assign: "Assign to someone" };
     const org = (over) => ({ code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "standard", status: "active", featureOverrides: { einvoicing: true }, moduleOverrides: { finance: false, reports: ["view", "financial"] }, limitOverrides: { users: 25 }, subscription: { endsAt: "2026-12-31T23:59:59.999Z", graceDays: 7, onExpiry: "block" }, provisioning: { complete: true, steps: { settings: { state: "done" }, chart: { state: "done" }, taxCodes: { state: "done" } } }, ...over });
     if (p.endsWith("/catalog")) {
       return {
@@ -675,25 +800,44 @@ function stubFor(pathname) {
           { code: "standard", name: "Standard", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, currencies: true, vatReturn: true, messaging: true }, modules: ALL_STUB_MODULES, limits: { users: 10, branches: 3, documentsPerMonth: 2000 } },
           { code: "premium", name: "Premium", features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true }, modules: ALL_STUB_MODULES, limits: { users: 50, branches: 20, documentsPerMonth: 20000 } },
         ],
+        // the same shape the server sends (utils/consoleCatalog.js): a group for each module, the screens it includes with the
+        // optional features filed inside it, and each action named and explained
+        groups: [{ key: "crm", label: "CRM workspace" }, { key: "trade", label: "Buying, selling and stock" }, { key: "money", label: "Money and books" }, { key: "organisation", label: "People and settings" }, { key: "core", label: "Always on" }],
         modules: [
-          ["sales", "Sales", "Quotations, sales orders, delivery notes, sales returns and customers", ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], []],
-          ["purchase", "Purchase", "Purchase orders, purchase returns and vendors", ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
-          ["inventory", "Inventory", "Items, categories, units, batches and stock movements", ["view", "create", "edit", "delete", "adjust"], []],
-          ["finance", "Finance", "Receipts, payments, journals, contra, expenses, notes and cheques", ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
-          ["banking", "Banking", "Bank and card masters, statements and reconciliation", ["view", "manage", "reconcile"], []],
-          ["accounts", "Accounts", "Chart of accounts, tax codes, opening balances and the period lock", ["view", "manage", "close"], []],
-          ["reports", "Reports", "The dashboard and reports", ["view", "financial", "vat"], ["view"]],
-          ["users", "Users and roles", "The people who sign in, and what each may do", ["view", "manage"], []],
-          ["staff", "Staff records", "Employee records (HR)", ["view", "manage"], []],
-          ["settings", "Settings", "Company profile, sending, e-invoicing and business rules", ["view", "manage"], ["view"]],
-          ["audit", "Activity trail", "Who did what", ["view"], []],
-          ["lookups", "Pick lists", "The lists a form chooses from", ["view"], ["view"]],
-        ].map(([key, label, hint, actions, alwaysOn]) => ({ key, label, hint, actions: actions.map((action) => ({ action, label: action })), alwaysOn })),
-        features: [["quotations", "Quotations"], ["deliveryNotes", "Delivery notes"], ["batches", "Batches and expiry"], ["banking", "Banks, cards and cheques"], ["reconciliation", "Bank and card reconciliation"], ["currencies", "Foreign currency"], ["vatReturn", "VAT return"], ["ifrsStatements", "IFRS statements"], ["einvoicing", "E-invoicing"], ["messaging", "Send documents to customers"], ["multiBranch", "More than one branch"]].map(([key, label]) => ({ key, label })),
+          ["crm", "CRM", "The CRM workspace: leads, contacts, deals, follow-ups, calendar and reports, with an ERP / CRM switch for the people who hold it", "crm", ["Dashboard", "Leads", "Contacts", "Pipeline", "Follow-ups", "Calendar", "Reports", "Setup"], ["view", "create", "edit", "delete", "assign", "manage"], []],
+          ["sales", "Sales", "Quotations, sales orders, delivery notes, sales returns and customers", "trade", [{ feature: "quotations" }, "Orders", { feature: "deliveryNotes" }, "Invoices", "Returns", "Customers", { feature: "messaging" }], ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], []],
+          ["purchase", "Purchase", "Purchase orders, purchase returns and vendors", "trade", ["Orders", "Goods received", "Invoices", "Returns", "Vendors"], ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
+          ["inventory", "Inventory", "Items, categories, units, batches and stock movements", "trade", ["Stock items", "Movements", "Categories", "Units", { feature: "batches" }, { feature: "production" }], ["view", "create", "edit", "delete", "adjust"], []],
+          ["finance", "Finance", "Receipts, payments, journals, contra, expenses, notes and cheques", "money", ["Receipts", "Payments", "Journal", "Contra", "Expenses", "Debit and credit notes", "Ledger"], ["view", "create", "edit", "approve", "delete", "deletePosted"], []],
+          ["banking", "Banking", "Bank and card masters, statements and reconciliation", "money", [{ feature: "banking" }, { feature: "reconciliation" }], ["view", "manage", "reconcile"], []],
+          ["accounts", "Accounts", "Chart of accounts, tax codes, opening balances and the period lock", "money", ["Chart of accounts", "Accounting setup and tax codes", "Opening balances", "Period lock", { feature: "currencies" }], ["view", "manage", "close"], []],
+          ["reports", "Reports", "The dashboard and reports", "money", ["Dashboard", "Financial statements", "Ledger reports", "Trade analysis", "Ageing", { feature: "ifrsStatements" }, { feature: "vatReturn" }, { feature: "einvoicing" }], ["view", "financial", "vat"], ["view"]],
+          ["users", "Users and roles", "The people who sign in, and what each may do", "organisation", ["Users", "Roles and permissions"], ["view", "manage"], []],
+          ["staff", "Staff records", "Employee records (HR)", "organisation", ["Staff records"], ["view", "manage"], []],
+          ["settings", "Settings", "Company profile, sending, e-invoicing and business rules", "organisation", ["Company profile", "Business rules", "Security", { feature: "multiBranch" }], ["view", "manage"], ["view"]],
+          ["audit", "Activity trail", "Who did what", "organisation", ["Activity trail"], ["view"], []],
+          ["lookups", "Pick lists", "The lists a form chooses from", "core", [], ["view"], ["view"]],
+        ].map(([key, label, hint, group, sections, actions, alwaysOn]) => ({ key, label, hint, group, sections, actions: actions.map((action) => ({ action, short: SHORT[action] || action, label: `${SHORT[action] || action}: what a person holding it may do in ${label}`, read: action === "view" })), alwaysOn })),
+        features: [
+          ["quotations", "Quotations", "Price offers that the customer accepts and that turn into orders", "sales"], ["deliveryNotes", "Delivery notes", "Delivery notes, signed for on delivery and invoiced afterwards", "sales"],
+          ["messaging", "Send documents to customers", "Email or WhatsApp an invoice to the customer with a secure link", "sales"], ["batches", "Batches and expiry", "Batch numbers, expiry dates and first-expiry-first-out stock", "inventory"],
+          ["production", "Production", "Materials and expenses moved into a product's cost, job work and process orders. Off for everyone unless switched on here", "inventory", true],
+          ["banking", "Banks, cards and cheques", "Bank and card masters, cheques, and card and bank payment modes", "banking"], ["reconciliation", "Bank and card reconciliation", "Import a bank statement and match it to the books", "banking"],
+          ["currencies", "Foreign currency", "Receipts and payments in a foreign currency, with exchange rates", "accounts"], ["ifrsStatements", "IFRS statements", "Statement of financial position, profit or loss, cash flows and notes", "reports"],
+          ["vatReturn", "VAT return", "The VAT 201 return, built from the approved documents", "reports", false, ["AE"]], ["einvoicing", "E-invoicing", "Electronic tax invoices sent to the tax authority", "reports", false, ["AE"]],
+          ["multiBranch", "More than one branch", "More than one branch, each with its own documents and numbering", "settings"],
+        ].map(([key, label, hint, module, optIn, onlyIn]) => ({ key, label, hint, module, optIn: Boolean(optIn), onlyIn: onlyIn || null })),
+        // what each ready-made role holds in each module (the panel says who gets what is sold)
+        roles: [
+          { key: "super_admin", name: "Owner", rank: 100, modules: { sales: ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete", "deletePosted"], reports: ["view", "financial", "vat"] } },
+          { key: "manager", name: "Manager", rank: 60, modules: { sales: ["view", "create", "edit", "approve", "delete", "deletePosted", "send", "creditOverride"], inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve"], reports: ["view", "financial"] } },
+          { key: "storekeeper", name: "Storekeeper", rank: 40, modules: { inventory: ["view", "create", "edit", "adjust"], sales: ["view"], reports: ["view"] } },
+          { key: "viewer", name: "Viewer", rank: 20, modules: { sales: ["view"], inventory: ["view"], finance: ["view"], reports: ["view", "financial"] } },
+        ],
         limits: ["users", "branches", "documentsPerMonth"],
-        currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }],
+        currencies: [{ code: "AED", name: "UAE Dirham" }, { code: "SAR", name: "Saudi Riyal" }, { code: "USD", name: "US Dollar" }, { code: "INR", name: "Indian Rupee" }],
         unsupportedCurrencies: ["KWD", "BHD", "OMR"],
-        timezones: ["Asia/Dubai", "Asia/Riyadh", "Europe/London"],
+        timezones: ["Asia/Dubai", "Asia/Kolkata", "Asia/Riyadh", "Europe/London"],
         accountTypes: ["super_admin", "admin", "manager", "operator", "viewer"],
       };
     }
@@ -829,6 +973,307 @@ function stubFor(pathname) {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // CRM (Pipeline / Leads / Follow-ups / Analysis / Setup): one deal a quotation has already moved, one enquiry nobody
+  // has rung yet, and one follow-up that is late - the three states every CRM screen is about.
+  if (p.includes("/crm")) {
+    const stage = (key, name, order, probability, advanceOn, followUpDays, staleDays, type = "open") => ({ key, name, order, probability, advanceOn, followUpDays, staleDays, type });
+    const stages = [
+      stage("new", "New", 1, 10, null, 1, 7),
+      stage("qualified", "Qualified", 2, 25, null, 2, 10),
+      stage("quoted", "Quotation sent", 3, 50, "quotation_sent", 3, 14),
+      stage("accepted", "Offer accepted", 4, 90, "quotation_accepted", 2, 7),
+      stage("won", "Won", 5, 100, "invoice_approved", 0, 0, "won"),
+      stage("lost", "Lost", 6, 0, null, 0, 0, "lost"),
+    ];
+    const deal = (i, over = {}) => ({
+      _id: `op${i}`, opportunityNo: `OPP-2026-000${i}`, title: "Monthly rice and sunflower oil", customerId: "c1", customerName: "Al Noor Foods Trading",
+      stageKey: "quoted", stageName: "Quotation sent", probability: 50, status: "OPEN", value: 48500, expectedCloseDate: "2026-11-05",
+      ownerId: "a1", ownerName: "Asif Rahman", source: "referral", stageSinceDay: "2026-10-16", lastActivityDay: "2026-10-17",
+      nextActionAt: "2026-10-21", overdueAction: false, stale: { days: 3, isStale: false, limit: 14 }, weighted: 24250, daysInStage: 3,
+      links: { quotationId: "q1", quotationNo: "QT-2026-0007", orderId: null, orderNo: "" },
+      autoMoves: [{ key: "quotation_sent:q1", event: "quotation_sent", from: "qualified", to: "quoted", at: "2026-10-16T09:00:00.000Z", by: "automation", docNo: "QT-2026-0007" }],
+      actions: { edit: true, delete: true, move: true, win: true, lose: true, reopen: false, assign: true }, ...over,
+    });
+    const lead = (i, over = {}) => ({
+      _id: `ld${i}`, leadNo: `LD-2026-000${i}`, name: "Hassan Al Noor", company: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae",
+      source: "referral", sourceLabel: "Referral", sourceNote: "Sent by Gulf Trading", interest: "Monthly rice and oil for four branches",
+      expectedValue: 45000, status: "NEW", band: "warm", score: 47, ownerId: "a1", ownerName: "Asif Rahman",
+      nextActionAt: "2026-10-19", overdueAction: true, idleDays: 2, contactCount: 0, notes: "",
+      actions: { edit: true, delete: true, qualify: true, lose: true, assign: true, logActivity: true }, ...over,
+    });
+    const followUp = (i, over = {}) => ({
+      _id: `ac${i}`, kind: "call", kindLabel: "Call", subject: "Send the price for 200 bags", notes: "", regarding: { kind: "opportunity", id: "op1" },
+      customerId: "c1", ownerId: "a1", ownerName: "Asif Rahman", dueAt: "2026-10-18", dueState: "overdue", status: "OPEN", auto: true,
+      actions: { edit: true, done: true, delete: true }, ...over,
+    });
+    const timeline = [
+      followUp(1),
+      followUp(2, { _id: "ac2", subject: "Rang about the rice price", status: "DONE", outcome: "interested", dueState: "done", completedAt: "2026-10-17T06:30:00.000Z", auto: false }),
+    ];
+    const stageRows = (which) => stages.map((st) => ({
+      ...st,
+      count: st.key === "quoted" ? 2 : st.key === "accepted" ? 1 : 0,
+      value: st.key === "quoted" ? 68500 : st.key === "accepted" ? 28000 : 0,
+      weighted: st.key === "quoted" ? 34250 : st.key === "accepted" ? 25200 : 0,
+      ...(which === "board"
+        ? {
+            deals:
+              st.key === "quoted"
+                ? [deal(1), deal(2, { _id: "op2", opportunityNo: "OPP-2026-0002", title: "Ramadan hampers", value: 20000, ownerName: "Maya Khan", stale: { days: 21, isStale: true, limit: 14 }, overdueAction: true })]
+                : st.key === "accepted"
+                  ? [deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })]
+                  : [],
+          }
+        : {}),
+    }));
+
+    if (p.endsWith("/crm/summary")) return { today: "2026-10-19", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1 };
+    const contact = (i, over = {}) => ({
+      _id: `ct${i}`, name: "Rajesh Kumar", designation: "Purchase Manager", email: "rajesh@alnoor.ae", phone: "0507778888",
+      isPrimary: true, partyKind: "customer", partyId: "c1", partyName: "Al Noor Foods Trading", unlinked: false, notes: "Prefers a call before noon",
+      createdAt: "2026-10-01T06:00:00.000Z", actions: { edit: true, delete: true, logActivity: true }, ...over,
+    });
+    if (p.endsWith("/crm/dashboard")) {
+      return {
+        today: "2026-10-19", openLeads: 4, openDeals: 3, pipelineValue: 96500, weightedValue: 59450, staleDeals: 1, dueToday: 2, overdue: 1,
+        since: "2026-10-12",
+        late: [followUp(1)],
+        mine: [followUp(3, { _id: "ac3", subject: "Visit the Deira branch", kind: "visit", kindLabel: "Visit", dueAt: "2026-10-19", dueState: "today" })],
+        moved: [
+          { dealId: "op1", opportunityNo: "OPP-2026-0001", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", event: "quotation_sent", eventLabel: "Quotation sent", from: "qualified", to: "quoted", stageName: "Quotation sent", docNo: "QT-2026-0007", at: "2026-10-16T09:00:00.000Z" },
+          { dealId: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor Supermarket", event: "invoice_approved", eventLabel: "Invoice approved", from: "accepted", to: "won", stageName: "Won", docNo: "SO-2026-0042", at: "2026-10-18T11:00:00.000Z" },
+        ],
+        topDeals: [
+          { _id: "op1", title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading", stageName: "Quotation sent", probability: 50, value: 48500, weighted: 24250 },
+          { _id: "op3", title: "Dates and nuts", customerName: "Noor Supermarket", stageName: "Offer accepted", probability: 90, value: 28000, weighted: 25200 },
+        ],
+        byOwner: [
+          { key: "Asif Rahman", name: "Asif Rahman", deals: 2, value: 68500, weighted: 34250 },
+          { key: "Maya Khan", name: "Maya Khan", deals: 1, value: 28000, weighted: 25200 },
+          { key: "Unassigned", name: "Unassigned", deals: 1, value: 12000, weighted: 1200 },
+        ],
+        trend: [
+          { month: "2026-05", deals: 2, value: 41000 }, { month: "2026-06", deals: 1, value: 18000 },
+          { month: "2026-07", deals: 3, value: 62000 }, { month: "2026-08", deals: 0, value: 0 },
+          { month: "2026-09", deals: 4, value: 88000 }, { month: "2026-10", deals: 2, value: 74000 },
+        ],
+        funnel: stageRows("funnel"),
+        pulse: Array.from({ length: 14 }, (_, i) => ({ day: `2026-10-${String(6 + i).padStart(2, "0")}`, count: [2, 0, 3, 1, 4, 0, 0, 2, 5, 1, 3, 2, 0, 4][i] })),
+        leadSources: [
+          { key: "referral", name: "Referral", value: 4 }, { key: "walk_in", name: "Walk-in", value: 3 },
+          { key: "website", name: "Website", value: 2 }, { key: "exhibition", name: "Exhibition", value: 1 },
+        ],
+      };
+    }
+    if (p.endsWith("/crm/activities")) {
+      return [
+        followUp(2, { _id: "ac2", subject: "Rang about the rice price", status: "DONE", outcome: "interested", dueState: "done", completedAt: "2026-10-17T06:30:00.000Z", auto: false, createdAt: "2026-10-17T06:00:00.000Z" }),
+        followUp(1, { createdAt: "2026-10-16T05:00:00.000Z" }),
+        followUp(4, { _id: "ac4", kind: "note", kindLabel: "Note", subject: "Met at the trade fair", status: "DONE", outcome: "done", dueState: "done", regarding: { kind: "contact", id: "ct1" }, auto: false, createdAt: "2026-10-15T05:00:00.000Z" }),
+      ];
+    }
+    if (p.endsWith("/crm/contacts")) return [contact(1), contact(2, { _id: "ct2", name: "Fatima Noor", designation: "Owner", partyKind: null, partyId: null, partyName: "", unlinked: true, isPrimary: false, email: "", phone: "0501110000" })];
+    if (/\/crm\/contacts\/[^/]+$/.test(p)) return { ...contact(1), timeline, party: { kind: "customer", id: "c1", name: "Al Noor Foods Trading", code: "CUST2026001" } };
+    if (p.endsWith("/crm/pipeline")) return { today: "2026-10-19", stages: stageRows("board"), totals: { count: 3, value: 96500, weighted: 59450, stale: 1, overdueAction: 1 } };
+    if (p.endsWith("/crm/owners")) return [{ id: "a1", name: "Asif Rahman" }, { id: "a2", name: "Maya Khan" }];
+    if (p.endsWith("/crm/stages")) return stages;
+    if (p.endsWith("/crm/settings")) return { autoAdvance: true, autoFollowUp: true, assignmentMode: "round_robin", fixedOwnerId: null, uncontactedHours: 24, staleDays: 14, quotationExpiryDays: 3, lastAssignedOwnerId: "a1" };
+    if (p.endsWith("/crm/timeline")) return timeline;
+    if (p.endsWith("/crm/follow-ups/count")) return { count: 1 };
+    if (p.endsWith("/crm/follow-ups")) return [followUp(1), followUp(3, { _id: "ac3", subject: "Visit the Deira branch", kind: "visit", kindLabel: "Visit", dueAt: "2026-10-19", dueState: "today" })];
+    if (p.endsWith("/crm/leads/summary")) return { today: "2026-10-19", total: 9, open: 4, hot: 1, unassigned: 1, converted: 3, lost: 2, openValue: 128000, overdueFollowUps: 1 };
+    if (p.endsWith("/crm/leads/duplicates")) return { leads: [], customers: [] };
+    if (p.endsWith("/crm/leads")) return [lead(1), lead(2, { _id: "ld2", leadNo: "LD-2026-0002", name: "Fatima Noor", company: "Noor Supermarket", band: "hot", score: 78, source: "walk_in", sourceLabel: "Walk-in", ownerName: "Maya Khan", expectedValue: 83000, overdueAction: false, nextActionAt: "2026-10-21" })];
+    if (/\/crm\/leads\/[^/]+\/activity$/.test(p)) return activityRows();
+    if (/\/crm\/leads\/[^/]+$/.test(p)) return { ...lead(1), timeline, opportunity: null };
+    if (p.endsWith("/crm/opportunities")) return [deal(1), deal(3, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", stageKey: "accepted", stageName: "Offer accepted", probability: 90, value: 28000 })];
+    if (/\/crm\/opportunities\/[^/]+\/activity$/.test(p)) return activityRows();
+    if (/\/crm\/opportunities\/[^/]+$/.test(p)) return { ...deal(1), timeline, customer: { _id: "c1", customerName: "Al Noor Foods Trading", phone: "0501234567", email: "buyer@alnoor.ae", creditLimit: 50000, paymentTerms: "Net 30" }, pipeline: stages };
+    if (p.endsWith("/crm/calendar")) {
+      const at = (id, type, day, title, over = {}) => ({ id, type, day, title, sub: "", status: "OPEN", overdue: false, movable: false, ...over });
+      return {
+        today: "2026-10-19", from: "2026-09-28", to: "2026-11-01",
+        items: [
+          at("c1", "activity", "2026-10-14", "Chase the signed contract copy", { sub: "Call", kind: "call", overdue: true, movable: true, ownerName: "Asif Rahman" }),
+          at("c2", "activity", "2026-10-19", "Visit the Deira branch", { sub: "Visit", kind: "visit", movable: true, ownerName: "Asif Rahman" }),
+          at("c3", "activity", "2026-10-19", "Send the price for 200 bags", { sub: "Call", kind: "call", movable: true }),
+          at("c4", "activity", "2026-10-19", "Met at the trade fair", { sub: "Note", kind: "note", status: "DONE" }),
+          at("c5", "deal", "2026-10-19", "Monthly rice and sunflower oil", { sub: "Al Noor Foods Trading", value: 48500 }),
+          at("c6", "activity", "2026-10-22", "Works visit with the production head", { sub: "Meeting", kind: "meeting", movable: true }),
+          at("c7", "deal", "2026-10-30", "Dates and nuts", { sub: "Noor Supermarket", value: 28000 }),
+          at("c8", "lead", "2026-10-07", "Hassan Al Noor", { sub: "Al Noor Foods", status: "NEW" }),
+        ],
+      };
+    }
+    if (p.endsWith("/crm/reports/aging")) {
+      const aged = (i, days, over = {}) => ({
+        id: `op${i}`, opportunityNo: `OPP-2026-000${i}`, title: "Monthly rice and sunflower oil", customerName: "Al Noor Foods Trading",
+        stageKey: "quoted", stageName: "Quotation sent", ownerName: "Asif Rahman", value: 48500, days, band: "0-7", bandLabel: "Up to a week",
+        stale: false, expectedCloseDate: "2026-11-05", overdueClose: false, ...over,
+      });
+      return {
+        today: "2026-10-19",
+        bands: [
+          { key: "0-7", label: "Up to a week", deals: 1, value: 48500 },
+          { key: "8-14", label: "1 to 2 weeks", deals: 0, value: 0 },
+          { key: "15-30", label: "2 to 4 weeks", deals: 0, value: 0 },
+          { key: "31-60", label: "1 to 2 months", deals: 1, value: 28000, },
+          { key: "60+", label: "Over 2 months", deals: 0, value: 0 },
+        ],
+        rows: [
+          aged(3, 47, { _id: "op3", opportunityNo: "OPP-2026-0003", title: "Dates and nuts", customerName: "Noor Supermarket", value: 28000, band: "31-60", bandLabel: "1 to 2 months", stale: true, overdueClose: true, expectedCloseDate: "2026-10-01" }),
+          aged(1, 3),
+        ],
+        oldest: 47, average: 25, stale: 1, overdueClose: 1, capped: false,
+      };
+    }
+    if (p.endsWith("/crm/reports/activity")) {
+      return {
+        period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-19" },
+        byKind: [
+          { kind: "call", label: "Call", done: 9, open: 3, overdue: 1 },
+          { kind: "visit", label: "Visit", done: 4, open: 1, overdue: 0 },
+          { kind: "whatsapp", label: "WhatsApp", done: 5, open: 1, overdue: 0 },
+        ],
+        byPerson: [
+          { key: "a1", name: "Asif Rahman", done: 12, open: 3, overdue: 1, total: 15 },
+          { key: "a2", name: "Maya Khan", done: 6, open: 2, overdue: 0, total: 8 },
+        ],
+        byDay: [{ day: "2026-10-17", count: 4 }, { day: "2026-10-18", count: 6 }],
+        done: 18, open: 5, overdue: 1, capped: false,
+      };
+    }
+    if (p.endsWith("/crm/analysis")) {
+      return {
+        period: { from: "2026-09-20", to: "2026-10-19", today: "2026-10-19" },
+        leads: { total: 9, converted: 3, lost: 2, open: 4, conversionRate: 33.3 },
+        deals: { total: 6, open: 3, won: 2, lost: 1, winRate: 66.7, wonValue: 74000, lostValue: 12000, openValue: 96500, weightedValue: 59450, averageDaysToWin: 11.5 },
+        activity: { done: 18, open: 5, overdue: 1 },
+        funnel: stageRows("funnel"),
+        bySource: [
+          { source: "referral", label: "Referral", leads: 4, converted: 2, lost: 1, value: 96000, conversionRate: 50 },
+          { source: "walk_in", label: "Walk-in", leads: 3, converted: 1, lost: 1, value: 51000, conversionRate: 33.3 },
+          { source: "website", label: "Website", leads: 2, converted: 0, lost: 0, value: 14000, conversionRate: 0 },
+        ],
+        byOwner: [
+          { ownerId: "a1", name: "Asif Rahman", leads: 5, deals: 4, won: 2, lost: 1, wonValue: 74000, activities: 12, winRate: 66.7 },
+          { ownerId: "a2", name: "Maya Khan", leads: 3, deals: 2, won: 0, lost: 0, wonValue: 0, activities: 6, winRate: null },
+          { ownerId: null, name: "Unassigned", leads: 1, deals: 0, won: 0, lost: 0, wonValue: 0, activities: 0, winRate: null },
+        ],
+        lostReasons: [{ reason: "price", label: "Price too high", deals: 1, value: 12000 }],
+        capped: false,
+      };
+    }
+    return [];
+  }
+
+  // Process orders (Inventory > Production > Board / Process orders): one order mid-way (bending at Ravi, painting at the
+  // coater, packing to come), one ready to finish, the board built from them
+  if (p.includes("/process-orders")) {
+    const st = (seq, name, status, over = {}) => ({ _id: `st${seq}`, seq, name, mode: "in_house", status, plannedQty: 100, qtyDone: status === "DONE" ? 96 : 0, qtyRejected: status === "DONE" ? 4 : 0, dueDate: `2026-10-${16 + seq}`, dueState: status === "DONE" ? "done" : seq === 2 ? "overdue" : "later", assigneeId: "a1", assigneeName: "Ravi Kumar", actions: { start: status === "READY", complete: status === "READY" || status === "IN_PROGRESS", send: false }, ...over });
+    const order = (i, ready = false) => ({
+      _id: `po${i}`, processNo: `PRO-2026-000${i}`, status: "OPEN", date: "2026-10-15", dueDate: "2026-10-24",
+      finished: { stockId: "s1", itemId: "ITM001", itemName: "Car keychain holder (finished, matt black)", qty: 100 },
+      materials: [{ _id: "pm1", stockId: "s2", itemId: "ITM002", itemName: "Car keychain holder (raw, zinc alloy)", qty: 100 }],
+      steps: ready ? [st(1, "Cutting", "DONE"), st(2, "Bending", "DONE"), st(3, "Packing", "DONE")]
+        : [st(1, "Cutting", "DONE"), st(2, "Bending", "IN_PROGRESS"), st(3, "Powder coating", "WAITING", { mode: "job_work", assigneeId: null, assigneeName: null, jobWorkerName: "Shine Powder Coaters and Industrial Finishers" }), st(4, "Packing", "WAITING")],
+      current: ready ? null : { _id: "st2", name: "Bending", seq: 2, status: "IN_PROGRESS" }, readyToFinish: ready, finishedQty: ready ? 96 : 0,
+      actions: { edit: false, delete: false, release: false, cancel: true, finish: ready, reopen: false, addCost: true },
+      costs: ready ? [] : [{ _id: "pc1", stepId: "st3", stepName: "Powder coating", accountId: "e1", accountName: "Powder Coating Charges", amount: 4500, voucherId: "v1", voucherNo: "EV-2026-0004", narration: "Matt black RAL 9005" }],
+      costTotal: ready ? 0 : 4500,
+    });
+    const card = (o, s) => ({ orderId: o._id, processNo: o.processNo, itemName: o.finished.itemName, qty: 100, orderDue: "2026-10-24", stepId: s._id, stepName: s.name, stepSeq: s.seq, stepCount: o.steps.length, status: s.status, mode: s.mode, who: s.assigneeName || s.jobWorkerName, assigneeId: s.assigneeId, plannedQty: 96, jobWorkNo: null, due: s.dueDate, dueState: s.dueState });
+    const a = order(1), b = order(2, true);
+    if (p.endsWith("/board")) {
+      const c1 = card(a, a.steps[1]);
+      const c2 = { ...card(b, b.steps[2]), stepId: null, stepName: "Ready to finish", stepSeq: null, status: "READY_TO_FINISH", dueState: "none" };
+      return { today: "2026-10-19", counts: { orders: 2, pending: 0, inProgress: 1, doneToday: 2, overdue: 1, dueToday: 0, dueTomorrow: 0, readyToFinish: 1 },
+        columns: [{ name: "Bending", order: 2, cards: [c1] }, { name: "Ready to finish", order: 99, cards: [c2] }], overdue: [c1], dueToday: [], dueTomorrow: [], mine: [c1],
+        withJobWorkers: [{ jobWorkId: "jw2", jobWorkNo: "JWC-2026-0002", worker: "Shine Powder Coaters and Industrial Finishers", processNo: "PRO-2026-0003", items: [{ name: "Car keychain holder (raw, zinc alloy)", out: 50 }], sent: "2026-10-16", daysOut: 3, returnBy: "2027-10-16", overdue: false, value: 2500 }] };
+    }
+    if (p.endsWith("/assignees")) return [{ id: "a1", name: "Ravi Kumar" }, { id: "a2", name: "Sunita Patil" }];
+    if (p.endsWith("/my-work")) return { count: 1 };
+    if (p.endsWith("/expense-vouchers")) return [{ id: "v1", voucherNo: "EV-2026-0004", date: "2026-10-16", accountId: "e1", accountName: "Powder Coating Charges", party: "Shine Powder Coaters and Industrial Finishers", description: "Coating, 100 pcs", net: 9000, used: 4500, left: 4500 }];
+    if (p.endsWith("/analysis")) {
+      const row = (key, label, done, wait, work, late, withDue, rejected, extra = {}) => ({ key, label, done, good: done * 95, rejected, rejectPct: rejected ? Math.round((rejected / (done * 95 + rejected)) * 1000) / 10 : null, waitHours: wait, workHours: work, late, withDue, latePct: withDue ? Math.round((late / withDue) * 1000) / 10 : null, ...extra });
+      return {
+        period: { from: "2026-10-01", to: "2026-10-19" },
+        orders: { finished: 6, unitsOrdered: 600, unitsMade: 571, yieldPct: 95.2, avgLeadDays: 6.4, withDue: 6, onTime: 4, onTimePct: 66.7 },
+        steps: [row("Cutting", "Cutting", 7, 3.5, 5, 0, 7, 9), row("Bending", "Bending", 7, 20, 9.5, 2, 7, 14), row("Powder coating", "Powder coating", 6, 2, 96, 1, 6, 4), row("Packing", "Packing", 6, 6, 2, 0, 6, 0)],
+        people: [row("in_house:a1", "Ravi Kumar", 14, 11.5, 7.2, 2, 14, 23, { mode: "in_house" }), row("job_work:v9", "Shine Powder Coaters and Industrial Finishers", 6, 2, 96, 1, 6, 4, { mode: "job_work" }), row("in_house:a2", "Sunita Patil", 6, 6, 2, 0, 6, 0, { mode: "in_house" })],
+        reasons: [{ reason: "Bent or cracked", qty: 14 }, { reason: "Dimension out of tolerance", qty: 9 }, { reason: "Coating defect", qty: 4 }],
+        daily: [["2026-10-13", 3, 0], ["2026-10-14", 4, 95], ["2026-10-15", 2, 0], ["2026-10-16", 5, 190], ["2026-10-17", 3, 96], ["2026-10-18", 4, 190]].map(([day, stepsDone, unitsFinished]) => ({ day, stepsDone, unitsFinished })),
+      };
+    }
+    if (p.endsWith("/last-steps")) return [];
+    if (p.endsWith("/process-orders/po2")) return b;
+    if (p.split("/process-orders/")[1]) return a;
+    return [a, b];
+  }
+
+  // Saved routes (Inventory > Production > Routes): one product's way through the shop, and the plan a new order gets
+  if (p.includes("/process-routes")) {
+    const route = {
+      _id: "pr1", finished: { stockId: "it1", itemId: "ITM001", itemName: "Car keychain holder (finished, matt black)" }, batchQty: 100,
+      materials: [{ stockId: "it2", itemId: "ITM002", itemName: "Car keychain holder (raw, zinc alloy)", qty: 100 }],
+      steps: [
+        { name: "Cutting", mode: "in_house", assigneeId: "a1", assigneeName: "Ravi Kumar", days: 1 },
+        { name: "Bending", mode: "in_house", assigneeId: "a1", assigneeName: "Ravi Kumar", days: 1 },
+        { name: "Powder coating", mode: "job_work", jobWorkerId: "v9", jobWorkerName: "Shine Powder Coaters and Industrial Finishers", days: 4 },
+        { name: "Packing", mode: "in_house", assigneeId: "a2", assigneeName: "Sunita Patil", days: 1 },
+      ],
+      totalDays: 7,
+    };
+    if (p.endsWith("/plan")) return { route, order: null };
+    if (p.split("/process-routes/")[1]) return route;
+    return [route, { ...route, _id: "pr2", finished: { stockId: "s3", itemId: "ITM003", itemName: "Bottle opener keyring" }, steps: route.steps.slice(0, 2), totalDays: 2 }];
+  }
+
+  // Job work (Inventory > Production > Job work): a job half back, its challan, and what is with job workers
+  if (p.includes("/job-work")) {
+    if (p.endsWith("/with-job-worker")) return { s2: 4 };
+    const job = (i, status = "PARTLY_RECEIVED") => ({
+      _id: `jw${i}`, jobWorkNo: `JWC-2026-000${i}`, status, date: "2026-10-1" + i, returnBy: "2027-10-1" + i, overdue: i === 3,
+      purpose: "Powder coating, matt black RAL 9005", vehicleNo: "MH12AB1234",
+      jobWorker: { name: "Shine Powder Coaters and Industrial Finishers", code: "V009", address: "Plot 44, MIDC Bhosari, Pune 411026", taxId: "27ABCDE1234F1Z5", phone: "+91 98200 00000" },
+      lines: [{ _id: "l1", rawStockId: "s2", rawItemId: "ITM002", rawName: "Car keychain holder (raw, zinc alloy)", qtySent: 100, unitValue: 50, finishedStockId: "s1", finishedName: "Car keychain holder", finishedPerRaw: 1 }],
+      receipts: [{ _id: "r1", date: "2026-10-15", workerRef: "SPC/118", productions: [{ id: "prd1", no: "PRD-2026-0001" }], lines: [{ lineId: "l1", finishedQty: 60, rawConsumed: 60 }] }],
+      progress: { atWorker: 40, status, lines: [{ lineId: "l1", qtySent: 100, expectedFinished: 100, finished: 60, consumed: 60, returned: 0, atWorker: 40 }] },
+      atWorker: 40,
+      actions: { edit: false, delete: false, send: false, receive: true, cancel: false, challan: true },
+    });
+    if (/\/job-work\/[^/]+$/.test(p)) return job(1);
+    return [job(1), job(2, "SENT"), job(3, "SENT"), job(4, "RECEIVED")];
+  }
+
+  // Productions (Inventory > Production): the list, one posted production with materials and three costs, the cost report
+  if (p.includes("/productions")) {
+    const prod = (i, status = "POSTED") => ({
+      _id: `prd${i}`, productionNo: `PRD-2026-000${i}`, date: "2026-10-1" + i, status, ledgerPosted: status !== "DRAFT",
+      finished: { stockId: "s1", itemId: "ITM001", itemName: "Coated steel bracket, powder finish, 40 mm", qty: 12 },
+      materials: [{ _id: "m1", stockId: "s2", itemId: "ITM002", itemName: "Raw steel bracket 40 mm", qty: 12, cost: 600 }],
+      costs: [
+        { _id: "c1", accountId: "a1", accountName: "Travelling", amount: 50 },
+        { _id: "c2", accountId: "a2", accountName: "Metal Coating Powder", amount: 50, narration: "2 kg of powder, RAL 9005" },
+        { _id: "c3", accountId: "a3", accountName: "Packing", amount: 20 },
+      ],
+      totals: { materials: 600, costs: 120, total: 720, unitCost: 60 },
+      actions: { edit: status === "DRAFT", delete: status === "DRAFT", post: status === "DRAFT", reverse: status === "POSTED" },
+    });
+    if (p.endsWith("/cost-report")) {
+      const r = prod(1);
+      return {
+        items: [{ stockId: "s1", itemId: "ITM001", itemName: r.finished.itemName, qty: 24, count: 2, materials: 1200, costs: 240, total: 1440, unitCost: 60,
+          materialLines: [{ stockId: "s2", itemName: "Raw steel bracket 40 mm", qty: 24, cost: 1200 }],
+          costLines: r.costs.map((c) => ({ accountId: c.accountId, accountName: c.accountName, accountCode: "EXP-90" + c._id.slice(1), amount: c.amount * 2 })),
+          productions: [{ _id: "prd1", productionNo: "PRD-2026-0001" }, { _id: "prd2", productionNo: "PRD-2026-0002" }] }],
+        totals: { materials: 1200, costs: 240, total: 1440 },
+      };
+    }
+    if (/\/productions\/[^/]+$/.test(p)) return prod(1);
+    return [prod(1), prod(2), prod(3, "DRAFT"), prod(4, "REVERSED")];
   }
 
   // Goods received: the same, plus the not-invoiced worklist and what is left to receive on an order
@@ -1578,6 +2023,15 @@ for (const vp of VIEWPORTS) {
   page.on("requestfailed", (req) => {
     if (req.url().includes("/api/")) problems.push(`api failed ${new URL(req.url()).pathname}: ${req.failure()?.errorText}`);
   });
+  // A screen with unsaved work asks "Leave site?" when the page is navigated away (the CRM setup does, on purpose), and
+  // that native prompt BLOCKS the navigation until somebody answers it - the sweep reloads the page after every deep
+  // step, so without an answer it waits out its 30 seconds and reports a failure that is really the app working.
+  // Accepting is what a person clicking "Leave" does. The prompt is NOT hidden from the run: it is written down, so a
+  // screen that starts asking it where it should not can still be noticed.
+  page.on("dialog", (dialog) => {
+    if (dialog.type() === "beforeunload") problems.push("asked 'Leave site?' (unsaved work)");
+    dialog.accept().catch(() => {});
+  });
 
   for (const [name, path] of pages) {
     const file = join(OUT, `${name}-${vp.name}.png`);
@@ -1752,7 +2206,7 @@ for (const vp of VIEWPORTS) {
           // of a long page the step is about
           if (step.reveal) {
             await page.evaluate((t) => {
-              const el = [...document.querySelectorAll('label, legend, h2, h3, p, span')].find((e) => e.getBoundingClientRect().height > 0 && new RegExp(t, 'i').test((e.textContent || '').trim()));
+              const el = [...document.querySelectorAll('label, legend, h2, h3, h4, p, span')].find((e) => e.getBoundingClientRect().height > 0 && new RegExp(t, 'i').test((e.textContent || '').trim()));
               el?.scrollIntoView({ block: 'start' });
             }, step.reveal);
             await wait(300);

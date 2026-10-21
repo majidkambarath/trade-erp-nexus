@@ -129,8 +129,8 @@ describe("what the person chose is kept when they leave the page and come back",
     expect(statusSelect()).toHaveValue("Active");
     expect(designationSelect()).toHaveValue("Manager");
     expect(names()).toEqual(["Layla Latif"]);
-    // the sort too: the Joining Date heading still carries its arrow
-    expect(within(screen.getByRole("table", { name: "Staff" })).getByRole("button", { name: /Joining Date/ })).toHaveTextContent("↑");
+    // the sort too: the Joining Date heading still carries its direction
+    expect(within(screen.getByRole("table", { name: "Staff" })).getByRole("columnheader", { name: /Joining Date/ })).toHaveAttribute("aria-sort", "ascending");
     expect(clearButton()).toBeInTheDocument();
   });
 

@@ -36,6 +36,8 @@ export default function InventoryTab({ state, theme, scope }) {
         { key: "purchases", label: "Purchases", value: flow.purchases, kind: "change" },
         { key: "salesReturns", label: "Sales returns", value: flow.salesReturns, kind: "change" },
         { key: "adjustments", label: "Adjustments", value: flow.adjustments, kind: "change" },
+        // only when there was any: what productions added (expenses moved into stock); an older server sends none
+        ...(flow.production ? [{ key: "production", label: "Production", value: flow.production, kind: "change" }] : []),
         { key: "purchaseReturns", label: "Purchase returns", value: -flow.purchaseReturns, kind: "change" },
         { key: "sales", label: "Sales (at cost)", value: -flow.sales, kind: "change" },
         { key: "writeOffs", label: "Write-offs", value: -flow.writeOffs, kind: "change" },

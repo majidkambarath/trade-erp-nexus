@@ -19,11 +19,22 @@ const unwrap = (promise) =>
     .then((res) => res.data?.data)
     .catch((err) => {
       const body = err.response?.data;
-      throw new ApiError(body?.message || err.message || "Request failed", {
-        code: body?.errorCode,
-        details: body?.details,
-        status: err.response?.status,
-      });
+      const status = err.response?.status;
+      // A 404 with no message of ours in it is not "that record does not exist" (the server says that, in JSON, with
+      // a code): it is Express's own page for a route it has never heard of. That happens when the app is newer than
+      // the server it talks to - a static front end deployed before the API, or an API process started before the
+      // latest code. "Request failed with status code 404" tells a person nothing; this tells them what to do.
+      const routeMissing = status === 404 && !body?.message;
+      throw new ApiError(
+        routeMissing
+          ? "The server does not have this yet. It needs updating or restarting, then try again."
+          : body?.message || err.message || "Request failed",
+        {
+          code: routeMissing ? "ROUTE_NOT_FOUND" : body?.errorCode,
+          details: body?.details,
+          status,
+        }
+      );
     });
 
 export const api = {

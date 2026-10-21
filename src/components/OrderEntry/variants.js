@@ -9,6 +9,7 @@ import { rowLine, documentTotals, chargesTotals } from "./lineMath";
 import { decimalRound } from "../../utils/format";
 import { SERVICE, GOODS, isService } from "../../lib/itemTypes";
 import { isReverseCharge } from "../../lib/reverseCharge";
+import { taxWord } from "../../lib/taxTerms";
 
 // What a chosen item tells its line about being goods or a service. A service has nothing on hand: null, so a grid
 // shows "Service" and nothing compares it with a quantity.
@@ -21,7 +22,12 @@ const CREATED_BY = "Current User";
 // ---- columns ---------------------------------------------------------------------------
 // kind: item | text | number | select | date -> editable, reachable with the arrow keys
 //       ro | money | remove                    -> display only (remove is a button, still reachable)
-const col = (key, label, kind, extra = {}) => ({ key, label, kind, ...extra });
+// A heading that says VAT is read in the organisation's words when it is shown (GST in India: lib/taxTerms.js).
+const col = (key, label, kind, extra = {}) => {
+  const c = { key, kind, ...extra };
+  Object.defineProperty(c, "label", { enumerable: true, get: () => String(label).replace(/\bVAT\b/g, taxWord()) });
+  return c;
+};
 
 // Every document: a discount on the line, and the tax treatment. The server prices the document;
 // the form only previews it.

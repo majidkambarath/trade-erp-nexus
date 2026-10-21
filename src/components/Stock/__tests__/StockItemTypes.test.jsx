@@ -65,6 +65,17 @@ const pick = async (selectText, optionText) => {
   fireEvent.click(await screen.findByText(selectText));
   fireEvent.click(await screen.findByText(optionText));
 };
+// Category is a QuickAddSelect (kit.jsx) now, not the old hand-rolled FormSelect - scoped to the open
+// dialog because the filter row behind it has its own combobox of the same name ("Category").
+const pickCategory = async (optionText) => {
+  // the combobox is scoped to the open dialog (the filter row behind it has its own, same-named one),
+  // but the OPEN MENU is not - react-select portals it to document.body, outside the dialog's own DOM
+  // subtree, so the option itself is found unscoped (only one menu is ever open at a time)
+  const input = within(screen.getByRole("dialog")).getByRole("combobox", { name: "Category" });
+  fireEvent.focus(input);
+  fireEvent.keyDown(input, { key: "ArrowDown", keyCode: 40 });
+  fireEvent.click(await screen.findByRole("option", { name: optionText }));
+};
 
 describe("the item list", () => {
   it("shows a Service badge and no stock level for a service, and keeps it out of the low-stock count", async () => {
@@ -143,7 +154,7 @@ describe("the item form", () => {
     await show();
     const group = await openAddForm();
     fireEvent.click(within(group).getByRole("radio", { name: /service/i }));
-    await pick("Select category", "General");
+    await pickCategory("General");
     fireEvent.change(screen.getByPlaceholderText("Enter item name"), { target: { value: "Consulting" } });
     await pick(/Select unit/, "Hour");
     fireEvent.change(screen.getByPlaceholderText("Enter sales price"), { target: { value: "400" } });
@@ -167,7 +178,7 @@ describe("the item form", () => {
   it("goods still need origin and brand, and send exactly what they always did", async () => {
     await show();
     await openAddForm();
-    await pick("Select category", "General");
+    await pickCategory("General");
     fireEvent.change(screen.getByPlaceholderText("Enter item name"), { target: { value: "Flour" } });
     await pick(/Select unit/, "Hour");
     fireEvent.click(screen.getByRole("button", { name: /add item/i }));

@@ -13,6 +13,7 @@ import { emptyNoteLine, money, noteTotals, notePreview, savedVerb, toCents, vali
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
+import { taxWord } from "../../lib/taxTerms";
 
 // Debit and credit notes. The party is debited by a debit note and credited by a credit note; the
 // lines on the other side say what it was for (a price difference, damaged goods, a charge).
@@ -67,7 +68,7 @@ export default function DebitCreditNotes() {
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
               { key: "party", header: "Party", card: "title", cell: (v) => <><span className="font-medium">{v.partyName}</span><span className="ms-1 text-xs text-muted-foreground">{v.partyType}</span></> },
               { key: "against", header: "Against", card: "meta", className: "whitespace-nowrap font-mono text-xs text-muted-foreground", cell: (v) => v.referenceInvoiceNo || "On account" },
-              { key: "vat", header: "VAT", align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
+              { key: "vat", header: taxWord(), align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
@@ -188,13 +189,13 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
               return <SearchSelect aria-label={`Account, row ${i + 1}`} value={row.accountId} onChange={(v) => { patch(i, { accountId: v }); setTimeout(() => grid.current?.focusCell(i, "description"), 0); }} options={accountOptions} placeholder="Search account…" noOptionsText="No account matches" invalid={Boolean(errors[i] && !row.accountId)} />;
             }
             if (col.key === "description") return <TextInput aria-label={`Description, row ${i + 1}`} value={row.description} onChange={(e) => patch(i, { description: e.target.value })} maxLength={200} placeholder="What it is for…" />;
-            if (col.key === "taxCodeId") return <SearchSelect aria-label={`Tax code, row ${i + 1}`} value={row.taxCodeId} onChange={(v) => patch(i, { taxCodeId: v })} options={taxOptions} clearable placeholder="No VAT" />;
+            if (col.key === "taxCodeId") return <SearchSelect aria-label={`Tax code, row ${i + 1}`} value={row.taxCodeId} onChange={(v) => patch(i, { taxCodeId: v })} options={taxOptions} clearable placeholder={`No ${taxWord()}`} />;
             return <TextInput aria-label={`Amount, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00" value={row.amount} onChange={(e) => AMOUNT.test(e.target.value.replace(/,/g, "")) && patch(i, { amount: e.target.value.replace(/,/g, "") })} />;
           }}
           footer={
             <>
               <tr><td colSpan={4} className="px-3 py-2 text-end font-medium">Amount</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.net)}</td><td /></tr>
-              <tr><td colSpan={4} className="px-3 py-2 text-end font-medium">VAT</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.vat)}</td><td /></tr>
+              <tr><td colSpan={4} className="px-3 py-2 text-end font-medium">{taxWord()}</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.vat)}</td><td /></tr>
               <tr><td colSpan={4} className="px-3 py-2 text-end">Note total ({CURRENCY})</td><td className="px-4 py-2 text-end tabular-nums">{money(totals.total)}</td><td /></tr>
             </>
           }

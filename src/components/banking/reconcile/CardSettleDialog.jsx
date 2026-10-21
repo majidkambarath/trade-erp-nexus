@@ -6,6 +6,7 @@ import { settlementCheck, splitDifference, unexplained } from "../../../lib/bank
 import { formatNumber } from "../../../utils/format";
 import { Amount, Day } from "./parts";
 import { useAction } from "./helpers";
+import { taxWord } from "../../../lib/taxTerms";
 
 // One bank credit from the card acquirer, many card sales. The books booked each sale net of the
 // commission the card master says it costs; the acquirer also takes VAT on its commission, and
@@ -101,7 +102,7 @@ export default function CardSettleDialog({ accountId, line, onClose, onDone }) {
             <div>
               <p className="mb-2 text-sm text-muted-foreground">The acquirer kept {money(diff)} more than the books carried. Say what it is:</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="VAT on the commission" hint={`${vatRate}% of the whole commission`}><TextInput inputMode="decimal" value={vat} onChange={num(setVat)} aria-label="VAT on the commission" /></Field>
+                <Field label={`${taxWord()} on the commission`} hint={`${vatRate}% of the whole commission`}><TextInput inputMode="decimal" value={vat} onChange={num(setVat)} aria-label={`${taxWord()} on the commission`} /></Field>
                 <Field label="Commission beyond the booked rate" hint="Extra, if the acquirer charges more than the card master says"><TextInput inputMode="decimal" value={extra} onChange={num(setExtra)} aria-label="Extra commission" /></Field>
               </div>
               <p className={left === 0 ? "mt-2 text-sm text-status-success" : "mt-2 text-sm text-status-warning"} aria-live="polite">{left === 0 ? "The difference is fully explained." : `${money(Math.abs(left))} ${left > 0 ? "still to explain" : "too much"}`}</p>

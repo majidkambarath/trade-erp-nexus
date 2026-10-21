@@ -8,6 +8,7 @@ import {
 import axiosInstance from "../../../axios/axios";
 import { getAccessToken, getAdmin } from "../../../axios/session";
 import { todayInput, formatDate, CURRENCY } from "../../../utils/format";
+import { taxIdWord, taxWord } from "../../../lib/taxTerms";
 
 const PaymentInvoiceView = ({
   selectedPayment,
@@ -412,7 +413,7 @@ const PaymentInvoiceView = ({
                   : ""}
               </p>
               {/* what the company has not filled in is left off: nothing is invented, and no other company's details appear */}
-              {profileData.vatNumber && <p style={{ margin: "2px 0" }}>VAT Reg. No: {profileData.vatNumber}</p>}
+              {profileData.vatNumber && <p style={{ margin: "2px 0" }}>{taxIdWord()}: {profileData.vatNumber}</p>}
               {profileData.email && <p style={{ margin: "2px 0" }}>Email: {profileData.email}</p>}
               {profileData.phoneNumber && <p style={{ margin: "2px 0" }}>Phone: {profileData.phoneNumber}</p>}
               {profileData.website && <p style={{ margin: "2px 0" }}>Web: {profileData.website}</p>}
@@ -483,7 +484,7 @@ const PaymentInvoiceView = ({
                 </div>
               </div>
               <div style={{ fontSize: "10px" }}>
-                <p style={{ margin: "2px 0" }}>VAT Reg. No:</p>
+                <p style={{ margin: "2px 0" }}>{taxIdWord()}:</p>
                 <p style={{ margin: "2px 0", fontWeight: "bold" }}>
                   {vendor?.vatNumber || "-"}
                 </p>
@@ -973,7 +974,7 @@ const PaymentInvoiceView = ({
                           fontWeight: "bold",
                         }}
                       >
-                        VAT
+                        {taxWord()}
                       </td>
                       <td
                         style={{

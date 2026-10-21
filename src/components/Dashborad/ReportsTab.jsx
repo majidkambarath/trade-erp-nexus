@@ -10,6 +10,7 @@ import { RankedBars, Waterfall } from "./FlowCharts";
 import { DECREASE, gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmount, profitSteps, tip } from "./helpers";
 import { quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
+import { taxWord } from "../../lib/taxTerms";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const VOUCHERS = [
@@ -38,14 +39,14 @@ export default function ReportsTab({ state, scope }) {
   const vat = d?.vat;
   const vatRows = vat
     ? [
-        { name: "Output VAT", value: vat.outputVat, fill: ink },
-        { name: "Input VAT", value: vat.recoverableVat, fill: gold },
+        { name: `Output ${taxWord()}`, value: vat.outputVat, fill: ink },
+        { name: `Input ${taxWord()}`, value: vat.recoverableVat, fill: gold },
       ]
     : [];
   const tiles = d && [
     { label: "Gross profit", value: formatCurrencyAED(d.grossProfit), icon: Wallet, to: "/financial-statements?tab=pl", note: span(d.period.from, d.period.to) },
     {
-      label: vat.position === "refundable" ? "VAT refundable" : "VAT payable",
+      label: vat.position === "refundable" ? `${taxWord()} refundable` : `${taxWord()} payable`,
       value: formatCurrencyAED(Math.abs(vat.net)),
       icon: Percent,
       to: "/vat-reports",
@@ -223,11 +224,11 @@ export default function ReportsTab({ state, scope }) {
 
         <Card data-anim="bento" className={cn(cardClass, "xl:col-span-5")}>
           <CardHeader>
-            <CardTitle className="font-extrabold">VAT snapshot</CardTitle>
+            <CardTitle className="font-extrabold">{taxWord()} snapshot</CardTitle>
             <CardDescription>Output · input · net {vat?.position === "refundable" ? "refundable" : "payable"} · {current ? "quarter so far" : vatQuarter} · {CURRENCY}</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartArea state={state} empty={!vat?.hasActivity} emptyText={current ? "No VAT transactions this quarter" : `No VAT transactions in ${vatQuarter}`} height={200}>
+            <ChartArea state={state} empty={!vat?.hasActivity} emptyText={current ? `No ${taxWord()} transactions this quarter` : `No ${taxWord()} transactions in ${vatQuarter}`} height={200}>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={vatRows.filter((r) => r.value > 0)} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={74} paddingAngle={3}>

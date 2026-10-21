@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AlertCircle, Calendar, CheckCircle2, Inbox, Loader2, X } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Inbox, X } from "lucide-react";
 import ReactSelect from "react-select";
+import CreatableSelect from "react-select/creatable";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
 import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
-import { DataTable, TableScroll } from "./DataTable";
+import { DataTable, ErrorNote, Spinner, TableScroll } from "./DataTable";
 
 export { DataTable, TableScroll };
 
@@ -62,29 +63,7 @@ export function EmptyState({ title, text, action }) {
   );
 }
 
-export function Spinner({ label = "Loading" }) {
-  return (
-    <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-      {label}…
-    </div>
-  );
-}
-
-export function ErrorNote({ error, onRetry }) {
-  if (!error) return null;
-  return (
-    <div role="alert" className="flex items-start gap-3 rounded-xl border border-status-danger/25 bg-status-danger-soft p-4 text-sm text-status-danger">
-      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <div className="min-w-0 flex-1">{error.message || String(error)}</div>
-      {onRetry && (
-        <button type="button" onClick={onRetry} className="shrink-0 font-semibold underline underline-offset-2">
-          Try again
-        </button>
-      )}
-    </div>
-  );
-}
+export { Spinner, ErrorNote };
 
 // ---------- status ----------
 
@@ -274,11 +253,31 @@ const matches = (option, input) => {
   return q.split(/\s+/).every((word) => norm(hay).includes(word));
 };
 
+// With `rankMatches`, what was typed puts the best match first: the name itself, then names that begin with it, then a word that
+// begins with it, then the rest (each group in the list's own order). react-select keeps the list's order, so typing "India" and
+// pressing Enter chose "British Indian Ocean Territory", which is alphabetically first. Opt-in, so no other list changes order.
+const rankOf = (option, q) => {
+  const label = norm(option.label);
+  if (label === q) return 0;
+  if (label.startsWith(q)) return 1;
+  if (label.split(/[\s\-/_(),]+/).some((word) => word.startsWith(q))) return 2;
+  return 3;
+};
+const rankedBy = (options, typed) => {
+  const q = norm(typed).trim();
+  if (!q) return options;
+  return options
+    .map((option, index) => [option, index, rankOf(option, q)])
+    .sort((a, b) => a[2] - b[2] || a[1] - b[1])
+    .map(([option]) => option);
+};
+
 export function SearchSelect({
   id, value, onChange, options, placeholder = "Choose…", clearable = false, disabled = false, loading = false,
-  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", className, ...aria
+  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", rankMatches = false, className, ...aria
 }) {
   const selected = options.find((o) => String(o.value) === String(value ?? "")) || null;
+  const [typed, setTyped] = useState("");
   // Escape closes the list when it is open; only an Escape pressed with the list already closed
   // reaches the dialog around it. The list is flagged on the native event so the dialog can tell.
   const listOpen = useRef(false);
@@ -291,7 +290,8 @@ export function SearchSelect({
       className={className}
       classNamePrefix="search-select"
       styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact)}
-      options={options}
+      options={rankMatches ? rankedBy(options, typed) : options}
+      onInputChange={rankMatches ? (text, meta) => setTyped(meta.action === "input-change" ? text : "") : undefined}
       value={selected}
       onChange={(opt) => onChange?.(opt ? String(opt.value) : "")}
       isClearable={clearable}
@@ -299,7 +299,115 @@ export function SearchSelect({
       isLoading={loading}
       autoFocus={autoFocus}
       placeholder={placeholder}
-      noOptionsMessage={() => noOptionsText}
+      // a function is given what was typed, so the message can tell "no match for that" from "nothing to choose"
+      noOptionsMessage={({ inputValue }) => (typeof noOptionsText === "function" ? noOptionsText(inputValue || "") : noOptionsText)}
+      filterOption={matches}
+      menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+      menuPosition="fixed"
+      aria-label={aria["aria-label"]}
+      aria-invalid={aria["aria-invalid"]}
+      aria-describedby={aria["aria-describedby"]}
+      aria-required={aria.required || undefined}
+      formatOptionLabel={(o, { context }) => (
+        <span className="flex min-w-0 items-baseline gap-2" style={context === "menu" && o.depth ? { paddingInlineStart: o.depth * 14 } : undefined}>
+          <span className="truncate">{o.label}</span>
+          {o.hint && <span className="shrink-0 text-xs opacity-70">{o.hint}</span>}
+        </span>
+      )}
+    />
+  );
+}
+
+// A SearchSelect that also offers to create whatever was typed, when nothing matches it - the quick-add
+// pattern requested for every master picker across the app (category, vendor, unit of measure, ...)
+// instead of a separate "+ New" button opening a full modal: type, see "Add '<text>'" at the foot of the
+// list, choose it, and the new record exists and is selected in one step. `onCreate` does the actual
+// work (POST to that master's own create endpoint) and resolves to the option to select - the component
+// does not know or care which master it is talking to, matching the app's existing pattern of thin,
+// explicit per-screen API modules over one generic backend. Nothing here is forced on an existing native
+// `<select>` or plain `SearchSelect` - this is an additional component, not a change to either.
+//
+//   <QuickAddSelect
+//     value={categoryId} onChange={setCategoryId} options={categoryOptions}
+//     onCreate={async (name) => { const cat = await categories.create({ name }); return { value: cat._id, label: cat.name }; }}
+//     placeholder="Search or add a category…"
+//   />
+//
+// Omitting `onCreate` degrades to a plain SearchSelect with no creatable affordance - a screen can pass
+// it conditionally (a role without create permission, say) and nothing else changes.
+//
+// Testing note: react-select's own "create" option, unlike clicking an EXISTING option, does not reliably
+// fire onCreateOption from a bare `fireEvent.click` in jsdom - send `fireEvent.mouseDown` then
+// `fireEvent.click` on it (found the hard way: the click resolved, the option was real and correctly
+// wired, and onCreate simply never ran - no error, nothing to see without instrumenting the handler
+// itself to prove it was never reached).
+export function QuickAddSelect({
+  id, value, onChange, options, onCreate, onCreated, onCreateError,
+  createLabel = (text) => `Add "${text}"`,
+  placeholder = "Search or add…", clearable = false, disabled = false, loading = false,
+  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", className, ...aria
+}) {
+  const [creating, setCreating] = useState(false);
+  // The newly created option shows as selected at once, whether or not the caller's own `options` list
+  // has been refreshed yet (onCreated is a courtesy for a caller that keeps its own cache - it is not
+  // required for correctness here).
+  const [justCreated, setJustCreated] = useState(null);
+  // every hook above this line - the early return below changes what the component RETURNS, not which
+  // hooks run (the same rule DataTable's own selection code follows, for the same reason)
+  const listOpen = useRef(false);
+  const known = options.some((o) => String(o.value) === String(value ?? ""));
+  const allOptions = justCreated && !known ? [...options, justCreated] : options;
+
+  if (!onCreate) {
+    return (
+      <SearchSelect
+        id={id} value={value} onChange={onChange} options={allOptions} placeholder={placeholder} clearable={clearable}
+        disabled={disabled} loading={loading} invalid={invalid} autoFocus={autoFocus} compact={compact}
+        noOptionsText={noOptionsText} className={className} {...aria}
+      />
+    );
+  }
+
+  const selected = allOptions.find((o) => String(o.value) === String(value ?? "")) || null;
+  const exists = (text) => allOptions.some((o) => norm(o.label) === norm(text));
+
+  const create = async (inputValue) => {
+    const text = inputValue.trim();
+    if (!text || exists(text)) return; // CreatableSelect already withholds this via isValidNewOption, kept here too against a direct call
+    setCreating(true);
+    try {
+      const created = await onCreate(text);
+      setJustCreated(created);
+      onChange?.(String(created.value));
+      onCreated?.(created);
+    } catch (err) {
+      onCreateError?.(err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <CreatableSelect
+      inputId={id}
+      onMenuOpen={() => { listOpen.current = true; }}
+      onMenuClose={() => { listOpen.current = false; }}
+      onKeyDown={(e) => { if (e.key === "Escape" && listOpen.current && e.nativeEvent) e.nativeEvent.escapeHandledByList = true; }}
+      className={className}
+      classNamePrefix="search-select"
+      styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact)}
+      options={allOptions}
+      value={selected}
+      onChange={(opt) => onChange?.(opt ? String(opt.value) : "")}
+      onCreateOption={create}
+      isValidNewOption={(text) => Boolean(text.trim()) && !exists(text)}
+      formatCreateLabel={createLabel}
+      isClearable={clearable}
+      isDisabled={disabled}
+      isLoading={loading || creating}
+      autoFocus={autoFocus}
+      placeholder={placeholder}
+      noOptionsMessage={({ inputValue }) => (typeof noOptionsText === "function" ? noOptionsText(inputValue || "") : noOptionsText)}
       filterOption={matches}
       menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
       menuPosition="fixed"
@@ -327,7 +435,7 @@ export const Textarea = React.forwardRef(function Textarea({ className, ...p }, 
 // backdrop does NOT close it, so a half-typed form is never lost to a stray click.
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, description, onClose, children, footer, size = "md" }) {
+export function Modal({ title, description, onClose, children, footer, size = "md", confirmClose }) {
   const titleId = useId();
   const ref = useRef(null);
 
@@ -341,12 +449,20 @@ export function Modal({ title, description, onClose, children, footer, size = "m
     return () => previous?.focus?.();
   }, []);
 
+  // `confirmClose`, when given, is asked before the dialog actually closes (Escape or the X button) and may
+  // refuse by returning false - a form with something unsaved can ask "discard your changes?" instead of
+  // losing them to one keystroke or a stray click. The dialog stays open with focus exactly where it was.
+  const requestClose = () => {
+    if (confirmClose && confirmClose() === false) return;
+    onClose?.();
+  };
+
   const onKeyDown = (e) => {
     if (e.key === "Escape") {
       // a dropdown that was open has already handled this key: it closes, the dialog stays
       if (e.nativeEvent?.escapeHandledByList) return;
       e.stopPropagation();
-      onClose?.();
+      requestClose();
       return;
     }
     if (e.key !== "Tab") return;
@@ -370,7 +486,6 @@ export function Modal({ title, description, onClose, children, footer, size = "m
       <div
         ref={ref}
         role="dialog"
-        aria-modal="true"
         aria-labelledby={titleId}
         className={cn(
           "flex max-h-[88dvh] w-full flex-col rounded-t-2xl border border-border bg-card shadow-elevated",
@@ -388,7 +503,7 @@ export function Modal({ title, description, onClose, children, footer, size = "m
             <h2 id={titleId} className="text-base font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-8">
+          <button type="button" onClick={requestClose} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground md:h-8 md:w-8">
             <X className="h-5 w-5 md:h-4 md:w-4" aria-hidden="true" />
           </button>
         </header>

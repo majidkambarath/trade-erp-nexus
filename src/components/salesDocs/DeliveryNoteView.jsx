@@ -14,6 +14,8 @@ import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { allowActions } from "../../lib/salesDocuments";
 import { orgCurrency } from "../../utils/orgLocale";
+import { useDocumentTitle } from "../../lib/useRecordRoute";
+import { PRODUCT_NAME } from "../../config/product";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
@@ -26,6 +28,7 @@ export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvo
   const currency = orgCurrency();
   const { data: dn, loading, error, reload } = useAsync(() => deliveryNotes.get(id), [id]);
   const activity = useAsync(() => deliveryNotes.activity(id), [id]);
+  useDocumentTitle(dn ? `${dn.deliveryNoteNo} · Delivery notes · ${PRODUCT_NAME}` : null);
   const [mode, setMode] = useState("note"); // note | pick
   const pick = useAsync(() => (mode === "pick" ? deliveryNotes.pickList(id) : Promise.resolve(null)), [id, mode]);
   const [showPrices, setShowPrices] = useState(false);

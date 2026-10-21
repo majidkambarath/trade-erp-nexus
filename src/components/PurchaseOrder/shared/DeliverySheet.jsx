@@ -1,6 +1,7 @@
 import React from "react";
 import { formatNumber, formatQty } from "../../../utils/format";
 import { tint } from "./invoiceModel";
+import { taxIdWord, taxWord } from "../../../lib/taxTerms";
 
 // The printed delivery note and pick list: an A4 sheet laid out with inline styles only, exactly like
 // InvoiceSheet, so the same markup prints, renders to PDF and previews. It is its own sheet because it
@@ -72,7 +73,7 @@ export default function DeliverySheet({
         {company.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5 }}>{company.contact.join("   ·   ")}</div>}
         {company.trn && (
           <div style={{ fontSize: 10.5, marginTop: 2 }}>
-            <span style={{ fontWeight: 600 }}>TRN</span> {company.trn}
+            <span style={{ fontWeight: 600 }}>{company.taxLabel || taxIdWord()}</span> {company.trn}
           </div>
         )}
       </div>
@@ -94,6 +95,11 @@ export default function DeliverySheet({
           {party.code && <div style={{ color: MUTED, fontSize: 10.5 }}>{party.code}</div>}
           {party.address && <div style={{ marginTop: 4, whiteSpace: "pre-line" }}>{party.address}</div>}
           {party.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5, marginTop: 2 }}>{party.contact.join("   ·   ")}</div>}
+          {party.taxId && (
+            <div style={{ fontSize: 10.5, marginTop: 2 }}>
+              <span style={{ fontWeight: 600 }}>{party.taxLabel || taxIdWord()}</span> {party.taxId}
+            </div>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 16, rowGap: 5, alignContent: "start" }}>
           {meta.map(([k, v]) => (
@@ -117,7 +123,7 @@ export default function DeliverySheet({
             {pick && <th style={{ ...head, textAlign: "left", width: "30%" }}>Batch · expiry</th>}
             {pick && <th style={{ ...head, textAlign: "center", width: "8%" }}>Picked</th>}
             {showPrices && !pick && <th style={{ ...head, width: "11%" }}>Unit price</th>}
-            {showPrices && !pick && <th style={{ ...head, width: "7%" }}>VAT %</th>}
+            {showPrices && !pick && <th style={{ ...head, width: "7%" }}>{taxWord()} %</th>}
             {showPrices && !pick && <th style={{ ...head, width: "12%" }}>Total</th>}
           </tr>
         </thead>
@@ -163,7 +169,7 @@ export default function DeliverySheet({
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
           <div style={{ width: "42%", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>Net amount</span><span>{formatNumber(totals.gross)}</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>VAT</span><span>{formatNumber(totals.vat)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}><span>{taxWord()}</span><span>{formatNumber(totals.vat)}</span></div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 0", marginTop: 6, borderTop: `2px solid ${accent}`, fontWeight: 700, fontSize: 13 }}>
               <span>Total ({currency})</span><span>{formatNumber(totals.grandTotal)}</span>
             </div>

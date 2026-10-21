@@ -562,7 +562,7 @@ const PurchaseReturnOrderManagement = () => {
               <button
                 type="button"
                 onClick={() => setActiveView("list")}
-                className="text-sm font-medium text-foreground hover:opacity-80"
+                className="-my-2.5 py-2.5 text-sm font-medium text-foreground hover:opacity-80"
               >
                 View all purchase returns →
               </button>

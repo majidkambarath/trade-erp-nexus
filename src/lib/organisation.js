@@ -75,6 +75,7 @@ export const FEATURE_LABELS = {
   einvoicing: "E-invoicing",
   messaging: "Send documents to customers",
   multiBranch: "More than one branch",
+  production: "Production",
 };
 
 // ---- modules: the parts of the product the organisation bought
@@ -85,6 +86,7 @@ export const FEATURE_LABELS = {
 // because no administrator of theirs can open that door.
 
 export const MODULE_LABELS = {
+  crm: "CRM",
   sales: "Sales",
   purchase: "Purchase",
   inventory: "Inventory",

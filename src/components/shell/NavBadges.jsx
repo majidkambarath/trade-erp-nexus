@@ -1,11 +1,14 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { approvalQueue, APPROVALS_CHANGED } from "../../lib/approvalsApi";
 import { holdsAnyApprove } from "../../lib/approvalQueue";
+import { processOrders, PROCESS_WORK_CHANGED } from "../../lib/processOrderApi";
+import { notifications, NOTIFICATIONS_CHANGED } from "../../lib/notificationsApi";
+import { crm, CRM_WORK_CHANGED } from "../../lib/crmApi";
 import { cn } from "../../lib/utils";
 import { useOrganisation } from "./OrganisationContext";
 
-// Small counts beside a navigation entry. A tab in config/navigation.js that names a `badge` (today: "approvals") shows its
-// number in the header tabs, the More sheet, the rail and the bottom bar.
+// Small counts beside a navigation entry. A tab in config/navigation.js that names a `badge` ("approvals"; "myWork", the process
+// steps given to this person) shows its number in the header tabs, the More sheet, the rail and the bottom bar.
 //
 // The approvals number is asked of the server only by a person who holds an approve permission, with the cheap
 // `?countOnly=1` form, again every couple of minutes, when the tab comes back to the front, when the person changes branch,
@@ -15,39 +18,60 @@ const Context = createContext({});
 
 const REFRESH_MS = 2 * 60 * 1000;
 
-export function NavBadgesProvider({ children }) {
-  const { me, branchKey } = useOrganisation();
-  const entitled = holdsAnyApprove(me);
-  const [approvals, setApprovals] = useState(0);
-
+// One count asked of the server while `enabled`: at once, every couple of minutes, when the tab comes back to the front, when
+// the person changes branch, and whenever `eventName` fires. A failure shows nothing rather than a wrong number.
+function usePolledCount(enabled, load, eventName, branchKey) {
+  const [count, setCount] = useState(0);
   useEffect(() => {
-    if (!entitled) {
-      setApprovals(0);
+    if (!enabled) {
+      setCount(0);
       return undefined;
     }
     let alive = true;
-    const load = () => {
+    const refresh = () => {
       Promise.resolve()
-        .then(() => approvalQueue.count())
-        .then((answer) => alive && setApprovals(Number(answer?.count) || 0))
+        .then(load)
+        .then((answer) => alive && setCount(Number(answer?.count) || 0))
         .catch(() => {});
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === "visible") refresh();
     };
-    load();
-    const timer = setInterval(load, REFRESH_MS);
-    window.addEventListener(APPROVALS_CHANGED, load);
+    refresh();
+    const timer = setInterval(refresh, REFRESH_MS);
+    window.addEventListener(eventName, refresh);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       clearInterval(timer);
-      window.removeEventListener(APPROVALS_CHANGED, load);
+      window.removeEventListener(eventName, refresh);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [entitled, branchKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `load` is a module-level call
+  }, [enabled, eventName, branchKey]);
+  return count;
+}
 
-  const value = useMemo(() => ({ approvals }), [approvals]);
+export function NavBadgesProvider({ children }) {
+  const { me, branchKey, status, can } = useOrganisation();
+  const approvals = usePolledCount(holdsAnyApprove(me), () => approvalQueue.count(), APPROVALS_CHANGED, branchKey);
+  // the process steps given to this person (Inventory > Production): only where Production is switched on, and an opt-in
+  // feature is on only when the server says so (a status without it asks nothing)
+  const myWork = usePolledCount(Boolean(status?.features?.production === true && can?.("inventory.view")), () => processOrders.myWork(), PROCESS_WORK_CHANGED, branchKey);
+  // What this person owes in the CRM today (CRM > Follow-ups). Judged STRICTLY, like holdsAnyApprove: `can` is
+  // permissive while the grants are still unknown (the app hides nothing until it knows), which is right for drawing a
+  // screen and wrong for asking the server a question - an organisation without the CRM module would be asked once on
+  // every load and refused.
+  const holdsCrm = Array.isArray(me?.grants) && me.grants.includes("crm.view");
+  const crmFollowUps = usePolledCount(holdsCrm, () => crm.followUpCount(), CRM_WORK_CHANGED, branchKey);
+  // Everyone signed in has their own feed - a row's audience can be any permission, so there is no single
+  // one to gate this on (the server filters per row instead; see notificationRoutes.js).
+  const notificationsCount = usePolledCount(Boolean(me), () => notifications.unreadCount(), NOTIFICATIONS_CHANGED, branchKey);
+
+  const value = useMemo(
+    () => ({ approvals, myWork, crmFollowUps, notifications: notificationsCount }),
+    [approvals, myWork, crmFollowUps, notificationsCount]
+  );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

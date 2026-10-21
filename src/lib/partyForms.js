@@ -1,5 +1,7 @@
 import { isValidIban, normalizeIban } from "./iban";
+import { orgCountry } from "../utils/orgLocale";
 import { toInputDate, todayInput } from "../utils/format";
+import { taxWord } from "./taxTerms";
 
 // Pure logic of the customer / vendor form: the rules the server applies (so a mistake is caught
 // before the request), and the two translations between the API record and the form fields.
@@ -8,7 +10,7 @@ import { toInputDate, todayInput } from "../utils/format";
 // ---- constants ---------------------------------------------------------------------------------
 
 export const VAT_STATUSES = [
-  { value: "registered", label: "VAT registered" },
+  { value: "registered", get label() { return `${taxWord()} registered`; } },
   { value: "unregistered", label: "Not registered" },
   { value: "exempt", label: "Exempt" },
   { value: "designated_zone", label: "Designated zone" },
@@ -26,7 +28,7 @@ export const DEFAULT_WARNING_DAYS = 30;
 
 export const SECTIONS = [
   { id: "basic", label: "Basic" },
-  { id: "vat", label: "VAT" },
+  { id: "vat", get label() { return taxWord(); } },
   { id: "credit", label: "Credit and terms" },
   { id: "contacts", label: "Contacts" },
   { id: "bank", label: "Bank accounts" },
@@ -35,8 +37,15 @@ export const SECTIONS = [
 
 // ---- small checks ------------------------------------------------------------------------------
 
-export const normalizeTrn = (v) => String(v ?? "").replace(/[\s-]/g, "");
-export const isValidTrn = (v) => /^\d{15}$/.test(normalizeTrn(v));
+export const normalizeTrn = (v) => String(v ?? "").replace(/[\s-]/g, "").toUpperCase();
+// The party's tax number follows the organisation's country, as the server's (utils/partyMaster.js taxIdRule).
+const TAX_ID_RULES = {
+  AE: { label: "TRN", re: /^\d{15}$/, message: "A UAE TRN is exactly 15 digits" },
+  IN: { label: "GSTIN", re: /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, message: "A GSTIN is 15 characters: the 2-digit state code, the 10-character PAN, then 3 more (e.g. 27ABCDE1234F1Z5)" },
+};
+const OTHER_TAX_ID = { label: "Tax number", re: /^[A-Z0-9]{5,20}$/, message: "A tax number is 5 to 20 letters and digits" };
+export const taxIdRule = (country = orgCountry()) => TAX_ID_RULES[String(country || "AE").toUpperCase()] || OTHER_TAX_ID;
+export const isValidTrn = (v, country) => taxIdRule(country).re.test(normalizeTrn(v));
 export const isValidSwift = (v) => /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(String(v ?? "").replace(/\s+/g, "").toUpperCase());
 export const isEmail = (v) => /^\S+@\S+\.\S+$/.test(String(v).trim());
 export const isPhone = (v) => /^\+?[\d\s()-]{7,20}$/.test(String(v).trim());
@@ -258,10 +267,10 @@ export function validateParty(kind, form, { documentTypes = [], strict = true } 
   // VAT
   const trn = normalizeTrn(form.trn);
   if (TRN_REQUIRED_FOR.includes(form.vatStatus)) {
-    if (!trn) { if (strict) e["vat.trn"] = "Enter the 15-digit TRN"; }
-    else if (!isValidTrn(trn)) e["vat.trn"] = `A UAE TRN is exactly 15 digits (${trn.length} entered)`;
+    if (!trn) { if (strict) e["vat.trn"] = taxIdRule().label === "TRN" ? "Enter the 15-digit TRN" : `Enter the ${taxIdRule().label}`; } // the words follow the country (lib/taxTerms.js)
+    else if (!isValidTrn(trn)) e["vat.trn"] = `${taxIdRule().message} (${trn.length} entered)`;
   } else if (form.vatStatus === "exempt" && trn && !isValidTrn(trn)) {
-    e["vat.trn"] = `A UAE TRN is exactly 15 digits (${trn.length} entered)`;
+    e["vat.trn"] = `${taxIdRule().message} (${trn.length} entered)`;
   }
 
   // credit

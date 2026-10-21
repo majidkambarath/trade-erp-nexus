@@ -8,13 +8,17 @@ import "@testing-library/jest-dom";
 // refreshed when something is decided, and shown wherever the navigation names the tab (header tabs, rail, bottom bar, More).
 // A failure shows nothing rather than a wrong number.
 
-const m = vi.hoisted(() => ({ count: vi.fn() }));
+const m = vi.hoisted(() => ({ count: vi.fn(), myWork: vi.fn(), unreadCount: vi.fn(), crmCount: vi.fn() }));
+vi.mock("../../../lib/processOrderApi", () => ({ PROCESS_WORK_CHANGED: "process-work-changed", processOrders: { myWork: m.myWork } }));
 vi.mock("../../../lib/approvalsApi", async (importOriginal) => ({ ...(await importOriginal()), approvalQueue: { count: m.count, waiting: vi.fn() } }));
+vi.mock("../../../lib/notificationsApi", async (importOriginal) => ({ ...(await importOriginal()), notifications: { unreadCount: m.unreadCount } }));
+vi.mock("../../../lib/crmApi", async (importOriginal) => ({ ...(await importOriginal()), crm: { followUpCount: m.crmCount } }));
 let orgStatus = null;
 vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
 
 import { OrganisationProvider, useOrganisation } from "../OrganisationContext";
-import { NavBadgesProvider } from "../NavBadges";
+import { NavBadgesProvider, useNavBadge } from "../NavBadges";
+import { announceNotificationsChanged } from "../../../lib/notificationsApi";
 import ModuleTabs from "../ModuleTabs";
 import AppRail from "../AppRail";
 import BottomNav from "../BottomNav";
@@ -49,6 +53,9 @@ const homeFor = (grants) => getVisibleModules(statusFor(grants)).find((x) => x.i
 beforeEach(() => {
   vi.clearAllMocks();
   m.count.mockResolvedValue({ count: 4, others: 1, capped: false });
+  m.myWork.mockResolvedValue({ count: 3 });
+  m.unreadCount.mockResolvedValue({ count: 0 });
+  m.crmCount.mockResolvedValue({ count: 0 });
 });
 
 describe("the approvals count", () => {
@@ -126,5 +133,85 @@ describe("everywhere the navigation names the tab", () => {
     await waitFor(() => expect(m.count).toHaveBeenCalled());
     expect(await screen.findByRole("link", { name: /Finance/ })).toBeInTheDocument(); // (the control: the entry is there, with no number)
     expect(screen.queryByText(/waiting/)).toBeNull();
+  });
+});
+
+describe("the my-work count (process steps given to the person)", () => {
+  const INVENTORY = MODULES.find((x) => x.id === "inventory");
+  it("is shown beside Production where Production is switched on, and refreshed when a step changes", async () => {
+    orgStatus = { ...statusFor(["inventory.view"]), features: { production: true } };
+    render(
+      <MemoryRouter>
+        <OrganisationProvider>
+          <Known />
+          <NavBadgesProvider><ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} /></NavBadgesProvider>
+        </OrganisationProvider>
+      </MemoryRouter>
+    );
+    expect(await screen.findByRole("link", { name: /Production.*3 waiting/ })).toHaveAttribute("href", "/production");
+    m.myWork.mockResolvedValue({ count: 1 });
+    await act(async () => window.dispatchEvent(new Event("process-work-changed")));
+    expect(await screen.findByRole("link", { name: /Production.*1 waiting/ })).toBeInTheDocument();
+  });
+
+  it("asks nothing where Production is not explicitly on", async () => {
+    await renderAs(["inventory.view"], <ModuleTabs module={INVENTORY} activeTab={INVENTORY.tabs[0]} />);
+    await waitFor(() => expect(m.count).not.toHaveBeenCalled());
+    expect(m.myWork).not.toHaveBeenCalled();
+  });
+});
+
+// Follow-ups is a section of the CRM WORKSPACE now, so it is a one-tab module and draws no tab strip: the count
+// belongs to its rail item. (AppRail reads the same useModuleBadge, so this is the same sum, read where people see it.)
+const CRM = MODULES.filter((x) => x.workspace === "crm");
+
+describe("the CRM follow-ups count", () => {
+  it("is shown on the Follow-ups rail item for somebody who holds the CRM, and refreshed when they act", async () => {
+    m.crmCount.mockResolvedValue({ count: 2 });
+    await renderAs(["crm.view"], <AppRail modules={CRM} activeModuleId="crm-dashboard" />);
+    expect(await screen.findByRole("link", { name: /Follow-ups.*2 waiting/ })).toHaveAttribute("href", "/crm/follow-ups");
+
+    m.crmCount.mockResolvedValue({ count: 1 });
+    await act(async () => window.dispatchEvent(new Event("crm-work-changed")));
+    expect(await screen.findByRole("link", { name: /Follow-ups.*1 waiting/ })).toBeInTheDocument();
+  });
+
+  it("is not asked for by somebody whose organisation did not buy the CRM", async () => {
+    // `can` is capped by what the organisation holds, so a person without crm.view asks nothing.
+    await renderAs(["sales.view"], <ModuleTabs module={HOME} activeTab={HOME.tabs[0]} />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalled());
+    expect(m.crmCount).not.toHaveBeenCalled();
+  });
+});
+
+// No navigation tab names this one - it only backs the bell in TopBar - so it is read with a bare probe.
+function NotificationsProbe() {
+  const count = useNavBadge("notifications");
+  return <span data-testid="notifications-count">{count}</span>;
+}
+
+describe("the notifications count (everyone's own feed)", () => {
+  it("is asked for any signed-in person, whatever their grants - a row's audience can be any permission", async () => {
+    m.unreadCount.mockResolvedValue({ count: 2 });
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalledTimes(1));
+    expect(await screen.findByTestId("notifications-count")).toHaveTextContent("2");
+  });
+
+  it("is read again the moment something changes it", async () => {
+    m.unreadCount.mockResolvedValue({ count: 2 });
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await screen.findByText("2");
+    m.unreadCount.mockResolvedValue({ count: 0 });
+    await act(async () => announceNotificationsChanged());
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("0")).toBeInTheDocument();
+  });
+
+  it("shows nothing when the count cannot be read, rather than a wrong number", async () => {
+    m.unreadCount.mockRejectedValue(new Error("offline"));
+    await renderAs(["sales.view"], <NotificationsProbe />);
+    await waitFor(() => expect(m.unreadCount).toHaveBeenCalled());
+    expect(await screen.findByTestId("notifications-count")).toHaveTextContent("0");
   });
 });

@@ -3,7 +3,8 @@
 
 import { documentTotals } from "../../../utils/documentTotals";
 import { formatDateGB, formatNumber } from "../../../utils/format";
-import { SUPPLIER_STATEMENT, recipientStatement } from "../../../lib/reverseCharge";
+import { recipientStatement, supplierStatement } from "../../../lib/reverseCharge";
+import { taxWord } from "../../../lib/taxTerms";
 import {
   bankRows,
   companyBlock,
@@ -47,11 +48,11 @@ export const contactLines = (p) =>
 export const reverseChargeNote = (lines, totals, side, currency) => {
   if (!lines.some((l) => l.reverseCharge)) return null;
   if (side !== "supplier" && side !== "recipient") return null; // a document that does not say which side it is on says nothing
-  if (side === "supplier") return { statement: SUPPLIER_STATEMENT };
+  if (side === "supplier") return { statement: supplierStatement() };
   const amount = totals.rcmVat || lines.reduce((t, l) => t + (l.rcmVat || 0), 0);
   return {
     statement: recipientStatement(`${currency} ${formatNumber(amount)}`),
-    amountLabel: "VAT self-assessed (reverse charge)",
+    amountLabel: `${taxWord()} self-assessed (reverse charge)`,
     amount,
   };
 };
@@ -164,7 +165,7 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
     company,
     currency,
     notice: `${invoiced ? "This is a computer-generated" : "This is a draft"} ${kind}, recorded from the supplier's invoice.${
-      registered ? "" : " The supplier is not VAT-registered, so no input VAT can be recovered on it."
+      registered ? "" : ` The supplier is not ${taxWord()}-registered, so no input ${taxWord()} can be recovered on it.`
     }${invoiced ? " No signature is required." : " Nothing is posted and no stock comes in until it is approved."}`,
     receipt: true,
     reverseChargeSide: "recipient",

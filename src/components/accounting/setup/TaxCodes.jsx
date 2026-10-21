@@ -6,6 +6,7 @@ import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../kit";
+import { say } from "../../../lib/taxTerms";
 
 export const KINDS = {
   standard: "Standard-rated",
@@ -104,7 +105,7 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
       <form id="tax-form" onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
         {topError && <div className="sm:col-span-2"><ErrorNote error={topError} /></div>}
         <Field label="Name" required error={errors.name} className="sm:col-span-2"><TextInput value={form.name} onChange={set("name")} maxLength={80} data-autofocus placeholder="e.g. Standard 5%" /></Field>
-        <Field label="Treatment" hint={KIND_HELP[form.kind]}>
+        <Field label="Treatment" hint={say(KIND_HELP[form.kind])}>
           <Select value={form.kind} onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value, ratePercent: e.target.value === "standard" ? (f.ratePercent || 5) : 0 }))}>
             {Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>

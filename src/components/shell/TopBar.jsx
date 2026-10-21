@@ -8,6 +8,8 @@ import BrandMark from "./BrandMark";
 import { PRODUCT_NAME } from "../../config/product";
 import { useInstall } from "./InstallApp";
 import BranchSwitcher from "./BranchSwitcher";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
+import NotificationBell from "./NotificationBell";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -90,7 +92,7 @@ function UserMenu({ profile, onLogout }) {
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null, status }) {
   // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
@@ -110,6 +112,7 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
           </>
         )}
 
+        <WorkspaceSwitcher modules={modules} activeModule={activeModule} status={status} />
         <BranchSwitcher />
 
         <button
@@ -124,6 +127,8 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch }) {
           </kbd>
           <span className="sr-only lg:hidden">Search pages</span>
         </button>
+
+        <NotificationBell />
 
         <UserMenu profile={profile} onLogout={onLogout} />
       </div>

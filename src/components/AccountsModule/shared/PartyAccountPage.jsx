@@ -13,6 +13,9 @@ import StatementTab from "./StatementTab";
 import OpenInvoicesTab from "./OpenInvoicesTab";
 import PartyDetailsTab from "./PartyDetailsTab";
 import CustomerDocumentsTab from "../../salesDocs/CustomerDocumentsTab";
+import CustomerCrmTab from "../../crm/CustomerCrmTab.jsx";
+import { taxIdWord } from "../../../lib/taxTerms";
+import { useOrganisation } from "../../shell/OrganisationContext";
 
 const TABS = [
   { id: "statement", label: "Statement" },
@@ -20,7 +23,7 @@ const TABS = [
   { id: "details", label: "Details" },
 ];
 // A customer also has the story of its deals: quotation, order, delivery, invoice. Vendors do not.
-const CUSTOMER_TABS = [TABS[0], TABS[1], { id: "documents", label: "Documents" }, TABS[2]];
+const CUSTOMER_TABS = [TABS[0], TABS[1], { id: "documents", label: "Documents" }, { id: "crm", label: "CRM" }, TABS[2]];
 
 function balanceNote(k, balance) {
   const n = Number(balance) || 0;
@@ -47,7 +50,12 @@ function Fact({ icon, label, children }) {
 export default function PartyAccountPage({ kind, partyId }) {
   const k = KINDS[kind];
   const [params, setParams] = useSearchParams();
-  const tabs = kind === "customer" ? CUSTOMER_TABS : TABS;
+  // The CRM tab is the one part of this page that belongs to a module the organisation may not have bought, so it is
+  // judged STRICTLY (grants known AND crm.view held, the same rule as the follow-up badge): a loading status must not
+  // draw a tab that an organisation without the CRM would find answering 403.
+  const { me } = useOrganisation();
+  const holdsCrm = Array.isArray(me?.grants) && me.grants.includes("crm.view");
+  const tabs = kind === "customer" ? CUSTOMER_TABS.filter((t) => t.id !== "crm" || holdsCrm) : TABS;
   const tab = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "statement";
   const setTab = (id) =>
     setParams((p) => { const next = new URLSearchParams(p); next.set("tab", id); return next; }, { replace: true });
@@ -119,7 +127,7 @@ export default function PartyAccountPage({ kind, partyId }) {
                 <Fact icon={Phone} label="Phone">{p?.phone && <a className="underline underline-offset-2" href={`tel:${p.phone}`}>{p.phone}</a>}</Fact>
                 <Fact icon={Mail} label="Email">{p?.email && <a className="underline underline-offset-2" href={`mailto:${p.email}`}>{p.email}</a>}</Fact>
                 <Fact icon={Clock} label="Payment terms">{terms}</Fact>
-                <Fact icon={FileText} label="TRN">{p?.trnNumber || p?.trnNO}</Fact>
+                <Fact icon={FileText} label={taxIdWord()}>{p?.trnNumber || p?.trnNO}</Fact>
               </>
             )}
           </dl>
@@ -214,6 +222,12 @@ export default function PartyAccountPage({ kind, partyId }) {
         {kind === "customer" && (
           <TabsContent value="documents">
             <CustomerDocumentsTab customerId={partyId} />
+          </TabsContent>
+        )}
+        {/* The document story is the tab above; this is the relationship: what is being worked on, and who said what. */}
+        {kind === "customer" && holdsCrm && (
+          <TabsContent value="crm">
+            <CustomerCrmTab customerId={partyId} />
           </TabsContent>
         )}
         <TabsContent value="details">

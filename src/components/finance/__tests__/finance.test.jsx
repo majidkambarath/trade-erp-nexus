@@ -5,14 +5,14 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 const m = vi.hoisted(() => ({
   create: vi.fn(), update: vi.fn(), list: vi.fn(), get: vi.fn(), remove: vi.fn(),
   options: vi.fn(), cheques: vi.fn(), clearCheque: vi.fn(), bounceCheque: vi.fn(), cancelCheque: vi.fn(),
-  banks: vi.fn(), createBank: vi.fn(), cardTypes: vi.fn(), createCard: vi.fn(),
+  banks: vi.fn(), createBank: vi.fn(), cardTypes: vi.fn(), createCardType: vi.fn(), createCard: vi.fn(),
   postable: vi.fn(), taxCodes: vi.fn(), axiosGet: vi.fn(),
 }));
 vi.mock("../../../lib/bankingApi", () => ({
   vouchers: { create: m.create, update: m.update, list: m.list, get: m.get, remove: m.remove },
   banking: {
     options: m.options, cheques: m.cheques, clearCheque: m.clearCheque, bounceCheque: m.bounceCheque, cancelCheque: m.cancelCheque,
-    banks: m.banks, createBank: m.createBank, updateBank: vi.fn(), cardTypes: m.cardTypes, createCardType: vi.fn(), updateCardType: vi.fn(),
+    banks: m.banks, createBank: m.createBank, updateBank: vi.fn(), cardTypes: m.cardTypes, createCardType: m.createCardType, updateCardType: vi.fn(),
     cards: vi.fn().mockResolvedValue([]), createCard: m.createCard, updateCard: vi.fn(),
   },
 }));
@@ -463,5 +463,26 @@ describe("card master", () => {
     const body = m.createCard.mock.calls[0][0];
     expect(body).toMatchObject({ kind: "credit", label: "Company Amex", cardTypeId: "visa", holderName: "Boss", creditLimit: 5000, last4: "4242" });
     expect(JSON.stringify(body)).not.toMatch(/cvv|cardNumber/i);
+  });
+
+  it("the card type field can create a card type in place, with no separate screen", async () => {
+    m.createCardType.mockResolvedValue({ _id: "amex-type", name: "Amex", feePercent: 0, isActive: true });
+    render(<CardForm card={blank} onClose={() => {}} onSaved={() => {}} />);
+    await waitFor(() => expect(m.cardTypes).toHaveBeenCalled());
+    const input = box(/^Card type/);
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.change(input, { target: { value: "Amex" } });
+    // react-select's own CREATE option only fires onCreateOption on mousedown-then-click against the
+    // SAME node, per kit.jsx's own QuickAddSelect doc comment (also pinned in quickAddSelect.test.jsx
+    // and the StockManagement category field's own test)
+    const createOption = await screen.findByRole("option", { name: 'Add "Amex"' });
+    fireEvent.mouseDown(createOption);
+    fireEvent.mouseUp(createOption);
+    fireEvent.click(createOption);
+
+    await waitFor(() => expect(m.createCardType).toHaveBeenCalledWith({ name: "Amex" }));
+    await waitFor(() => expect(screen.getByText("Amex")).toBeInTheDocument());
+    expect(m.cardTypes).toHaveBeenCalledTimes(2); // refetched in the background once the new type exists
   });
 });

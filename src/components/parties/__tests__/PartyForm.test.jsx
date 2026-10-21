@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
+import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
@@ -452,5 +453,21 @@ describe("the add / edit dialog", () => {
     expect(mocks.save.mock.calls[0].slice(0, 2)).toEqual(["vendor", "v1"]);
     expect(mocks.save.mock.calls[0][2]).toMatchObject({ vendorName: "Gulf Mills", status: "Pending", paymentTerms: "COD", vat: { status: "registered", trn: "100123456700003" } });
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ _id: "v1" }, "Vendor updated successfully!"));
+  });
+});
+
+describe("an Indian organisation's party form says GST and GSTIN", () => {
+  afterEach(() => resetOrgLocale());
+  it("the tab, the status, the number and its check are India's; the UAE-only designated zone is not offered", async () => {
+    setOrgLocale({ country: "IN" });
+    render(<Harness kind="vendor" />);
+    openTab("GST");
+    expect(await screen.findByLabelText("GST status")).toBeInTheDocument();
+    const options = within(screen.getByLabelText("GST status")).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toContain("GST registered");
+    expect(options).not.toContain("Designated zone");
+    fireEvent.change(screen.getByLabelText("GST status"), { target: { value: "registered" } });
+    expect(screen.getByLabelText(/GSTIN \(GST identification number\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/\bVAT\b|\bTRN\b/)).not.toBeInTheDocument();
   });
 });

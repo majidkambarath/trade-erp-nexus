@@ -3,6 +3,7 @@ import { Field, Spinner, Textarea, useAsync } from "../accounting/kit";
 import { orderClose } from "../../lib/salesDocumentsApi";
 import { formatNumber, formatQty, CURRENCY } from "../../utils/format";
 import { ActionModal, Note } from "./parts";
+import { taxWord } from "../../lib/taxTerms";
 
 // The customer took part of an order and will never take the rest. The server says what closing would do
 // (GET .../close-short) and the dialog shows it before anything is changed: which lines fell short, and what
@@ -59,7 +60,7 @@ export default function CloseShortDialog({ orderId, orderNo, busy, problem, onCl
           ) : (
             <Note tone="warning">
               {orderNo} is already invoiced in full, and its stock and accounts are booked. Closing it changes none of that; it records that the
-              {" "}rest will not be delivered. Then raise a sales return for the items above (about {CURRENCY} {formatNumber(p.valueShort, 2)} with VAT), which
+              {" "}rest will not be delivered. Then raise a sales return for the items above (about {CURRENCY} {formatNumber(p.valueShort, 2)} with {taxWord()}), which
               {" "}puts them back in stock and credits the customer.
             </Note>
           )}

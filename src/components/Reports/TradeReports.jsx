@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { DateRange, Frame, monthStart } from "./reportKit";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { taxWord } from "../../lib/taxTerms";
 
 const money = (n) => formatNumber(n, 2);
 const qty = (n) => formatNumber(n, 3).replace(/\.?0+$/, "");
@@ -165,7 +166,7 @@ function Summary({ data: given, view, partyLabel, sales, onParty, onItem }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard title={sales ? "Sales (net)" : "Purchases (net)"} count={money(t.net)} subText={`${CURRENCY} · VAT ${money(t.vat)} · total ${money(t.total)}`} tone="teal" />
+        <StatCard title={sales ? "Sales (net)" : "Purchases (net)"} count={money(t.net)} subText={`${CURRENCY} · ${taxWord()} ${money(t.vat)} · total ${money(t.total)}`} tone="teal" />
         <StatCard title="Returns" count={money(t.returns)} subText={`${CURRENCY} taken off`} tone={t.returns > 0 ? "warning" : "neutral"} />
         <StatCard title={sales ? "Customers" : "Vendors"} count={String(t.parties)} subText={`${t.documents} document${t.documents === 1 ? "" : "s"}`} tone="plum" />
         <StatCard title="Items" count={String(t.items)} subText={`${qty(t.quantity)} units net`} tone="neutral" />
@@ -188,7 +189,7 @@ function Summary({ data: given, view, partyLabel, sales, onParty, onItem }) {
                 <th className="px-3 py-2 text-end">Avg price</th>
                 <th className="px-3 py-2 text-end">Returns</th>
                 <th className="px-3 py-2 text-end">Net</th>
-                <th className="px-3 py-2 text-end">VAT</th>
+                <th className="px-3 py-2 text-end">{taxWord()}</th>
                 <th className="px-3 py-2 text-end">Total</th>
                 <th className="px-3 py-2 text-end">Share</th>
                 {months.map((m) => <th key={m} className="whitespace-nowrap px-3 py-2 text-end">{monthLabel(m)}</th>)}
@@ -203,7 +204,7 @@ function Summary({ data: given, view, partyLabel, sales, onParty, onItem }) {
                       <button type="button" onClick={() => onParty(r.partyId)} className="text-start font-medium underline decoration-dotted underline-offset-2 hover:text-foreground" title="See the items">
                         {r.partyName}
                       </button>
-                      <span className="block text-xs text-muted-foreground">{[r.partyCode, r.vatStatus === "registered" ? "VAT registered" : r.vatStatus === "unregistered" ? "Not registered" : r.vatStatus].filter(Boolean).join(" · ")}</span>
+                      <span className="block text-xs text-muted-foreground">{[r.partyCode, r.vatStatus === "registered" ? `${taxWord()} registered` : r.vatStatus === "unregistered" ? "Not registered" : r.vatStatus].filter(Boolean).join(" · ")}</span>
                     </td>
                   )}
                   {showItem && (
@@ -274,7 +275,7 @@ function Register({ data: given, page, setPage }) {
               <th className="px-3 py-2 text-end">Quantity</th>
               <th className="px-3 py-2 text-end">Price</th>
               <th className="px-3 py-2 text-end">Net</th>
-              <th className="px-3 py-2 text-end">VAT</th>
+              <th className="px-3 py-2 text-end">{taxWord()}</th>
               <th className="px-3 py-2 text-end">Total</th>
             </tr>
           </thead>
@@ -391,7 +392,7 @@ function Movement({ type, range }) {
                             {r.partyId ? (
                               <button type="button" onClick={() => open(r)} className="text-start font-medium underline decoration-dotted underline-offset-2 hover:text-foreground">{r.partyName}</button>
                             ) : <span className="font-medium">{r.partyName}</span>}
-                            <span className="block text-xs text-muted-foreground">{[r.partyCode, r.vatStatus === "registered" ? "VAT registered" : "Not registered", r.paymentTerms].filter(Boolean).join(" · ")}</span>
+                            <span className="block text-xs text-muted-foreground">{[r.partyCode, r.vatStatus === "registered" ? `${taxWord()} registered` : "Not registered", r.paymentTerms].filter(Boolean).join(" · ")}</span>
                           </td>
                           <td className="px-3 py-2 text-end tabular-nums text-muted-foreground">{money(r.opening)}</td>
                           <td className="px-3 py-2 text-end tabular-nums">{money(r.invoiced)}</td>

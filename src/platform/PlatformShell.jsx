@@ -20,15 +20,16 @@ export default function PlatformShell({ user, onSignOut, children }) {
       <header className="pt-safe border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <BrandMark className="h-8 w-8" iconClassName="h-4 w-4" />
-          <span className="text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
-          <span className="hidden rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground sm:inline">Developer console</span>
-          <nav aria-label="Console" className="ms-2 flex items-center gap-1">
+          <span className="shrink-0 text-sm font-extrabold tracking-tight">{PRODUCT_NAME}</span>
+          <span className="hidden shrink-0 rounded-full border border-border bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground sm:inline">Developer console</span>
+          {/* four links are wider than a phone: they scroll inside their own box, never the whole page sideways */}
+          <nav aria-label="Console" className="ms-2 flex min-w-0 items-center gap-1 overflow-x-auto">
             <NavLink to="/platform" end className={link}>Organisations</NavLink>
             <NavLink to="/platform/activity" className={link}>Activity</NavLink>
             <NavLink to="/platform/developers" className={link}>Developers</NavLink>
             <NavLink to="/platform/security" className={link}>Security</NavLink>
           </nav>
-          <div className="ms-auto flex min-w-0 items-center gap-2">
+          <div className="ms-auto flex shrink-0 items-center gap-2">
             <span className="hidden min-w-0 truncate text-sm text-muted-foreground md:inline">{user?.email}</span>
             <button
               type="button"

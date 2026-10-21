@@ -10,6 +10,7 @@ import { fromCents, money, toCents } from "../../../lib/voucherForms";
 import { emptyPartyRow, fmt, partyPayload, partyTotals, validatePartyRows } from "../../../lib/openingBalanceForms";
 import { formatDate } from "../../../utils/format";
 import { FooterRow, NeedsDate, Note } from "./parts";
+import { taxWord } from "../../../lib/taxTerms";
 
 const AMOUNT = /^\d*(\.\d{0,2})?$/;
 const clean = (v) => v.replace(/,/g, "");
@@ -167,7 +168,7 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
               <p className="text-xs text-muted-foreground">
                 An empty due date follows the {k.nounLower}&apos;s payment terms. Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts.
               </p>
-              <Note tone="info">{k.posting} No stock, VAT or e-invoice is created, and an opening invoice cannot be returned.</Note>
+              <Note tone="info">{k.posting} No stock, {taxWord()} or e-invoice is created, and an opening invoice cannot be returned.</Note>
             </div>
           )}
         </Panel>

@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CheckCircle2, AlertTriangle, Wand2 } from "lucide-react";
-import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
+import { ErrorNote, Field, PageHeader, Panel, SearchSelect, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
 import { consoleError, platform } from "./platformApi";
-import { COUNTRIES, emptyOrganisation, limitText, moduleActionsOf, moduleChoice, moduleOverridesFor, suggestPassword, toCreatePayload, validateNewOrganisation, withCountry } from "./platformForms";
-import ModuleRow from "./ModulesPicker";
+import { emptyOrganisation, limitText, suggestPassword, toCreatePayload, validateNewOrganisation, withCountry } from "./platformForms";
+import { countryOptions, suggestFor } from "./countries";
+import { formatOffset, isRealZone, localTime, offsetMinutes, withCurrent, zoneOptions } from "./timezones";
+import ModulesPanel from "./ModulesPanel";
 
 const STEP_NAMES = {
   settings: "Company settings and posting accounts",
@@ -64,12 +66,15 @@ function Result({ made, form }) {
   );
 }
 
-// What the modules line says before anything is opened: the plan's own set, or what this customer is getting instead.
-function moduleSummary(plan, choices, modules) {
-  const changed = Object.keys(moduleOverridesFor(plan, choices, modules));
-  if (!changed.length) return "Everything the plan includes.";
-  const named = changed.map((key) => modules.find((m) => m.key === key)?.label || key);
-  return `Different from the plan: ${named.join(", ")}.`;
+// What the Timezone box says under itself: where the zone came from, what the clock reads there now, and how it relates to
+// the country's other zones. Seeing "Wed 21 Oct, 16:42" for India is how the developer knows at a glance it is the right one.
+function zoneNote(zone, suggestion) {
+  if (!zone || !isRealZone(zone)) return undefined;
+  const parts = [];
+  if (suggestion.zones.includes(zone)) parts.push(`Set from ${suggestion.name}.`);
+  parts.push(`It is ${localTime(zone)} there now (${formatOffset(offsetMinutes(zone))}).`);
+  if (suggestion.zones.length > 1) parts.push(`${suggestion.name} has ${suggestion.zones.length} time zones; they are listed first.`);
+  return parts.join(" ");
 }
 
 // Creating an organisation: who the customer is, the books they will keep, the plan, and their first administrator.
@@ -86,6 +91,13 @@ export default function NewOrganisation() {
   const errors = useMemo(() => validateNewOrganisation(form, c), [form, c]);
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
   const plan = c?.plans?.find((p) => p.code === form.planCode);
+  // choosing a country sets its time zone and currency; these are what that choice offers and what could not be offered
+  const countries = useMemo(() => countryOptions(), []);
+  const suggestion = useMemo(() => suggestFor(form.country, c), [form.country, c]);
+  const zones = useMemo(
+    () => withCurrent(zoneOptions({ countryZones: suggestion.zones, catalogZones: c?.timezones, countryName: suggestion.name }), form.timezone),
+    [suggestion, c, form.timezone]
+  );
 
   const submit = async (event) => {
     event.preventDefault();
@@ -94,7 +106,7 @@ export default function NewOrganisation() {
     setBusy(true);
     setError("");
     try {
-      setMade(await platform.createOrganisation(toCreatePayload(form, { plan, modules: c?.modules || [] })));
+      setMade(await platform.createOrganisation(toCreatePayload(form, { plan, modules: c?.modules || [], features: c?.features || [] })));
     } catch (err) {
       setError(consoleError(err));
     } finally {
@@ -128,12 +140,8 @@ export default function NewOrganisation() {
               <Field label="Code" hint="Optional. Lower-case letters, digits and hyphens; made from the name if left blank. It cannot be changed later." error={show("code")}>
                 <TextInput value={form.code} onChange={(e) => set("code")(e.target.value)} autoComplete="off" placeholder="gulf-fresh" />
               </Field>
-              <Field label="Country" required hint="Decides the tax set. Fixed once the organisation is set up." error={show("country")}>
-                <SearchSelect
-                  value={form.country}
-                  onChange={(v) => setForm((f) => withCountry(f, v))}
-                  options={COUNTRIES.map((x) => ({ value: x.code, label: x.name, hint: x.code }))}
-                />
+              <Field label="Country" required hint="Decides the tax set, and suggests the time zone and currency below. Fixed once the organisation is set up." error={show("country")}>
+                <SearchSelect value={form.country} onChange={(v) => setForm((f) => withCountry(f, v, c))} options={countries} rankMatches />
               </Field>
               <Field label="Base currency" required hint="The currency the books are kept in. Fixed once set up." error={show("baseCurrency")}>
                 <SearchSelect
@@ -142,8 +150,8 @@ export default function NewOrganisation() {
                   options={c.currencies.map((x) => ({ value: x.code, label: `${x.code} · ${x.name}` }))}
                 />
               </Field>
-              <Field label="Timezone" required error={show("timezone")}>
-                <SearchSelect value={form.timezone} onChange={set("timezone")} options={(c.timezones || []).map((z) => ({ value: z, label: z }))} />
+              <Field label="Timezone" required hint={zoneNote(form.timezone, suggestion)} error={show("timezone")}>
+                <SearchSelect value={form.timezone} onChange={set("timezone")} options={zones} rankMatches />
               </Field>
               <Field label="Plan" required error={show("planCode")}>
                 <Select value={form.planCode} onChange={(e) => set("planCode")(e.target.value)}>
@@ -153,34 +161,30 @@ export default function NewOrganisation() {
                 </Select>
               </Field>
             </div>
-            {plan && (
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>Includes</span>
-                {c.features.filter((f) => plan.features?.[f.key]).map((f) => (
-                  <Pill key={f.key} tone="info">{f.label}</Pill>
+            {suggestion.notes.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs text-status-warning" aria-label={`About ${suggestion.name}`}>
+                {suggestion.notes.map((note) => (
+                  <li key={note}>{note}</li>
                 ))}
-                <span className="ms-1">Limits: {c.limits.map((k) => `${limitText(plan.limits?.[k])} ${k === "documentsPerMonth" ? "documents a month" : k}`).join(" · ")}</span>
-                {plan.trialDays && <span>· a {plan.trialDays}-day trial</span>}
-              </div>
+              </ul>
+            )}
+            {plan && (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Limits: {c.limits.map((k) => `${limitText(plan.limits?.[k])} ${k === "documentsPerMonth" ? "documents a month" : k}`).join(" · ")}
+                {plan.trialDays ? ` · a ${plan.trialDays}-day trial` : ""}. The modules below show what the plan includes.
+              </p>
             )}
           </Panel>
 
-          {(c.modules || []).length ? (
-            <Panel title="Modules" description="What this customer is buying. The plan ticks them; untick what they are not getting and only the difference is stored, so a later change of plan still reaches the rest.">
-              <p className="text-sm">{moduleSummary(plan, form.modules, c.modules)}</p>
-              <ul className="mt-2">
-                {c.modules.map((m) => (
-                  <ModuleRow
-                    key={m.key}
-                    module={m}
-                    plan={plan}
-                    state={form.modules[m.key] ?? { choice: moduleChoice(null, m.key), actions: moduleActionsOf(null, plan, m.key, m.actions.map((a) => a.action)) }}
-                    onChange={(next) => setForm((f) => ({ ...f, modules: { ...f.modules, [m.key]: next } }))}
-                  />
-                ))}
-              </ul>
-            </Panel>
-          ) : null}
+          <ModulesPanel
+            catalog={c}
+            plan={plan}
+            country={form.country}
+            edits={form.modules}
+            featureEdits={form.features}
+            onModule={(key, next) => setForm((f) => ({ ...f, modules: { ...f.modules, [key]: next } }))}
+            onFeature={(key, choice) => setForm((f) => ({ ...f, features: { ...f.features, [key]: choice } }))}
+          />
 
           <Panel title="First administrator" description="The person who signs in first and sets the rest of the organisation up.">
             <div className="grid gap-4 sm:grid-cols-2">

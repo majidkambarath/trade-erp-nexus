@@ -3,13 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ERP,
   MOBILE_SLOTS,
   MODULES,
   findActive,
   getMobileNav,
   getVisibleModules,
+  modulesIn,
+  offeredWorkspaces,
   pageTitle,
   tabMatches,
+  workspaceInUse,
 } from "../navigation";
 import { FEATURE_LABELS } from "../../lib/organisation";
 import { tabAllowed } from "../../lib/permissions";
@@ -42,6 +46,21 @@ describe("route coverage", () => {
 
   it("every tab points at a real route", () => {
     for (const { tab } of allTabs) expect(routes).toContain(tab.to);
+  });
+
+  // The rail is 88px wide and the bottom bar is a quarter of a phone, so a module's rail name has to be a short
+  // word. "Communications" bled straight over the edge of the rail; `short` is how a long name says itself there.
+  // Ten characters is "Follow-ups", which fits; anything longer needs a `short`.
+  it("every module has a name short enough for the rail", () => {
+    const tooLong = MODULES.map((m) => m.short || m.label).filter((name) => name.length > 10);
+    expect(tooLong).toEqual([]);
+  });
+
+  it("a short name is only ever an abbreviation, never a different word", () => {
+    for (const m of MODULES.filter((x) => x.short)) {
+      // "Comms" for "Communications": the rail must not say one thing and the page another.
+      expect(m.label.toLowerCase().startsWith(m.short.toLowerCase().slice(0, 3))).toBe(true);
+    }
   });
 
   it("module ids are unique", () => {
@@ -133,7 +152,12 @@ describe("what a role may open", () => {
     expect(home(grants("sales.view", "finance.create", "purchase.delete", "reports.view"))).toEqual(["Dashboard"]);
     for (const key of ["sales.approve", "purchase.approve", "finance.approve"]) expect(home(grants("reports.view", key))).toEqual(["Dashboard", "Approvals"]);
     expect(home(grants("finance.approve"))).toEqual(["Approvals"]); // an approver without the dashboard still has the list
-    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([["Approvals", "approvals"]]);
+    // In module order: Home's approvals, the CRM's own follow-ups, then the process steps given to a person.
+    expect(allTabs.filter(({ tab }) => tab.badge).map(({ tab }) => [tab.label, tab.badge])).toEqual([
+      ["Approvals", "approvals"],
+      ["Follow-ups", "crmFollowUps"],
+      ["Production", "myWork"],
+    ]);
   });
 
   it("guarding is the default: every tab names what it needs, or says it is open and why", () => {
@@ -187,14 +211,22 @@ describe("pageTitle", () => {
 describe("getMobileNav", () => {
   const ids = (list) => list.map((m) => m.id);
 
+  // The bottom bar belongs to the workspace being worked in, so it is fed that workspace's modules (Layout.jsx does
+  // the same). The ERP's bar is exactly what it has always been; the CRM has a bar of its own.
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
-    const { primary, rest } = getMobileNav(getVisibleModules());
+    const { primary, rest } = getMobileNav(modulesIn(ERP, getVisibleModules()));
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
     expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
   });
 
+  it("gives the CRM workspace its own bar, with no ERP page on it", () => {
+    const { primary, rest } = getMobileNav(modulesIn("crm", getVisibleModules()));
+    expect(ids(primary)).toEqual(["crm-dashboard", "crm-leads", "crm-contacts", "crm-pipeline"]);
+    expect(ids(rest)).toEqual(["crm-communications", "crm-follow-ups", "crm-calendar", "crm-reports", "crm-setup"]);
+  });
+
   it("splits every module into exactly one of the two", () => {
-    const modules = getVisibleModules();
+    const modules = modulesIn(ERP, getVisibleModules());
     const { primary, rest } = getMobileNav(modules);
     expect([...ids(primary), ...ids(rest)].sort()).toEqual(ids(modules).sort());
   });
@@ -250,5 +282,83 @@ describe("what the plan includes", () => {
     const modules = getVisibleModules({ features: off });
     expect(modules.map((m) => m.id)).toContain("sales");
     expect(tabs(modules).filter((t) => /Quotations|Delivery notes|Batches|Reconcile|IFRS|VAT|e-Invoicing/.test(t))).toEqual([]);
+  });
+});
+
+// ---- the switch between the ERP and the CRM: organisation first, then person ------------------------------------------
+//
+// Four people, one rule. The organisation's plan decides whether the CRM exists for anybody in it; the person's role then
+// decides whether THEY can open any of it. The switch appears only when both halves are open to the same person.
+describe("which workspaces a person is offered", () => {
+  // `crm` is what the server says the organisation bought (status.modules.crm.on); `keys` is what the role holds AFTER
+  // the server has capped it to that (status.me.grants), exactly as the real status arrives.
+  const as = (keys, crm = true) => ({ me: { grants: keys }, modules: { crm: { on: crm } } });
+  const offered = (status) => offeredWorkspaces(getVisibleModules(status), status).map((w) => w.id);
+
+  const CRM_KEYS = ["crm.view", "crm.create", "crm.edit", "crm.manage"];
+  const OWNER = as([...allKeys, ...CRM_KEYS]);
+
+  it("an organisation that did not buy the CRM has the ERP and nothing to switch to, whoever the person is", () => {
+    // the Owner of a Standard-plan organisation: every ERP permission, and the server has already capped away crm.*
+    expect(offered(as(allKeys.filter((k) => !k.startsWith("crm.")), false))).toEqual(["erp"]);
+  });
+
+  it("an organisation that bought the CRM offers both to someone who can open both", () => {
+    expect(offered(OWNER)).toEqual(["erp", "crm"]);
+  });
+
+  it("a person without crm.view in an organisation that DID buy it is offered the ERP alone", () => {
+    expect(offered(as(["sales.view", "reports.view", "settings.view", "lookups.view"]))).toEqual(["erp"]);
+  });
+
+  it("a person whose role is CRM only is offered the CRM alone: no half-empty ERP to switch to", () => {
+    // a custom CRM-only role holds crm.* and the pick lists a form needs, and nothing that opens an ERP page
+    expect(offered(as([...CRM_KEYS, "lookups.view"]))).toEqual(["crm"]);
+  });
+
+  it("a status that says the CRM is off wins even if a stale grant is still in the list", () => {
+    // belt and braces: the grants and the module can only disagree through a bug, and then the refused one loses
+    expect(offered(as([...allKeys, ...CRM_KEYS], false))).toEqual(["erp"]);
+  });
+
+  it("offers only the ERP while the status is still loading, so nobody is shown a CRM they have not bought", () => {
+    expect(offered(null)).toEqual(["erp"]);
+    expect(offered({})).toEqual(["erp"]);
+    expect(offered({ modules: { crm: { on: true } } })).toEqual(["erp"]); // modules without grants: the person is not known yet
+  });
+
+  it("Settings is open to everyone, so it never makes an 'ERP' for somebody who works only in the CRM", () => {
+    const status = as([...CRM_KEYS, "lookups.view"]);
+    const ids = getVisibleModules(status).map((m) => m.id);
+    expect(ids).toContain("settings"); // they still have their own password and preferences
+    expect(offered(status)).toEqual(["crm"]);
+  });
+
+  it("keeps that person on the CRM rail while they are on the Settings page, so there is never a one-item rail", () => {
+    const status = as([...CRM_KEYS, "lookups.view"]);
+    const modules = getVisibleModules(status);
+    const settings = findActive("/settings", modules).module;
+    expect(workspaceInUse(settings, modules, status)).toBe("crm");
+    // ...while somebody who does work in both stays where the address says
+    const owner = getVisibleModules(OWNER);
+    expect(workspaceInUse(findActive("/settings", owner).module, owner, OWNER)).toBe("erp");
+    expect(workspaceInUse(findActive("/crm/leads", owner).module, owner, OWNER)).toBe("crm");
+  });
+
+  it("lets the address decide until the status has arrived, so a reload on a CRM page never flashes the ERP rail", () => {
+    const crmPage = findActive("/crm/leads").module;
+    expect(workspaceInUse(crmPage, MODULES, null)).toBe("crm");
+    expect(workspaceInUse(crmPage, MODULES, undefined)).toBe("crm");
+    expect(workspaceInUse(crmPage, MODULES, {})).toBe("crm");
+  });
+
+  it("judges the modules alone when the caller gives no status", () => {
+    expect(offeredWorkspaces(getVisibleModules(OWNER)).map((w) => w.id)).toEqual(["erp", "crm"]);
+  });
+
+  it("an organisation without the CRM module leaves every CRM page out of what its people can open", () => {
+    const status = as(allKeys.filter((k) => !k.startsWith("crm.")), false);
+    const ids = getVisibleModules(status).map((m) => m.id);
+    expect(ids.filter((id) => id.startsWith("crm-"))).toEqual([]);
   });
 });

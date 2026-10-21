@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 import {
   DOC_STATUS, addRow, daysToTerms, documentStatus, emptyBankAccount, emptyContact, emptyParty, errorCountBySection, expirySummary, fieldForServerError,
   firstSectionWithErrors, formToPayload, isValidSwift, isValidTrn, normalizeTrn, partyToForm, removeRow, sectionOf, setPrimary, termOptions, termsToDays,
-  toDay, validateParty, withCreditDays, withPaymentTerms,
+  taxIdRule, toDay, validateParty, withCreditDays, withPaymentTerms,
 } from "../partyForms";
 
 const TRN = "100123456700003";
@@ -232,5 +233,17 @@ describe("record <-> form", () => {
     expect(body).not.toHaveProperty("credit");
     expect(body).not.toHaveProperty("customerName");
     expect(body).not.toHaveProperty("creditLimit");
+  });
+});
+
+describe("the tax number follows the organisation's country", () => {
+  afterEach(() => resetOrgLocale());
+  it("a UAE TRN by default, an Indian GSTIN for an Indian organisation", () => {
+    expect(isValidTrn("100999888700003")).toBe(true);
+    expect(isValidTrn("27ABCDE1234F1Z5")).toBe(false);
+    setOrgLocale({ country: "IN" });
+    expect(isValidTrn("27abcde1234f1z5")).toBe(true);
+    expect(isValidTrn("100999888700003")).toBe(false);
+    expect(taxIdRule().label).toBe("GSTIN");
   });
 });
