@@ -79,3 +79,30 @@ describe("reading a file", () => {
     await expect(readStatementFile(fileOf("empty.csv", ""))).rejects.toThrow(/no rows/);
   });
 });
+
+// A bank statement is the one file this app parses that arrives from OUTSIDE the company - a finance person is sent
+// one by email and opens it here, in the tab that holds their session. SheetJS 0.18.5 had a prototype-pollution
+// advisory with no fix on npm, so xlsx is pinned to the CDN build; this is the regression test for the property that
+// matters, so a future "tidy the dependency back to npm" cannot quietly undo it.
+describe("a workbook from outside cannot reach Object.prototype", () => {
+  it("leaves the prototype alone whatever the sheet is called or contains", async () => {
+    const book = XLSX.utils.book_new();
+    // the keys an attacker would reach for, as sheet names, headers and cell values
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["__proto__", "constructor", "prototype"],
+      ["polluted", "polluted", "polluted"],
+      ["2026-10-05", 100, "ACME"],
+    ]);
+    XLSX.utils.book_append_sheet(book, sheet, "__proto__");
+    const bytes = XLSX.write(book, { type: "array", bookType: "xlsx" });
+
+    const out = await readStatementFile(fileOf("statement.xlsx", new Uint8Array(bytes)));
+
+    expect(out.kind).toBe("grid");
+    expect(out.rows.length).toBeGreaterThan(0);
+    expect({}.polluted).toBeUndefined();
+    expect(Object.prototype.polluted).toBeUndefined();
+    expect({}.constructor).toBe(Object);
+    expect([].length).toBe(0);
+  });
+});
