@@ -9,3 +9,5 @@
   Strict-Transport-Security: max-age=31536000
 /sw.js
   Cache-Control: no-cache
+/d/*
+  X-Robots-Tag: noindex, nofollow, noarchive
