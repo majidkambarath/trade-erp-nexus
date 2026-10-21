@@ -222,7 +222,10 @@ describe("what it offers before anybody has asked", () => {
   it("falls back to the general questions when a screen has none of its own", async () => {
     screenTip.mockResolvedValue({ topics: [], suggestions: [] });
     draw();
-    expect(await screen.findByRole("button", { name: "How do I raise an invoice?" })).toBeInTheDocument();
+    // wait for the screen to answer before judging what is offered: nothing is offered until it has
+    await screen.findByText(/I have nothing written about/);
+    expect(screen.getByText("I do know about")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "How do I raise an invoice?" })).toBeInTheDocument();
   });
 
   it("puts the refusal they just hit first, because that is why most people open it", async () => {
@@ -239,7 +242,26 @@ describe("what it offers before anybody has asked", () => {
 
   it("says plainly that asking about their own figures is not built yet", async () => {
     draw();
-    expect(await screen.findByText(/Asking about your own figures/)).toBeInTheDocument();
+    expect(await screen.findByText(/Your own figures/)).toBeInTheDocument();
     expect(screen.getByText("coming soon")).toBeInTheDocument();
+  });
+});
+
+describe("the panel itself", () => {
+  it("is a dialog you can close with Escape, docked rather than covering the page", async () => {
+    const onClose = vi.fn();
+    draw(onClose);
+    const panel = screen.getByRole("dialog", { name: "Zarvia AI" });
+    // fixed, never absolute: an absolutely positioned element deep in a long page takes the window
+    // as its containing block and makes the document itself scroll, which the sweep calls DOCSCR.
+    expect(panel.className).toMatch(/\bfixed\b/);
+    expect(panel.className).not.toMatch(/\babsolute\b/);
+    fireEvent.keyDown(panel, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("says which screen it is looking at, so the answers have a context you can see", async () => {
+    draw();
+    expect(await screen.findByText("Looking at Invoices")).toBeInTheDocument();
   });
 });
