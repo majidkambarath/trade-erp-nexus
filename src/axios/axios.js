@@ -1,6 +1,7 @@
 import axios from "axios";
 import { clearSession, announceSignOut, getAccessToken, getSelectedBranch, setSelectedBranch, setSession } from "./session";
 import { BLOCKED_EVENT, BRANCH_RESET_EVENT, blockedFrom, isBranchRefusal, isPermissionError } from "../lib/organisation";
+import { noteRefusal } from "../lib/lastRefusal";
 
 // One place for the API address. Set VITE_API_URL (e.g. in .env.local, or as a Render
 // environment variable) to point the app at another backend; with nothing set it is the local
@@ -90,6 +91,9 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     // A subscription that has ended (or a suspended account) refuses every request the same way. Tell the shell, so it
     // can say why instead of every screen showing its own error. The request still fails as before.
+    // Remember the refusal so Zarvia AI can explain THIS one from a written table rather than
+    // guessing. In memory, one slot, cleared at sign-out (src/lib/lastRefusal.js).
+    noteRefusal(error);
     const blocked = blockedFrom(error);
     if (blocked && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(BLOCKED_EVENT, { detail: blocked }));
     // A role that does not allow an action is told in the server's own words, on every screen that shows error.message,

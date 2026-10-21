@@ -2,6 +2,7 @@
 // from a link starts empty and asks the server for a token with the session cookie, and page
 // scripts never find a token sitting in storage.
 
+import { clearRefusal } from "../lib/lastRefusal";
 import { clearPageSessions } from "../lib/pageSession.js";
 
 let accessToken = null;
@@ -19,6 +20,7 @@ export const setSession = ({ accessToken: token, admin: who }) => {
 };
 
 export const clearSession = () => {
+  clearRefusal();
   accessToken = null;
   admin = null;
   setSelectedBranch(null);
