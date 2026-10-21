@@ -15,18 +15,10 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Baked into the bundle at build time by src/axios/axios.js. A PATH on purpose: the browser
-      # calls this site's own /api/v1/..., and the first route below forwards it to the backend, so
-      # the backend's address never appears in the bundle or in the browser's Network tab.
+      # Baked into the bundle at build time by src/axios/axios.js.
       - key: VITE_API_URL
-        value: /api/v1
+        value: https://trade-erp-nexus-nodejs.onrender.com/api/v1
     routes:
-      # The API proxy. A REWRITE, not a redirect: a redirect would send the browser to the backend
-      # address and show it. This rule must stay ABOVE the catch-all, or /api/... is answered with
-      # index.html. Change the host here if the backend service is renamed or moved.
-      - type: rewrite
-        source: /api/*
-        destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
