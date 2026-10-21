@@ -6,6 +6,7 @@ import { PRODUCT_NAME } from "../config/product";
 import AppRail from "./shell/AppRail";
 import TopBar from "./shell/TopBar";
 import ModuleTabs from "./shell/ModuleTabs";
+import AssistantPanel from "./shell/AssistantPanel";
 import CommandPalette from "./shell/CommandPalette";
 import KeyboardShortcuts from "./shell/KeyboardShortcuts";
 import BottomNav from "./shell/BottomNav";
@@ -41,8 +42,9 @@ function PageLoading() {
 const LayoutShell = () => {
   const { pathname } = useLocation();
   const { profile, logout } = useSession();
-  const { status, blocked, refresh, branchKey, localeKey } = useOrganisation();
+  const { status, blocked, refresh, branchKey, localeKey, featureOn } = useOrganisation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   // set by main.jsx when the service worker has a newer build waiting
   const [applyUpdate, setApplyUpdate] = useState(null);
@@ -209,6 +211,7 @@ const LayoutShell = () => {
           profile={profile}
           onLogout={logout}
           onOpenSearch={() => setSearchOpen(true)}
+          onOpenAssistant={featureOn("assistant") ? () => setAssistantOpen(true) : null}
           modules={modules}
           activeModule={active?.module}
           status={status}
@@ -255,6 +258,10 @@ const LayoutShell = () => {
       </div>
 
       {/* every module, both workspaces: searching for a page you cannot see the rail for is the point */}
+      {/* Mounted beside the other overlays, so it is fixed rather than in the page's flow: an
+          absolutely positioned element deep in a long page escapes the shell and makes the document
+          itself scroll (the sweep calls that DOCSCR). */}
+      {assistantOpen && <AssistantPanel onClose={() => setAssistantOpen(false)} />}
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} modules={modules} />
       <KeyboardShortcuts />
       <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} modules={rest} active={active} />

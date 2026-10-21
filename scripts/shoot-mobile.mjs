@@ -234,6 +234,10 @@ const DEEP = {
   // with the number) on a wide screen and the word View on a card, so the match is "View" then a number or the end.
   "sales-invoices": [
     { name: "list", page: true, clicks: ["^View all invoices"], settle: 1200 },
+    // Zarvia AI opens from the top bar on every screen, so it is measured on this one: the panel
+    // with its suggestions, then a real exchange with its citation and its link button.
+    { name: "assistant", clicks: ["^Ask Zarvia AI$"], settle: 900 },
+    { name: "assistant-answer", clicks: ["^Ask Zarvia AI$", "^How do I raise an invoice\?$"], settle: 1100 },
     { name: "document", page: true, clicks: ["^View all invoices", "^View( [0-9]|$)"], settle: 1600 },
     { name: "send", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
     { name: "send-row", clicks: ["^View all invoices", "^Send (SO|[0-9])"], settle: 1600 },
@@ -664,6 +668,24 @@ function stubFor(pathname) {
   const p = pathname;
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
 
+  // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
+  // citations and a link, so the deep step below measures a real exchange rather than an empty box.
+  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }] };
+  if (p.includes("/assistant/ask")) {
+    return {
+      conversationId: "c1",
+      messageId: "m1",
+      answer: "Save the order as a draft first, then press Approve on it. Approving is what moves stock and posts the books, which is why it is its own step.",
+      citations: [{ id: "guide-4-5", title: "Order to cash" }],
+      links: [{ path: "/accounting-setup", label: "Open Accounting setup" }],
+      outcome: "answered",
+      canEscalate: false,
+    };
+  }
+  if (p.includes("/assistant/mine")) return [];
+  if (p.includes("/assistant/usage")) return { days: [], totals: { questions: 0, costMicros: 0 }, unanswered: [], corpus: { topics: 128 } };
+  if (p.includes("/assistant/settings")) return { enabled: true, provider: "echo", model: "claude-opus-5-5", hasApiKey: false, models: ["claude-opus-5-5"], corpus: { topics: 128 } };
+
   // The session is restored from a cookie, not from storage: src/axios/axios.js asks for a
   // token on every page load and sends the tab to sign-in when it does not get one. Without
   // this the harness measures the sign-in page on every route and calls it fine.
@@ -679,7 +701,7 @@ function stubFor(pathname) {
     return {
       organisation: { code: "gulf-fresh", legalName: "Gulf Fresh Foods LLC", country: "AE", baseCurrency: "AED", timezone: "Asia/Dubai", planCode: "premium", planName: "Premium" },
       subscription: { state: "active", blocked: false, canRead: true, canWrite: true, endsAt: null, daysLeft: null, onExpiry: "block" },
-      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true },
+      features: { quotations: true, deliveryNotes: true, batches: true, banking: true, reconciliation: true, currencies: true, vatReturn: true, ifrsStatements: true, einvoicing: true, messaging: true, multiBranch: true, production: true, assistant: true },
       limits: { users: 50, branches: 20, documentsPerMonth: 20000 },
       usage: { users: 4, branches: 1, documentsPerMonth: 120 },
       room: {},

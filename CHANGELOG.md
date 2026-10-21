@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — Zarvia AI
+
+A panel that answers a person's questions about Zarvia, from the product guide, and can hand the
+question to the Zarvia team. Opened from the bot button in the top bar on every screen, and hidden
+where the organisation does not have the feature.
+
+- **The question is sent with the screen they are on and the refusal they just hit.** The API already
+  answers every refusal with a structured error code, so `src/lib/lastRefusal.js` keeps the last one -
+  in memory only, one slot, cleared at sign-out, because a refusal names what somebody was doing. "Why
+  did it say Posting is closed up to 31 Aug 2026" is then offered as a suggestion they can tap.
+- **A link in an answer is checked against the app's own routes before it is drawn.** The server
+  already refuses a path the documentation does not name; the browser checks again, from
+  `config/navigation.js`, which is the same source the rail, the palette and the mobile sweep use. Two
+  gates because a link is the one part of an answer somebody clicks without reading.
+- **A thumbs-down is kept.** It is the list of help articles to write next.
+- Drawn inside the shared `Modal` rather than a new overlay: that one already handles the device
+  insets, the focus trap and the body scroll lock, and the mobile sweep already measures it.
+
 ## 1.4.0.0 — 21 October 2026
 
 Three streams of work that had been sitting on branches since 17 October, plus the fixes from a security

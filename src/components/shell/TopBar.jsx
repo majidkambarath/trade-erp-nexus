@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Download, LogOut, Moon, Search, Settings } from "lucide-react";
+import { Bot, Download, LogOut, Moon, Search, Settings } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { initials } from "./useSession";
 import BrandMark from "./BrandMark";
@@ -92,7 +92,7 @@ function UserMenu({ profile, onLogout }) {
   );
 }
 
-export default function TopBar({ appName, profile, onLogout, onOpenSearch, modules = [], activeModule = null, status }) {
+export default function TopBar({ appName, profile, onLogout, onOpenSearch, onOpenAssistant, modules = [], activeModule = null, status }) {
   // pt-safe keeps the row clear of a notch or status bar; the 3.5rem row itself is nested
   // inside, so the inset is added to the header rather than eaten out of the controls.
   return (
@@ -131,6 +131,18 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, modul
           <span className="sr-only lg:hidden">Search pages</span>
         </button>
 
+        {/* Zarvia AI. Hidden where the organisation does not have it, like any other feature. */}
+        {Boolean(onOpenAssistant) && (
+          <button
+            type="button"
+            onClick={onOpenAssistant}
+            title="Ask Zarvia AI"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Bot className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">Ask Zarvia AI</span>
+          </button>
+        )}
         <NotificationBell />
 
         <UserMenu profile={profile} onLogout={onLogout} />
