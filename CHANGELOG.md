@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.5.0.2 — 22 October 2026
+
+A voucher can be copied into a new one, amounts and phone numbers are typed the way the
+organisation's own country writes them, and a dialog no longer loses what was typed in it. Plus
+corrections to what a document is called and to what a click on a row does. Backend 1.5.0.2.
+
+### Added
+
+- **Copy a voucher into a new one.** Every finance voucher list - journals, expenses, contra, debit
+  and credit notes, receipts and payments - has a **Copy** action on the row. It opens a NEW, unsaved
+  voucher carrying the old one's accounts, amounts and narration, with today's date and no number, so
+  a recurring entry (the month's rent, the salaries, a coater's bill) is entered once and repeated in
+  two taps. Nothing is written until Post is pressed: the copy is numbered and dated like any new
+  voucher, and the original is not touched. It is therefore offered on vouchers Edit refuses - a
+  cancelled one, or a cheque expense - because a copy only reads.
+  What a copy deliberately leaves behind: the number, the status and the approvals; a receipt's
+  invoice allocations and the invoice a credit note was set against (those settled the original's
+  invoices, and this voucher is spread over what is open today); and the payment instrument - the
+  cheque number, the transfer reference and its date, the card approval code - while the payment mode
+  and the cash or bank account stay. That last one is not tidiness: the server refuses a cheque
+  number already in the register as a duplicate. A foreign-currency receipt is copied in its own
+  currency at its foreign amount, never the base equivalent at the old rate, and the rate is looked
+  up again for today. A copy is the form filled in, not a server call.
+- **An amount is typed with the organisation's own grouping.** `AmountInput` draws the grouping as
+  the digits arrive - 20,000 in Dubai, **1,20,000 in India** - and reports the plain number, so a
+  form that stores what it is handed needs no change. A native number input cannot hold a comma at
+  all, which is why it is not one. Latin digits and a point for the decimal whatever the country, so
+  a typed character cannot change meaning. Converted so far: the stock item form; the order line
+  grid, the voucher grids and opening balances are still native number inputs.
+- **A phone number is typed with its country's dialling code**, and stored as one compact
+  `+971…` string. No backend change: it is a drop-in for a text field.
+- **The company's own accounts at each bank** on the bank master: a count per bank that opens the
+  chart accounts held there, and a way to add one (which needs `accounts.manage`, since a bank
+  account is a chart account).
+
+### Fixed
+
+- **A dialog no longer loses what was typed in it.** Leaving a half-filled form - a rail link, the
+  Back button, a reload - now asks first. Dirtiness is watched in `Modal` rather than snapshotted, so
+  a dialog with nothing typed in it (an audit trail, a preview) stays as quiet as it always was, and
+  no form had to grow a baseline of its own.
+- **A document is titled as what it is, and "tax" follows the SELLER.** The buyer's registration used
+  to decide, so the sales invoice page printed "SALES ORDER" for an unregistered customer on the one
+  document that *is* the invoice, and the Orders tab printed "Tax invoice" on an order that had
+  posted nothing. Now the sales invoice is a **Tax invoice** when the company has its own tax number
+  and an **Invoice** when it has not; a purchase invoice follows the supplier's registration, since
+  the seller there is the supplier; and an order sheet is always "Sales order" or "Purchase order".
+  Both UAE and Indian law ask a registered supplier for a tax invoice whoever the buyer is, so this
+  is also the law, not only the tidier reading.
+- **A row action no longer opens the row as well.** `onRowClick` is the row, not what is in it: a
+  click that lands on a button, a link, an input or a menu is left alone. Pressing Edit in the
+  actions cell of the four finance voucher lists used to open the edit form *and* the row's view
+  modal, stacked one over the other.
+- **An invoice printed from a list row lost its header charges, its header discount and the
+  round-off**, because the list rows did not carry the server's own figures. The four order lists now
+  pass `charges` and `pricing` through, so a sheet printed from the list totals the same as one
+  printed from the document.
+- **The phone field's code box read "United" instead of "+971".** In a box that narrow the hint wins
+  and the label collapses; the list inherited the control's width too, which would have clipped every
+  country name in it. Found by looking at the screenshot - the sweep passed it, because nothing
+  overflowed.
+
+### Internal
+
+- The mobile sweep opens the voucher copy dialog on the journal and expense screens: its title is far
+  longer than the ordinary one ("New journal voucher, copied from JV-2026-0012") and that is what can
+  overflow at 390px.
+
 ## 1.5.0.1 — 22 October 2026
 
 A developer-console fix on top of 1.5.0.0. Backend unchanged (still 1.5.0.0).
