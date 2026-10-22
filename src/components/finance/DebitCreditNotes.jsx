@@ -11,7 +11,7 @@ import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
 import { emptyNoteLine, money, noteCopy, noteTotals, notePreview, savedVerb, toCents, validateNote } from "../../lib/voucherForms";
 import { cn } from "../../lib/utils";
-import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
+import { CURRENCY, formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { taxWord } from "../../lib/taxTerms";
 
@@ -68,8 +68,8 @@ export default function DebitCreditNotes() {
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
               { key: "party", header: "Party", card: "title", cell: (v) => <><span className="font-medium">{v.partyName}</span><span className="ms-1 text-xs text-muted-foreground">{v.partyType}</span></> },
               { key: "against", header: "Against", card: "meta", className: "whitespace-nowrap font-mono text-xs text-muted-foreground", cell: (v) => v.referenceInvoiceNo || "On account" },
-              { key: "vat", header: taxWord(), align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
-              { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
+              { key: "vat", header: taxWord(), money: true, align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
+              { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.noteLines?.length > 0 && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new note`} title="Copy into a new note" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
@@ -185,7 +185,7 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
             { key: "account", label: "Account", className: "min-w-56 w-[30%]" },
             { key: "description", label: "Description" },
             { key: "taxCodeId", label: "Tax code", className: "w-44" },
-            { key: "amount", label: "Amount", align: "end", className: "w-36" },
+            { key: "amount", label: moneyHeading("Amount"), align: "end", className: "w-36" },
           ]}
           onAdd={() => setLines((ls) => [...ls, emptyNoteLine()])}
           onRemove={(i) => setLines((ls) => ls.filter((_, k) => k !== i))}

@@ -188,7 +188,7 @@ export default function PartyAccountsList({ kind }) {
                 columns={[
                   { key: "party", header: customer ? "Customer" : "Vendor", card: "primary", cell: (r) => (<><Link to={k.detailPath(r.id)} onClick={(e) => e.stopPropagation()} className="rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{r.name}</Link><div className="font-mono text-xs font-normal text-muted-foreground">{r.code}</div></>) },
                   { key: "documents", header: "Documents", align: "end", card: "meta", className: "tabular-nums", cell: (r) => `${r.documents} documents` },
-                  { key: "balance", header: k.balanceTitle, align: "end", card: "amount", className: "font-medium", cell: (r) => r.balance === null ? dash : <Balance net={netOf(kind, r.balance)} /> },
+                  { key: "balance", header: k.balanceTitle, money: true, align: "end", card: "amount", className: "font-medium", cell: (r) => r.balance === null ? dash : <Balance net={netOf(kind, r.balance)} /> },
                   {
       key: "credit",
       header: customer ? "Credit used" : "Payment terms",
@@ -208,7 +208,7 @@ export default function PartyAccountsList({ kind }) {
         );
       },
     },
-                  { key: "overdue", header: "Overdue", align: "end", card: "meta", cell: (r) => r.overdue === null ? dash : r.overdue > 0 ? <span className="font-medium tabular-nums text-status-warning">{formatNumber(r.overdue, 2)} overdue</span> : dash },
+                  { key: "overdue", header: "Overdue", money: true, align: "end", card: "meta", cell: (r) => r.overdue === null ? dash : r.overdue > 0 ? <span className="font-medium tabular-nums text-status-warning">{formatNumber(r.overdue, 2)} overdue</span> : dash },
                 ]}
               />
             </div>

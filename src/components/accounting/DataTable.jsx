@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { CURRENCY } from "../../utils/format";
 import { allOnPage, ariaSort, someOnPage, toggleAll, toggleKey } from "../../lib/listView";
 
 // Loading and error states, used here (DataTable renders them itself when `rows` is empty) and re-exported
@@ -63,6 +64,12 @@ export function ErrorNote({ error, onRetry }) {
 //
 // `header` is what the table's column heading shows and may be a control; `label`, when given,
 // is the plain text a card uses for that field instead.
+//
+// `money: true` marks a column of amounts in the organisation's own currency. The table says it once in
+// the heading ("Amount (AED)") rather than on all 25 rows; a card, which draws no heading over its
+// figure, carries the code beside the figure instead. Either way nobody has to guess what the number is
+// counted in. Do NOT set it on a column that prints its own currency (a foreign-currency amount) or on a
+// quantity, a percentage or a count.
 //
 // A column with no `card` hint becomes a label/value line in the card body, so wrapping an
 // existing table shows everything from the start; promoting two or three fields is then a
@@ -211,6 +218,7 @@ export function DataTable({
                 )}
                 {cols.map((c) => {
                   const active = onSort && c.sortable;
+                  const heading = c.money ? <>{c.header} <span className="font-normal">({CURRENCY})</span></> : c.header;
                   return (
                     <th
                       key={c.key}
@@ -229,11 +237,11 @@ export function DataTable({
                           onClick={() => onSort(c.key)}
                           className={cn("-my-3.5 inline-flex items-center gap-1 py-3.5 hover:text-foreground", c.align === "end" && "flex-row-reverse")}
                         >
-                          {c.header}
+                          {heading}
                           <SortGlyph active={sort?.key === c.key} dir={sort?.dir} />
                         </button>
                       ) : (
-                        c.header
+                        heading
                       )}
                     </th>
                   );
@@ -417,7 +425,7 @@ function DataCard({ row, index, columns, href, onClick, selectable, selected, on
                   {/* `header` may be a control - a sort button, say - which is right at the top
                       of a column and wrong as a field's label on a card. A column that has one
                       carries plain text in `label` for exactly this. */}
-                  <dt className="shrink-0 text-xs text-muted-foreground">{c.label ?? c.header}</dt>
+                  <dt className="shrink-0 text-xs text-muted-foreground">{c.label ?? c.header}{c.money ? ` (${CURRENCY})` : ""}</dt>
                   <dd className="min-w-0 text-end">{value}</dd>
                 </div>
               );
@@ -434,7 +442,7 @@ function DataCard({ row, index, columns, href, onClick, selectable, selected, on
                 return (
                   <React.Fragment key={c.key}>
                     {mi > 0 && <span aria-hidden="true">·</span>}
-                    <span className="min-w-0 truncate">{value}</span>
+                    <span className="min-w-0 truncate">{c.money ? <>{CURRENCY} {value}</> : value}</span>
                   </React.Fragment>
                 );
               })}
@@ -442,7 +450,10 @@ function DataCard({ row, index, columns, href, onClick, selectable, selected, on
             {amount.length > 0 && (
               <div className="shrink-0 text-end text-sm font-semibold tabular-nums text-foreground">
                 {amount.map((c) => (
-                  <div key={c.key}>{c.cell(row, index)}</div>
+                  <div key={c.key}>
+                    {c.money && <span className="text-xs font-normal text-muted-foreground">{CURRENCY} </span>}
+                    {c.cell(row, index)}
+                  </div>
                 ))}
               </div>
             )}

@@ -71,7 +71,7 @@ export default function HistoryTab({ account, version, notify, onChanged }) {
           columns={[
             { key: "no", header: "Number", card: "primary", cell: (r) => <span className="font-mono text-xs font-semibold">{r.number}</span> },
             { key: "asOf", header: "As of", card: "title", className: "whitespace-nowrap", cell: (r) => formatDate(r.asOf) },
-            { key: "statement", header: "Statement balance", align: "end", card: "amount", className: "tabular-nums", cell: (r) => formatNumber(r.statementBalance, 2) },
+            { key: "statement", header: "Statement balance", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (r) => formatNumber(r.statementBalance, 2) },
             { key: "lines", header: "Lines", align: "end", card: "meta", className: "tabular-nums", cell: (r) => r.lineCount },
             { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={r.status === "completed" ? "success" : "neutral"}>{r.status === "completed" ? "Completed" : "Reopened"}</Pill> },
             {

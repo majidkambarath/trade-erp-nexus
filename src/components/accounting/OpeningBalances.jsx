@@ -217,8 +217,8 @@ function ReviewStep({ summary, loading, reload, go }) {
             columns={[
               { key: "section", header: "Section", card: "primary", className: "font-medium", cell: (s) => s.label },
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (s) => `${s.rows} rows` },
-              { key: "debit", header: "Debit", align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.debit == null ? "" : fmt(s.debit)) },
-              { key: "credit", header: "Credit", align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.credit == null ? "" : fmt(s.credit)) },
+              { key: "debit", header: "Debit", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.debit == null ? "" : fmt(s.debit)) },
+              { key: "credit", header: "Credit", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (s) => (s.credit == null ? "" : fmt(s.credit)) },
               { key: "open", header: <span className="sr-only">Open</span>, align: "end", card: "actions", cell: (s) => <Button size="sm" variant="ghost" onClick={() => go(s.step)}>Open</Button> },
             ]}
           />

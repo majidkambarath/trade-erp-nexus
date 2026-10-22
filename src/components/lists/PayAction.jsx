@@ -33,7 +33,7 @@ function Button({ doc, sales, partyId, variant = "icon", className, go: move }) 
   const p = paymentStatus(doc);
   const id = doc?.id ?? doc?._id;
   if (!p || p.key === "PAID" || !(p.outstanding > 0.005) || !partyId || String(doc?.status).toUpperCase() !== "APPROVED") return null;
-  const no = doc.displayTransactionNo || doc.transactionNo;
+  const no = doc.transactionNo;
   const label = sales ? "Receive payment" : "Make payment";
   const go = (e) => {
     e?.stopPropagation?.();

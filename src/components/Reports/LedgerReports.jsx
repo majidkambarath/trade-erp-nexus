@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { DAY_BOOK_HEADERS, JOURNAL_HEADERS, dayBookRows, exportedText, fetchAllPages, journalRows } from "../../lib/ledgerExport";
-import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -78,7 +78,7 @@ function GeneralLedger({ range, onLedger }) {
                 <StatCard title="Accounts with activity" count={String(d.groups.reduce((t, g) => t + g.accounts.length, 0))} tone="neutral" />
                 <StatCard title="Groups" count={String(d.groups.length)} tone="neutral" />
               </div>
-              <Panel bodyClassName="p-0" title="General ledger" description="Opening balance, the period's debits and credits, and the closing balance of every account, by group."
+              <Panel bodyClassName="p-0" title="General ledger" description={`Opening balance, the period's debits and credits, and the closing balance of every account, by group. ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.groups.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.groups.length === 0 ? <EmptyState title="No postings" text="Nothing has been posted to the ledger for this selection." /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -170,7 +170,7 @@ function DayBook({ range }) {
                 <StatCard title="Vouchers" count={String(d.total)} tone="neutral" />
                 {d.byType.slice(0, 3).map((t, i) => <StatCard key={t.voucherType} title={t.label} count={money(t.amount)} subText={`${t.count} voucher${t.count === 1 ? "" : "s"}`} tone={["teal", "plum", "olive"][i]} />)}
               </div>
-              <Panel bodyClassName="p-0" title="Day book" description="Every voucher posted in the period, newest first. Open one to see the debits and credits it made."
+              <Panel bodyClassName="p-0" title="Day book" description={`Every voucher posted in the period, newest first. Open one to see the debits and credits it made. ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportAll} disabled={!d.rows.length || exporting} aria-busy={exporting || undefined}><Download className="h-3.5 w-3.5" aria-hidden="true" />{exporting ? "Exporting…" : "CSV"}</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No vouchers" text="Nothing was posted for this selection." /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -338,7 +338,7 @@ function CashAndBankBook({ range, onLedger }) {
               <p className="text-xs text-muted-foreground">
                 A transfer between your own accounts is a debit on one and a credit on the other, so it counts on both sides here. The <Link to="/financial-statements?tab=cash" className="font-medium text-foreground underline underline-offset-2">Cash flow tab</Link> shows money in and out without transfers.
               </p>
-              <Panel bodyClassName="p-0" title="Cash and bank book" description="Each cash and bank account: what it held, what came in, what went out, and what it holds now."
+              <Panel bodyClassName="p-0" title="Cash and bank book" description={`Each cash and bank account: what it held, what came in, what went out, and what it holds now. ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.rows.length === 0 ? <EmptyState title="No cash or bank accounts" text="Add them in the chart of accounts." /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">

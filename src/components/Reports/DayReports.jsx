@@ -2,7 +2,7 @@ import React from "react";
 import { BookOpen, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { busiestDay, cellOf, dailySummaryCsv, dayEndCsv, registerCsv, shiftDay } from "../../lib/dayReports";
-import { CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Balance, EmptyState, Panel, Pill, useAsync } from "../accounting/kit";
@@ -34,7 +34,7 @@ export function DailySummary({ range, onDay }) {
               <StatCard title="Busiest day" count={busiest ? formatDate(busiest.day) : "-"} subText={busiest ? plural(busiest.count, "voucher", "vouchers") : undefined} tone="plum" />
               <StatCard title="Out of balance" count={String(d.totals.unbalanced)} subText={d.totals.unbalanced ? "check these in the day book" : "every voucher balances"} tone={d.totals.unbalanced ? "rose" : "olive"} />
             </div>
-            <Panel bodyClassName="p-0" title="Daily voucher summary" description="What was posted each day, by kind of voucher: how many, and what they came to. Open a day to see its vouchers."
+            <Panel bodyClassName="p-0" title="Daily voucher summary" description={`What was posted each day, by kind of voucher: how many, and what they came to. Open a day to see its vouchers. ${amountsIn()}.`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.days.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
               {d.days.length === 0 ? <EmptyState title="No vouchers" text="Nothing was posted in this period." /> : (
                 <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -124,7 +124,7 @@ export function DayEnd({ range, onRange, onLedger, onOpenDay }) {
                 <StatCard title="Money out" count={money(d.moneyOut)} tone="rose" />
               </div>
 
-              <Panel bodyClassName="p-0" title={`Cash and bank at the end of ${formatDate(d.date)}`} description="Each account: what it held at the start of the day, what came in, what went out, and what it holds at the end."
+              <Panel bodyClassName="p-0" title={`Cash and bank at the end of ${formatDate(d.date)}`} description={`Each account: what it held at the start of the day, what came in, what went out, and what it holds at the end. ${amountsIn()}.`}
                 actions={<>
                   <Pill tone={d.reconciles ? "success" : "danger"}>
                     {d.reconciles ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
@@ -169,7 +169,7 @@ export function DayEnd({ range, onRange, onLedger, onOpenDay }) {
                 )}
               </Panel>
 
-              <Panel bodyClassName="p-0" title="Where the money came from and went to" description="By kind of voucher. A move between your own cash and bank accounts is in neither column.">
+              <Panel bodyClassName="p-0" title="Where the money came from and went to" description={`By kind of voucher. A move between your own cash and bank accounts is in neither column. ${amountsIn()}.`}>
                 {!d.hadActivity ? <EmptyState title="A quiet day" text="No cash or bank account moved on this day, so it closes with what it opened with." /> : (
                   <>
                     {d.sources.length > 0 && (
@@ -206,7 +206,7 @@ export function DayEnd({ range, onRange, onLedger, onOpenDay }) {
             downloadCSV(`day-end-register-${r.from}-${r.to}.csv`, headers, rows);
           };
           return (
-            <Panel bodyClassName="p-0" title="Day by day" description={`Cash and bank at the end of each day with a movement, ${formatDate(r.from)} to ${formatDate(r.to)}. Open a day to see its report.`}
+            <Panel bodyClassName="p-0" title="Day by day" description={`Cash and bank at the end of each day with a movement, ${formatDate(r.from)} to ${formatDate(r.to)}. Open a day to see its report. ${amountsIn()}.`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!r.days.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
               {r.days.length === 0 ? <EmptyState title="No movement" text="No cash or bank account moved in these days." /> : (
                 <div className="erp-scroll table-pin-first overflow-x-auto">

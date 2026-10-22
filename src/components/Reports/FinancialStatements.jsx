@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -165,7 +165,7 @@ function ProfitLoss({ range, onLedger }) {
               <StatCard title="Operating expenses" count={money(d.operatingExpenses.total)} tone="rose" subText={CURRENCY} />
               <StatCard title={d.netProfit >= 0 ? "Net profit" : "Net loss"} count={money(Math.abs(d.netProfit))} tone={d.netProfit >= 0 ? "teal" : "danger"} subText={CURRENCY} />
             </div>
-            <Panel bodyClassName="p-0" title="Profit and loss" description="Revenue less the direct cost of what was sold is the gross profit; other income and operating expenses take it to the net profit."
+            <Panel bodyClassName="p-0" title="Profit and loss" description={`Revenue less the direct cost of what was sold is the gross profit; other income and operating expenses take it to the net profit. ${amountsIn()}.`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
               <div className="erp-scroll table-pin-first overflow-x-auto">
                 <table className="w-full">

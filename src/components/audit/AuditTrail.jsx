@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import { documents } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { formatDate, formatDateTime, formatNumber, formatQty, CURRENCY } from "../../utils/format";
+import { amountsIn, formatDate, formatDateTime, formatNumber, formatQty, CURRENCY } from "../../utils/format";
 
 // What one document did, and who did it. The financial effect comes first - the ledger entries it
 // posted and what else it moved - and the audit trail of actions is read underneath. Two entry
@@ -141,7 +141,7 @@ function LedgerSection({ ledger }) {
   return (
     <Section
       title="Financial effect"
-      note={ledger.note}
+      note={[ledger.note, ledger.posted ? amountsIn() : null].filter(Boolean).join(" · ")}
       right={
         ledger.posted && (
           <span className="flex items-center gap-2">
@@ -208,7 +208,7 @@ function LedgerSection({ ledger }) {
 function StockSection({ movements }) {
   if (!movements.length) return null;
   return (
-    <Section title="Stock movement">
+    <Section title="Stock movement" note={`Costs and values in ${CURRENCY}.`}>
       <Table
         head={
           <>
@@ -255,7 +255,7 @@ function StockSection({ movements }) {
 function PartyBalanceSection({ rows, party }) {
   if (!rows.length) return null;
   return (
-    <Section title={`${party.type === "Vendor" ? "Vendor" : "Customer"} balance`}>
+    <Section title={`${party.type === "Vendor" ? "Vendor" : "Customer"} balance`} note={`${amountsIn()}.`}>
       <Table
         head={
           <>
@@ -290,7 +290,7 @@ function PartyBalanceSection({ rows, party }) {
 function SettlementSection({ settlements }) {
   if (!settlements.length) return null;
   return (
-    <Section title="Settled by">
+    <Section title="Settled by" note={`${amountsIn()}.`}>
       <Table
         head={
           <>
@@ -454,7 +454,7 @@ export default function DocumentAuditTrail({ id, documentNo, onClose }) {
 function AllocationSection({ allocations, onAccount }) {
   if (!allocations.length && !onAccount) return null;
   return (
-    <Section title="Set against">
+    <Section title="Set against" note={`${amountsIn()}.`}>
       {allocations.length > 0 && (
         <Table
           head={

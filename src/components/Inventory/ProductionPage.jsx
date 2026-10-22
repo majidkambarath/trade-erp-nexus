@@ -119,8 +119,8 @@ function ProductionList() {
               { key: "no", header: "Production no.", card: "primary", className: "whitespace-nowrap", cell: (r) => <span className="font-mono text-xs font-semibold">{r.productionNo}</span> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (r) => formatDate(r.date) },
               { key: "item", header: "Item made", card: "title", cell: (r) => <><span className="font-medium">{r.finished.itemName}</span><span className="ms-1 text-xs text-muted-foreground">x {qtyText(r.finished.qty)}</span></> },
-              { key: "unit", header: "Unit cost", align: "end", className: "tabular-nums", cell: (r) => (r.status === "DRAFT" ? "–" : money(r.totals?.unitCost)) },
-              { key: "total", header: `Total (${CURRENCY})`, align: "end", card: "amount", className: "tabular-nums", cell: (r) => (r.status === "DRAFT" ? "–" : money(r.totals?.total)) },
+              { key: "unit", header: "Unit cost", money: true, align: "end", className: "tabular-nums", cell: (r) => (r.status === "DRAFT" ? "–" : money(r.totals?.unitCost)) },
+              { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (r) => (r.status === "DRAFT" ? "–" : money(r.totals?.total)) },
               { key: "status", header: "Status", card: "badge", cell: (r) => <StatusPill status={r.status} /> },
               { key: "view", header: <span className="sr-only">Action</span>, align: "end", card: "actions", cell: (r) => <Button size="sm" variant="outline" aria-label={`View ${r.productionNo}`} onClick={(e) => { e.stopPropagation(); setOpen(r._id); }}>View</Button> },
             ]}

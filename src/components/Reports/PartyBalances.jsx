@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Download } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -102,7 +102,7 @@ function Parties({ type, asOn }) {
                   ? <StatCard className="col-span-2 lg:col-span-1" title="Over their limit" count={String(d.totals.overLimit)} subText={`${d.totals.nearLimit} more near it`} tone={d.totals.overLimit > 0 ? "danger" : "neutral"} />
                   : <StatCard className="col-span-2 lg:col-span-1" title="Vendors" count={String(d.rows.length)} tone="neutral" />}
               </div>
-              <Panel bodyClassName="p-0" title={customer ? "Customer balances" : "Vendor balances"} description={`As on ${asOn}. ${customer ? "Dr means the customer owes us." : "Cr means we owe the vendor."}`}
+              <Panel bodyClassName="p-0" title={customer ? "Customer balances" : "Vendor balances"} description={`As on ${asOn}. ${customer ? "Dr means the customer owes us." : "Cr means we owe the vendor."} ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {rows.length === 0 ? <EmptyState title="Nothing to show" text={d.rows.length ? "No one matches this filter." : "No balances on this date."} /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">

@@ -157,7 +157,7 @@ const GridView = ({
                 {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
                   <Can permission="sales.send">
                     <button
-                      type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                      type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
                       className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
                     >
                       <Send className="w-4 h-4" />

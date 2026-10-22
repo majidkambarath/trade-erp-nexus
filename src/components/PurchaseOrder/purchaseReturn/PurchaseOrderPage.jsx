@@ -315,7 +315,6 @@ const PurchaseReturnOrderManagement = () => {
         const matchesSearch =
           !needle ||
           has(row.transactionNo) ||
-          has(row.displayTransactionNo) ||
           has(row.vendorName) ||
           has(row.createdBy) ||
           has(row.notes) ||
@@ -442,7 +441,7 @@ const PurchaseReturnOrderManagement = () => {
           .map((poId) => purchaseOrders.find((p) => p.id === poId))
           .filter(Boolean)
           .map((po) => [
-            po.displayTransactionNo || po.transactionNo || "",
+            po.transactionNo || "",
             po.vendorName || "Unknown",
             formatDateGB(po.date),
             formatDateGB(po.deliveryDate),
@@ -539,7 +538,7 @@ const PurchaseReturnOrderManagement = () => {
                       />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">
-                          {row.displayTransactionNo || row.transactionNo}
+                          {row.transactionNo}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{row.vendorName}</p>
                       </div>

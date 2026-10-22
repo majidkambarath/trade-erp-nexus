@@ -27,7 +27,7 @@ const SENDER = ["sales.view", "sales.send"];
 
 const SENT = { status: "SENT", channel: "email", at: "2026-10-06T10:32:00.000Z", to: "a@b.com", sendId: "s1" };
 const so = (over = {}) => ({
-  id: "so1", _id: "so1", transactionNo: "SO-1234", displayTransactionNo: "INV-1234", status: "APPROVED", date: "2026-10-01T00:00:00.000Z", deliveryDate: "2026-10-05T00:00:00.000Z",
+  id: "so1", _id: "so1", transactionNo: "SO-1234", status: "APPROVED", date: "2026-10-01T00:00:00.000Z", deliveryDate: "2026-10-05T00:00:00.000Z",
   customerId: "c1", customerName: "Acme Corp", priority: "Medium", createdBy: "Boss", totalAmount: 525, lastSend: SENT,
   items: [{ itemCode: "ITM1", description: "Item One", qty: 2, rate: 200, vatAmount: 10, vatPercent: 5 }], ...over,
 });
@@ -96,13 +96,13 @@ describe("the sales order list", () => {
       await roleLoaded();
       expect(screen.getByText("Acme Corp")).toBeInTheDocument(); // the row is on screen
       expect(screen.getByText(/^Emailed /)).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Send INV-1234 to the customer/ })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Send SO-1234 to the customer/ })).toBeNull();
     });
 
     it("a person who holds sales.send has Send on the row, which asks the page to open the dialog", async () => {
       const { container } = list(View, SENDER);
       await roleLoaded();
-      const button = await screen.findByRole("button", { name: "Send INV-1234 to the customer" });
+      const button = await screen.findByRole("button", { name: "Send SO-1234 to the customer" });
       expect(within(container).getByText(/^Emailed /)).toBeInTheDocument();
       fireEvent.click(button);
       expect(onSendDocument).toHaveBeenCalledWith(expect.objectContaining({ id: "so1" }));

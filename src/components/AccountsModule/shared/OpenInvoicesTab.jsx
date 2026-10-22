@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "../../../lib/utils";
-import { formatDate, formatNumber } from "../../../utils/format";
+import { amountsIn, formatDate, formatNumber } from "../../../utils/format";
 import { EmptyState, ErrorNote, Panel, Pill, Spinner } from "../../accounting/kit";
 import { Skeleton } from "./partyAccountParts";
 import { DEFAULT_BUCKETS, lateness } from "./partyAccountUtils";
@@ -60,7 +60,7 @@ export default function OpenInvoicesTab({ k, ageing, row }) {
         </section>
       )}
 
-      <Panel bodyClassName="p-0" title="Open invoices" description={invoices.length ? `${invoices.length} unpaid ${invoices.length === 1 ? "invoice" : "invoices"}, oldest first` : undefined}>
+      <Panel bodyClassName="p-0" title="Open invoices" description={invoices.length ? `${invoices.length} unpaid ${invoices.length === 1 ? "invoice" : "invoices"}, oldest first · ${amountsIn()}` : undefined}>
         {invoices.length === 0 && (
           <EmptyState title="No open invoices" text={`Every approved ${k.docNoun} invoice for this ${k.noun} is paid.`} />
         )}

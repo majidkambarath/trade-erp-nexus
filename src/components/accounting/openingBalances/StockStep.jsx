@@ -8,7 +8,7 @@ import { ConfirmDialog, DateInput, EmptyState, ErrorNote, Panel, SearchSelect, S
 import { openingBalances } from "../../../lib/openingBalanceApi";
 import { money } from "../../../lib/voucherForms";
 import { emptyStockRow, fmt, itemAverages, stockPayload, stockRowCents, stockTotals, validateStockRows } from "../../../lib/openingBalanceForms";
-import { formatDate, formatNumber, formatQty } from "../../../utils/format";
+import { formatDate, formatNumber, formatQty, moneyHeading } from "../../../utils/format";
 import { FooterRow, NeedsDate, Note, StatusPill } from "./parts";
 
 const QTY = /^\d*(\.\d{0,3})?$/;
@@ -125,10 +125,10 @@ export default function StockStep({ goLive, notify, onChanged, goToDate }) {
                 columns={[
                   { key: "item", label: "Item", className: "min-w-64 w-[28%]" },
                   { key: "qty", label: "Quantity", align: "end", className: "w-32" },
-                  { key: "unitCost", label: "Unit cost", align: "end", className: "w-32" },
+                  { key: "unitCost", label: moneyHeading("Unit cost"), align: "end", className: "w-32" },
                   { key: "batchNo", label: "Batch no.", className: "min-w-32" },
                   { key: "expiryDate", label: "Expiry date", className: "w-44" },
-                  { key: "value", label: "Value", align: "end", className: "w-36" },
+                  { key: "value", label: moneyHeading("Value"), align: "end", className: "w-36" },
                 ]}
                 onAdd={() => setRows((rs) => [...rs, emptyStockRow()])}
                 onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}

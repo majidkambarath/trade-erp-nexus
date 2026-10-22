@@ -317,7 +317,6 @@ const SalesReturnOrderManagement = () => {
         const matchesSearch =
           !needle ||
           has(row.transactionNo) ||
-          has(row.displayTransactionNo) ||
           has(row.customerName) ||
           has(row.createdBy) ||
           has(row.reason) ||
@@ -445,7 +444,7 @@ const SalesReturnOrderManagement = () => {
             .map((soId) => salesReturnOrders.find((s) => s.id === soId))
             .filter(Boolean)
             .map((so) => [
-              so.displayTransactionNo || so.transactionNo || "",
+              so.transactionNo || "",
               so.customerName || "Unknown",
               formatDateGB(so.date),
               formatDateGB(so.deliveryDate),
@@ -543,7 +542,7 @@ const SalesReturnOrderManagement = () => {
                       />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">
-                          {row.displayTransactionNo || row.transactionNo}
+                          {row.transactionNo}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{row.customerName}</p>
                       </div>

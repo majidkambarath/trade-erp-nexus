@@ -195,7 +195,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
                   </>
                 ),
               },
-              { key: "amount", header: "Value", align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
+              { key: "amount", header: "Value", money: true, align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
               { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={statusTone(r.status)}>{statusLabel(r.status)}</Pill> },
               {
                 key: "actions", header: "", align: "end", card: "actions", className: "whitespace-nowrap",

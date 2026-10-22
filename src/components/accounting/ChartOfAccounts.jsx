@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, FolderPlus, Link2, Lock, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { CURRENCY, drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
 import { banking } from "../../lib/bankingApi";
 import { isValidIban } from "../../lib/iban";
 import { Button } from "../ui/button";
@@ -612,7 +612,7 @@ function SourceAuditTrail({ row, onClose }) {
 
 export function LedgerModal({ account, onClose }) {
   return (
-    <Modal size="xl" onClose={onClose} title={`${account.accountCode} · ${account.accountName}`} description="Every posting to this account, with a running balance.">
+    <Modal size="xl" onClose={onClose} title={`${account.accountCode} · ${account.accountName}`} description={`Every posting to this account, with a running balance. ${amountsIn()}.`}>
       <LedgerBody account={account} />
     </Modal>
   );

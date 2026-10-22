@@ -238,29 +238,11 @@ const SalesOrderManagement = () => {
       });
       if (ask !== listRequest.current) return; // a newer read is on its way
       setListInfo({ total, truncated, previousTotal });
-      // helper to format invoice number for APPROVED orders:
-// remove leading SO (case-insensitive), keep digits, pad to 4 chars (e.g. SO277 -> 0277)
-const formatDisplayTransactionNo = (t) => {
-  try {
-    if (t.status === "APPROVED" && t.transactionNo) {
-      // remove non-digits (and optional SO prefix)
-      const digits = String(t.transactionNo).replace(/^SO/i, "").replace(/\D/g, "");
-      if (!digits) return t.transactionNo;
-      return digits.padStart(4, "0"); // 277 -> 0277
-    }
-    return t.transactionNo;
-  } catch {
-    return t.transactionNo;
-  }
-};
-
       setSalesOrders(
   transactions.map((t) => {
-    const displayTransactionNo = formatDisplayTransactionNo(t);
     return {
       id: t._id,
       transactionNo: t.transactionNo,
-      displayTransactionNo,
       customerId: t.partyId,
       customerName: t.party?.customerName || t.partyName,
       date: t.date,
@@ -448,8 +430,7 @@ const formatDisplayTransactionNo = (t) => {
         const matchesSearch =
           !needle ||
           has(so.transactionNo) ||
-          has(so.displayTransactionNo) ||
-          has(so.customerName) ||
+                    has(so.customerName) ||
           has(so.createdBy) ||
           has(so.refNo) ||
           has(so.docNo) ||
@@ -593,7 +574,7 @@ const formatDisplayTransactionNo = (t) => {
             .map((soId) => salesOrders.find((s) => s.id === soId))
             .filter(Boolean)
             .map((so) => [
-              so.displayTransactionNo || so.transactionNo || "",
+              so.transactionNo || "",
               so.customerName || "Unknown",
               formatDateGB(so.date),
               formatDateGB(so.deliveryDate),
@@ -817,7 +798,7 @@ const formatDisplayTransactionNo = (t) => {
                       />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">
-                          {so.displayTransactionNo || so.transactionNo}
+                          {so.transactionNo}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">{so.customerName}</p>
                       </div>
@@ -1185,7 +1166,7 @@ const formatDisplayTransactionNo = (t) => {
       {auditSO && (
         <DocumentAuditTrail
           id={auditSO.id}
-          documentNo={auditSO.displayTransactionNo || auditSO.transactionNo}
+          documentNo={auditSO.transactionNo}
           onClose={() => setAuditSO(null)}
         />
       )}

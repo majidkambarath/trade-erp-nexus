@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, ChevronLeft, ChevronRight, Download, Printer, TriangleAlert } from "lucide-react";
 import { vat } from "../../lib/accountingApi";
-import { downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -79,14 +79,14 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
     <Frame state={state} label="Working out the return">
       {(d) => {
         const byBox = Object.fromEntries(d.boxes.map((b) => [b.box, b]));
-        const exportCsv = () => downloadCSV(`vat-return-${range.from}-${range.to}.csv`, ["Box", "Description", "Amount (AED)", "VAT (AED)"], d.boxes.map((b) => [b.box, b.label, b.amount, b.vat]));
+        const exportCsv = () => downloadCSV(`vat-return-${range.from}-${range.to}.csv`, ["Box", "Description", `Amount (${CURRENCY})`, `VAT (${CURRENCY})`], d.boxes.map((b) => [b.box, b.label, b.amount, b.vat]));
         const net = d.totals.netPayable;
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard title="VAT due on sales" count={money(d.totals.outputVat)} tone="plum" subText="box 12" />
               <StatCard title="Recoverable on expenses" count={money(d.totals.recoverableVat)} tone="olive" subText="box 13" />
-              <StatCard title={net >= 0 ? "Net VAT payable" : "Net VAT refundable"} count={money(Math.abs(net))} tone={net >= 0 ? "teal" : "neutral"} subText="box 14, AED" />
+              <StatCard title={net >= 0 ? "Net VAT payable" : "Net VAT refundable"} count={money(Math.abs(net))} tone={net >= 0 ? "teal" : "neutral"} subText={`box 14, ${CURRENCY}`} />
               <StatCard title="Lines without a tax treatment" count={String(d.unclassified.count)} tone={d.unclassified.count ? "danger" : "neutral"} onClick={d.unclassified.count ? onShowUnclassified : undefined} subText={d.unclassified.count ? `${money(d.unclassified.amount)} AED` : "Every line is classified"} />
             </div>
 
@@ -101,7 +101,7 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
               </div>
             )}
 
-            <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`Amounts in AED. Standard-rated supplies are reported under the emirate of your establishment (${d.emirate}), set in Settings > Business rules > Tax identity.`}
+            <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`${amountsIn()}. Standard-rated supplies are reported under the emirate of your establishment (${d.emirate}), set in Settings > Business rules > Tax identity.`}
               actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Can permission="reports.vat"><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></Can></>}>
               {d.emirateAssumed && (
                 <div className="border-b border-border px-4 py-2.5 sm:px-5">
@@ -185,10 +185,10 @@ function Documents({ range, initialKind }) {
       <Frame state={state}>
         {(d) => {
           const pages = Math.max(1, Math.ceil(d.total / PAGE));
-          const exportCsv = () => downloadCSV(`vat-documents-${range.from}-${range.to}.csv`, ["Date", "Document", "Direction", "Party", "TRN", "Treatment", "Taxable (AED)", "VAT (AED)", "Self-assessed VAT (AED)"],
+          const exportCsv = () => downloadCSV(`vat-documents-${range.from}-${range.to}.csv`, ["Date", "Document", "Direction", "Party", "TRN", "Treatment", `Taxable (${CURRENCY})`, `VAT (${CURRENCY})`, `Self-assessed VAT (${CURRENCY})`],
             d.rows.map((r) => [formatDate(r.date), r.docNo, r.direction, r.partyName, r.trn, r.kinds.map((k) => KIND[k]?.label || k).join(" / "), r.taxable, r.vat, r.rcmVat || 0]));
           return (
-            <Panel bodyClassName="p-0" title="Documents in the return" description={`${d.total} document${d.total === 1 ? "" : "s"} · taxable ${money(d.totals.taxable)} · VAT ${money(d.totals.vat)} AED`}
+            <Panel bodyClassName="p-0" title="Documents in the return" description={`${d.total} document${d.total === 1 ? "" : "s"} · taxable ${money(d.totals.taxable)} · VAT ${money(d.totals.vat)} ${CURRENCY}`}
               actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
               {d.rows.length === 0 ? <EmptyState title="No documents" text="No approved document matches this selection." /> : (
                 <div className="erp-scroll table-pin-first overflow-x-auto">
@@ -292,7 +292,7 @@ function Saved({ notify }) {
           </Panel>
 
           {view && (
-            <Modal size="lg" onClose={() => setView(null)} title={`VAT return ${formatDate(view.periodFrom)} to ${formatDate(view.periodTo)}`} description={`${view.status === "FILED" ? `Filed · reference ${view.filingReference}` : view.status === "FINALIZED" ? "Finalised" : "Draft"} · AED`}>
+            <Modal size="lg" onClose={() => setView(null)} title={`VAT return ${formatDate(view.periodFrom)} to ${formatDate(view.periodTo)}`} description={`${view.status === "FILED" ? `Filed · reference ${view.filingReference}` : view.status === "FINALIZED" ? "Finalised" : "Draft"} · ${CURRENCY}`}>
               <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
                 <table className="w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="w-14 px-4 py-2 text-start">Box</th><th className="px-3 py-2 text-start">Description</th><th className="px-3 py-2 text-end">Amount</th><th className="px-4 py-2 text-end">VAT</th></tr></thead>

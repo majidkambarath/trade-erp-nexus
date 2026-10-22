@@ -134,7 +134,7 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
                   </span>
                 ),
               },
-              { key: "amount", header: "Amount", align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
+              { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
               { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={statusTone(r.displayStatus)}>{statusLabel(r.displayStatus)}</Pill> },
               {
                 key: "actions", header: "", align: "end", card: "actions", className: "whitespace-nowrap",

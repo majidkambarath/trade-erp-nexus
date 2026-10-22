@@ -7,7 +7,7 @@ import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
 import { emptyJournalRow, fromCents, journalCopy, journalPayload, journalRowsFromVoucher, journalTotals, money, savedVerb, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
-import { drCr, formatDateGB } from "../../utils/format";
+import { drCr, formatDateGB, moneyHeading } from "../../utils/format";
 
 // Journal vouchers: any number of rows, each a debit or a credit on an account of the chart.
 // Saving is allowed only when debits equal credits.
@@ -41,7 +41,7 @@ export default function JournalVouchers() {
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
               { key: "narration", header: "Narration", card: "title", className: "max-w-md truncate text-muted-foreground", cell: (v) => v.narration },
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
-              { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
+              { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}{v.ledgerBased && (<Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
@@ -129,8 +129,8 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
           columns={[
             { key: "account", label: "Account", className: "min-w-64 w-[38%]" },
             { key: "narration", label: "Narration / remarks" },
-            { key: "debit", label: "Debit", align: "end", className: "w-36" },
-            { key: "credit", label: "Credit", align: "end", className: "w-36" },
+            { key: "debit", label: moneyHeading("Debit"), align: "end", className: "w-36" },
+            { key: "credit", label: moneyHeading("Credit"), align: "end", className: "w-36" },
           ]}
           onAdd={() => setRows((rs) => [...rs, emptyJournalRow()])}
           onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { stockReports } from "../../lib/stockReportsApi";
-import { CURRENCY, downloadCSV, formatDate, formatNumber, formatQty, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDate, formatNumber, formatQty, moneyHeading, todayInput } from "../../utils/format";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
@@ -321,14 +321,14 @@ function ValuationBody({ d }) {
         },
         { key: "category", header: "Category", cell: (r) => r.categoryName, className: "text-muted-foreground" },
         { key: "qty", header: "Quantity", align: "end", cell: (r) => <>{qty(r.qty)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
-        { key: "avg", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-        { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
+        { key: "avg", header: moneyHeading("Average cost"), align: "end", cell: (r) => rate(r.avgCost) },
+        { key: "value", header: moneyHeading("Value"), align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ]
     : [
         { key: "category", header: "Category", cell: (r) => <span className="font-medium text-foreground">{r.categoryName}</span>, total: "Total" },
         { key: "items", header: "Items", align: "end", cell: (r) => whole(r.items), total: whole(d.totals.items) },
-        { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
+        { key: "value", header: moneyHeading("Value"), align: "end", cell: (r) => money(r.value), total: money(d.totals.value) },
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ];
 
@@ -409,13 +409,13 @@ function MovementBody({ d, view }) {
   const moves = MOVES.filter((m) => m.key !== "production" || d.rows.some((r) => r.production?.qty || r.production?.value));
   const columns = [
     { key: "item", header: "Item", cell: (r) => <ItemCell r={r} />, total: "Total" },
-    { key: "opening", header: "Opening", align: "end", cell: (r) => fmt(pick(r, "opening")), total: fmt(pick(d.totals, "opening")) },
+    { key: "opening", header: isQty ? "Opening" : moneyHeading("Opening"), align: "end", cell: (r) => fmt(pick(r, "opening")), total: fmt(pick(d.totals, "opening")) },
     ...moves.map((m) => ({
-      key: m.key, header: m.label, align: "end",
+      key: m.key, header: isQty ? m.label : moneyHeading(m.label), align: "end",
       cell: (r) => { const v = pick(r, m.key) * m.sign; return v === 0 ? "–" : fmt(v); },
       total: fmt(pick(d.totals, m.key) * m.sign),
     })),
-    { key: "closing", header: "Closing", align: "end", cell: (r) => <span className="font-medium text-foreground">{fmt(pick(r, "closing"))}</span>, total: fmt(pick(d.totals, "closing")) },
+    { key: "closing", header: isQty ? "Closing" : moneyHeading("Closing"), align: "end", cell: (r) => <span className="font-medium text-foreground">{fmt(pick(r, "closing"))}</span>, total: fmt(pick(d.totals, "closing")) },
   ];
 
   function exportCsv() {
@@ -492,9 +492,9 @@ function LedgerBody({ d }) {
     { key: "batch", header: "Batch", cell: (r) => r.batchNo || "–", className: "text-muted-foreground" },
     { key: "in", header: "Qty in", align: "end", cell: (r) => (r.qtyIn ? qty(r.qtyIn) : ""), total: qty(d.totals.qtyIn) },
     { key: "out", header: "Qty out", align: "end", cell: (r) => (r.qtyOut ? qty(r.qtyOut) : ""), total: qty(d.totals.qtyOut) },
-    { key: "cost", header: "Unit cost", align: "end", cell: (r) => rate(r.unitCost) },
+    { key: "cost", header: moneyHeading("Unit cost"), align: "end", cell: (r) => rate(r.unitCost) },
     { key: "bq", header: "Balance qty", align: "end", cell: (r) => qty(r.balanceQty), total: qty(d.closing.qty) },
-    { key: "bv", header: "Balance value", align: "end", cell: (r) => money(r.balanceValue), total: money(d.closing.value) },
+    { key: "bv", header: moneyHeading("Balance value"), align: "end", cell: (r) => money(r.balanceValue), total: money(d.closing.value) },
   ];
   const opening = (
     <tr className="border-t border-border bg-secondary/30 font-medium">
@@ -570,17 +570,17 @@ function AnalysisBody({ d }) {
     ? [
         { key: "name", header: groupLabel, cell: nameCell, total: "Total" },
         { key: "qty", header: "Net quantity", align: "end", cell: (r) => qty(r.quantity), total: qty(t.quantity) },
-        { key: "rev", header: "Net revenue", align: "end", cell: (r) => money(r.netRevenue), total: money(t.netRevenue) },
-        { key: "cogs", header: "Cost of goods sold", align: "end", cell: (r) => money(r.cogs), total: money(t.cogs) },
-        { key: "gp", header: "Gross profit", align: "end", cell: (r) => <span className={r.grossProfit < 0 ? "text-status-danger" : ""}>{money(r.grossProfit)}</span>, total: money(t.grossProfit) },
+        { key: "rev", header: moneyHeading("Net revenue"), align: "end", cell: (r) => money(r.netRevenue), total: money(t.netRevenue) },
+        { key: "cogs", header: moneyHeading("Cost of goods sold"), align: "end", cell: (r) => money(r.cogs), total: money(t.cogs) },
+        { key: "gp", header: moneyHeading("Gross profit"), align: "end", cell: (r) => <span className={r.grossProfit < 0 ? "text-status-danger" : ""}>{money(r.grossProfit)}</span>, total: money(t.grossProfit) },
         { key: "margin", header: "Margin", align: "end", cell: (r) => <span className={marginTone(r.marginPct)}>{pct(r.marginPct)}</span>, total: pct(t.marginPct) },
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ]
     : [
         { key: "name", header: groupLabel, cell: nameCell, total: "Total" },
         { key: "qty", header: "Net quantity", align: "end", cell: (r) => qty(r.quantity), total: qty(t.quantity) },
-        { key: "val", header: "Net purchases", align: "end", cell: (r) => money(r.netValue), total: money(t.netValue) },
-        { key: "avg", header: "Average price paid", align: "end", cell: (r) => (r.avgPrice === null ? "–" : rate(r.avgPrice)), total: t.avgPrice === null ? "–" : rate(t.avgPrice) },
+        { key: "val", header: moneyHeading("Net purchases"), align: "end", cell: (r) => money(r.netValue), total: money(t.netValue) },
+        { key: "avg", header: moneyHeading("Average price paid"), align: "end", cell: (r) => (r.avgPrice === null ? "–" : rate(r.avgPrice)), total: t.avgPrice === null ? "–" : rate(t.avgPrice) },
         ...(d.groupBy === "vendor" ? [] : [{ key: "vendors", header: "Vendors", align: "end", cell: (r) => whole(r.vendors), total: whole(t.vendors) }]),
         { key: "share", header: "Share", align: "end", cell: (r) => pct(r.sharePct), className: "text-muted-foreground" },
       ];
@@ -667,8 +667,8 @@ function ExpiryBody({ d }) {
     { key: "qty", header: "On hand", align: "end", cell: (r) => <>{qty(r.qtyOnHand)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
     { key: "date", header: "Expiry date", cell: (r) => formatDate(r.expiryDate), className: "whitespace-nowrap" },
     { key: "days", header: "Time left", cell: (r) => dayPill(r) },
-    { key: "cost", header: "Unit cost", align: "end", cell: (r) => rate(r.unitCost) },
-    { key: "value", header: `Value at cost (${CURRENCY})`, align: "end", cell: (r) => money(r.valueAtCost), total: money(t.value) },
+    { key: "cost", header: moneyHeading("Unit cost"), align: "end", cell: (r) => rate(r.unitCost) },
+    { key: "value", header: moneyHeading("Value at cost"), align: "end", cell: (r) => money(r.valueAtCost), total: money(t.value) },
     { key: "fefo", header: "Sell order", align: "end", cell: (r) => `#${r.fefoRank}`, className: "text-muted-foreground" },
   ];
 
@@ -734,8 +734,8 @@ function SlowBody({ d }) {
     { key: "item", header: "Item", cell: (r) => <ItemCell r={r} /> },
     { key: "category", header: "Category", cell: (r) => r.categoryName, className: "text-muted-foreground" },
     { key: "qty", header: "On hand", align: "end", cell: (r) => <>{qty(r.qty)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
-    { key: "cost", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-    { key: "value", header: `Value (${CURRENCY})`, align: "end", cell: (r) => money(r.value), total: money(t.value) },
+    { key: "cost", header: moneyHeading("Average cost"), align: "end", cell: (r) => rate(r.avgCost) },
+    { key: "value", header: moneyHeading("Value"), align: "end", cell: (r) => money(r.value), total: money(t.value) },
     { key: "last", header: "Last sale", cell: (r) => (r.neverSold ? <Pill tone="warning">Never sold</Pill> : formatDate(r.lastSaleDate)), className: "whitespace-nowrap" },
     { key: "since", header: "Days idle", align: "end", cell: (r) => (r.daysSince === null ? "–" : whole(r.daysSince)), total: "" },
   ];
@@ -796,8 +796,8 @@ function ReorderBody({ d }) {
     { key: "qty", header: "On hand", align: "end", cell: (r) => <>{qty(r.qty)}{r.unit && <span className="ms-1 text-xs text-muted-foreground">{r.unit}</span>}</> },
     { key: "level", header: "Reorder level", align: "end", cell: (r) => qty(r.reorderLevel) },
     { key: "short", header: "Shortfall", align: "end", cell: (r) => qty(r.shortfall) },
-    { key: "cost", header: "Average cost", align: "end", cell: (r) => rate(r.avgCost) },
-    { key: "value", header: `Shortfall at cost (${CURRENCY})`, align: "end", cell: (r) => money(r.shortfallValue), total: money(t.shortfallValue) },
+    { key: "cost", header: moneyHeading("Average cost"), align: "end", cell: (r) => rate(r.avgCost) },
+    { key: "value", header: moneyHeading("Shortfall at cost"), align: "end", cell: (r) => money(r.shortfallValue), total: money(t.shortfallValue) },
     { key: "vendor", header: "Usual vendor", cell: (r) => r.vendorName || "–", className: "text-muted-foreground" },
     { key: "status", header: "Status", cell: (r) => <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill> },
   ];

@@ -8,7 +8,7 @@ import { ConfirmDialog, DateInput, EmptyState, ErrorNote, Panel, Pill, SearchSel
 import { openingBalances } from "../../../lib/openingBalanceApi";
 import { fromCents, money, toCents } from "../../../lib/voucherForms";
 import { emptyPartyRow, fmt, partyPayload, partyTotals, validatePartyRows } from "../../../lib/openingBalanceForms";
-import { formatDate } from "../../../utils/format";
+import { formatDate, moneyHeading } from "../../../utils/format";
 import { FooterRow, NeedsDate, Note } from "./parts";
 import { taxWord } from "../../../lib/taxTerms";
 
@@ -130,7 +130,7 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
                   { key: "reference", label: "Invoice no.", className: "min-w-36" },
                   { key: "date", label: "Invoice date", className: "w-44" },
                   { key: "dueDate", label: "Due date", className: "w-44" },
-                  { key: "amount", label: "Amount", align: "end", className: "w-40" },
+                  { key: "amount", label: moneyHeading("Amount"), align: "end", className: "w-40" },
                 ]}
                 onAdd={() => setRows((rs) => [...rs, emptyPartyRow()])}
                 onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}

@@ -183,7 +183,7 @@ export default function GoodsReceivedList({ onOpen, onNew, onEdit, onInvoiced, n
               { key: "party", header: "Vendor", card: "title", className: "font-medium", cell: (r) => r.party?.name || "-" },
               { key: "date", header: "Received", card: "meta", className: "whitespace-nowrap text-muted-foreground", cell: (r) => formatDate(r.receivedAt || r.date) },
               { key: "invoice", header: "Invoice", card: "meta", className: "text-muted-foreground", cell: (r) => (r.status === "RECEIVED" ? `${INVOICE_TEXT[r.invoiceStatus] || r.invoiceStatus}${r.invoice?.no ? ` · ${r.invoice.no}` : ""}` : "-") },
-              { key: "amount", header: "Value", align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
+              { key: "amount", header: "Value", money: true, align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
               { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={statusTone(r.status)}>{receiptStatusLabel(r.status)}</Pill> },
               {
                 key: "actions", header: "", align: "end", card: "actions", className: "whitespace-nowrap",

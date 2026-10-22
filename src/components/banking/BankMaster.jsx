@@ -7,6 +7,7 @@ import EntryGrid from "../finance/EntryGrid";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { accounting } from "../../lib/accountingApi";
 import { banking } from "../../lib/bankingApi";
+import { amountsIn } from "../../utils/format";
 
 // The banks the company deals with. A bank account itself is an account in the chart of accounts
 // (under Bank) that points at one of these; this list holds the institution.
@@ -169,7 +170,7 @@ export function BankAccountsModal({ bank, canAdd, onAdd, onClose }) {
   return (
     <Modal
       size="lg" onClose={onClose} title={`Accounts at ${bank.bankName}`}
-      description="The company's own accounts at this bank. Each one is an account in the chart, so its balance and ledger are the chart's."
+      description={`The company's own accounts at this bank. Each one is an account in the chart, so its balance and ledger are the chart's. ${amountsIn()}.`}
       footer={<><Button variant="outline" onClick={onClose}>Close</Button>{canAdd && <Button onClick={onAdd}><Plus className="h-4 w-4" aria-hidden="true" />Add a bank account</Button>}</>}
     >
       {loading && !data && <Spinner label="Loading accounts" />}

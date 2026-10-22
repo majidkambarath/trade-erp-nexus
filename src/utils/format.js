@@ -75,6 +75,16 @@ export const formatQty = (value, decimals = 2) => {
 export const formatPercent = (value, decimals = 2) =>
   `${formatNumber(value, decimals)}%`;
 
+// A money column's heading, naming the organisation's currency ONCE for the whole column — "Amount (AED)" —
+// instead of repeating the code on every row. Call it while rendering: CURRENCY is a live binding, so a
+// module-level constant built from it would freeze the brand pack's default before the organisation's status
+// had loaded. A DataTable column says `money: true` instead and gets this (and the code on its card) for free.
+export const moneyHeading = (label) => `${label} (${CURRENCY})`;
+
+// The line a table of figures carries once, where naming the currency in every heading would widen a trial
+// balance or an ageing past the screen: "Amounts in AED". It goes on the panel's description, above the table.
+export const amountsIn = () => `Amounts in ${CURRENCY}`;
+
 // ---------------------------------------------------------------------------
 // Dates and times as the person chose to see them (Settings > Preferences)
 // ---------------------------------------------------------------------------

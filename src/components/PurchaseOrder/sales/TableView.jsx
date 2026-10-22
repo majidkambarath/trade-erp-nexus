@@ -232,7 +232,7 @@ const TableView = ({
                     {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
                       <Can permission="sales.send">
                         <button
-                          type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.displayTransactionNo || so.transactionNo} to the customer`}
+                          type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
                           className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Send to the customer"
                         >
@@ -248,7 +248,7 @@ const TableView = ({
                       }}
                       className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                       title="View Details"
-                      aria-label={`View ${so.displayTransactionNo || so.transactionNo}`}
+                      aria-label={`View ${so.transactionNo}`}
                     >
                       <Eye className="w-4 h-4" />
                     </button>

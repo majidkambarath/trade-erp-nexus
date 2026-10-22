@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, FileCheck2, Inbox, Percent, Send } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
-import { formatNumber } from "../../utils/format";
+import { CURRENCY, formatNumber } from "../../utils/format";
 import StatCard from "../ui/stat-card";
 import { EmptyState, ErrorNote, Panel, PageSpinner, formatDateTime, useAsync } from "../accounting/kit";
 import { StatusPill } from "./shared";
@@ -26,7 +26,7 @@ export default function EInvoiceDashboard({ settings }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard title="Invoices sent" count={o.total} subText={`AED ${formatNumber(o.payable, 2)} payable`} tone="teal" icon={<Send />} />
+        <StatCard title="Invoices sent" count={o.total} subText={`${CURRENCY} ${formatNumber(o.payable, 2)} payable`} tone="teal" icon={<Send />} />
         <StatCard title="Reported to FTA" count={o.byStatus.REPORTED || 0} subText={o.successRate == null ? "none yet" : `${o.successRate}% of those attempted`} tone="olive" icon={<CheckCircle2 />} />
         <StatCard title="Need attention" count={o.needsAttention} subText="failed or rejected" tone={o.needsAttention ? "danger" : "neutral"} icon={<AlertTriangle />} />
         <StatCard title="Received to review" count={inboundWaiting} subText="supplier invoices" tone={inboundWaiting ? "warning" : "neutral"} icon={<Inbox />} />
@@ -52,7 +52,7 @@ export default function EInvoiceDashboard({ settings }) {
             <dt className="text-muted-foreground">VAT</dt><dd className="text-end tabular-nums">{formatNumber(o.tax, 2)}</dd>
             <dt className="font-semibold">Payable</dt><dd className="text-end font-semibold tabular-nums">{formatNumber(o.payable, 2)}</dd>
           </dl>
-          <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />AED, invoices that were sent, delivered or reported.</p>
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground"><FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />{CURRENCY}, invoices that were sent, delivered or reported.</p>
           <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground"><Percent className="h-3.5 w-3.5" aria-hidden="true" />Success rate counts reported invoices out of all attempted.</p>
         </Panel>
       </div>

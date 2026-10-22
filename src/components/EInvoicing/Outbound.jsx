@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Eye, History, RefreshCw, RotateCcw, Search, Send } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
-import { formatDateGB, formatNumber } from "../../utils/format";
+import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
 import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
@@ -76,7 +76,7 @@ export default function Outbound({ notify, enabled }) {
               { key: "document", header: "Document", card: "primary", cell: (d) => <><span className="font-mono text-xs font-semibold">{d.transactionNo}</span><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
               { key: "customer", header: "Customer", card: "title", cell: (d) => <>{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (d) => <>{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</> },
-              { key: "total", header: "Total", align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
+              { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
               { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
               {
       key: "actions", header: "Actions", align: "end", card: "actions",
@@ -152,7 +152,7 @@ function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSe
           </dl>
           <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-xs">
-              <thead className="bg-secondary/60 text-muted-foreground"><tr><th className="px-3 py-2 text-start">#</th><th className="px-3 py-2 text-start">Item</th><th className="px-3 py-2 text-end">Qty</th><th className="px-3 py-2 text-end">Net</th><th className="px-3 py-2 text-start">Tax</th><th className="px-3 py-2 text-end">VAT</th></tr></thead>
+              <thead className="bg-secondary/60 text-muted-foreground"><tr><th className="px-3 py-2 text-start">#</th><th className="px-3 py-2 text-start">Item</th><th className="px-3 py-2 text-end">Qty</th><th className="px-3 py-2 text-end">{moneyHeading("Net")}</th><th className="px-3 py-2 text-start">Tax</th><th className="px-3 py-2 text-end">{moneyHeading("VAT")}</th></tr></thead>
               <tbody>{payload.lines.map((l) => (
                 <tr key={l.lineNumber} className="border-t border-border"><td className="px-3 py-1.5">{l.lineNumber}</td><td className="px-3 py-1.5">{l.itemName}</td><td className="px-3 py-1.5 text-end tabular-nums">{l.quantity}</td><td className="px-3 py-1.5 text-end tabular-nums">{formatNumber(l.lineNetAmount, 2)}</td><td className="px-3 py-1.5">{l.taxCategory || <span className="text-status-danger">unresolved</span>} {l.taxRatePercent}%</td><td className="px-3 py-1.5 text-end tabular-nums">{formatNumber(l.lineTaxAmount, 2)}</td></tr>
               ))}</tbody>

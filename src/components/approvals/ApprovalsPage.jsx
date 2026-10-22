@@ -51,7 +51,7 @@ const shared = (extra = []) => [
     ),
   },
   { key: "age", header: "Waiting", card: "meta", className: "whitespace-nowrap", cell: (r) => ageText(r.ageDays) },
-  { key: "amount", header: "Amount", align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.amount, 2) },
+  { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.amount, 2) },
   { key: "state", header: "Status", card: "badge", cell: (r) => <StateBadge row={r} /> },
   ...extra,
 ];

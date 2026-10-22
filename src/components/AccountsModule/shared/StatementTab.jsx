@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Download, Printer } from "lucide-react";
 import { cn } from "../../../lib/utils";
-import { downloadCSV, formatDate, formatNumber } from "../../../utils/format";
+import { amountsIn, downloadCSV, formatDate, formatNumber } from "../../../utils/format";
 import { Button } from "../../ui/button";
 import { Balance, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, DateInput } from "../../accounting/kit";
 import { Skeleton } from "./partyAccountParts";
@@ -75,7 +75,7 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
       <Panel
         bodyClassName="p-0"
         title={data ? `Statement, ${count}` : "Statement"}
-        description={data ? period : undefined}
+        description={data ? `${period} · ${amountsIn()}` : undefined}
         actions={
           data && (
             <div className="flex items-center gap-2 print:hidden">

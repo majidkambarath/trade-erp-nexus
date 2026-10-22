@@ -7,7 +7,7 @@ import { Balance, ConfirmDialog, EmptyState, ErrorNote, Panel, Pill, SearchSelec
 import { openingBalances } from "../../../lib/openingBalanceApi";
 import { accountOption, fromCents, money, toCents } from "../../../lib/voucherForms";
 import { accountTotals, accountsPayload, emptyAccountRow, fmt, validateAccountRows } from "../../../lib/openingBalanceForms";
-import { formatDate } from "../../../utils/format";
+import { formatDate, moneyHeading } from "../../../utils/format";
 import { FooterRow, LedgerLink, NeedsDate, Note, StatusPill } from "./parts";
 
 const AMOUNT = /^\d*(\.\d{0,2})?$/;
@@ -105,8 +105,8 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
                 ref={grid} ariaLabel="Account balances" rows={rows} rowErrors={errors} minRows={1} addLabel="Add account"
                 columns={[
                   { key: "account", label: "Account", className: "min-w-72 w-[55%]" },
-                  { key: "debit", label: "Debit", align: "end", className: "w-40" },
-                  { key: "credit", label: "Credit", align: "end", className: "w-40" },
+                  { key: "debit", label: moneyHeading("Debit"), align: "end", className: "w-40" },
+                  { key: "credit", label: moneyHeading("Credit"), align: "end", className: "w-40" },
                 ]}
                 onAdd={() => setRows((rs) => [...rs, emptyAccountRow()])}
                 onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}

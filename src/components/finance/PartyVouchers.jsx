@@ -10,7 +10,7 @@ import { vouchers } from "../../lib/bankingApi";
 import { currencies } from "../../lib/currencyApi";
 import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
 import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, partyVoucherCopy, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
-import { CURRENCY, formatDate, formatDateGB } from "../../utils/format";
+import { amountsIn, CURRENCY, formatDate, formatDateGB } from "../../utils/format";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
 // with the direction turned round. `amountLabel` carries no currency: the form adds the one in use
@@ -74,7 +74,7 @@ function PartyVouchers({ direction }) {
               { key: "party", header: cfg.noun, card: "title", className: "font-medium", cell: (v) => v.partyName },
               { key: "mode", header: "Paid by", card: "meta", className: "max-w-xs", cell: (v) => <><span className="font-medium">{modeLabel(v.paymentMode)}</span><span className="block truncate text-xs text-muted-foreground md:inline md:ms-1">{describePayment(v)}</span></> },
               { key: "invoices", header: "Invoices", align: "end", card: "hidden", className: "tabular-nums", cell: (v) => <>{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</> },
-              { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => <>{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</> },
+              { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => <>{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</> },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
               { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button><Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title={`Copy into a new ${cfg.one}`} onClick={() => setForm({ copy: v, initial: partyVoucherCopy(v, todayInput()) })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can></>) },
             ]}
@@ -287,7 +287,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium text-foreground">Open invoices of {party?.[cfg.nameKey]}</h3>
-                {currency && <p className="text-xs text-muted-foreground">Invoices are in {baseCode}. The {currency} amount is converted at the rate above.</p>}
+                <p className="text-xs text-muted-foreground">{currency ? `Invoices are in ${baseCode}. The ${currency} amount is converted at the rate above.` : `${amountsIn()}.`}</p>
               </div>
               {open.length > 0 && total > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(open, total))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
             </div>

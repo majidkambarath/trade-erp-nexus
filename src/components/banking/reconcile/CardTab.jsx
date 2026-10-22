@@ -2,7 +2,7 @@ import React from "react";
 import StatCard from "../../ui/stat-card";
 import { DataTable, EmptyState, ErrorNote, Panel, Spinner, useAsync } from "../../accounting/kit";
 import { reconcile } from "../../../lib/bankReconcileApi";
-import { formatDate, formatNumber } from "../../../utils/format";
+import { CURRENCY, formatDate, formatNumber } from "../../../utils/format";
 import { taxWord } from "../../../lib/taxTerms";
 
 // Card sales as the acquirer pays them. A card sale is booked on the day it is made; the acquirer pays
@@ -56,7 +56,7 @@ export default function CardTab({ account, version }) {
                   { key: "day", header: "Sale date", card: "title", className: "whitespace-nowrap", cell: (r) => formatDate(r.day) },
                   { key: "card", header: "Card", card: "meta", className: "text-muted-foreground", cell: (r) => r.cardLabel },
                   { key: "age", header: "Working days", align: "end", card: "meta", className: "tabular-nums", cell: (r) => r.workingDays },
-                  { key: "net", header: "To come", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (r) => formatNumber(r.net, 2) },
+                  { key: "net", header: "To come", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (r) => formatNumber(r.net, 2) },
                 ]}
               />
             </>
@@ -73,11 +73,11 @@ export default function CardTab({ account, version }) {
             columns={[
               { key: "day", header: "Paid on", card: "primary", className: "whitespace-nowrap", cell: (s) => formatDate(s.settlementDate) },
               { key: "ref", header: "Reference", card: "title", className: "text-muted-foreground", cell: (s) => s.settlementRef || "-" },
-              { key: "sales", header: "Sales", align: "end", card: "meta", className: "tabular-nums", cell: (s) => `${s.receiptCount} · ${formatNumber(s.gross, 2)}` },
-              { key: "extra", header: "Extra commission", align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.extraCommission, 2) },
-              { key: "vat", header: taxWord(), align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.vat, 2) },
+              { key: "sales", header: "Sales", align: "end", card: "meta", className: "tabular-nums", cell: (s) => `${s.receiptCount} · ${CURRENCY} ${formatNumber(s.gross, 2)}` },
+              { key: "extra", header: "Extra commission", money: true, align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.extraCommission, 2) },
+              { key: "vat", header: taxWord(), money: true, align: "end", card: "meta", className: "tabular-nums", cell: (s) => formatNumber(s.vat, 2) },
               { key: "rate", header: "Commission", align: "end", card: "meta", className: "tabular-nums", cell: (s) => pct(s.effectiveRate) },
-              { key: "paid", header: "Received", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (s) => formatNumber(s.received, 2) },
+              { key: "paid", header: "Received", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (s) => formatNumber(s.received, 2) },
             ]}
           />
         </Panel>
@@ -92,8 +92,8 @@ export default function CardTab({ account, version }) {
             columns={[
               { key: "card", header: "Card", card: "primary", className: "font-medium", cell: (c) => c.cardLabel },
               { key: "sales", header: "Sales", align: "end", card: "meta", className: "tabular-nums", cell: (c) => c.sales },
-              { key: "gross", header: "Amount", align: "end", card: "amount", className: "tabular-nums", cell: (c) => formatNumber(c.gross, 2) },
-              { key: "fee", header: "Commission booked", align: "end", card: "meta", className: "tabular-nums", cell: (c) => `${formatNumber(c.feeBooked, 2)} (${pct(c.bookedRate)})` },
+              { key: "gross", header: "Amount", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (c) => formatNumber(c.gross, 2) },
+              { key: "fee", header: "Commission booked", align: "end", card: "meta", className: "tabular-nums", cell: (c) => `${CURRENCY} ${formatNumber(c.feeBooked, 2)} (${pct(c.bookedRate)})` },
             ]}
           />
         </Panel>

@@ -137,7 +137,7 @@ export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, re
               { key: "party", header: w.party, card: "title", className: "font-medium", cell: (r) => r.party?.name || "-" },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap text-muted-foreground", cell: (r) => formatDate(r.date) },
               { key: "expected", header: kind === "sales" ? "Delivery" : "Expected", card: "meta", className: "whitespace-nowrap text-muted-foreground", cell: (r) => (r.expectedDate ? formatDate(r.expectedDate) : "-") },
-              { key: "amount", header: "Amount", align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
+              { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "whitespace-nowrap font-medium tabular-nums", cell: (r) => formatNumber(r.totalAmount, 2) },
               {
                 key: "status", header: "Status", card: "badge",
                 cell: (r) => (

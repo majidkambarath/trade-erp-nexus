@@ -7,7 +7,7 @@ import { banking, vouchers } from "../../lib/bankingApi";
 import { accountOption, describePayment, money, toCents } from "../../lib/voucherForms";
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
-import { CURRENCY, formatDateGB } from "../../utils/format";
+import { CURRENCY, formatDateGB, moneyHeading } from "../../utils/format";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { ApprovalBanner, useApproval } from "../shell/Approval";
 import { awaitingLabel, firstApproverName, FIRST_APPROVAL_MESSAGE, wasFirstApproval } from "../../lib/approvals";
@@ -189,7 +189,7 @@ export function printVoucher(v, title, companyName = "") {
     ${isForeign(v) ? `<tr><td><b>Foreign currency</b></td><td colspan="3">${esc(fxLine(v))}<br><small>${esc(fxProvenance(v))}</small></td></tr>` : ""}
     ${v.paymentMode ? `<tr><td><b>Paid by</b></td><td colspan="3">${esc(describePayment(v))}</td></tr>` : ""}
     ${v.narration ? `<tr><td><b>Narration</b></td><td colspan="3">${esc(v.narration)}</td></tr>` : ""}</table>
-    <table><thead><tr><th>Account</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>${rows}</tbody>
+    <table><thead><tr><th>Account</th><th class="n">${esc(moneyHeading("Debit"))}</th><th class="n">${esc(moneyHeading("Credit"))}</th></tr></thead><tbody>${rows}</tbody>
     <tfoot><tr><td>Total</td><td class="n">${money(debit)}</td><td class="n">${money(credit)}</td></tr></tfoot></table>
     <div class="sign"><div>Prepared by</div><div>Checked by</div><div>Approved by</div></div>
     <script>window.onload=function(){window.print()}</script></body></html>`);
@@ -284,7 +284,7 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
             <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr><th className="px-4 py-2 text-start">Account</th><th className="px-3 py-2 text-end">Debit</th><th className="px-4 py-2 text-end">Credit</th></tr>
+                  <tr><th className="px-4 py-2 text-start">Account</th><th className="px-3 py-2 text-end">{moneyHeading("Debit")}</th><th className="px-4 py-2 text-end">{moneyHeading("Credit")}</th></tr>
                 </thead>
                 <tbody>
                   {entries.map((e, i) => (
