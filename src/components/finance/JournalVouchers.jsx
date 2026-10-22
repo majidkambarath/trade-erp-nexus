@@ -1,12 +1,12 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Eye, Pencil, Plus } from "lucide-react";
+import { Copy, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, DateInput, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts } from "../accounting/kit";
 import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
-import { emptyJournalRow, fromCents, journalPayload, journalRowsFromVoucher, journalTotals, money, savedVerb, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
+import { emptyJournalRow, fromCents, journalCopy, journalPayload, journalRowsFromVoucher, journalTotals, money, savedVerb, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
 import { drCr, formatDateGB } from "../../utils/format";
 
 // Journal vouchers: any number of rows, each a debit or a credit on an account of the chart.
@@ -43,25 +43,27 @@ export default function JournalVouchers() {
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}{v.ledgerBased && (<Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
           />
         </ListBody>
       </Panel>
 
-      {form && <JournalForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
+      {form && <JournalForm voucher={form._id ? form : null} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Journal voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Journal deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
 }
 
-export function JournalForm({ voucher, onClose, onSaved }) {
+export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
   const { options, loading: loadingAccounts, error: accountsError } = useChartAccounts();
   const grid = useRef(null);
-  const [date, setDate] = useState(voucher ? new Date(voucher.date).toISOString().slice(0, 10) : todayInput());
-  const [narration, setNarration] = useState(voucher?.narration || "");
-  const [rows, setRows] = useState(() => (voucher ? journalRowsFromVoucher(voucher) : [emptyJournalRow(), emptyJournalRow()]));
+  // A copy is a new voucher that starts with an old one's figures - today's date, no number.
+  const [copied] = useState(() => (copyOf ? journalCopy(copyOf, todayInput()) : null));
+  const [date, setDate] = useState(copied?.date || (voucher ? new Date(voucher.date).toISOString().slice(0, 10) : todayInput()));
+  const [narration, setNarration] = useState(copied?.narration ?? (voucher?.narration || ""));
+  const [rows, setRows] = useState(() => copied?.rows || (voucher ? journalRowsFromVoucher(voucher) : [emptyJournalRow(), emptyJournalRow()]));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -104,8 +106,9 @@ export function JournalForm({ voucher, onClose, onSaved }) {
   const diff = drCr(fromCents(totals.diff));
   return (
     <Modal
-      size="xl" onClose={onClose} title={voucher ? `Edit ${voucher.voucherNo}` : "New journal voucher"}
-      description="Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts."
+      size="xl" onClose={onClose}
+      title={voucher ? `Edit ${voucher.voucherNo}` : copyOf ? `New journal voucher, copied from ${copyOf.voucherNo}` : "New journal voucher"}
+      description={copyOf ? `A new voucher copied from ${copyOf.voucherNo}. It gets its own number and today's date when you post it.` : "Enter moves across the row; Alt+N adds a row; Ctrl+Enter posts."}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

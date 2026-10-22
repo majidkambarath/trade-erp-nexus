@@ -22,6 +22,7 @@ vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 import EntryGrid from "../EntryGrid";
 import PaymentModeFields from "../PaymentModeFields";
 import { JournalForm } from "../JournalVouchers";
+import { ExpenseForm } from "../ExpenseVouchers";
 import { PartyVoucherForm, allocateOldestFirst } from "../PartyVouchers";
 import { NoteForm } from "../DebitCreditNotes";
 import ChequeRegister from "../../banking/ChequeRegister";
@@ -484,5 +485,85 @@ describe("card master", () => {
     await waitFor(() => expect(m.createCardType).toHaveBeenCalledWith({ name: "Amex" }));
     await waitFor(() => expect(screen.getByText("Amex")).toBeInTheDocument());
     expect(m.cardTypes).toHaveBeenCalledTimes(2); // refetched in the background once the new type exists
+  });
+});
+
+// ------------------------------------------------------------------ copying a voucher into a new one
+describe("copying a voucher into a new one", () => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const SAVED_JOURNAL = {
+    _id: "v9", voucherNo: "JV-2026-0012", voucherType: "journal", status: "approved", ledgerBased: true,
+    date: "2026-03-31T00:00:00.000Z", narration: "Month-end accrual", totalAmount: 900,
+    entries: [
+      { accountId: "rent", debitAmount: 900, creditAmount: 0, description: "Warehouse" },
+      { accountId: "cash", debitAmount: 0, creditAmount: 900 },
+    ],
+  };
+
+  const SAVED_EXPENSE = {
+    _id: "v8", voucherNo: "EV-2026-0004", voucherType: "expense", status: "approved", ledgerBased: true,
+    date: "2026-03-04T00:00:00.000Z", subtotal: 1500, vatTotal: 75, totalAmount: 1575,
+    description: "Monthly rent", expenseAccountId: "rent", taxCodeId: "std",
+    paymentMode: "cheque",
+    paymentDetails: { accountId: "bank1", chequeDetails: { chequeNumber: "000555", chequeDate: "2026-03-04" }, drawnOnBankId: "mash", drawnOnBankName: "Mashreq" },
+  };
+
+  it("opens a journal as a NEW voucher with the old rows, today's date, and posts through create", async () => {
+    const onSaved = vi.fn();
+    render(<JournalForm copyOf={SAVED_JOURNAL} onClose={() => {}} onSaved={onSaved} />);
+    await waitFor(() => expect(m.postable).toHaveBeenCalled());
+
+    // it says where it came from, and offers to post rather than to save changes
+    expect(screen.getByRole("dialog", { name: /copied from JV-2026-0012/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Post journal" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+
+    // the figures came across, but the date is today's and not the original's
+    expect(screen.getByLabelText("Debit, row 1")).toHaveValue("900");
+    expect(screen.getByLabelText("Credit, row 2")).toHaveValue("900");
+    expect(screen.getByLabelText("Narration, row 1")).toHaveValue("Warehouse");
+    expect(screen.getByLabelText("Date")).toHaveValue(today);
+    expect(screen.getByLabelText("Date")).not.toHaveValue("2026-03-31");
+
+    m.create.mockResolvedValue({ voucherNo: "JV-2026-0020" });
+    fireEvent.click(screen.getByRole("button", { name: "Post journal" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(m.update).not.toHaveBeenCalled();
+    const body = m.create.mock.calls[0][0];
+    expect(body.date).toBe(today);
+    expect(body.lines).toHaveLength(2);
+    for (const key of ["_id", "voucherNo", "status", "approvals"]) expect(body).not.toHaveProperty(key);
+  });
+
+  it("copies an expense at its net amount and keeps how it was paid, but not the cheque", async () => {
+    render(<ExpenseForm copyOf={SAVED_EXPENSE} onClose={() => {}} onSaved={vi.fn()} />);
+    await waitFor(() => expect(m.postable).toHaveBeenCalled());
+
+    expect(screen.getByRole("dialog", { name: /copied from EV-2026-0004/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Description")).toHaveValue("Monthly rent");
+    // the net, not the 1575 that left the bank
+    expect(screen.getByLabelText(/Amount before/)).toHaveValue("1500");
+    expect(screen.getByLabelText("Date")).toHaveValue(today);
+
+    // still a cheque payment, still the same bank - but the cheque itself must be entered afresh
+    await waitFor(() => expect(screen.getByLabelText("Cheque number")).toBeInTheDocument());
+    expect(screen.getByLabelText("Cheque number")).toHaveValue("");
+    expect(screen.getByLabelText("Cheque date")).toHaveValue("");
+  });
+
+  it("copies a note's own lines and leaves it set against no invoice", async () => {
+    render(<NoteForm copyOf={{
+      _id: "v7", voucherNo: "CN-2026-0003", voucherType: "credit_note", ledgerBased: true,
+      partyType: "Customer", partyId: "cus1", narration: "Damaged goods",
+      referenceInvoiceId: "inv7", referenceInvoiceNo: "SO-2026-0001",
+      noteLines: [{ accountId: "sales", description: "Breakage", amount: 300, taxCodeId: "std" }],
+    }} onClose={() => {}} onSaved={vi.fn()} />);
+    await waitFor(() => expect(m.postable).toHaveBeenCalled());
+
+    expect(screen.getByRole("dialog", { name: /copied from CN-2026-0003/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Amount, line 1")).toHaveValue("300");
+    // the invoice the original credited is NOT carried over
+    expect(screen.queryByText("SO-2026-0001")).not.toBeInTheDocument();
   });
 });

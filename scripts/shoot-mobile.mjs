@@ -281,6 +281,12 @@ const DEEP = {
     { name: "form", page: true, clicks: ["^New purchase return"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New purchase return", "^Add line"], settle: 1300 },
   ],
+  // Banks: the institutions, then one bank's own accounts (a table in a dialog) and the chart's own
+  // account form opened from there with the bank already chosen.
+  "accounts-banks": [
+    { name: "accounts", clicks: ["^Accounts at Emirates NBD"], settle: 1000 },
+    { name: "add-account", clicks: ["^Accounts at Emirates NBD", "^Add a bank account$"], settle: 1400 },
+  ],
   // Bank reconciliation: every dialog is a table of figures or a form someone fills in on a phone.
   "finance-reconcile": [
     { name: "import", clicks: ["^Import a statement$"], settle: 900 },
@@ -293,6 +299,7 @@ const DEEP = {
   ],
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
+DEEP["banks"] = DEEP["accounts-banks"]; // check:mobile -- /banks
 DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 DEEP["accounting-setup"] = DEEP["accounts-setup"]; // check:mobile -- /accounting-setup
 DEEP["sales-order"] = DEEP["sales-invoices"]; // a single-page run (check:mobile -- /sales-order): the sales INVOICE list
@@ -931,6 +938,25 @@ function stubFor(pathname) {
     return {};
   }
 
+  // Banks: the institutions, each carrying how many of the company's own accounts name it, and one
+  // bank's own accounts - a table inside a dialog, which is where a phone layout gives way.
+  if (p.includes("/banking/banks")) {
+    const banks = [
+      { _id: "k1", bankName: "Emirates NBD", bankCode: "ENBD", swiftCode: "EBILAEAD", country: "AE", city: "Dubai", branches: [], isActive: true, accounts: { total: 2, active: 1 } },
+      { _id: "k2", bankName: "Abu Dhabi Commercial Bank", bankCode: "ADCB", swiftCode: "ADCBAEAA", country: "AE", city: "Abu Dhabi", branches: [], isActive: true, accounts: { total: 0, active: 0 } },
+    ];
+    if (p.endsWith("/accounts")) {
+      return {
+        bank: banks[0],
+        accounts: [
+          { _id: "ba1", accountCode: "1102", accountName: "Emirates NBD Current Account", groupId: "g3", isActive: true, allowDirectPosting: true, balance: 128450.75, bank: { bankId: "k1", bankName: "Emirates NBD", accountNumber: "1014567890123", accountNumberMasked: "•••• 0123", iban: "AE070331234567890123456", accountHolder: "Gulf Fresh Foods LLC", branchCode: "DXB" } },
+          { _id: "ba2", accountCode: "1103", accountName: "Emirates NBD Collection Account (closed)", groupId: "g3", isActive: false, allowDirectPosting: true, balance: 0, bank: { bankId: "k1", bankName: "Emirates NBD", accountNumber: "", accountNumberMasked: "", iban: "", accountHolder: "", branchCode: "" } },
+        ],
+      };
+    }
+    return banks;
+  }
+
   // Bank reconciliation: one account that is set up, a worklist with a strong suggestion, a line with
   // nothing to suggest, a matched line and an ignored one, and a proof that cannot be finished yet.
   if (p.includes("/banking/reconciliation/")) {
@@ -1431,13 +1457,14 @@ function stubFor(pathname) {
   // the chart is categories > groups > accounts
   if (p.includes("/chart")) {
     const group = (id, name, code) => ({
-      _id: id, name, code, children: [], ungrouped: [], role: null,
+      // the server sends `prefix` (the account form prints "Code will start with ..."), not only a code
+      _id: id, name, code, prefix: code, children: [], ungrouped: [], role: null,
       accounts: n(account, 3).map((a) => ({ ...a, isActive: true })),
       totals: { opening: 0, debit: 0, credit: 0, closing: 0 },
     });
     return {
       categories: [
-        { category: "Assets", groups: [group("g1", "Current assets", "1000")], ungrouped: [] },
+        { category: "Assets", groups: [group("g1", "Current assets", "1000"), { ...group("g3", "Bank", "1100"), role: "bank" }], ungrouped: [] },
         { category: "Income", groups: [group("g2", "Revenue", "4000")], ungrouped: [] },
       ],
       counts: { accounts: 6, groups: 2, inactive: 0 },

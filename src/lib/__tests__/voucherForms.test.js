@@ -3,6 +3,7 @@ import {
   toCents, money, emptyPayment, validatePayment, paymentPayload, paymentFromVoucher, describePayment, modeLabel,
   journalTotals, validateJournal, suggestBalance, journalPayload, journalRowsFromVoucher,
   noteTotals, notePreview, validateNote, flattenAccounts, accountOption,
+  idOf, copyPayment, journalCopy, expenseCopy, contraCopy, noteCopy, partyVoucherCopy,
 } from "../voucherForms";
 
 const OPTIONS = { bankAccounts: [{ _id: "b1" }, { _id: "b2" }], cashAccounts: [{ _id: "c1" }] };
@@ -162,5 +163,90 @@ describe("chart accounts", () => {
   it("makes options searchable by code and group", () => {
     const [bank] = flattenAccounts(CHART);
     expect(accountOption(bank)).toEqual({ value: "b", label: "Bank Account", hint: "BANK0001", searchText: "BANK0001 Bank ASSET" });
+  });
+});
+
+describe("copying a voucher", () => {
+  // What a list row looks like: the vouchers list populates partyId, so it arrives as a document.
+  const SAVED = {
+    _id: "v1", voucherNo: "EV-2026-0007", voucherType: "expense", status: "approved",
+    approvalStatus: "approved", approvals: [{ by: "u1" }], createdBy: "u1", date: "2026-03-04T00:00:00.000Z",
+    subtotal: 1500, vatTotal: 75, totalAmount: 1575, taxCodeId: "t1", description: "Monthly rent",
+    expenseAccountId: "acc9", expenseAccountName: "Rent", partyType: "Vendor", partyId: { _id: "ven3", vendorName: "Al Noor" },
+    paymentMode: "cheque", attachments: [{ key: "a" }], linkedInvoices: [{ invoiceId: "i1", amount: 10 }],
+    paymentDetails: { accountId: "b1", accountName: "ENBD Current", chequeDetails: { chequeNumber: "000555", chequeDate: "2026-03-04" }, drawnOnBankId: "bank2", drawnOnBankName: "ENBD", reference: "REF-1", referenceDate: "2026-03-04", approvalCode: "AUTH9", cardLast4: "4321" },
+  };
+
+  it("takes the id out of a populated reference, and leaves a plain one alone", () => {
+    expect(idOf({ _id: "ven3", vendorName: "Al Noor" })).toBe("ven3");
+    expect(idOf("ven3")).toBe("ven3");
+    expect(idOf(undefined)).toBe("");
+    expect(idOf(null)).toBe("");
+  });
+
+  it("keeps how it was paid but never the instrument - the cheque would be refused as a duplicate", () => {
+    const p = copyPayment(paymentFromVoucher(SAVED));
+    expect(p).toMatchObject({ mode: "cheque", accountId: "b1", drawnOnBankId: "bank2", drawnOnBankName: "ENBD" });
+    expect(p.chequeNo).toBe("");
+    expect(p.chequeDate).toBe("");
+    expect(p.reference).toBe("");
+    expect(p.referenceDate).toBe("");
+    expect(p.approvalCode).toBe("");
+  });
+
+  it("copies an expense at its NET amount, with today's date and no identity", () => {
+    const c = expenseCopy(SAVED, TODAY);
+    expect(c.fields).toEqual({
+      date: TODAY, expenseAccountId: "acc9", description: "Monthly rent",
+      amount: "1500", taxCodeId: "t1", vendorId: "ven3",
+    });
+    // the net, not the 1575 the vendor was paid: the form adds the tax at the new date's rate
+    expect(c.fields.amount).not.toBe("1575");
+    expect(c.payment.chequeNo).toBe("");
+  });
+
+  it("carries nothing that identifies the original or what it settled", () => {
+    const banned = ["_id", "voucherNo", "status", "approvalStatus", "approvals", "approvedBy", "createdBy", "attachments", "linkedInvoices", "entries", "vatTotal", "expenseAccountName"];
+    const copies = [expenseCopy(SAVED, TODAY).fields, journalCopy(SAVED, TODAY), contraCopy(SAVED, TODAY), noteCopy(SAVED, TODAY), partyVoucherCopy(SAVED, TODAY)];
+    for (const c of copies) for (const key of banned) expect(Object.keys(c)).not.toContain(key);
+    for (const c of copies) expect(c.date).toBe(TODAY);
+  });
+
+  it("copies a journal's rows, padding a voucher with nothing usable to two", () => {
+    const j = journalCopy({ narration: "Accrual", entries: [{ accountId: "a", debitAmount: 5, description: "x" }, { accountId: { _id: "b" }, creditAmount: 5 }] }, TODAY);
+    expect(j).toEqual({
+      date: TODAY, narration: "Accrual",
+      rows: [{ accountId: "a", narration: "x", debit: "5", credit: "" }, { accountId: "b", narration: "", debit: "", credit: "5" }],
+    });
+    expect(journalCopy({ entries: [] }, TODAY).rows).toHaveLength(2);
+  });
+
+  it("copies a contra's two accounts and its amount", () => {
+    expect(contraCopy({ fromAccountId: "c1", toAccountId: { _id: "b1" }, totalAmount: 2500, narration: "Deposit" }, TODAY))
+      .toEqual({ date: TODAY, fromAccountId: "c1", toAccountId: "b1", amount: "2500", narration: "Deposit" });
+  });
+
+  it("copies a note from its OWN lines, and never the invoice it was set against", () => {
+    const n = noteCopy({
+      voucherType: "credit_note", partyType: "Customer", partyId: { _id: "cus1" }, narration: "Damaged",
+      referenceInvoiceId: "inv7", referenceInvoiceNo: "SO-2026-0001",
+      noteLines: [{ accountId: { _id: "a1" }, description: "Breakage", amount: 300, taxCodeId: "t1" }],
+      entries: [{ accountId: "party", debitAmount: 315 }],
+    }, TODAY);
+    expect(n).toEqual({
+      type: "credit_note", partyType: "Customer", partyId: "cus1", invoiceId: "", date: TODAY, narration: "Damaged",
+      lines: [{ accountId: "a1", description: "Breakage", amount: "300", taxCodeId: "t1" }],
+    });
+    expect(n.invoiceId).toBe("");
+    expect(noteCopy({ noteLines: [] }, TODAY).lines).toHaveLength(1);
+  });
+
+  it("copies a receipt without its allocations, and a foreign one in its own currency", () => {
+    const base = partyVoucherCopy({ partyId: { _id: "cus1" }, totalAmount: 5000, narration: "On account", linkedInvoices: [{ invoiceId: "i1", amount: 5000 }] }, TODAY);
+    expect(base).toMatchObject({ partyId: "cus1", amount: "5000", currency: "", alloc: {} });
+    // the foreign amount, not totalAmount - that is the base equivalent at the OLD rate
+    const fx = partyVoucherCopy({ partyId: "cus1", currency: "USD", foreignAmount: 1000, totalAmount: 3672.5, exchangeRate: 3.6725 }, TODAY);
+    expect(fx).toMatchObject({ amount: "1000", currency: "USD" });
+    expect(Object.keys(fx)).not.toContain("exchangeRate");
   });
 });

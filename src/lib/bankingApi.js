@@ -7,6 +7,8 @@ export const banking = {
   banks: (params) => api.get("/banking/banks", params),
   createBank: (body) => api.post("/banking/banks", body),
   updateBank: (id, body) => api.put(`/banking/banks/${id}`, body),
+  // The company's own chart accounts at one bank: { bank, accounts[] }.
+  bankAccounts: (id) => api.get(`/banking/banks/${id}/accounts`),
 
   cardTypes: (params) => api.get("/banking/card-types", params),
   createCardType: (body) => api.post("/banking/card-types", body),

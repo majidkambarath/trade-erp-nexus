@@ -104,6 +104,16 @@ export function useMediaQuery(query) {
   return matches;
 }
 
+// A control inside a row is not the row. Without this a tap on the Edit button in the actions cell ran
+// the button AND the row's own onRowClick, so a screen that opens a view on a row click and a form on
+// Edit opened BOTH modals, one over the other. The card layout already solves this with its tap overlay;
+// the table needs the same rule. Anything a person can operate counts - the row menu, a link in a cell,
+// the select checkbox - and `data-no-row-click` opts a plain cell out as well.
+const CONTROLS = "button, a[href], input, select, textarea, label, [role='button'], [role='menuitem'], [role='menu'], [data-no-row-click]";
+function insideControl(target) {
+  return Boolean(target && typeof target.closest === "function" && target.closest(CONTROLS));
+}
+
 // A sort button is logged once per mount, per caption, never on every render - a caller that forgets this
 // contract (footer + selection, or footer + hiddenColumns, both break the footer's own colSpan) is told
 // once rather than on every keystroke.
@@ -237,7 +247,7 @@ export function DataTable({
                 return (
                   <tr
                     key={k}
-                    onClick={clickable ? () => onRowClick(row) : undefined}
+                    onClick={clickable ? (e) => { if (!insideControl(e.target)) onRowClick(row); } : undefined}
                     className={cn(
                       "border-t border-border",
                       clickable ? "cursor-pointer hover:bg-accent/40" : "hover:bg-accent/40"

@@ -13,13 +13,13 @@ export const buildTradeOrderDocument = (order, party, company, currency) => {
   const items = (order.items || []).map((l) => ({ ...l, rate: l.taxableAmount }));
   const trn = sales ? party.trnNumber || party.vat?.trn || "" : party.trnNO || party.vat?.trn || "";
   const name = sales ? party.customerName : party.vendorName;
-  // A registered customer or supplier is shown the Tax invoice heading (as on the invoice pages); an unregistered one gets
-  // the plain order heading. The number stays "Order no." and the notice says nothing is posted until the invoice is approved.
-  const registered = partyVatStatus(party, trn, name) === "Registered";
+  // An order is NOT an invoice, whoever it is for: it posts nothing and moves no stock, and the invoice made from it carries the
+  // tax. So it always reads as the order it is - it used to read "Tax invoice" for a registered party, which put that heading on a
+  // document that had issued no tax at all. The party's registration is still printed under their name.
   const sheet = sheetFor(
     { ...order, items },
     {
-      title: registered ? "Tax invoice" : sales ? "Sales order" : "Purchase order",
+      title: sales ? "Sales order" : "Purchase order",
       numberLabel: "Order no.",
       number: order.orderNo,
       party: {
@@ -39,17 +39,15 @@ export const buildTradeOrderDocument = (order, party, company, currency) => {
       ],
       company,
       currency,
-      notice: registered
-        ? `Order ${order.orderNo}. Nothing is posted until the invoice made from it is approved.`
-        : sales
-          ? "This is a sales order, not an invoice. The invoice is issued from what is delivered."
-          : "This is a purchase order, not an invoice. Please deliver the goods listed and send your invoice with them.",
+      notice: sales
+        ? `This is a sales order, not an invoice. The invoice is issued from what is delivered, and nothing is posted until it is approved.`
+        : "This is a purchase order, not an invoice. Please deliver the goods listed and send your invoice with them.",
       receipt: false,
       reverseChargeSide: sales ? "supplier" : "recipient",
     }
   );
   return {
-    fileName: `${registered ? "Tax-invoice" : sales ? "Sales-order" : "Purchase-order"}_${order.orderNo}`,
+    fileName: `${sales ? "Sales-order" : "Purchase-order"}_${order.orderNo}`,
     status: order.status,
     missingTrn: false,
     sheet: { ...sheet, terms: order.terms || "" },

@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { ArrowRight, Eye, Pencil, Plus } from "lucide-react";
+import { ArrowRight, Copy, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useToasts } from "../accounting/kit";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
-import { money, savedVerb, toCents } from "../../lib/voucherForms";
+import { contraCopy, idOf, money, savedVerb, toCents } from "../../lib/voucherForms";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 
 // Contra vouchers: cash and bank moving between themselves - a deposit, a withdrawal, a transfer
@@ -39,23 +39,25 @@ export default function ContraVouchers() {
               { key: "transfer", header: "Transfer", card: "title", cell: (v) => leg(v, "creditAmount") ? <span className="inline-flex flex-wrap items-center gap-1.5">{leg(v, "creditAmount")}<ArrowRight className="h-3.5 w-3.5 text-muted-foreground" aria-label="to" />{leg(v, "debitAmount")}</span> : <span className="text-muted-foreground">{v.narration}</span> },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}{v.ledgerBased && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
       </Panel>
-      {form && <ContraForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
+      {form && <ContraForm voucher={form._id ? form : null} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Contra voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Contra deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
 }
 
-export function ContraForm({ voucher, onClose, onSaved }) {
+export function ContraForm({ voucher, copyOf, onClose, onSaved }) {
   const { data: opts, loading, error } = useBankingOptions();
-  const [f, setF] = useState({
+  // A copy is a new voucher that starts with an old one's figures - today's date, no number.
+  const [copied] = useState(() => (copyOf ? contraCopy(copyOf, todayInput()) : null));
+  const [f, setF] = useState(copied || {
     date: voucher ? new Date(voucher.date).toISOString().slice(0, 10) : todayInput(),
-    fromAccountId: voucher?.fromAccountId || "", toAccountId: voucher?.toAccountId || "",
+    fromAccountId: idOf(voucher?.fromAccountId), toAccountId: idOf(voucher?.toAccountId),
     amount: voucher ? String(voucher.totalAmount) : "", narration: voucher?.narration || "",
   });
   const [errors, setErrors] = useState({});
@@ -94,7 +96,9 @@ export function ContraForm({ voucher, onClose, onSaved }) {
 
   return (
     <Modal
-      size="lg" onClose={onClose} title={voucher ? `Edit ${voucher.voucherNo}` : "New contra voucher"} description="Money moving between cash and bank accounts. Ctrl+Enter posts."
+      size="lg" onClose={onClose}
+      title={voucher ? `Edit ${voucher.voucherNo}` : copyOf ? `New contra voucher, copied from ${copyOf.voucherNo}` : "New contra voucher"}
+      description={copyOf ? `A new voucher copied from ${copyOf.voucherNo}. It gets its own number and today's date when you post it.` : "Money moving between cash and bank accounts. Ctrl+Enter posts."}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Posting…" : voucher ? "Save changes" : "Post contra"}</Button></>}
     >
       <div onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } }} className="grid gap-4 sm:grid-cols-2">

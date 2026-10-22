@@ -258,7 +258,9 @@ function AccountRow({ account, depth, onEdit, onLedger }) {
 //                        contacts, bank accounts and KYC documents. The account is "Customer - <name>"
 //   anything else        the basics only
 // Editing a customer or vendor account shows the same sections, filled from the party record.
-export function AccountModal({ account, groupId, groups, onClose, onSaved, onError }) {
+// `preset` fills a new account's fields from where it was opened - the Banks screen opens this with
+// the bank already chosen, so adding an account to a bank does not mean picking that bank again.
+export function AccountModal({ account, groupId, groups, preset, onClose, onSaved, onError }) {
   const editing = Boolean(account);
   const [form, setForm] = useState({
     groupId: account?.groupId || groupId || "",
@@ -269,7 +271,7 @@ export function AccountModal({ account, groupId, groups, onClose, onSaved, onErr
     openingDate: todayInput(),
     allowDirectPosting: account?.allowDirectPosting ?? true,
     isActive: account?.isActive ?? true,
-    bankId: account?.bank?.bankId || "", accountNumber: account?.bank?.accountNumber || "", iban: account?.bank?.iban || "",
+    bankId: account?.bank?.bankId || preset?.bankId || "", accountNumber: account?.bank?.accountNumber || "", iban: account?.bank?.iban || "",
     branchCode: account?.bank?.branchCode || "", accountHolder: account?.bank?.accountHolder || "",
   });
   const banks = useAsync(() => banking.banks({ active: "true" }), []);

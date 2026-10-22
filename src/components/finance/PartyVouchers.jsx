@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axiosInstance from "../../axios/axios";
-import { AlertTriangle, Eye, Plus, Wand2 } from "lucide-react";
+import { AlertTriangle, Copy, Eye, Plus, Wand2 } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
@@ -9,7 +9,7 @@ import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingO
 import { vouchers } from "../../lib/bankingApi";
 import { currencies } from "../../lib/currencyApi";
 import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
-import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
+import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, partyVoucherCopy, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDate, formatDateGB } from "../../utils/format";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
@@ -47,12 +47,12 @@ function PartyVouchers({ direction }) {
   const list = useVoucherList(cfg.voucherType);
   const { notify, toastNode } = useToasts();
   const [initial] = useState(prefillFromAddress);
-  const [form, setForm] = useState(Boolean(initial));
+  const [form, setForm] = useState(initial ? {} : null); // {} for a new one, { copy, initial } to start from a saved one
   const [viewing, setViewing] = useState(null);
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title={cfg.title} description={cfg.description} actions={<Can permission="finance.create"><Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {cfg.one}</Button></Can>} />
+      <PageHeader title={cfg.title} description={cfg.description} actions={<Can permission="finance.create"><Button onClick={() => setForm({})}><Plus className="h-4 w-4" aria-hidden="true" />New {cfg.one}</Button></Can>} />
       <ListToolbar filters={list.filters} set={list.set}>
         <Field label="Paid by" className="w-full sm:w-36">
           <select className={inputClass} value={list.filters.paymentMode} onChange={(e) => list.set({ paymentMode: e.target.value })}>
@@ -76,12 +76,12 @@ function PartyVouchers({ direction }) {
               { key: "invoices", header: "Invoices", align: "end", card: "hidden", className: "tabular-nums", cell: (v) => <>{v.linkedInvoices?.length || 0}{v.onAccountAmount > 0 && <span className="block text-xs text-muted-foreground">{money(toCents(v.onAccountAmount))} on account</span>}</> },
               { key: "amount", header: "Amount", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => <>{money(toCents(v.totalAmount))}{isForeign(v) && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(v.foreignAmount, v.currency)} @ {formatRate(v.exchangeRate)}</span>}</> },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "view", header: <span className="sr-only">Actions</span>, align: "end", card: "hidden", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button><Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title={`Copy into a new ${cfg.one}`} onClick={() => setForm({ copy: v, initial: partyVoucherCopy(v, todayInput()) })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can></>) },
             ]}
           />
         </ListBody>
       </Panel>
-      {form && <PartyVoucherForm cfg={cfg} direction={direction} initial={initial} onClose={() => setForm(false)} onSaved={(msg) => { setForm(false); notify(msg); list.reload(); }} />}
+      {form && <PartyVoucherForm cfg={cfg} direction={direction} initial={form.initial || initial} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title={cfg.one[0].toUpperCase() + cfg.one.slice(1) + " voucher"} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} deleted and reversed`); list.reload(); }} />}
       {toastNode}
     </div>
@@ -102,14 +102,16 @@ export function allocateOldestFirst(invoices, amountCents) {
   return out;
 }
 
-export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = null }) {
+export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = null, copyOf = null }) {
   const { data: opts, error: optsError } = useBankingOptions();
   const [partyId, setPartyId] = useState(initial?.partyId || "");
-  const [date, setDate] = useState(todayInput());
+  const [date, setDate] = useState(initial?.date || todayInput());
   const [amount, setAmount] = useState(initial?.amount || "");
+  // A copy brings no allocations: those settled the original's invoices, so this one is spread over
+  // whatever is open today (the amount sits on account until it is).
   const [alloc, setAlloc] = useState({});
-  const [narration, setNarration] = useState("");
-  const [payment, setPayment] = useState(emptyPayment());
+  const [narration, setNarration] = useState(initial?.narration || "");
+  const [payment, setPayment] = useState(() => initial?.payment || emptyPayment());
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -144,7 +146,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   // Foreign currency. The ledger, the invoices and the allocation below stay in the base currency: a foreign
   // amount is converted once, at the exchange rate shown, and `total` is that base-currency value.
   const currencyList = useAsync(() => currencies.list().catch(() => []), []);
-  const [currency, setCurrency] = useState(""); // "" = the base currency
+  const [currency, setCurrency] = useState(initial?.currency || ""); // "" = the base currency
   const [rateTyped, setRateTyped] = useState(null); // null: not typed, follow the rate on file
   const [reason, setReason] = useState("");
   const currencyOpts = useMemo(() => currencyOptions(currencyList.data), [currencyList.data]);
@@ -228,7 +230,9 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
 
   return (
     <Modal
-      size="xl" onClose={onClose} title={`New ${cfg.one} voucher`} description="Ctrl+Enter posts."
+      size="xl" onClose={onClose}
+      title={copyOf ? `New ${cfg.one} voucher, copied from ${copyOf.voucherNo}` : `New ${cfg.one} voucher`}
+      description={copyOf ? `A new voucher copied from ${copyOf.voucherNo}. Set it against the invoices that are open now - until you do, the amount stays on account.` : "Ctrl+Enter posts."}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Posting…" : `Post ${cfg.one}`}</Button></>}
     >
       <div onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } }} className="space-y-5">

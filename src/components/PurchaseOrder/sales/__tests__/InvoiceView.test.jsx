@@ -220,17 +220,31 @@ describe('buildSalesDocument', () => {
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '   ' }, 'AED').sheet.title).toBe('Invoice');
   });
 
-  it('an unregistered customer is given a Sales order, whatever the company holds', () => {
+  // The reported bug: a sale to an unregistered customer read "Sales order" on this page even after approval, when this page IS
+  // the invoice (the non-posting sales order is its own document, under Orders). The heading follows OUR registration, not theirs.
+  it('an unregistered customer is still given the invoice, and a registered seller still a tax invoice', () => {
     const approved = buildSalesDocument({ transactionNo: 'SO-2', status: 'APPROVED', items: [] }, walkIn, company, 'AED');
-    expect(approved.sheet.title).toBe('Sales order');
-    expect(approved.sheet.number).toEqual({ label: 'Order no.', value: 'SO-2' });
-    expect(approved.fileName).toBe('Sales-order_SO-2');
-    expect(approved.taxInvoice).toBe(false);
-    expect(approved.sheet.notice).toMatch(/sales order/);
-    expect(approved.missingTrn).toBe(false); // nothing is claimed that the company's TRN would have to back
+    expect(approved.sheet.title).toBe('Tax invoice');
+    expect(approved.sheet.number).toEqual({ label: 'Invoice no.', value: 'SO-2' });
+    expect(approved.fileName).toBe('Tax-invoice_SO-2');
+    expect(approved.taxInvoice).toBe(true);
+    expect(approved.sheet.notice).toMatch(/computer-generated tax invoice/);
+    expect(approved.sheet.party.vatStatus).toBe('Unregistered'); // the customer's own status is still printed
+    expect(approved.missingTrn).toBe(false);
     const draft = buildSalesDocument({ transactionNo: 'SO-2', status: 'DRAFT', items: [] }, walkIn, company, 'AED');
-    expect(draft.sheet.title).toBe('Sales order');
-    expect(draft.sheet.number.label).toBe('Draft order no.');
+    expect(draft.sheet.title).toBe('Tax invoice');
+    expect(draft.sheet.number.label).toBe('Draft invoice no.');
+    expect(draft.taxInvoice).toBe(false); // not issued yet
+  });
+
+  it('a seller with no tax number gives an unregistered customer a plain invoice, never an order', () => {
+    const doc = buildSalesDocument({ transactionNo: 'SO-3', status: 'APPROVED', items: [] }, walkIn, { companyName: 'Brivox' }, 'AED');
+    expect(doc.sheet.title).toBe('Invoice');
+    expect(doc.sheet.number.label).toBe('Invoice no.');
+    expect(doc.fileName).toBe('Invoice_SO-3');
+    expect(doc.taxInvoice).toBe(false);
+    expect(doc.sheet.notice).not.toMatch(/order/);
+    expect(doc.missingTrn).toBe(false); // an unregistered customer is not expecting our tax number
   });
 
   it("prints the party's VAT status from the master, from the TRN when the master has none, and not at all for an unknown party", () => {

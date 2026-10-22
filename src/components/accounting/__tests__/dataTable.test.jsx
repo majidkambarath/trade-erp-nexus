@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter } from "react-router-dom";
 import { DataTable } from "../DataTable";
 import { Pill } from "../kit";
 
@@ -207,6 +207,69 @@ describe("DataTable: opening a row", () => {
     });
     fireEvent.click(within(cardRows()[0]).getByRole("button", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalledWith("1");
+  });
+
+  // A row action and the row itself are two different things to click. Before this, the <tr>'s own
+  // handler ran as well, so pressing Edit in the actions cell opened the edit form AND the row's view
+  // modal, one stacked over the other (reported on Finance > Journal).
+  it("does not also open the row when a button inside it is pressed", () => {
+    const onRowClick = vi.fn();
+    const onEdit = vi.fn();
+    draw(
+      {
+        onRowClick,
+        columns: columns([
+          {
+            key: "actions",
+            header: "",
+            card: "actions",
+            cell: (r) => (
+              <button type="button" onClick={() => onEdit(r._id)}>
+                Edit
+              </button>
+            ),
+          },
+        ]),
+      },
+      true
+    );
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1];
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    expect(onEdit).toHaveBeenCalledWith("1");
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("does not also open the row when a link inside it is followed", () => {
+    const onRowClick = vi.fn();
+    draw(
+      {
+        onRowClick,
+        columns: [
+          { key: "no", header: "Number", cell: (r) => <Link to={`/x/${r._id}`}>{r.no}</Link> },
+          { key: "party", header: "Party", cell: (r) => r.party },
+        ],
+      },
+      true
+    );
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1];
+    fireEvent.click(within(row).getByRole("link"));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("still opens the row from a plain cell beside an action", () => {
+    const onRowClick = vi.fn();
+    draw(
+      {
+        onRowClick,
+        columns: columns([
+          { key: "actions", header: "", card: "actions", cell: () => <button type="button">Edit</button> },
+        ]),
+      },
+      true
+    );
+    const row = within(screen.getByRole("table")).getAllByRole("row")[1];
+    fireEvent.click(within(row).getByText("Al Noor Trading"));
+    expect(onRowClick).toHaveBeenCalledWith(ROWS[0]);
   });
 
   it("does not deaden its cells when the row opens nowhere", () => {

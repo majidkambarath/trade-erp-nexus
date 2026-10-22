@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import axiosInstance from "../../axios/axios";
-import { Eye, Pencil, Plus } from "lucide-react";
+import { Copy, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
@@ -8,7 +8,7 @@ import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { describePayment, emptyPayment, money, paymentFromVoucher, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
+import { describePayment, emptyPayment, expenseCopy, idOf, money, paymentFromVoucher, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDateGB } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { taxWord } from "../../lib/taxTerms";
@@ -47,30 +47,34 @@ export default function ExpenseVouchers() {
               { key: "vat", header: taxWord(), align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && v.paymentMode !== "cheque" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}{v.ledgerBased && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
       </Panel>
-      {form && <ExpenseForm voucher={form._id ? form : null} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
+      {form && <ExpenseForm voucher={form._id ? form : null} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Expense voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Expense deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
 }
 
-export function ExpenseForm({ voucher, onClose, onSaved }) {
+export function ExpenseForm({ voucher, copyOf, onClose, onSaved }) {
   const { options: expenseOptions, loading: loadingAccounts, error: accountsError } = useChartAccounts(EXPENSE_ONLY);
   const { data: opts, error: optsError } = useBankingOptions();
   const taxes = useAsync(() => accounting.taxCodes(), []);
   const vendors = useAsync(() => axiosInstance.get("/vendors/vendors").then((r) => r.data?.data || []), []);
-  const [f, setF] = useState({
+  // A copy is a new voucher that starts with an old one's figures - today's date, no number, and the
+  // payment instrument cleared (see expenseCopy).
+  const [copied] = useState(() => (copyOf ? expenseCopy(copyOf, todayInput()) : null));
+  const [f, setF] = useState(copied?.fields || {
     date: voucher ? new Date(voucher.date).toISOString().slice(0, 10) : todayInput(),
-    expenseAccountId: voucher?.expenseAccountId || "", description: voucher?.description || "",
-    amount: voucher ? String(voucher.subtotal ?? voucher.totalAmount) : "", taxCodeId: voucher?.taxCodeId || "",
-    vendorId: voucher?.partyType === "Vendor" ? voucher.partyId : "",
+    expenseAccountId: idOf(voucher?.expenseAccountId), description: voucher?.description || "",
+    amount: voucher ? String(voucher.subtotal ?? voucher.totalAmount) : "", taxCodeId: idOf(voucher?.taxCodeId),
+    // the list populates partyId, so this needs the id out of the document, not the document
+    vendorId: voucher?.partyType === "Vendor" ? idOf(voucher.partyId) : "",
   });
-  const [payment, setPayment] = useState(() => (voucher ? paymentFromVoucher(voucher) : emptyPayment()));
+  const [payment, setPayment] = useState(() => copied?.payment || (voucher ? paymentFromVoucher(voucher) : emptyPayment()));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -110,7 +114,9 @@ export function ExpenseForm({ voucher, onClose, onSaved }) {
 
   return (
     <Modal
-      size="lg" onClose={onClose} title={voucher ? `Edit ${voucher.voucherNo}` : "New expense voucher"} description="Ctrl+Enter posts."
+      size="lg" onClose={onClose}
+      title={voucher ? `Edit ${voucher.voucherNo}` : copyOf ? `New expense voucher, copied from ${copyOf.voucherNo}` : "New expense voucher"}
+      description={copyOf ? `A new voucher copied from ${copyOf.voucherNo}. It gets its own number and today's date when you post it; enter the cheque or reference afresh.` : "Ctrl+Enter posts."}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Posting…" : voucher ? "Save changes" : "Post expense"}</Button></>}
     >
       <div onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) ) { e.preventDefault(); save(); } }} className="space-y-5">

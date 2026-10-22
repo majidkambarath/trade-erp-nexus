@@ -1,3 +1,4 @@
+import { isForeign } from "./currencyForms";
 import { taxWord } from "./taxTerms";
 // Pure logic behind the finance voucher forms, kept out of the components so it can be tested
 // without rendering. Money is handled in whole cents so 0.1 + 0.2 never shows as 0.30000000000000004.
@@ -8,6 +9,10 @@ export const toCents = (v) => {
 };
 export const fromCents = (c) => Math.round(c) / 100;
 export const money = (c) => fromCents(c).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// The same field is an id from one path and a populated object from another: a voucher read back
+// from the list carries a plain `partyId`, the single GET carries the whole party. Forms want the id.
+export const idOf = (x) => (x && typeof x === "object" ? x._id || x.id || "" : x || "");
 
 // ------------------------------------------------------------------ payment modes
 export const PAYMENT_MODES = [
@@ -154,7 +159,7 @@ export function journalPayload({ date, narration, rows }) {
 
 export function journalRowsFromVoucher(v) {
   return (v?.entries || []).map((e) => ({
-    accountId: e.accountId, narration: e.description || "",
+    accountId: idOf(e.accountId), narration: e.description || "",
     debit: e.debitAmount ? String(e.debitAmount) : "", credit: e.creditAmount ? String(e.creditAmount) : "",
   }));
 }
@@ -227,3 +232,67 @@ export const accountOption = (a) => ({
   value: a._id, label: a.accountName, hint: a.accountCode,
   searchText: `${a.accountCode} ${a.groupName || ""} ${a.category || ""}`,
 });
+
+// ------------------------------------------------------------------------------ copying a voucher
+// A copy is a NEW voucher that merely starts with an old one's figures. It takes the accounts, the
+// amounts and the words; it takes nothing that identifies the original or records what the original
+// settled - no number, no status, no approvals, no invoice allocations, and none of the payment
+// instrument. The date is today's, so a copy of last month's rent cannot land in a closed period,
+// and the number is allocated on save like any new voucher's.
+
+// The instrument identifies one real payment - a cheque number, a transfer reference, a card
+// authorisation. Keep HOW it was paid and out of which account; the new voucher gets its own.
+export const copyPayment = (p) => ({ ...p, reference: "", referenceDate: "", chequeNo: "", chequeDate: "", approvalCode: "" });
+
+export const journalCopy = (v, today) => {
+  const rows = journalRowsFromVoucher(v);
+  return { date: today, narration: v?.narration || "", rows: rows.length ? rows : [emptyJournalRow(), emptyJournalRow()] };
+};
+
+export const expenseCopy = (v, today) => ({
+  fields: {
+    date: today,
+    expenseAccountId: idOf(v?.expenseAccountId),
+    description: v?.description || "",
+    // the NET amount: the form adds the tax from the code at the new date, so vatTotal is never copied
+    amount: (v?.subtotal ?? v?.totalAmount) == null ? "" : String(v.subtotal ?? v.totalAmount),
+    taxCodeId: idOf(v?.taxCodeId),
+    vendorId: v?.partyType === "Vendor" ? idOf(v?.partyId) : "",
+  },
+  payment: copyPayment(paymentFromVoucher(v)),
+});
+
+export const contraCopy = (v, today) => ({
+  date: today, fromAccountId: idOf(v?.fromAccountId), toAccountId: idOf(v?.toAccountId),
+  amount: v?.totalAmount == null ? "" : String(v.totalAmount), narration: v?.narration || "",
+});
+
+export const noteLinesFromVoucher = (v) => (v?.noteLines || []).map((l) => ({
+  ...emptyNoteLine(), accountId: idOf(l.accountId), description: l.description || "",
+  amount: l.amount == null ? "" : String(l.amount), taxCodeId: idOf(l.taxCodeId),
+}));
+
+// The invoice the original was set against is deliberately dropped: a copy must not credit it twice.
+export const noteCopy = (v, today) => {
+  const lines = noteLinesFromVoucher(v);
+  return {
+    type: v?.voucherType, partyType: v?.partyType || "Customer", partyId: idOf(v?.partyId),
+    invoiceId: "", date: today, narration: v?.narration || "", lines: lines.length ? lines : [emptyNoteLine()],
+  };
+};
+
+// `alloc` is dropped: the allocations are the original's settlement of particular invoices, and those
+// invoices are closer to settled now - the person spreads this voucher over what is open today.
+// A foreign-currency voucher is copied in ITS currency with the foreign amount, because `totalAmount`
+// is the base-currency equivalent at the OLD rate: copying that figure would quietly change what the
+// voucher is for. The rate is never copied - the form looks today's up, the only one the server takes.
+export const partyVoucherCopy = (v, today) => {
+  const foreign = isForeign(v);
+  return {
+    partyId: idOf(v?.partyId), date: today,
+    amount: String((foreign ? v.foreignAmount : v?.totalAmount) ?? ""),
+    currency: foreign ? v.currency : "",
+    alloc: {}, narration: v?.narration || "",
+    payment: copyPayment(paymentFromVoucher(v)),
+  };
+};

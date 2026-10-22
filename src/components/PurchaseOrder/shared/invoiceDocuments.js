@@ -84,14 +84,17 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);
   const customerTrn = customer.trnNumber || customer.vat?.trn || "";
   const vatStatus = partyVatStatus(customer, customerTrn, customer.customerName);
-  // The heading follows who the document is for. A VAT-registered customer is given a "Tax invoice" (which needs the company's own
-  // TRN: without one it is a plain "Invoice" and the screen says why). Any other customer is given a "Sales order", as asked for.
+  // The heading follows the SELLER, which is us: a company with its own tax number issues a "Tax invoice", a company without one
+  // a plain "Invoice". The customer's registration does NOT decide it - a supply to an unregistered customer is still an invoice,
+  // and in both the UAE and India a registered supplier must issue a tax invoice for a taxable supply. It used to decide it, so
+  // this page - which IS the invoice - read "Sales order" for an unregistered customer even after approval, which is the one
+  // thing it is not: the non-posting sales order is its own document, under Orders. The customer's status is still printed under
+  // their name, and is what decides whether their own tax number is expected.
   const customerRegistered = vatStatus === "Registered";
   const companyRegistered = isTaxInvoice(company);
-  const kind = customerRegistered ? (companyRegistered ? "Tax invoice" : "Invoice") : "Sales order";
-  const taxInvoice = invoiced && kind === "Tax invoice"; // an ISSUED tax invoice (what sending and the e-invoice look at)
+  const kind = companyRegistered ? "Tax invoice" : "Invoice";
+  const taxInvoice = invoiced && companyRegistered; // an ISSUED tax invoice (what sending and the e-invoice look at)
   const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
-  const isOrder = kind === "Sales order";
   const noun = kind.toLowerCase();
   return {
     fileName: `${invoiced ? "" : "Draft-"}${kind.replace(/ /g, "-")}_${number}`,
@@ -101,7 +104,7 @@ export const buildSalesDocument = (so, customer, company, currency) => {
     taxInvoice,
     sheet: sheetFor(so, {
       title: kind,
-      numberLabel: `${invoiced ? "" : "Draft "}${isOrder ? "order" : "invoice"} no.`.replace(/^./, (c) => c.toUpperCase()),
+      numberLabel: `${invoiced ? "" : "Draft "}invoice no.`.replace(/^./, (c) => c.toUpperCase()),
       number,
       party: {
         heading: "Bill to",
@@ -130,22 +133,23 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   };
 };
 
-// A purchase document as it is recorded in our books. For a VAT-registered supplier it reads "Tax invoice" (that is what it is, and
-// what input VAT is claimed on); for any other supplier it reads "Purchase order", as asked for, and says that no input VAT can be
-// recovered on it. (The non-posting order in front of it is its own document, under Orders.)
+// A purchase document as it is recorded in our books. Here the SELLER is the supplier, so their registration decides: a registered
+// supplier's bill is a "Tax invoice" (that is what it is, and what input tax is claimed on); any other supplier's is a plain
+// "Purchase invoice" that says no input tax can be recovered on it. It read "Purchase order", which is a different document
+// altogether - the non-posting order in front of it, under Orders.
 export const buildPurchaseDocument = (po, vendor, company, currency) => {
   const invoiced = INVOICED.includes(po.status);
   const vendorTrn = vendor.trnNO || vendor.vat?.trn || "";
   const vatStatus = partyVatStatus(vendor, vendorTrn, vendor.vendorName);
   const registered = vatStatus === "Registered";
-  const kind = registered ? "tax invoice" : "purchase order";
+  const kind = registered ? "tax invoice" : "purchase invoice";
   return {
-  fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-order"}_${po.transactionNo}`,
+  fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-invoice"}_${po.transactionNo}`,
   status: po.status,
   missingTrn: false,
   sheet: sheetFor(po, {
-    title: registered ? "Tax invoice" : "Purchase order",
-    numberLabel: `${invoiced ? "" : "Draft "}${registered ? "invoice" : "order"} no.`.replace(/^./, (c) => c.toUpperCase()),
+    title: registered ? "Tax invoice" : "Purchase invoice",
+    numberLabel: `${invoiced ? "" : "Draft "}invoice no.`.replace(/^./, (c) => c.toUpperCase()),
     number: po.transactionNo,
     party: {
       heading: "Supplier",
@@ -173,23 +177,23 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
   };
 };
 
-// A sales return: goods coming back from the customer. It is a credit, never a sale, so it is never titled as a tax invoice. For a
-// registered customer it reads "Tax credit note" (what the customer is given for the goods), for any other a plain "Sales return".
-// The invoice it returns is named, and an approved return is set against it (the invoice owes that much less).
+// A sales return: goods coming back from the customer. It is a credit, never a sale, so it is never titled as a tax invoice. It
+// follows our own registration, as the invoice it credits does: a company with a tax number gives a "Tax credit note", one without
+// a plain "Credit note". The invoice it returns is named, and an approved return is set against it (the invoice owes that much less).
 export const buildSalesReturnDocument = (so, customer, company, currency) => {
   const trn = customer.trnNumber || customer.vat?.trn || "";
   const name = customer.customerName || so.customerName || "";
   const vatStatus = partyVatStatus(customer, trn, name);
-  const registered = vatStatus === "Registered";
+  const registered = isTaxInvoice(company);
   const original = so.returnOf?.transactionNo || so.refNo || so.lpono || "";
   const issued = INVOICED.includes(so.status);
   return {
-    fileName: `${registered ? "Tax-credit-note" : "Sales-return"}_${so.transactionNo}`,
+    fileName: `${registered ? "Tax-credit-note" : "Credit-note"}_${so.transactionNo}`,
     status: so.status,
     missingTrn: false,
     sheet: sheetFor(so, {
-      title: registered ? "Tax credit note" : "Sales return",
-      numberLabel: registered ? "Credit note no." : "Return no.",
+      title: registered ? "Tax credit note" : "Credit note",
+      numberLabel: "Credit note no.",
       number: so.transactionNo,
       party: {
         heading: "Customer",
@@ -207,28 +211,28 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
       ],
       company,
       currency,
-      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "tax credit note" : "sales return note"}. It credits the goods returned${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
+      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "tax credit note" : "credit note"}. It credits the goods returned${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
       receipt: true,
       reverseChargeSide: "supplier",
     }),
   };
 };
 
-// A purchase return: goods sent back to the vendor. For a registered supplier it reads "Debit note" (what the supplier is asked to
-// credit us for the goods), for any other a plain "Purchase return". An approved return is set against the invoice it returns.
+// A purchase return: goods sent back to the vendor. It is the debit note the supplier is asked to credit us against, whoever they
+// are, so it is titled so for every supplier; only the notice differs, because an unregistered supplier charged no tax to reverse.
+// An approved return is set against the invoice it returns.
 export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
   const trn = vendor.trnNO || vendor.vat?.trn || "";
   const vatStatus = partyVatStatus(vendor, trn, vendor.vendorName);
-  const registered = vatStatus === "Registered";
   const original = po.returnOf?.transactionNo || "";
   const issued = INVOICED.includes(po.status);
   return {
-    fileName: `${registered ? "Debit-note" : "Purchase-return"}_${po.transactionNo}`,
+    fileName: `Debit-note_${po.transactionNo}`,
     status: po.status,
     missingTrn: false,
     sheet: sheetFor(po, {
-      title: registered ? "Debit note" : "Purchase return",
-      numberLabel: registered ? "Debit note no." : "Return no.",
+      title: "Debit note",
+      numberLabel: "Debit note no.",
       number: po.transactionNo,
       party: {
         heading: "Supplier",
@@ -247,7 +251,7 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
       ],
       company,
       currency,
-      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "debit note" : "purchase return note"}. It records the goods sent back to the vendor${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
+      notice: `${issued ? "This is a computer-generated" : "This is a draft"} debit note. It records the goods sent back to the vendor${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
       receipt: true,
       reverseChargeSide: "recipient",
     }),

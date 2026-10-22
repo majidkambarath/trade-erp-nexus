@@ -12,9 +12,10 @@ describe("sales return", () => {
   const customer = { customerId: "CUST-9", customerName: "Spinneys", trnNumber: "" };
   const doc = buildSalesReturnDocument({ transactionNo: "SR-1", status: "CONFIRMED", items, date: "2026-10-05" }, customer, company, "AED");
 
-  it("is titled as a return, never as a tax invoice", () => {
-    expect(doc.sheet.title).toBe("Sales return");
-    expect(doc.sheet.number).toEqual({ label: "Return no.", value: "SR-1" });
+  it("is titled as a credit note, never as a tax invoice", () => {
+    // the company here has a tax number, so the credit it gives carries the tax word, as its invoice does
+    expect(doc.sheet.title).toBe("Tax credit note");
+    expect(doc.sheet.number).toEqual({ label: "Credit note no.", value: "SR-1" });
     expect(doc.sheet.notice).not.toMatch(/tax invoice/i);
   });
 
@@ -33,7 +34,7 @@ describe("purchase return", () => {
   const vendor = { vendorId: "VEND-1", vendorName: "Al Maya", trnNO: "200000000000003", paymentTerms: "" };
   const doc = buildPurchaseReturnDocument({ transactionNo: "PR-1", status: "PENDING", items, vendorReference: "VR-7" }, vendor, company, "AED");
 
-  it("is a debit note for a registered supplier, and says which party it is for", () => {
+  it("is a debit note, and says which party it is for", () => {
     expect(doc.sheet.title).toBe("Debit note");
     expect(doc.sheet.number.label).toBe("Debit note no.");
     expect(doc.fileName).toBe("Debit-note_PR-1");
@@ -66,13 +67,15 @@ describe("purchase invoice", () => {
     expect(approved.sheet.party.vatStatus).toBe("Registered");
   });
 
-  it("an unregistered supplier's is a purchase order and says no input VAT can be recovered", () => {
+  // The page IS the supplier's bill, so an unregistered supplier's is still an invoice - a plain one, with no input tax to claim.
+  // It used to be titled "Purchase order", which is a different document altogether (the non-posting order, under Orders).
+  it("an unregistered supplier's is a plain purchase invoice and says no input VAT can be recovered", () => {
     const doc = buildPurchaseDocument({ transactionNo: "PO-2", status: "APPROVED", items: [] }, unregistered, company, "AED");
-    expect(doc.sheet.title).toBe("Purchase order");
-    expect(doc.sheet.number).toEqual({ label: "Order no.", value: "PO-2" });
-    expect(doc.fileName).toBe("Purchase-order_PO-2");
+    expect(doc.sheet.title).toBe("Purchase invoice");
+    expect(doc.sheet.number).toEqual({ label: "Invoice no.", value: "PO-2" });
+    expect(doc.fileName).toBe("Purchase-invoice_PO-2");
     expect(doc.sheet.notice).toMatch(/no input VAT can be recovered/);
-    expect(buildPurchaseDocument({ transactionNo: "PO-2", status: "DRAFT", items: [] }, unregistered, company, "AED").sheet.number.label).toBe("Draft order no.");
+    expect(buildPurchaseDocument({ transactionNo: "PO-2", status: "DRAFT", items: [] }, unregistered, company, "AED").sheet.number.label).toBe("Draft invoice no.");
   });
 
   it("a supplier with only a TRN on file reads as registered", () => {
@@ -82,7 +85,8 @@ describe("purchase invoice", () => {
 
   it("a party that is not known at all is not claimed to be registered", () => {
     const doc = buildPurchaseDocument({ transactionNo: "PO-4", status: "DRAFT", items: [] }, {}, company, "AED");
-    expect(doc.sheet.title).toBe("Purchase order");
+    expect(doc.sheet.title).toBe("Purchase invoice");
+    expect(doc.sheet.party.vatStatus).toBe("");
   });
 });
 
@@ -125,7 +129,7 @@ describe("a line's item code", () => {
   });
 });
 
-describe("returns: the heading follows the party's registration, and the invoice returned is named", () => {
+describe("returns: a credit note and a debit note, with the invoice returned named", () => {
   const customer = { customerId: "C1", customerName: "Al Noor", trnNumber: "100123456700003", vat: { status: "registered" } };
   const walkIn = { customerName: "Walk-in", vat: { status: "unregistered" } };
   const ret = (over = {}) => ({ transactionNo: "SR-1", status: "APPROVED", items: [], returnOf: { transactionId: "i1", transactionNo: "SO-2026-0042" }, ...over });
@@ -139,10 +143,15 @@ describe("returns: the heading follows the party's registration, and the invoice
     expect(doc.fileName).toBe("Tax-credit-note_SR-1");
   });
 
-  it("an unregistered customer's stays a sales return, and is never a tax invoice", () => {
-    const doc = buildSalesReturnDocument(ret(), walkIn, company, "AED");
-    expect(doc.sheet.title).toBe("Sales return");
-    expect(doc.sheet.number.label).toBe("Return no.");
+  // The credit follows OUR registration, as the invoice it credits does: the customer's own status changes nothing.
+  it("an unregistered customer is credited by the same note, and a company with no tax number gives a plain credit note", () => {
+    const sameNote = buildSalesReturnDocument(ret(), walkIn, company, "AED");
+    expect(sameNote.sheet.title).toBe("Tax credit note");
+    const doc = buildSalesReturnDocument(ret(), walkIn, { companyName: "NH Foods", vatNumber: "" }, "AED");
+    expect(doc.sheet.title).toBe("Credit note");
+    expect(doc.sheet.number.label).toBe("Credit note no.");
+    expect(doc.fileName).toBe("Credit-note_SR-1");
+    expect(doc.sheet.notice).not.toMatch(/tax/i);
   });
 
   it("a draft return says nothing is posted yet", () => {
@@ -151,9 +160,10 @@ describe("returns: the heading follows the party's registration, and the invoice
     expect(doc.sheet.notice).toMatch(/Nothing is posted and no stock moves until it is approved/);
   });
 
-  it("a purchase return from an unregistered supplier stays a purchase return", () => {
+  it("a purchase return is the same debit note whoever the supplier is", () => {
     const doc = buildPurchaseReturnDocument(ret({ transactionNo: "PR-2" }), { vendorName: "Corner Shop", vat: { status: "unregistered" } }, company, "AED");
-    expect(doc.sheet.title).toBe("Purchase return");
+    expect(doc.sheet.title).toBe("Debit note");
+    expect(doc.sheet.party.vatStatus).toBe("Unregistered");
     expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
   });
 });

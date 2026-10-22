@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
-import { Eye, Plus } from "lucide-react";
+import { Copy, Eye, Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, DateInput, ErrorNote, Field, Modal, PageHeader, Panel, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
@@ -9,7 +9,7 @@ import EntryGrid from "./EntryGrid";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
-import { emptyNoteLine, money, noteTotals, notePreview, savedVerb, toCents, validateNote } from "../../lib/voucherForms";
+import { emptyNoteLine, money, noteCopy, noteTotals, notePreview, savedVerb, toCents, validateNote } from "../../lib/voucherForms";
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
@@ -35,7 +35,7 @@ export default function DebitCreditNotes() {
   const type = TYPES[params.get("type")] ? params.get("type") : "credit_note";
   const list = useVoucherList(type);
   const { notify, toastNode } = useToasts();
-  const [form, setForm] = useState(false);
+  const [form, setForm] = useState(null); // {} for a new note, { copy: v } to start from a saved one
   const [viewing, setViewing] = useState(null);
 
   return (
@@ -43,7 +43,7 @@ export default function DebitCreditNotes() {
       <PageHeader
         title="Debit and credit notes"
         description="Adjust what a customer or vendor owes without a new invoice: a price correction, damaged goods, an extra charge."
-        actions={<Can permission="finance.create"><Button onClick={() => setForm(true)}><Plus className="h-4 w-4" aria-hidden="true" />New {TYPES[type].one}</Button></Can>}
+        actions={<Can permission="finance.create"><Button onClick={() => setForm({})}><Plus className="h-4 w-4" aria-hidden="true" />New {TYPES[type].one}</Button></Can>}
       />
       <div role="tablist" aria-label="Note type" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
         {Object.entries(TYPES).map(([key, t]) => (
@@ -71,12 +71,12 @@ export default function DebitCreditNotes() {
               { key: "vat", header: taxWord(), align: "end", card: "hidden", className: "tabular-nums text-muted-foreground", cell: (v) => v.vatTotal ? money(toCents(v.vatTotal)) : "" },
               { key: "total", header: "Total", align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", cell: (v) => <button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button> },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.noteLines?.length > 0 && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new note`} title="Copy into a new note" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
       </Panel>
-      {form && <NoteForm initialType={type} onClose={() => setForm(false)} onSaved={(msg, savedType) => { setForm(false); notify(msg); if (savedType !== type) setParams({ type: savedType }, { replace: true }); else list.reload(); }} />}
+      {form && <NoteForm initialType={type} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg, savedType) => { setForm(null); notify(msg); if (savedType !== type) setParams({ type: savedType }, { replace: true }); else list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title={TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Note deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
@@ -94,17 +94,20 @@ const Segmented = ({ label, value, onChange, options }) => (
   </div>
 );
 
-export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
+export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved }) {
   const { accounts, options: accountOptions, loading: loadingAccounts, error: accountsError } = useChartAccounts();
   const taxes = useAsync(() => accounting.taxCodes(), []);
   const grid = useRef(null);
-  const [type, setType] = useState(initialType);
-  const [partyType, setPartyType] = useState("Customer");
-  const [partyId, setPartyId] = useState("");
+  // A copy starts from a saved note's party and lines. The invoice the original was set against is
+  // NOT copied: that invoice is closer to settled now, so the person picks from what is open today.
+  const [copied] = useState(() => (copyOf ? noteCopy(copyOf, todayInput()) : null));
+  const [type, setType] = useState(copied?.type || initialType);
+  const [partyType, setPartyType] = useState(copied?.partyType || "Customer");
+  const [partyId, setPartyId] = useState(copied?.partyId || "");
   const [invoiceId, setInvoiceId] = useState("");
-  const [date, setDate] = useState(todayInput());
-  const [narration, setNarration] = useState("");
-  const [lines, setLines] = useState([emptyNoteLine()]);
+  const [date, setDate] = useState(copied?.date || todayInput());
+  const [narration, setNarration] = useState(copied?.narration || "");
+  const [lines, setLines] = useState(() => copied?.lines || [emptyNoteLine()]);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -154,7 +157,9 @@ export function NoteForm({ initialType = "credit_note", onClose, onSaved }) {
 
   return (
     <Modal
-      size="xl" onClose={onClose} title={`New ${TYPES[type].one}`} description="Enter moves across the line; Alt+N adds a line; Ctrl+Enter posts."
+      size="xl" onClose={onClose}
+      title={copyOf ? `New ${TYPES[type].one}, copied from ${copyOf.voucherNo}` : `New ${TYPES[type].one}`}
+      description={copyOf ? `A new note copied from ${copyOf.voucherNo}. It is not set against an invoice - choose one below if it should be.` : "Enter moves across the line; Alt+N adds a line; Ctrl+Enter posts."}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || totals.total <= 0}>{busy ? "Posting…" : `Post ${TYPES[type].one}`}</Button></>}
     >
       <div onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } }} className="space-y-5">
