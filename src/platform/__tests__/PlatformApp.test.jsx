@@ -505,6 +505,27 @@ describe("one organisation", () => {
     expect(await screen.findByText("The base currency cannot be changed once the organisation is set up", {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
+
+  it("changes an organisation's time zone, and only when it really changed", async () => {
+    signIn();
+    // Brivox: an Indian organisation whose books were made on Dubai time
+    api.organisation.mockResolvedValue(detail({ organisation: { legalName: "Brivox Production", code: "brivox", country: "IN", baseCurrency: "INR", timezone: "Asia/Dubai" } }));
+    renderConsole("/platform/organisations/brivox?tab=company");
+    await screen.findByRole("heading", { name: "Country, currency and time zone" });
+    // the country and the currency are stated, and cannot be edited here
+    expect(screen.getByLabelText("Country")).toBeDisabled();
+    expect(screen.getByLabelText("Base currency")).toHaveValue("INR");
+    const save = screen.getByRole("button", { name: "Save time zone" });
+    expect(save).toBeDisabled(); // nothing has changed yet
+
+    const box = screen.getByRole("combobox", { name: /Time zone/ });
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: /Asia\/Kolkata/ }));
+    expect(screen.getByText(/It is .* there now \(UTC\+05:30\)\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save time zone" }));
+    await waitFor(() => expect(api.updateOrganisation).toHaveBeenCalledTimes(1));
+    expect(api.updateOrganisation).toHaveBeenCalledWith("brivox", { timezone: "Asia/Kolkata" });
+  });
   it("adds a person with a role and a branch", async () => {
     signIn();
     api.branches.mockResolvedValue([{ code: "main", name: "Head office", isHeadOffice: true, isActive: true }]);

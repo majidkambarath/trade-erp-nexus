@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.5.0.1 — 22 October 2026
+
+A developer-console fix on top of 1.5.0.0. Backend unchanged (still 1.5.0.0).
+
+### Fixed
+
+- **An organisation's time zone could not be changed once it existed.** Only the New organisation form
+  ever set it, and the detail page merely printed it, so an organisation made on the wrong clock — an
+  Indian customer whose books were set to Asia/Dubai — stayed on it. The Company tab now has
+  **Country, currency and time zone**: the country and the base currency are stated as the fixed facts
+  they are (they decide the tax set and the ledger's currency), and the time zone is a picker that lists
+  the organisation's own country's zones first, each with its offset and the clock there now. Save is
+  dead until the zone really changes. The server already accepted the change and still refuses a zone
+  west of UTC; what was missing was the field.
+
+### Internal
+
+- The version had drifted: 1.5.0.0 bumped `package.json` but left the service worker, `product.js` and
+  the lockfile reading 1.4.0.0. All four now say the same thing.
+
 ## 1.5.0.0 — 21 October 2026
 
 The CRM becomes something we can sell on its own, a salesperson can arrange a meeting and write to a
