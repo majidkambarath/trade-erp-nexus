@@ -3,7 +3,7 @@ import { Download, Loader2, Paperclip, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { accounting, downloadAttachment, uploadAttachment } from "../../lib/accountingApi";
 import { checkFile, formatBytes } from "../accounting/AttachmentPanel";
-import { DateInput, ErrorNote, Field, Pill, SearchSelect, TextInput } from "../accounting/kit";
+import { DateInput, ErrorNote, Field, PhoneInput, Pill, SearchSelect, TextInput } from "../accounting/kit";
 import { formatDate } from "../../utils/format";
 import { isUae, taxWord } from "../../lib/taxTerms";
 import {
@@ -57,7 +57,7 @@ export function ContactsSection({ value, set, errors }) {
             <TextInput type="email" value={c.email} onChange={(e) => edit(i, { email: e.target.value })} maxLength={120} />
           </Field>
           <Field label="Phone" error={errors[`contacts.${i}.phone`]}>
-            <TextInput type="tel" value={c.phone} onChange={(e) => edit(i, { phone: e.target.value })} maxLength={30} />
+            <PhoneInput value={c.phone} onChange={(e) => edit(i, { phone: e.target.value })} />
           </Field>
           <PrimaryRadio group={group} checked={c.isPrimary} onChange={() => set({ contacts: setPrimary(rows, i) })} label="Primary contact" />
         </RowFrame>

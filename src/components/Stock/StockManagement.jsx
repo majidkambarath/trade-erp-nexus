@@ -42,7 +42,9 @@ import { toastClasses } from "../../lib/status";
 import { pageSession } from "../../lib/pageSession";
 import StatCard from "../ui/stat-card";
 
-import { DateInput, Field, QuickAddSelect, SearchSelect } from "../accounting/kit";
+import { AmountInput, ConfirmDialog, DateInput, Field, QuickAddSelect, SearchSelect } from "../accounting/kit";
+import { DISCARD_LABEL, DISCARD_TEXT, DISCARD_TITLE, KEEP_LABEL, useTypedIn } from "../../lib/unsavedWork";
+import { useBeforeUnloadGuard } from "../../lib/useBeforeUnloadGuard";
 import { DataTable } from "../accounting/DataTable";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
@@ -192,6 +194,14 @@ const StockManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editItemId, setEditItemId] = useState(null);
+  // This dialog is not the shared Modal, which asks this question for itself, so it asks here.
+  //
+  // A reload is the only thing that really loses a half-typed item: `pageSession` keeps the draft
+  // while the person goes and looks at something else and brings it back when they return, so this
+  // deliberately does NOT register with the guard around the pages - that would ask about a move
+  // which costs nothing. Closing the dialog is the other half, and does throw the draft away.
+  const [typedInItem, watchItemTyping, forgetItemTyping] = useTypedIn();
+  const [askingDiscard, setAskingDiscard] = useState(false);
 
   // The search, the choices and the sort come back as the person left them (lazy initialisers: the first render already has them,
   // so nothing flashes unfiltered). A half-filled new item comes back too, but only a NEW one (see the save effect below).
@@ -505,10 +515,22 @@ const StockManagement = () => {
     setLastSaveTime(null);
     setBarcodeData(null);
     setIsAutoSKU(true);
+    forgetItemTyping();
     session.remove("formData");
     session.remove("lastSaveTime");
     session.remove("autoSku");
-  }, []);
+  }, [forgetItemTyping]);
+
+  // Anything typed this time round, and anything a new item was left half filled with before (the
+  // draft `pageSession` brought back). An item being EDITED is not "changed" merely by being loaded,
+  // which is why hasContent alone will not do here.
+  const unsavedItem = showModal && (typedInItem || (!editItemId && hasContent(formData)));
+  useBeforeUnloadGuard(unsavedItem);
+
+  const askToClose = useCallback(() => {
+    if (unsavedItem) setAskingDiscard(true);
+    else resetForm();
+  }, [unsavedItem, resetForm]);
 
   const openAddModal = useCallback(() => {
     // a half-filled new item kept from before opens as it was left; anything else (including an item that was being edited) starts blank
@@ -1160,6 +1182,22 @@ const StockManagement = () => {
         )}
       </div>
 
+      {askingDiscard && (
+        <ConfirmDialog
+          title={DISCARD_TITLE}
+          text={DISCARD_TEXT}
+          confirmLabel={DISCARD_LABEL}
+          cancelLabel={KEEP_LABEL}
+          danger
+          safeDefault
+          onConfirm={() => {
+            setAskingDiscard(false);
+            resetForm();
+          }}
+          onClose={() => setAskingDiscard(false)}
+        />
+      )}
+
       {deleteConfirmation.visible && (
         <div className="fixed inset-0 bg-white/50 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100">
@@ -1241,14 +1279,15 @@ const StockManagement = () => {
                 </div>
               </div>
               <button
-                onClick={resetForm}
+                onClick={askToClose}
+                aria-label="Close"
                 className="grid h-10 w-10 place-items-center rounded-xl text-gray-400 transition-all duration-200 hover:bg-white hover:text-gray-600 md:h-8 md:w-8"
               >
                 <X size={22} />
               </button>
             </div>
 
-            <div className="p-6" ref={formRef}>
+            <div className="p-6" ref={formRef} {...watchItemTyping}>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
                 <div className="lg:col-span-3">
                   <h4 className="text-lg font-semibold text-gray-900 mb-3">Item type</h4>
@@ -1458,16 +1497,15 @@ const StockManagement = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Current Stock
                   </label>
-                  <input
-                    type="number"
+                  <AmountInput
                     name="currentStock"
                     value={formData.currentStock}
                     onChange={handleChange}
                     placeholder="Enter current stock"
-                    min="0"
+                    min={0}
                     // changing the quantity of an item that exists is a stock adjustment, which has its own permission
                     disabled={Boolean(editItemId) && !can("inventory.adjust")}
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
+                    inputClassName={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.currentStock
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
@@ -1488,14 +1526,13 @@ const StockManagement = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Reorder Level
                   </label>
-                  <input
-                    type="number"
+                  <AmountInput
                     name="reorderLevel"
                     value={formData.reorderLevel}
                     onChange={handleChange}
                     placeholder="Enter reorder level"
-                    min="0"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                    min={0}
+                    inputClassName={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
                       errors.reorderLevel
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
@@ -1566,15 +1603,13 @@ const StockManagement = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Purchase Price
                   </label>
-                  <input
-                    type="number"
+                  <AmountInput
                     name="purchasePrice"
                     value={formData.purchasePrice}
                     onChange={handleChange}
                     placeholder="Enter purchase price"
-                    min="0"
-                    step="0.01"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                    min={0}
+                    inputClassName={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
                       errors.purchasePrice
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
@@ -1592,15 +1627,13 @@ const StockManagement = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Sales Price
                   </label>
-                  <input
-                    type="number"
+                  <AmountInput
                     name="salesPrice"
                     value={formData.salesPrice}
                     onChange={handleChange}
                     placeholder="Enter sales price"
-                    min="0"
-                    step="0.01"
-                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
+                    min={0}
+                    inputClassName={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${
                       errors.salesPrice
                         ? "border-red-300 bg-red-50"
                         : "border-gray-300"
@@ -1653,7 +1686,7 @@ const StockManagement = () => {
                 <div className="flex space-x-4">
                   <button
                     type="button"
-                    onClick={resetForm}
+                    onClick={askToClose}
                     disabled={isSubmitting}
                     className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
                   >

@@ -20,7 +20,8 @@ import { cn } from "../../lib/utils";
 import { partyVat, vatAdvice } from "../../lib/partyVat";
 import { statusClasses } from "../../lib/status";
 
-import { DateInput } from "../accounting/kit";
+import { ConfirmDialog, DateInput, PhoneInput } from "../accounting/kit";
+import { KEEP_LABEL, LEAVE_LABEL, LEAVE_TITLE, leaveText, useTypedIn, useUnsavedWork } from "../../lib/unsavedWork";
 import { taxIdWord, taxWord } from "../../lib/taxTerms";
 const num = (v) => parseFloat(v) || 0;
 
@@ -179,6 +180,13 @@ export default function OrderForm({
   const secondKey = V.secondDateKey || "deliveryDate";
   const refKey = V.referenceKey || "vendorReference";
   const isTransaction = !V.endpoint;
+
+  // Something typed into this document and not yet saved. The six document screens share this form,
+  // so one guard here covers orders, invoices, returns, quotations, delivery notes and goods received:
+  // the rail, a module tab, the Back button below and a reload all ask before the typing is lost.
+  const [typedIn, watchTyping, forgetTyping] = useTypedIn();
+  const [leaving, setLeaving] = useState(false);
+  useUnsavedWork(typedIn, `this ${String(V.noun || "document").toLowerCase()}`);
 
   const [errors, setErrors] = useState({});
   const [availability, setAvailability] = useState({}); // itemId -> { onHand, committed, available }
@@ -449,6 +457,9 @@ export default function OrderForm({
       }
       notify?.(`${V.noun} ${selected ? "updated" : "created"} successfully`, "success");
       setList?.((prev) => (selected ? prev.map((d) => (d.id === selected.id ? doc : d)) : [doc, ...prev]));
+      // Saved, so there is nothing left to lose. Ctrl+Shift+S saves and opens a fresh one without
+      // ever unmounting this form, so the watch has to be told rather than left to a remount.
+      forgetTyping();
       onSuccess?.(doc);
     } catch (err) {
       notify?.(`Failed to save: ${err.response?.data?.message || err.message}`, "error");
@@ -570,6 +581,12 @@ export default function OrderForm({
           <button
             type="button"
             onClick={() => {
+              // Back is not a navigation - it swaps this form for the list in place - so the guard
+              // around the pages never sees it. It has to ask for itself.
+              if (typedIn) {
+                setLeaving(true);
+                return;
+              }
               setActiveView("list");
               resetForm?.();
             }}
@@ -594,9 +611,27 @@ export default function OrderForm({
         </button>
       </header>
 
+      {leaving && (
+        <ConfirmDialog
+          title={LEAVE_TITLE}
+          text={leaveText([`this ${String(V.noun || "document").toLowerCase()}`])}
+          confirmLabel={LEAVE_LABEL}
+          cancelLabel={KEEP_LABEL}
+          danger
+          safeDefault
+          onConfirm={() => {
+            setLeaving(false);
+            setActiveView("list");
+            resetForm?.();
+          }}
+          onClose={() => setLeaving(false)}
+        />
+      )}
+
       <form
         id={formId}
         noValidate
+        {...watchTyping}
         onSubmit={(e) => {
           e.preventDefault();
           save();
@@ -754,6 +789,8 @@ export default function OrderForm({
                 <Field key={f.key} id={fid(f.key)} label={f.label} className={f.span === 2 ? "sm:col-span-2" : undefined}>
                   {f.type === "textarea" ? (
                     <textarea id={fid(f.key)} name={f.key} rows={2} value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} className={cn(fieldCls(false), "h-auto py-2")} />
+                  ) : f.type === "phone" ? (
+                    <PhoneInput id={fid(f.key)} name={f.key} value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} />
                   ) : (
                     <input id={fid(f.key)} name={f.key} type="text" value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} className={fieldCls(false)} />
                   )}

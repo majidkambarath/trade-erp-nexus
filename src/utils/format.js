@@ -1,15 +1,15 @@
 // Shared formatting and decimal-safe helpers for PO/Invoice modules
 
 import { getBrand } from '../config/brands';
-import { dayOf, orgCurrency, orgTimezone, subscribeOrgLocale } from './orgLocale';
+import { groupingLocaleFor } from '../lib/numberInput';
+import { dayOf, orgCountry, orgCurrency, orgTimezone, subscribeOrgLocale } from './orgLocale';
 
-// Number grouping comes from the active brand pack (src/config/brands.js), NEVER from the browser.
-// The currency and the time zone are the signed-in ORGANISATION's (src/utils/orgLocale.js): the brand pack's until
-// the organisation's status has loaded, then its own base currency and zone. The default pack uses en-GB, giving
-// 1,234,567.50 in groups of three. A bare `value.toLocaleString()` with no locale
-// argument uses the browser's locale, so a user whose machine is set to en-IN would
-// see Indian lakh grouping (12,34,567.50) for the same invoice. Always format
-// through this module. The brand's grouping is read once at load: it is a per-deployment setting.
+// Number grouping, the currency and the time zone are the signed-in ORGANISATION's
+// (src/utils/orgLocale.js) - NEVER the browser's. A bare `value.toLocaleString()` with no locale argument
+// uses the browser's locale, so a visiting user whose machine is set to en-IN would see Indian lakh
+// grouping (12,34,567.50) for a Dubai invoice. Always format through this module.
+// Until the organisation's status has loaded, and for a country with no grouping of its own, the active
+// brand pack's is used (src/config/brands.js; the default pack is en-GB: 1,234,567.50 in groups of three).
 const brand = getBrand();
 export const LOCALE = brand.locale;
 export const CURRENCY_LOCALE = brand.currencyLocale;
@@ -17,13 +17,22 @@ export const CURRENCY_LOCALE = brand.currencyLocale;
 // renders (never copy one into a module-level constant).
 export let CURRENCY = orgCurrency();
 export let TIMEZONE = orgTimezone();
-subscribeOrgLocale(({ currency, timezone }) => {
+// How digits are GROUPED is the organisation's country's business, not the deployment's: an Indian
+// organisation reads 12,34,567.50 where a UAE one reads 1,234,567.50. The digits stay Latin and the
+// decimal point stays a point whatever the country (lib/numberInput.js says why), so only the commas
+// move. A country with nothing of its own keeps the brand pack's. The same table drives what a person
+// TYPES into an amount field (`AmountInput`), so the field and the figure beside it always agree.
+export let NUMBER_LOCALE = groupingLocaleFor(orgCountry(), LOCALE);
+export let MONEY_LOCALE = groupingLocaleFor(orgCountry(), CURRENCY_LOCALE);
+subscribeOrgLocale(({ currency, timezone, country }) => {
   CURRENCY = currency;
   TIMEZONE = timezone;
+  NUMBER_LOCALE = groupingLocaleFor(country, LOCALE);
+  MONEY_LOCALE = groupingLocaleFor(country, CURRENCY_LOCALE);
 });
 
 // Format a number with fixed decimals using Intl for consistent grouping
-export const formatNumber = (value, decimals = 2, locale = LOCALE) => {
+export const formatNumber = (value, decimals = 2, locale = NUMBER_LOCALE) => {
   const n = Number(value || 0);
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: decimals,
@@ -32,7 +41,7 @@ export const formatNumber = (value, decimals = 2, locale = LOCALE) => {
 };
 
 // Currency formatter for the organisation's base currency (named for the one it began with); returns "AED 1,234,567.50"
-export const formatCurrencyAED = (value, locale = CURRENCY_LOCALE) => {
+export const formatCurrencyAED = (value, locale = MONEY_LOCALE) => {
   const n = Number(value || 0);
   return new Intl.NumberFormat(locale, {
     style: 'currency',
@@ -57,7 +66,7 @@ export const formatCurrencyCompact = (value) => {
 // Quantities: grouped, but without forcing trailing zeros on whole units.
 export const formatQty = (value, decimals = 2) => {
   const n = Number(value || 0);
-  return new Intl.NumberFormat(LOCALE, {
+  return new Intl.NumberFormat(NUMBER_LOCALE, {
     minimumFractionDigits: Number.isInteger(n) ? 0 : decimals,
     maximumFractionDigits: decimals,
   }).format(n);

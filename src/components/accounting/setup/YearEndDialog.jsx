@@ -147,6 +147,7 @@ export default function YearEndDialog({ year, mode, onClose, onDone }) {
 
   return (
     <Modal
+      dirty={false} // the ticks beside the warnings are a decision to act, not unsaved work
       size="md" title={closing ? `Close ${year.code}?` : `Reopen ${year.code}?`}
       description={`${formatDate(year.startDate)} to ${formatDate(year.endDate)}`} onClose={onClose}
       footer={

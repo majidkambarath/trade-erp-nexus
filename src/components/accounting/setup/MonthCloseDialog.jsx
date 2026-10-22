@@ -46,6 +46,7 @@ export default function MonthCloseDialog({ year, month, mode, onClose, onDone })
 
   return (
     <Modal
+      dirty={false} // the ticks beside the warnings are a decision to act, not unsaved work
       size="md" title={closing ? `Close ${month.label}?` : `Reopen ${month.label}?`}
       description={`${formatDate(month.startDay)} to ${formatDate(month.endDay)}`} onClose={onClose}
       footer={

@@ -17,7 +17,7 @@ import BusinessRules from "./BusinessRules";
 import SendingSettings from "./SendingSettings";
 import BranchSettings from "./BranchSettings";
 import TwoFactorSection from "./TwoFactorSection";
-import { ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
+import { ErrorNote, Field, PageHeader, Panel, PhoneInput, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
 
 // Settings holds what belongs to the company and to the signed-in user: the company profile and
 // logo, the business rules (credit control, returns, tax identity), the bank details printed on invoices, how this device shows the app (theme, date and
@@ -222,7 +222,7 @@ export default function SettingsModule() {
                   <TextInput value={company.postalCode} onChange={input(setCompany, "postalCode")} />
                 </Field>
                 <Field label="Phone number">
-                  <TextInput type="tel" value={company.phoneNumber} onChange={input(setCompany, "phoneNumber")} placeholder="+971 4 000 0000" />
+                  <PhoneInput value={company.phoneNumber} onChange={input(setCompany, "phoneNumber")} placeholder="4 000 0000" />
                 </Field>
                 <Field label="Website">
                   <TextInput type="url" value={company.website} onChange={input(setCompany, "website")} placeholder="https://www.company.com" />

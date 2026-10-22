@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Field, Select, Textarea, TextInput } from "../accounting/kit";
+import { Field, PhoneInput, Select, Textarea, TextInput } from "../accounting/kit";
 import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
 import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
@@ -79,8 +79,8 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
       <Field label="Contact person" required error={errors.contactPerson}>
         <TextInput value={value.contactPerson} onChange={text("contactPerson")} maxLength={100} autoComplete="off" />
       </Field>
-      <Field label="Phone" error={errors.phone} hint="With the country code, for example +971 50 123 4567.">
-        <TextInput type="tel" value={value.phone} onChange={text("phone")} maxLength={30} />
+      <Field label="Phone" error={errors.phone}>
+        <PhoneInput value={value.phone} onChange={text("phone")} />
       </Field>
       <Field label="Email" error={errors.email}>
         <TextInput type="email" value={value.email} onChange={text("email")} maxLength={120} placeholder={`${kind}@example.ae`} />

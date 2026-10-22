@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pencil, Plus, Power } from "lucide-react";
 import { Button } from "../ui/button";
-import { ConfirmDialog, DataTable, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { ConfirmDialog, DataTable, EmptyState, ErrorNote, Field, Modal, Panel, PhoneInput, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { branchesApi } from "../../lib/branchApi";
 import { branchChanges, branchFrom, codeFromName, emptyBranch, newBranchPayload, planNote, validateBranch } from "../../lib/branchForms";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -63,7 +63,7 @@ function BranchDialog({ branch, onClose, onSaved }) {
         </Field>
         <Field label="City"><TextInput value={form.city} onChange={set("city")} /></Field>
         <Field label="Address" className="sm:col-span-2"><TextInput value={form.addressLine1} onChange={set("addressLine1")} placeholder="Street, building, area" /></Field>
-        <Field label="Phone"><TextInput type="tel" value={form.phone} onChange={set("phone")} /></Field>
+        <Field label="Phone"><PhoneInput value={form.phone} onChange={set("phone")} /></Field>
         <Field label="Email" error={show("email")}><TextInput type="email" value={form.email} onChange={set("email")} /></Field>
       </div>
       {serverError && <div className="mt-4"><ErrorNote error={serverError} /></div>}

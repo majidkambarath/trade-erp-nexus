@@ -293,7 +293,8 @@ describe("leads", () => {
     fireEvent.change(within(dialog).getByLabelText(/^Phone/), { target: { value: "0509999999" } });
     fireEvent.click(within(dialog).getByRole("button", { name: /save the enquiry/i }));
 
-    await waitFor(() => expect(m.createLead).toHaveBeenCalledWith(expect.objectContaining({ name: "Second caller", phone: "0509999999" })));
+    // the number is sent the way the phone field stores every number: the country's code and the digits
+    await waitFor(() => expect(m.createLead).toHaveBeenCalledWith(expect.objectContaining({ name: "Second caller", phone: "+971509999999" })));
     expect(await screen.findByText(/given to Maya, with a first call due today/i)).toBeInTheDocument();
   });
 

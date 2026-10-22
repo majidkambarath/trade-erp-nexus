@@ -37,7 +37,7 @@ import { sortRows } from "../../lib/listView";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { Button } from "../ui/button";
 
-import { ConfirmDialog, DateInput, Field, Modal, Pill, Select, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { ConfirmDialog, DateInput, Field, Modal, PhoneInput, Pill, Select, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import { useOrganisation } from "../shell/OrganisationContext";
 
@@ -689,7 +689,7 @@ const StaffManagement = () => {
                   </Select>
                 </Field>
                 <Field label="Contact Number" required error={errors.contactNo}>
-                  <TextInput type="tel" name="contactNo" value={formData.contactNo} onChange={handleChange} placeholder="Enter contact number" />
+                  <PhoneInput name="contactNo" value={formData.contactNo} onChange={handleChange} />
                 </Field>
               </div>
             </div>

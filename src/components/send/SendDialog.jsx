@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Mail, MessageCircle } from "lucide-react";
-import { Field, Spinner, TextInput, Textarea, useAsync } from "../accounting/kit";
+import { Field, PhoneInput, Spinner, TextInput, Textarea, useAsync } from "../accounting/kit";
 import { ActionModal, Note } from "../salesDocs/parts";
 import { useDocumentAction } from "../salesDocs/hooks";
 import { documentSends, sendSettings } from "../../lib/sendDocumentsApi";
@@ -195,8 +195,8 @@ export default function SendDialog({ doc, attachment, notify, onSent, onClose })
             </>
           ) : (
             <>
-              <Field label="WhatsApp number" error={errors.phone} hint={waNumber ? `Opens WhatsApp for +${waNumber}.` : "With the country code, for example +971 50 111 2222. Leave it empty to choose the contact in WhatsApp."}>
-                <TextInput value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="off" />
+              <Field label="WhatsApp number" error={errors.phone} hint={waNumber ? `Opens WhatsApp for +${waNumber}.` : "Leave it empty to choose the contact in WhatsApp."}>
+                <PhoneInput value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="off" />
               </Field>
               <Field label="Message" hint="Added to the message. Optional.">
                 <Textarea rows={2} value={note} maxLength={300} onChange={(e) => { noteTouched.current = true; setNote(e.target.value); }} />

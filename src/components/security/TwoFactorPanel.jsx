@@ -125,7 +125,13 @@ export default function TwoFactorPanel({ api, account, issuer = "Zarvia", locked
       {children}
 
       {dialog === "enrol" && (
-        <Modal title="Turn on two-factor" onClose={closeEnrol}>
+        <Modal
+          title="Turn on two-factor"
+          onClose={closeEnrol}
+          // This one asks its own, better question below (the recovery codes are shown once), so the
+          // shared dialog's general "discard your changes?" must not get in front of it.
+          dirty={false}
+        >
           <TwoFactorEnrol
             api={api}
             account={account}

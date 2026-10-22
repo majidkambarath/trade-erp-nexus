@@ -117,7 +117,7 @@ describe("adding a branch", () => {
     fireEvent.change(within(dialog).getByLabelText(/^Email/), { target: { value: "dxb@acc.test" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add branch" }));
     await waitFor(() => expect(api.create).toHaveBeenCalledTimes(1));
-    expect(api.create).toHaveBeenCalledWith({ code: "dxb", name: "Dubai Showroom 2", addressLine1: "Sheikh Zayed Road", city: "Dubai", phone: "04 000 0000", email: "dxb@acc.test" });
+    expect(api.create).toHaveBeenCalledWith({ code: "dxb", name: "Dubai Showroom 2", addressLine1: "Sheikh Zayed Road", city: "Dubai", phone: "+97140000000", email: "dxb@acc.test" });
     await waitFor(() => expect(notify).toHaveBeenCalledWith("Dubai Showroom 2 added"));
   });
 

@@ -245,7 +245,9 @@ describe("editing a customer or vendor account", () => {
     expect(mocks.partyGet).toHaveBeenCalledWith("acc1");
     expect(within(dialog).queryByLabelText(/^Account name/)).toBeNull();
     expect(within(dialog).queryByText(/Opening balance/)).toBeNull(); // not editable after creation
-    expect(within(dialog).getByLabelText("Phone")).toHaveValue("+971501112222");
+    // the stored number is shown in the two halves the phone field has: the code, then the number
+    expect(within(dialog).getByText("+971")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Phone")).toHaveValue("501112222");
     openTab("VAT");
     expect(screen.getByLabelText(/TRN/)).toHaveValue("100777000000001");
     expect(screen.getByLabelText("Trade licence number")).toHaveValue("TL-5");

@@ -165,7 +165,7 @@ describe("adding a staff member", () => {
     const dialog = await open();
     fireEvent.change(within(dialog).getByPlaceholderText("Enter full name"), { target: { value: "New Person" } });
     fireEvent.change(within(dialog).getByRole("combobox", { name: /^Designation/ }), { target: { value: "Accountant" } });
-    fireEvent.change(within(dialog).getByPlaceholderText("Enter contact number"), { target: { value: "0500009999" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Contact Number/), { target: { value: "0500009999" } });
     fireEvent.change(within(dialog).getByPlaceholderText("Enter ID or Passport number"), { target: { value: "ID-99" } });
     fireEvent.change(within(dialog).getByLabelText(/Joining Date/), { target: { value: "2026-03-01" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Staff" }));
@@ -177,6 +177,7 @@ describe("adding a staff member", () => {
     expect(body.get("name")).toBe("New Person");
     expect(body.get("designation")).toBe("Accountant");
     expect(body.get("idNo")).toBe("ID-99");
+    expect(body.get("contactNo")).toBe("+971500009999"); // the phone field's one compact form
     expect(config.headers["Content-Type"]).toBe("multipart/form-data");
     expect(await screen.findByText("Staff member added successfully!")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -200,7 +201,7 @@ describe("adding a staff member", () => {
     fireEvent.change(within(dialog).getByLabelText(/Upload ID Proof/), { target: { files: [file] } });
     fireEvent.change(within(dialog).getByPlaceholderText("Enter full name"), { target: { value: "New Person" } });
     fireEvent.change(within(dialog).getByRole("combobox", { name: /^Designation/ }), { target: { value: "Accountant" } });
-    fireEvent.change(within(dialog).getByPlaceholderText("Enter contact number"), { target: { value: "0500009999" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Contact Number/), { target: { value: "0500009999" } });
     fireEvent.change(within(dialog).getByPlaceholderText("Enter ID or Passport number"), { target: { value: "ID-99" } });
     fireEvent.change(within(dialog).getByLabelText(/Joining Date/), { target: { value: "2026-03-01" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Staff" }));
@@ -213,7 +214,7 @@ describe("adding a staff member", () => {
     const dialog = await open();
     fireEvent.change(within(dialog).getByPlaceholderText("Enter full name"), { target: { value: "New Person" } });
     fireEvent.change(within(dialog).getByRole("combobox", { name: /^Designation/ }), { target: { value: "Accountant" } });
-    fireEvent.change(within(dialog).getByPlaceholderText("Enter contact number"), { target: { value: "0500009999" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Contact Number/), { target: { value: "0500009999" } });
     fireEvent.change(within(dialog).getByPlaceholderText("Enter ID or Passport number"), { target: { value: "ID-99" } });
     fireEvent.change(within(dialog).getByLabelText(/Joining Date/), { target: { value: "2026-03-01" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add Staff" }));

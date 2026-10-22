@@ -214,7 +214,7 @@ describe("contacts", () => {
 
     await waitFor(() => expect(m.createContact).toHaveBeenCalled());
     const body = m.createContact.mock.calls[0][0];
-    expect(body).toMatchObject({ name: "Fatima Noor", phone: "0501110000" });
+    expect(body).toMatchObject({ name: "Fatima Noor", phone: "+971501110000" }); // compact international form, from the phone field
     // Nobody was chosen, so both links are cleared rather than left to guess.
     expect(body.customerId).toBeNull();
     expect(body.vendorId).toBeNull();

@@ -10,7 +10,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Download, Plus, Upload } from "lucide-react";
-import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, PhoneInput, TextInput, Textarea, Select, SearchSelect } from "../accounting/kit.jsx";
 import ListPage from "../lists/ListPage";
 import { FilterSelect } from "../lists/FilterBar.jsx";
 import { useListView } from "../../lib/useListView";
@@ -103,7 +103,7 @@ function ContactForm({ contact, onClose, onSaved, notify }) {
         <TextInput value={form.designation} onChange={set("designation")} placeholder="Purchase Manager" />
       </Field>
       <Field label="Phone">
-        <TextInput value={form.phone} onChange={set("phone")} />
+        <PhoneInput value={form.phone} onChange={set("phone")} />
       </Field>
       <Field label="Email" error={errors.email}>
         <TextInput value={form.email} onChange={set("email")} />

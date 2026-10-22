@@ -84,7 +84,8 @@ describe("a half-finished staff member", () => {
     leave(view);
     await mount();
     await openAdd();
-    expect(field("contactNo")).toHaveValue("0509998877");
+    // kept as "+971509998877" and shown in the number half of the phone field, its dialling code beside it
+    expect(field("contactNo")).toHaveValue("509998877");
     expect(field("name")).toHaveValue("");
     expect(field("status")).toHaveValue("Active");
   });

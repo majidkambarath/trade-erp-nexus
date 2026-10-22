@@ -552,10 +552,10 @@ VARIANTS.quotation = {
 const DELIVERY_FIELDS = [
   { key: "deliveryAddress", label: "Delivery address", type: "textarea", span: 2 },
   { key: "contactPerson", label: "Contact person" },
-  { key: "contactPhone", label: "Contact phone" },
+  { key: "contactPhone", label: "Contact phone", type: "phone" },
   { key: "vehicleNo", label: "Vehicle" },
   { key: "driverName", label: "Driver" },
-  { key: "driverPhone", label: "Driver phone" },
+  { key: "driverPhone", label: "Driver phone", type: "phone" },
 ];
 
 VARIANTS.deliveryNote = {

@@ -259,8 +259,10 @@ describe("a half-filled new item is kept", () => {
     expect(await screen.findByDisplayValue("Flour")).toBeInTheDocument();
     expect(screen.getByText(/Draft saved/)).toBeInTheDocument();
 
-    // cancelling throws it away
+    // cancelling throws it away - and asks first, because the draft is something somebody typed
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("Discard your changes?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /discard and close/i }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     second.unmount();
 
@@ -268,6 +270,27 @@ describe("a half-filled new item is kept", () => {
     openAdd();
     expect(nameField()).toHaveValue("");
     expect(screen.queryByText(/Draft saved/)).not.toBeInTheDocument();
+  }, 30000);
+
+  it("asks before the X throws away a half-typed item, and keeps it when the answer is no", async () => {
+    // This dialog is hand-rolled rather than the shared Modal, so it has to ask for itself.
+    await show();
+    openAdd();
+    fireEvent.change(nameField(), { target: { value: "Flour" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByText("Discard your changes?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /keep editing/i }));
+    expect(screen.queryByText("Discard your changes?")).not.toBeInTheDocument();
+    expect(nameField()).toHaveValue("Flour"); // nothing was lost
+  }, 30000);
+
+  it("closes an untouched new item without a word", async () => {
+    await show();
+    openAdd();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Discard your changes?")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   }, 30000);
 
   it("is gone after a successful save", async () => {

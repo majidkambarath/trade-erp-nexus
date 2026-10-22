@@ -4,7 +4,11 @@ import ReactSelect from "react-select";
 import CreatableSelect from "react-select/creatable";
 import { cn } from "../../lib/utils";
 import { toastClasses } from "../../lib/status";
-import { drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
+import { dialCodeOf, dialOptions, joinPhone, splitPhone } from "../../lib/phoneNumbers";
+import { DISCARD_LABEL, DISCARD_TEXT, DISCARD_TITLE, KEEP_LABEL, useTypedIn, useUnsavedWork } from "../../lib/unsavedWork";
+import { orgCountry } from "../../utils/orgLocale";
+import { caretAfter, displayAmount, groupAmount, meaningBefore, sanitizeAmount } from "../../lib/numberInput";
+import { NUMBER_LOCALE, drCr, formatDate, getDateFormat, parseDate } from "../../utils/format";
 import { DataTable, ErrorNote, PageSpinner, Spinner, TableScroll } from "./DataTable";
 
 export { DataTable, TableScroll };
@@ -129,6 +133,86 @@ export function Field({ label, hint, error, required, className, labelClassName,
 
 export const TextInput = React.forwardRef(function TextInput({ className, ...p }, ref) {
   return <input ref={ref} className={cn(inputClass, className)} {...p} />;
+});
+
+// An amount typed with the grouping the organisation's country uses: 20,000 in Dubai, 1,20,000 in India
+// (src/lib/numberInput.js, the same table the figures beside it are formatted from). A drop-in for
+// <input type="number"> on a money or quantity field: `value` and the value in the change event are the
+// plain number as text ("20000.5"), never the grouped text, so a form that stores and sends what the
+// field reports needs no change.
+//
+// It is type="text" because a native number input refuses to hold a comma at all. That loses the
+// spinner arrows, which are no use on an amount, and the browser's own "not a number" check, which the
+// field does itself by accepting nothing else. `inputMode="decimal"` still brings up the numeric keypad.
+export const AmountInput = React.forwardRef(function AmountInput(
+  { value = "", onChange, onBlur, className, inputClassName, disabled, required, id, name, placeholder, maxDecimals, allowNegative, min, ...rest },
+  ref
+) {
+  const locale = NUMBER_LOCALE;
+  const negatives = allowNegative ?? !(min !== undefined && Number(min) >= 0);
+  const opts = { allowNegative: negatives, maxDecimals };
+  const box = useRef(null);
+  // where the caret must land after this edit, counted in the characters that carry meaning: the commas
+  // around them move as the number grows ("1,234|" + "5" is "12,345|", four characters further on)
+  const caret = useRef(null);
+
+  const shown = displayAmount(value, locale, opts);
+
+  useEffect(() => {
+    const el = box.current;
+    if (caret.current === null || !el) return;
+    const at = caretAfter(el.value, caret.current);
+    caret.current = null;
+    try {
+      el.setSelectionRange(at, at);
+    } catch {
+      /* a field that does not carry a selection (it is text, so it does) */
+    }
+  });
+
+  function change(e) {
+    const el = e.target;
+    const typed = el.value;
+    const want = meaningBefore(typed, el.selectionStart);
+    caret.current = want;
+    const clean = sanitizeAmount(typed, opts);
+    // Draw the grouped text straight onto the field, and put the caret back where it was. A comma the
+    // person typed where the field had already drawn one leaves the stored value untouched, so there is
+    // no re-render to do it for us - and writing to `value` alone sends the caret to the end.
+    el.value = groupAmount(clean, locale);
+    const at = caretAfter(el.value, want);
+    try {
+      el.setSelectionRange(at, at);
+    } catch {
+      /* no selection to place (jsdom on a field it does not model) */
+    }
+    onChange?.({ target: { id, name, type: "number", value: clean }, type: "change" });
+  }
+
+  return (
+    <input
+      ref={(node) => {
+        box.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      }}
+      id={id}
+      name={name}
+      type="text"
+      inputMode="decimal"
+      autoComplete="off"
+      value={shown}
+      onChange={change}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      disabled={disabled}
+      required={required}
+      // `inputClassName` replaces the kit's own look, the way DateInput lets a screen with its own
+      // field styling keep it; `className` adds to whichever is in force.
+      className={cn(inputClassName || inputClass, className)}
+      {...rest}
+    />
+  );
 });
 
 // A date field that shows and accepts dates the way the person chose to read them (Settings >
@@ -256,13 +340,19 @@ const matches = (option, input) => {
 // With `rankMatches`, what was typed puts the best match first: the name itself, then names that begin with it, then a word that
 // begins with it, then the rest (each group in the list's own order). react-select keeps the list's order, so typing "India" and
 // pressing Enter chose "British Indian Ocean Territory", which is alphabetically first. Opt-in, so no other list changes order.
-const rankOf = (option, q) => {
-  const label = norm(option.label);
-  if (label === q) return 0;
-  if (label.startsWith(q)) return 1;
-  if (label.split(/[\s\-/_(),]+/).some((word) => word.startsWith(q))) return 2;
+const rankText = (text, q) => {
+  const value = norm(text);
+  if (!value) return 4;
+  if (value === q) return 0;
+  if (value.startsWith(q)) return 1;
+  if (value.split(/[\s\-/_(),]+/).some((word) => word.startsWith(q))) return 2;
   return 3;
 };
+// The label, then the hint, whichever reads closer. A list whose label is not the thing a person
+// types needs this: the dialling-code box is labelled "+971" and named "United Arab Emirates" in its
+// hint, so ranking the label alone would score "India" against "+246" and choose the British Indian
+// Ocean Territory - the same mistake, in a new place, that `rankMatches` was added to fix.
+const rankOf = (option, q) => Math.min(rankText(option.label, q), rankText(option.hint, q));
 const rankedBy = (options, typed) => {
   const q = norm(typed).trim();
   if (!q) return options;
@@ -429,15 +519,150 @@ export const Textarea = React.forwardRef(function Textarea({ className, ...p }, 
   return <textarea ref={ref} rows={3} className={cn(inputClass, "h-auto py-2", className)} {...p} />;
 });
 
+// A phone number in its two halves: the country's dialling code, then the number.
+//
+// A drop-in for <TextInput type="tel">. `value` is the whole number as it is stored ("+971501234567")
+// and the change event carries the whole number back, in the same synthetic shape DateInput uses, so
+// a form that already does `onChange={set("phone")}` needs no other change.
+//
+// The code box starts on the organisation's own country - the right answer for nearly every number
+// anybody types - and follows a stored number's own code where it has one. lib/phoneNumbers.js says
+// what is stored, and what is deliberately not validated.
+export const PhoneInput = React.forwardRef(function PhoneInput(
+  { value = "", onChange, onBlur, className, disabled, required, id, name, placeholder = "50 123 4567", autoComplete = "tel", ...aria },
+  ref
+) {
+  const home = orgCountry();
+  // The country is remembered, not worked out afresh on every render: a dialling code shared by
+  // several countries (+1 is twenty-odd of them) must stay on the one the person chose, and clearing
+  // the number must not throw that choice away.
+  const [chosen, setChosen] = useState(() => splitPhone(value, home).iso);
+  const shown = splitPhone(value, chosen || home);
+  // a number that arrived from outside carrying its own code wins: this is an edit opening on a record
+  const country = shown.code && shown.code !== dialCodeOf(chosen) ? shown.iso : chosen || shown.iso;
+
+  // What is in the number box is NOT what is stored. Somebody typing "050 123 4567" must see the
+  // spaces as they type them, while "+971501234567" is what is saved; deriving the box from the
+  // stored number instead ate every space and the leading 0 one keystroke after they were typed.
+  // So the box holds its own text, and its echo - the form handing the same number straight back -
+  // must not rewrite what is half typed. (DateInput keeps the same guard, for the same reason.)
+  const [text, setText] = useState(shown.national);
+  const echo = useRef(null);
+  useEffect(() => {
+    if (echo.current !== null && echo.current === value) {
+      echo.current = null;
+      return;
+    }
+    echo.current = null;
+    setText(splitPhone(value, chosen || home).national);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const emit = (next) => {
+    echo.current = next;
+    onChange?.({ target: { id, name, type: "tel", value: next }, type: "change" });
+  };
+
+  const change = (e) => {
+    // A phone number is digits and the punctuation people write them with. Letters simply do not go
+    // in, which is plainer than taking them and complaining afterwards.
+    const kept = e.target.value.replace(/[^\d\s()+-]/g, "");
+    // ...and what the filter leaves behind of a word - "call me" is a space - is not a number either
+    const typed = /[\d+]/.test(kept) ? kept : "";
+    // A whole international number pasted into the number half: take it as what it is, rather than
+    // putting this country's code in front of another country's number.
+    if (/^\s*(\+|00)/.test(typed)) {
+      const pasted = splitPhone(typed, country);
+      if (pasted.code) {
+        setChosen(pasted.iso);
+        setText(pasted.national);
+        emit(joinPhone(pasted.iso, pasted.national));
+        return;
+      }
+    }
+    setText(typed);
+    emit(joinPhone(country, typed));
+  };
+
+  // Leaving the box shows exactly what will be saved, so the screen and the record never disagree.
+  const leave = (e) => {
+    echo.current = null;
+    setText(splitPhone(value, country).national);
+    onBlur?.(e);
+  };
+
+  return (
+    <div className={cn("flex items-start gap-2", className)}>
+      <div className="w-28 shrink-0 sm:w-32">
+        <SearchSelect
+          // Its own label: the field's label belongs to the number box, which is the one a person
+          // types in and the one `Field` wires its hint and its error to.
+          aria-label="Country dialling code"
+          value={country}
+          onChange={(next) => {
+            setChosen(next);
+            emit(joinPhone(next, text)); // the number does not change, only the code in front of it
+          }}
+          options={dialCodeOptions(home)}
+          disabled={disabled}
+          placeholder="Code"
+          rankMatches
+        />
+      </div>
+      <input
+        ref={ref}
+        id={id}
+        name={name}
+        type="tel"
+        inputMode="tel"
+        autoComplete={autoComplete}
+        value={text}
+        onChange={change}
+        onBlur={leave}
+        placeholder={placeholder}
+        disabled={disabled}
+        required={required}
+        maxLength={18}
+        {...aria}
+        className={cn(inputClass, "min-w-0 flex-1")}
+      />
+    </div>
+  );
+});
+
+// Built once per country rather than on every keystroke: 240 options, each with its name looked up
+// through Intl.
+let dialCache = { home: null, options: null };
+function dialCodeOptions(home) {
+  if (dialCache.home !== home) dialCache = { home, options: dialOptions(home) };
+  return dialCache.options;
+}
+
 // ---------- dialog ----------
 
 // A modal dialog. Escape closes it; focus moves in on open and returns on close. Clicking the
 // backdrop does NOT close it, so a half-typed form is never lost to a stray click.
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, description, onClose, children, footer, size = "md", confirmClose }) {
+export function Modal({ title, description, onClose, children, footer, size = "md", confirmClose, dirty, unsavedLabel }) {
   const titleId = useId();
   const ref = useRef(null);
+  // Has the person put anything into this dialog that closing it would throw away? A dialog that
+  // keeps its own "changed since it opened" flag passes `dirty` and that is the answer. One that
+  // does not (most of them: a small master form holds its state in half a dozen useStates) is
+  // watched instead - the first time a trusted keystroke or a changed box comes out of it, there is
+  // something to lose. That way every dialog in the app asks before it drops what was typed,
+  // without each one having to grow a baseline of its own, and a dialog with nothing to type in
+  // (an audit trail, a history, a preview) stays as quiet as it always was.
+  //
+  // What the watching cannot see: choosing from a SearchSelect without typing, and a Radix switch
+  // or checkbox (both are buttons, so neither fires an input or change event). A dialog where that
+  // is the whole of the editing should pass `dirty` itself.
+  const [typed, watchTyping] = useTypedIn(dirty === undefined);
+  const unsaved = dirty === undefined ? typed : Boolean(dirty);
+  const [asking, setAsking] = useState(false);
+  // While there is something unsaved: warn before a reload, and tell the guard around the pages, so
+  // a rail link or the Back button asks too instead of taking the dialog away mid-sentence.
+  useUnsavedWork(unsaved, unsavedLabel || (typeof title === "string" && title ? `the “${title}” form` : ""));
 
   useEffect(() => {
     const previous = document.activeElement;
@@ -454,6 +679,10 @@ export function Modal({ title, description, onClose, children, footer, size = "m
   // losing them to one keystroke or a stray click. The dialog stays open with focus exactly where it was.
   const requestClose = () => {
     if (confirmClose && confirmClose() === false) return;
+    if (unsaved) {
+      setAsking(true); // the question is asked over the dialog; the dialog itself stays exactly as it was
+      return;
+    }
     onClose?.();
   };
 
@@ -482,6 +711,7 @@ export function Modal({ title, description, onClose, children, footer, size = "m
     <div
       className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4"
       onKeyDown={onKeyDown}
+      {...watchTyping}
     >
       <div
         ref={ref}
@@ -516,6 +746,23 @@ export function Modal({ title, description, onClose, children, footer, size = "m
           </footer>
         )}
       </div>
+      {/* Outside the dialog's own box on purpose: inside it, this question's buttons would join the
+          dialog's Tab ring and its Escape would reach the dialog's own key handler. */}
+      {asking && (
+        <ConfirmDialog
+          title={DISCARD_TITLE}
+          text={DISCARD_TEXT}
+          confirmLabel={DISCARD_LABEL}
+          cancelLabel={KEEP_LABEL}
+          danger
+          safeDefault
+          onConfirm={() => {
+            setAsking(false);
+            onClose?.();
+          }}
+          onClose={() => setAsking(false)}
+        />
+      )}
     </div>
   );
 }
@@ -572,7 +819,9 @@ export const errorMessage = (err) => err?.message || "Something went wrong";
 // A yes/no question that names the consequence. The confirm button says what it does.
 // `typeToConfirm` (e.g. "delete") makes the confirm button wait until the user has typed that word.
 // Use it for anything that removes a record, so a stray click or Enter cannot delete it.
-export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = false, busy = false, typeToConfirm = "", onConfirm, onClose }) {
+// `safeDefault` puts the opening focus on Cancel instead: use it where confirming loses something
+// (discarding a form), so a stray Enter keeps the work rather than throwing it away.
+export function ConfirmDialog({ title, text, confirmLabel = "Confirm", cancelLabel = "Cancel", safeDefault = false, danger = false, busy = false, typeToConfirm = "", onConfirm, onClose }) {
   const [typed, setTyped] = useState("");
   const matches = !typeToConfirm || typed.trim().toLowerCase() === typeToConfirm.toLowerCase();
   const inputId = useId();
@@ -582,11 +831,13 @@ export function ConfirmDialog({ title, text, confirmLabel = "Confirm", danger = 
   return (
     <Modal
       size="sm" title={title} onClose={onClose}
+      // The word typed to confirm a deletion is not unsaved work: Cancel here must simply cancel.
+      dirty={false}
       footer={
         <>
-          <button type="button" onClick={onClose} className="inline-flex h-11 items-center justify-center rounded-full border border-input bg-card px-5 text-sm font-medium hover:bg-accent md:h-10">Cancel</button>
+          <button type="button" onClick={onClose} data-autofocus={safeDefault || undefined} className="inline-flex h-11 items-center justify-center rounded-full border border-input bg-card px-5 text-sm font-medium hover:bg-accent md:h-10">{cancelLabel}</button>
           <button
-            type="button" onClick={confirm} disabled={busy || !matches} data-autofocus={!typeToConfirm || undefined}
+            type="button" onClick={confirm} disabled={busy || !matches} data-autofocus={(!safeDefault && !typeToConfirm) || undefined}
             className={cn("inline-flex h-11 items-center justify-center rounded-full px-5 text-sm font-medium text-primary-foreground disabled:opacity-60 md:h-10", danger ? "bg-destructive" : "bg-primary")}
           >
             {busy ? "Working…" : confirmLabel}

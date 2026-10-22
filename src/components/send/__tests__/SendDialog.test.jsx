@@ -216,10 +216,19 @@ describe("SendDialog by WhatsApp", () => {
 
   it("a number that is not a number is refused before any call", async () => {
     const dlg = await toWhatsApp();
-    fireEvent.change(within(dlg).getByLabelText("WhatsApp number"), { target: { value: "call me" } });
+    // Digits that cannot be a number. Letters are a different matter: the phone field takes none at
+    // all now, so "call me" never reaches the box to be complained about.
+    fireEvent.change(within(dlg).getByLabelText("WhatsApp number"), { target: { value: "123" } });
     press(dlg, /open whatsapp/i);
     expect(await within(dlg).findByText(/does not look like a phone number/)).toBeInTheDocument();
     expect(documentSends.handoff).not.toHaveBeenCalled();
+  });
+
+  it("letters cannot be typed into the number at all", async () => {
+    const dlg = await toWhatsApp();
+    const box = within(dlg).getByLabelText("WhatsApp number");
+    fireEvent.change(box, { target: { value: "call me" } });
+    expect(box).toHaveValue("");
   });
 
   it("a customer with no number can still go through the contact picker", async () => {

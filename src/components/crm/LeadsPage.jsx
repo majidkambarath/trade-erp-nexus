@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download, Upload } from "lucide-react";
-import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, PhoneInput, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
 import { PillTabs, Note } from "../salesDocs/parts.jsx";
@@ -93,7 +93,7 @@ function LeadForm({ lead, owners, onClose, onSaved, notify }) {
           <TextInput value={form.company} onChange={set("company")} />
         </Field>
         <Field label="Phone" error={errors.phone}>
-          <TextInput value={form.phone} onChange={set("phone")} onBlur={lookForDuplicates} inputMode="tel" />
+          <PhoneInput value={form.phone} onChange={set("phone")} onBlur={lookForDuplicates} />
         </Field>
         <Field label="Email" error={errors.email}>
           <TextInput value={form.email} onChange={set("email")} onBlur={lookForDuplicates} inputMode="email" />

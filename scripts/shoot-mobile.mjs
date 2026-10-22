@@ -125,6 +125,12 @@ const DEEP = {
     { name: "setup-unsaved", page: true, clicks: ["^Add a stage"], settle: 1000 },
   ],
   // Users and roles: the dialogs behind the two tabs. The role editor is the tallest form in the product (every module's boxes).
+  // The customer master's own dialog. It had no deep step at all, so the party form - the widest form
+  // in the product, and now the one where a phone is entered in two halves (the dialling code, then
+  // the number) - had never been measured at 390px.
+  "sales-customers": [
+    { name: "customer-new", clicks: ["^Add Customer$"], settle: 1000 },
+  ],
   "people-users-and-roles": [
     { name: "add-person", clicks: ["Add a person"], settle: 900 },
     { name: "change-person", clicks: ["^Change"], settle: 900 },
@@ -149,6 +155,8 @@ const DEEP = {
   // The item form: goods (every stock field), then a service (the Goods / Service choice, no stock fields, two account pickers).
   "inventory-stock-items": [
     { name: "add-item", clicks: ["^Add Stock Item"], settle: 900 },
+    // an amount typed in: the field draws the grouping the organisation's country uses as the digits arrive
+    { name: "add-item-amount", clicks: ["^Add Stock Item"], type: [["Enter purchase price", "2000000"]], reveal: "^Pricing Information", settle: 900 },
     { name: "add-service", clicks: ["^Add Stock Item", "^Service"], settle: 900 },
   ],
   // Production: the form (materials and cost lines, the live unit cost) and one posted production with its breakdown
@@ -306,6 +314,7 @@ DEEP["pipeline"] = DEEP["crm-pipeline"]; // check:mobile -- /crm/pipeline
 DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
 DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
+DEEP["stock-item-creation"] = DEEP["inventory-stock-items"]; // check:mobile -- /stock-item-creation
 // The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
 // opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
 // not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
@@ -2324,6 +2333,25 @@ for (const vp of VIEWPORTS) {
               await next.click();
               await wait(step.settle ?? 1000);
             }
+          }
+          // `type`: put something in a field before the screenshot, so a step can show what a filled-in
+          // form looks like (an amount field draws its own grouping as the digits arrive: 20,000).
+          // Each pair is [what names the field (its placeholder, aria-label or linked label), what to type].
+          for (const [names, text] of step.type || []) {
+            const field = await page.evaluateHandle((t) => {
+              const dlg = [...document.querySelectorAll('[role="dialog"]')].pop();
+              const re = new RegExp(t, 'i');
+              return [...(dlg || document).querySelectorAll('input, textarea')].find((el) => {
+                if (el.offsetParent === null || el.disabled) return false;
+                const label = el.id ? document.querySelector(`label[for="${el.id}"]`)?.textContent : "";
+                return re.test(el.placeholder || "") || re.test(el.getAttribute("aria-label") || "") || re.test(label || "");
+              }) || null;
+            }, names);
+            const el = field.asElement();
+            if (!el) throw new Error(`no field matching ${names} to type into`);
+            await el.click();
+            await page.keyboard.type(String(text), { delay: 25 });
+            await wait(200);
           }
           // `reveal`: scroll the first element whose text matches into view, so the screenshot shows the part
           // of a long page the step is about

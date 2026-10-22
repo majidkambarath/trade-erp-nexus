@@ -27,6 +27,7 @@ import { tabAllowed } from "../lib/permissions";
 import { tabOutOfPlan } from "../lib/organisation";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
 import { NavBadgesProvider } from "./shell/NavBadges";
+import UnsavedWorkProvider from "./shell/UnsavedWorkProvider";
 import { subscriptionNotice } from "../lib/subscriptionText";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
@@ -277,7 +278,10 @@ const Layout = () => (
   <OrganisationProvider>
     {/* the small counts beside a navigation entry (what is waiting for this person's approval) */}
     <NavBadgesProvider>
-      <LayoutShell />
+      {/* asks before a rail link, a tab or the Back button takes a half-typed form away */}
+      <UnsavedWorkProvider>
+        <LayoutShell />
+      </UnsavedWorkProvider>
     </NavBadgesProvider>
   </OrganisationProvider>
 );
