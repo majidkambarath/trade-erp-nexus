@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
+import { DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Select, Spinner, TextInput, useAsync } from "../components/accounting/kit";
 import { formatDate, formatDateTime } from "../utils/format";
 import { consoleError, platform } from "./platformApi";
 import ModulesPanel from "./ModulesPanel";
 import { featureChoiceOf, moduleStateOf } from "./modulesModel";
+import { countryName, suggestFor } from "./countries";
+import { formatOffset, localTime, offsetMinutes, withCurrent, zoneOptions } from "./timezones";
 import {
   roleLabel,
   roleOptions,
@@ -275,7 +277,53 @@ const PROFILE_FIELDS = [
   ["phone", "Phone"],
 ];
 
-export function CompanyTab({ detail, run, busy }) {
+// Where the organisation's clocks run. The country and the currency the ledger is kept in are fixed once the books
+// exist; the time zone is not, and can be corrected here. It decides which calendar day a document, a report and a
+// period lock fall on, so it is said plainly. The server refuses a zone west of UTC: a date with no time is stored at
+// UTC midnight, which reads as the day before anywhere west of it.
+function PlacePanel({ org, catalog, run, busy }) {
+  const [zone, setZone] = useState(org.timezone);
+  useEffect(() => setZone(org.timezone), [org.timezone]);
+  const suggestion = useMemo(() => suggestFor(org.country, catalog || {}), [org.country, catalog]);
+  const zones = useMemo(
+    () => withCurrent(zoneOptions({ countryZones: suggestion.zones, catalogZones: catalog?.timezones, countryName: suggestion.name }), zone),
+    [suggestion, catalog, zone]
+  );
+  const moved = Boolean(zone) && zone !== org.timezone;
+  const note = [
+    zone ? `It is ${localTime(zone)} there now (${formatOffset(offsetMinutes(zone))}).` : "",
+    suggestion.zones.length && !suggestion.zones.includes(zone) ? `${suggestion.name} keeps its clocks on ${suggestion.zones[0]}.` : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <Panel
+      title="Country, currency and time zone"
+      description="The country and the base currency are fixed once the books exist. The time zone can be corrected: it decides which calendar day every document, report and period lock falls on, and the change reaches the whole system within a minute."
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Country" hint="Fixed: it decides the tax set and the words used for tax.">
+          <TextInput value={`${countryName(org.country)} (${org.country})`} readOnly disabled />
+        </Field>
+        <Field label="Base currency" hint="Fixed: the ledger is kept in it.">
+          <TextInput value={org.baseCurrency} readOnly disabled />
+        </Field>
+        <Field label="Time zone" hint={note || undefined} className="sm:col-span-2">
+          <SearchSelect value={zone} onChange={setZone} options={zones} rankMatches />
+        </Field>
+      </div>
+      <button
+        type="button"
+        disabled={busy || !moved}
+        onClick={() => run(() => platform.updateOrganisation(org.code, { timezone: zone }), `Time zone set to ${zone}`)}
+        className={`${primaryButton} mt-4`}
+      >
+        Save time zone
+      </button>
+    </Panel>
+  );
+}
+
+export function CompanyTab({ detail, catalog, run, busy }) {
   const org = detail.organisation;
   const profile = useMemo(() => detail.profile || {}, [detail.profile]);
   const [form, setForm] = useState({});
@@ -287,20 +335,23 @@ export function CompanyTab({ detail, run, busy }) {
 
   const save = () => run(() => platform.saveProfile(org.code, { ...form, vatRegistered }), "Company details saved");
   return (
-    <Panel title="Company details" description="The letterhead and tax identity on this organisation's invoices. The customer can change these in their own Settings; use this to correct them for them.">
-      <div className="grid gap-4 sm:grid-cols-2">
-        {PROFILE_FIELDS.map(([key, label]) => (
-          <Field key={key} label={label} hint={key === "trn" && org.country === "AE" ? "Fifteen digits" : undefined}>
-            <TextInput value={form[key] ?? ""} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
-          </Field>
-        ))}
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input type="checkbox" checked={vatRegistered} onChange={(e) => setVatRegistered(e.target.checked)} className="h-4 w-4" />
-          Registered for VAT
-        </label>
-      </div>
-      <button type="button" disabled={busy} onClick={save} className={`${primaryButton} mt-4`}>Save</button>
-    </Panel>
+    <div className="space-y-4">
+      <Panel title="Company details" description="The letterhead and tax identity on this organisation's invoices. The customer can change these in their own Settings; use this to correct them for them.">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {PROFILE_FIELDS.map(([key, label]) => (
+            <Field key={key} label={label} hint={key === "trn" && org.country === "AE" ? "Fifteen digits" : undefined}>
+              <TextInput value={form[key] ?? ""} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
+            </Field>
+          ))}
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input type="checkbox" checked={vatRegistered} onChange={(e) => setVatRegistered(e.target.checked)} className="h-4 w-4" />
+            Registered for VAT
+          </label>
+        </div>
+        <button type="button" disabled={busy} onClick={save} className={`${primaryButton} mt-4`}>Save</button>
+      </Panel>
+      <PlacePanel org={org} catalog={catalog} run={run} busy={busy} />
+    </div>
   );
 }
 
