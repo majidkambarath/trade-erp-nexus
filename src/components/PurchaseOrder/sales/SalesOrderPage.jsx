@@ -274,6 +274,10 @@ const formatDisplayTransactionNo = (t) => {
       dueDate: t.dueDate || null,
       paymentTerms: t.party?.paymentTerms || "",
       items: t.items,
+      // The printed sheet reads the server's own figures (utils/documentTotals.js): without them it sums the lines
+      // and loses the header charges, the header discount and the round-off.
+      charges: t.charges || [],
+      pricing: t.pricing || null,
       terms: t.terms || "",
       notes: t.notes || "",
       createdBy: t.createdBy,

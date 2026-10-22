@@ -283,6 +283,11 @@ const PurchaseOrderManagement = () => {
           dueDate: t.dueDate || null,
           paymentTerms: t.party?.paymentTerms || "",
           items: enrichedItems,
+          // The printed sheet reads the server's own figures (utils/documentTotals.js): without them it sums the lines
+          // and loses the header charges, the header discount and the round-off.
+          charges: t.charges || [],
+          pricing: t.pricing || null,
+          discount: typeof t.discount === "number" ? t.discount : 0,
           terms: t.terms || "",
           notes: t.notes || "",
           createdBy: t.createdBy || "System",

@@ -218,6 +218,11 @@ const PurchaseReturnOrderManagement = () => {
           approvalStatus: transaction.status,
           totalAmount: transaction.totalAmount.toFixed(2),
           items: transaction.items,
+          // The printed sheet reads the server's own figures (utils/documentTotals.js): without them it sums the lines
+          // and loses the header charges, the header discount and the round-off.
+          charges: transaction.charges || [],
+          pricing: transaction.pricing || null,
+          discount: typeof transaction.discount === "number" ? transaction.discount : 0,
           terms: transaction.terms,
           notes: transaction.notes,
           createdBy: transaction.createdBy,

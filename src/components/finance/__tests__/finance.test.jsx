@@ -488,6 +488,7 @@ describe("card master", () => {
   });
 });
 
+
 // ------------------------------------------------------------------ copying a voucher into a new one
 describe("copying a voucher into a new one", () => {
   const today = new Date().toISOString().slice(0, 10);
@@ -504,12 +505,15 @@ describe("copying a voucher into a new one", () => {
   const SAVED_EXPENSE = {
     _id: "v8", voucherNo: "EV-2026-0004", voucherType: "expense", status: "approved", ledgerBased: true,
     date: "2026-03-04T00:00:00.000Z", subtotal: 1500, vatTotal: 75, totalAmount: 1575,
-    description: "Monthly rent", expenseAccountId: "rent", taxCodeId: "std",
-    paymentMode: "cheque",
+    description: "Monthly rent", expenseAccountId: "rent", taxCodeId: "std", paymentMode: "cheque",
     paymentDetails: { accountId: "bank1", chequeDetails: { chequeNumber: "000555", chequeDate: "2026-03-04" }, drawnOnBankId: "mash", drawnOnBankName: "Mashreq" },
   };
 
-  it("opens a journal as a NEW voucher with the old rows, today's date, and posts through create", async () => {
+  beforeEach(() => {
+    m.axiosGet.mockResolvedValue({ data: { data: [] } });
+  });
+
+  it("opens a journal as a NEW voucher with the old figures, and posts through create with today's date", async () => {
     const onSaved = vi.fn();
     render(<JournalForm copyOf={SAVED_JOURNAL} onClose={() => {}} onSaved={onSaved} />);
     await waitFor(() => expect(m.postable).toHaveBeenCalled());
@@ -519,37 +523,42 @@ describe("copying a voucher into a new one", () => {
     expect(screen.getByRole("button", { name: "Post journal" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
 
-    // the figures came across, but the date is today's and not the original's
+    // the figures came across
     expect(screen.getByLabelText("Debit, row 1")).toHaveValue("900");
     expect(screen.getByLabelText("Credit, row 2")).toHaveValue("900");
     expect(screen.getByLabelText("Narration, row 1")).toHaveValue("Warehouse");
-    expect(screen.getByLabelText("Date")).toHaveValue(today);
-    expect(screen.getByLabelText("Date")).not.toHaveValue("2026-03-31");
 
     m.create.mockResolvedValue({ voucherNo: "JV-2026-0020" });
     fireEvent.click(screen.getByRole("button", { name: "Post journal" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
+
+    // a new voucher, not an edit of the old one: today's date and none of its identity
     expect(m.update).not.toHaveBeenCalled();
     const body = m.create.mock.calls[0][0];
     expect(body.date).toBe(today);
+    expect(body.date).not.toBe("2026-03-31");
+    expect(body.narration).toBe("Month-end accrual");
     expect(body.lines).toHaveLength(2);
-    for (const key of ["_id", "voucherNo", "status", "approvals"]) expect(body).not.toHaveProperty(key);
+    for (const key of ["_id", "voucherNo", "status", "approvals", "entries"]) expect(body).not.toHaveProperty(key);
   });
 
-  it("copies an expense at its net amount and keeps how it was paid, but not the cheque", async () => {
+  it("copies an expense at its net amount, and will not post until the new cheque is entered", async () => {
     render(<ExpenseForm copyOf={SAVED_EXPENSE} onClose={() => {}} onSaved={vi.fn()} />);
     await waitFor(() => expect(m.postable).toHaveBeenCalled());
 
     expect(screen.getByRole("dialog", { name: /copied from EV-2026-0004/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("Description")).toHaveValue("Monthly rent");
-    // the net, not the 1575 that left the bank
-    expect(screen.getByLabelText(/Amount before/)).toHaveValue("1500");
-    expect(screen.getByLabelText("Date")).toHaveValue(today);
+    // the net, not the 1575 that left the bank: the form adds the tax at the new date's rate
+    await waitFor(() => expect(screen.getByLabelText(/Amount before/)).toHaveValue("1500"));
+    expect(screen.getByLabelText(/^Description/)).toHaveValue("Monthly rent");
 
-    // still a cheque payment, still the same bank - but the cheque itself must be entered afresh
-    await waitFor(() => expect(screen.getByLabelText("Cheque number")).toBeInTheDocument());
-    expect(screen.getByLabelText("Cheque number")).toHaveValue("");
-    expect(screen.getByLabelText("Cheque date")).toHaveValue("");
+    // still a cheque payment, but the cheque itself is blank - it identifies one real payment
+    expect(screen.getByRole("radio", { name: "Cheque" })).toBeChecked();
+    expect(screen.getByLabelText(/^Cheque number/)).toHaveValue("");
+    expect(screen.getByLabelText(/^Cheque date/)).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "Post expense" }));
+    await waitFor(() => expect(screen.getByText("Enter the cheque number")).toBeInTheDocument());
+    expect(m.create).not.toHaveBeenCalled();
   });
 
   it("copies a note's own lines and leaves it set against no invoice", async () => {
@@ -562,7 +571,8 @@ describe("copying a voucher into a new one", () => {
     await waitFor(() => expect(m.postable).toHaveBeenCalled());
 
     expect(screen.getByRole("dialog", { name: /copied from CN-2026-0003/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("Amount, line 1")).toHaveValue("300");
+    expect(screen.getByLabelText("Amount, row 1")).toHaveValue("300");
+    expect(screen.getByLabelText("Description, row 1")).toHaveValue("Breakage");
     // the invoice the original credited is NOT carried over
     expect(screen.queryByText("SO-2026-0001")).not.toBeInTheDocument();
   });

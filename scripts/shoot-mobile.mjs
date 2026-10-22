@@ -193,6 +193,10 @@ const DEEP = {
   // The cheque register puts "Audit trail" on the row itself, so the densest dialog in the
   // app is one tap away - the posting table inside it is what this check exists for.
   "finance-cheques": [{ name: "audit", clicks: ["Audit trail"], settle: 1400 }],
+  // Copying a voucher opens the ordinary form, but with a much longer title ("New journal voucher,
+  // copied from JV-2026-0012") and a two-sentence description: at 390px those are what can overflow.
+  "journal-voucher": [{ name: "copy", clicks: ["^Copy "], settle: 900 }],
+  "expense-voucher": [{ name: "copy", clicks: ["^Copy "], settle: 900 }],
   // A quotation and a delivery note are each a printed document with a row of actions above it, and
   // dialogs behind those. `page: true` means the step lands on a page, not a dialog.
   // The Sending tab with "your own mail server" chosen: five more fields and a warning, on a phone.
