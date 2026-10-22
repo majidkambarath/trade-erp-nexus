@@ -295,7 +295,7 @@ export const Select = React.forwardRef(function Select({ className, children, ..
 // It is a drop-in for the native Select: `value` is the chosen option's value and `onChange`
 // receives that value as a string ("" when cleared).
 //   options: [{ value, label, searchText?, depth?, hint? }]   depth indents a child under its parent
-const searchStyles = (invalid, compact) => ({
+const searchStyles = (invalid, compact, menuWidth) => ({
   control: (base, s) => ({
     ...base,
     minHeight: compact ? 36 : 40,
@@ -314,7 +314,9 @@ const searchStyles = (invalid, compact) => ({
   indicatorSeparator: () => ({ display: "none" }),
   dropdownIndicator: (base) => ({ ...base, color: "var(--muted-foreground)", padding: "0 10px" }),
   clearIndicator: (base) => ({ ...base, color: "var(--muted-foreground)", padding: "0 6px" }),
-  menu: (base) => ({ ...base, zIndex: 70, borderRadius: 10, overflow: "hidden", backgroundColor: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-elevated, 0 10px 30px rgba(0,0,0,.18))" }),
+  // A narrow control (the dialling-code box is 112px) would otherwise open a list as narrow as itself,
+  // with every country name clipped in it. `menuWidth` lets the list be as wide as it needs to be.
+  menu: (base) => ({ ...base, zIndex: 70, borderRadius: 10, overflow: "hidden", backgroundColor: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-elevated, 0 10px 30px rgba(0,0,0,.18))", ...(menuWidth ? { width: menuWidth, minWidth: menuWidth } : null) }),
   menuPortal: (base) => ({ ...base, zIndex: 70 }),
   menuList: (base) => ({ ...base, padding: 4, maxHeight: 280 }),
   option: (base, s) => ({
@@ -364,7 +366,13 @@ const rankedBy = (options, typed) => {
 
 export function SearchSelect({
   id, value, onChange, options, placeholder = "Choose…", clearable = false, disabled = false, loading = false,
-  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", rankMatches = false, className, ...aria
+  invalid, autoFocus = false, compact = false, noOptionsText = "Nothing matches", rankMatches = false,
+  // `hintInListOnly`: the hint names the option in the LIST, but the box shows the label alone. For a
+  // control too narrow to hold both - the dialling-code box shows "+971", the list "+971 United Arab
+  // Emirates" - because the hint does not shrink and the label does, so in a narrow box the hint wins
+  // and the label, which is the thing chosen, collapses to nothing.
+  hintInListOnly = false, menuWidth,
+  className, ...aria
 }) {
   const selected = options.find((o) => String(o.value) === String(value ?? "")) || null;
   const [typed, setTyped] = useState("");
@@ -379,7 +387,7 @@ export function SearchSelect({
       inputId={id}
       className={className}
       classNamePrefix="search-select"
-      styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact)}
+      styles={searchStyles(Boolean(invalid ?? aria["aria-invalid"]), compact, menuWidth)}
       options={rankMatches ? rankedBy(options, typed) : options}
       onInputChange={rankMatches ? (text, meta) => setTyped(meta.action === "input-change" ? text : "") : undefined}
       value={selected}
@@ -401,7 +409,7 @@ export function SearchSelect({
       formatOptionLabel={(o, { context }) => (
         <span className="flex min-w-0 items-baseline gap-2" style={context === "menu" && o.depth ? { paddingInlineStart: o.depth * 14 } : undefined}>
           <span className="truncate">{o.label}</span>
-          {o.hint && <span className="shrink-0 text-xs opacity-70">{o.hint}</span>}
+          {o.hint && !(hintInListOnly && context === "value") && <span className="shrink-0 text-xs opacity-70">{o.hint}</span>}
         </span>
       )}
     />
@@ -606,6 +614,8 @@ export const PhoneInput = React.forwardRef(function PhoneInput(
           disabled={disabled}
           placeholder="Code"
           rankMatches
+          hintInListOnly
+          menuWidth={300}
         />
       </div>
       <input

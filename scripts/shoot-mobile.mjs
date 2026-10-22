@@ -315,6 +315,7 @@ DEEP["leads"] = DEEP["crm-leads"]; // check:mobile -- /crm/leads
 DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 DEEP["stock-item-creation"] = DEEP["inventory-stock-items"]; // check:mobile -- /stock-item-creation
+DEEP["customer-creation"] = DEEP["sales-customers"]; // check:mobile -- /customer-creation
 // The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
 // opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
 // not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.

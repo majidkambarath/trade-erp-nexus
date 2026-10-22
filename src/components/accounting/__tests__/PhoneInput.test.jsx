@@ -36,6 +36,14 @@ describe("the phone field", () => {
     expect(stored()).toBe(""); // nothing typed yet, so nothing stored: a dialling code alone is not a number
   });
 
+  it("the box shows the dialling code alone: the country's name belongs to the list", () => {
+    // The hint does not shrink and the label does, so in a box this narrow the country name would win
+    // and "+971" - the thing actually chosen - would be squeezed out of sight (it read "United").
+    render(<Form />);
+    expect(screen.getByText("+971")).toBeInTheDocument();
+    expect(screen.queryByText("United Arab Emirates")).not.toBeInTheDocument();
+  });
+
   it("stores the whole number in one compact field", () => {
     render(<Form />);
     fireEvent.change(number(), { target: { value: "50 123 4567" } });
