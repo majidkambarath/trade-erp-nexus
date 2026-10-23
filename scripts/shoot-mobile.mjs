@@ -151,6 +151,13 @@ const DEEP = {
     // the same two for a month of the open year (the Month end panel under the years): checks, warnings to tick, stock against the ledger
     { name: "close-month", clicks: ["^Fiscal years$", "^Close month$"], settle: 1100 },
     { name: "reopen-month", clicks: ["^Fiscal years$", "^Reopen month$"], settle: 1100 },
+    // Numbering: the three views, and the form where a number's shape is set (its live preview, the
+    // grouped lists and the gap report are all wide things on a phone).
+    { name: "numbering", page: true, clicks: ["^Numbering$"], settle: 1100 },
+    { name: "numbering-edit", clicks: ["^Numbering$", "^Edit Sales invoice$"], settle: 1100 },
+    { name: "numbering-new", clicks: ["^Numbering$", "^New voucher type$"], settle: 1100 },
+    { name: "numbering-counters", page: true, clicks: ["^Numbering$", "^Counters$"], settle: 1000 },
+    { name: "numbering-deleted", page: true, clicks: ["^Numbering$", "^Deleted & gaps$"], settle: 1100 },
   ],
   // The item form: goods (every stock field), then a service (the Goods / Service choice, no stock fields, two account pickers).
   "inventory-stock-items": [
@@ -1720,7 +1727,42 @@ function stubFor(pathname) {
       { _id: "fy0", code: "2025", startDate: "2025-01-01", endDate: "2025-12-31", status: "closed", closing: { posted: true, profit: 246913.25, voucherNo: "YEC-2025-0001", retainedAccountName: "Retained Earnings", nextYear: "2026" }, months: [] },
     ];
   }
-  if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", prefix: "SO-2026-", next: 42 + i }));
+  if (p.includes("number-series")) return n(account, 3).map((a, i) => ({ _id: `s${i}`, series: "SO", fiscalYear: "2026", scope: "Year 2026", branchId: "main", prefix: "SO", next: 42 + i }));
+  // Numbering: how every kind of document is named and numbered, and the register of numbers given out.
+  if (p.includes("voucher-types")) {
+    const vt = (over) => ({
+      key: "SO", name: "Sales invoice", kind: "trade", postsAs: "sales_order", parentKey: null, statutory: true,
+      prefix: "SO", suffix: "", separator: "-", includeYear: true, numberLength: 4, resetPolicy: "yearly",
+      branchPrefix: "auto", branchPrefixes: [], method: "auto", allowReuse: false, isSystem: true, isActive: true, ...over,
+    });
+    return {
+      types: [
+        vt(),
+        vt({ key: "PO", name: "Purchase invoice", postsAs: "purchase_order", prefix: "PO", statutory: false }),
+        vt({ key: "RV", name: "Receipt", kind: "voucher", postsAs: "receipt", prefix: "RV", statutory: false }),
+        vt({ key: "JV", name: "Journal", kind: "voucher", postsAs: "journal", prefix: "JV", statutory: false, allowReuse: true }),
+        vt({ key: "SA", name: "Stock adjustment", kind: "inventory", postsAs: null, prefix: "SA", statutory: false }),
+        vt({ key: "LD", name: "Lead", kind: "crm", postsAs: null, prefix: "LD", statutory: false }),
+        vt({ key: "YEC", name: "Year-end closing", kind: "system", postsAs: null, prefix: "YEC", statutory: false }),
+      ],
+      branches: [{ code: "main", name: "Head office", isHeadOffice: true, isActive: true }, { code: "shj", name: "Sharjah", isActive: true }],
+    };
+  }
+  if (p.includes("number-register/gaps")) {
+    return {
+      series: "SO", name: "Sales invoice",
+      scopes: [{ branchId: "main", label: "2026", scope: "Year 2026", counter: 44, issued: 42, continuous: false, gaps: [{ seq: 41, code: "CANCELLED", reason: "Raised against the wrong customer" }], rows: [] }],
+    };
+  }
+  if (p.includes("number-register")) {
+    return {
+      rows: [
+        { _id: "r1", number: "SO-2026-0041", typeName: "Sales invoice", series: "SO", status: "cancelled", reason: "Raised against the wrong customer", endedAt: "2026-10-20T09:00:00.000Z", endedBy: "Olivia" },
+        { _id: "r2", number: "JV-2026-0007", typeName: "Journal", series: "JV", status: "released", reason: "Entered twice", endedAt: "2026-10-21T09:00:00.000Z", endedBy: "Olivia" },
+      ],
+      total: 2, page: 1, pages: 1, summary: { issued: 42, released: 1, cancelled: 1 },
+    };
+  }
   if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }, { _id: "t2", name: "Reverse charge 5%", kind: "reverse_charge", ratePercent: 5, isActive: true, isDefault: false, rateHistory: [] }];
   if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
 
