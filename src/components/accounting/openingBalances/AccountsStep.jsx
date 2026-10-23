@@ -105,8 +105,9 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
                 ref={grid} ariaLabel="Account balances" rows={rows} rowErrors={errors} minRows={1} addLabel="Add account"
                 columns={[
                   { key: "account", label: "Account", className: "min-w-72 w-[55%]" },
-                  { key: "debit", label: moneyHeading("Debit"), align: "end", className: "w-40" },
-                  { key: "credit", label: moneyHeading("Credit"), align: "end", className: "w-40" },
+                  // the heading carries the currency; `name` is what a screen reader calls each cell
+                  { key: "debit", label: moneyHeading("Debit"), name: "Debit", align: "end", className: "w-40" },
+                  { key: "credit", label: moneyHeading("Credit"), name: "Credit", align: "end", className: "w-40" },
                 ]}
                 onAdd={() => setRows((rs) => [...rs, emptyAccountRow()])}
                 onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}
@@ -122,7 +123,7 @@ export default function AccountsStep({ goLive, notify, onChanged, goToDate }) {
                   }
                   return (
                     <TextInput
-                      aria-label={`${col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
+                      aria-label={`${col.name || col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
                       value={row[col.key]} onChange={(e) => setAmount(i, col.key, e.target.value)} onBlur={() => tidy(i, col.key)}
                     />
                   );
