@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.6.0.0 — 23 October 2026
+
+A screen for how documents are numbered, the answer to "why is there no invoice 41?", and a switch on
+the invoice form that had been doing nothing for months. Backend 1.6.0.0.
+
+### Added
+
+- **Accounting setup -> Numbering**, a new tab with three views.
+  **Voucher types** lists every kind of document grouped the way a person thinks about them - finance
+  vouchers, sales and purchase, stock and production, CRM, and the ones the system writes itself - each
+  showing the number it will produce. Editing one draws the number AS IT IS TYPED, including what a
+  branch's will read, because a format is far easier to judge by reading one than by reading the fields
+  that make it. A document that carries tax is marked as such and its re-use box is disabled with the
+  reason, so the rule is visible rather than only enforced when you press Save. Choosing "never
+  restarts" takes the year out of the number at the same moment and locks the box: the server refuses
+  that combination, so the form does not let anybody walk into it.
+  **Counters** shows where each counter stands, per branch and year. Read-only on purpose - winding one
+  back by hand is the one way a number could reach two documents, and the register refuses it.
+  **Deleted & gaps** is the answer to "why is there no invoice 41?": every number given out and then
+  deleted, what happened to it (handed back, or retired for good) and the reason, and for one series
+  whether its sequence is unbroken with each hole named.
+- **A variant of a built-in type**, added from the same screen: "Petty cash payment" under Payment
+  carries its own name, prefix and counter and posts exactly as its parent.
+- Fiscal years keeps a one-line **Open Numbering** link where its read-only numbering table used to be,
+  so anyone who looks for it there is sent to the real thing.
+
+### Fixed
+
+- **The Auto / Manual number switch on the sales invoice form did nothing.** It has been there since
+  before the server started stripping a document number out of request bodies - rightly, a body must
+  not choose a tax invoice's number - and nobody took the box away. A person could switch to Manual,
+  type INV-500, save, and the invoice would be filed as SO-2026-0043 with no error and no notice.
+  It is a real setting now: the switch and the editable box are ABSENT unless that document type is set
+  to "Automatic, can be typed over" in Numbering, and what is typed actually reaches the server. Every
+  type is automatic by default, so for a client who changes nothing the form simply loses a control
+  that never worked. Never offered on an edit - an issued number identifies the document - and if the
+  setting cannot be read it falls back to automatic, never to a box the server would refuse. The same
+  rule now covers purchase invoices, both returns, quotations, delivery notes, trade orders and goods
+  receipts, each reading its own type's setting.
+- **A money cell announced the currency on every row.** Three grids built each cell's accessible name
+  from its column HEADING, so when the heading gained the currency ("Debit" became "Debit (AED)") every
+  cell's name silently became "Debit (AED), row 1" - and a screen reader repeated it down the whole
+  journal, where the column header already says it once. Eight tests had been failing since. The
+  heading and the accessible name are two jobs and are two fields now.
+
 ## 1.5.0.2 — 22 October 2026
 
 A voucher can be copied into a new one, amounts and phone numbers are typed the way the
