@@ -83,13 +83,13 @@ describe("fiscal years", () => {
   const YEARS = [{ _id: "y1", code: "2026", startDate: "2026-01-01T00:00:00Z", endDate: "2026-12-31T00:00:00Z", status: "open" }, { _id: "y0", code: "2025", startDate: "2025-01-01T00:00:00Z", endDate: "2025-12-31T00:00:00Z", status: "closed" }];
   beforeEach(() => { m.fiscalYears.mockResolvedValue(YEARS); m.numberSeries.mockResolvedValue([{ _id: "n1", series: "SO", fiscalYear: "2026", prefix: "SO", next: 12 }]); });
 
-  it("lists years and numbering", async () => {
+  it("lists years, and points at the Numbering tab for the counters", async () => {
     at("/accounting-setup?tab=years");
     expect(await screen.findByRole("heading", { name: "Fiscal years" })).toBeInTheDocument();
     const row = (await screen.findAllByText("2026"))[0].closest("tr"); // the years table comes first
     expect(within(row).getByText("Open")).toBeInTheDocument();
     expect(screen.getByText("Closed")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Numbering" })).toBeInTheDocument();
   });
 
   it("closing a year names the consequence and needs confirmation (the year-end dialog: YearEnd.test.jsx)", async () => {

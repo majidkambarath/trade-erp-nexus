@@ -325,6 +325,7 @@ const purchaseLike = (docType, extra) => ({
 
 export const VARIANTS = {
   purchase: purchaseLike("purchase_order", {
+    series: "PO",
     key: "purchase",
     noun: "Purchase order",
     title: { create: "Create purchase invoice", edit: "Edit purchase invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Purchase items" },
@@ -334,12 +335,12 @@ export const VARIANTS = {
     priority: false,
     sourceDocument: null,
     discount: false,
-    numberMode: false,
-    payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   }),
 
   purchaseReturn: purchaseLike("purchase_return", {
+    series: "PR",
     key: "purchaseReturn",
     noun: "Purchase return",
     title: { create: "Create purchase return", edit: "Edit purchase return", save: "Save return", saveEdit: "Update return", items: "Returned items" },
@@ -354,12 +355,12 @@ export const VARIANTS = {
     // price and VAT for a line prefilled from the original
     fromReturnLine: (l) => ({ currentPurchasePrice: String(l.price ?? 0), vatPercent: String(l.vatPercent ?? 5), purchasePrice: l.price ?? 0, ...reverseChargeOf(l) }),
     discount: false,
-    numberMode: false,
-    payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   }),
 
   sales: {
+    series: "SO",
     key: "sales",
     noun: "Sales order",
     docType: "sales_order",
@@ -385,13 +386,13 @@ export const VARIANTS = {
     priority: false,
     sourceDocument: null,
     discount: true,
-    numberMode: true,
     // The sales page has always sent these two reference numbers under short backend keys.
     payloadHeader: (f) => ({ lpono: f.refNo || "", docno: f.docNo || "", discount: num(f.discount) }),
     totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
   },
 
   salesReturn: {
+    series: "SR",
     key: "salesReturn",
     noun: "Sales return",
     docType: "sales_return",
@@ -418,8 +419,7 @@ export const VARIANTS = {
     sourceDocument: { label: "Return against sales invoice", fetchStatus: "APPROVED", docType: "sales_order" },
     fromReturnLine: (l) => ({ salesPrice: String(l.price ?? 0), taxPercent: String(l.vatPercent ?? 5), ...reverseChargeOf(l) }),
     discount: false,
-    numberMode: false,
-    payloadHeader: (f) => ({ terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   },
 };
@@ -445,9 +445,9 @@ export const chargesPayload = (charges = []) =>
     .map((c) => ({ code: c.code || undefined, description: (c.description || "").trim() || "Charge", amount: num(c.amount), vatPercent: num(c.vatPercent) }));
 
 // Per-document payload: the one place a saved record's top-level shape is decided.
-export const buildPayload = (V, f, rows, stockById, { linkedRef, charges } = {}) => {
+export const buildPayload = (V, f, rows, stockById, { linkedRef, charges, manualNumber } = {}) => {
   // A document that is not a Transaction (a quotation, a delivery note) shapes its own payload.
-  if (V.buildPayload) return V.buildPayload(V, f, rows, stockById, { linkedRef, charges });
+  if (V.buildPayload) return V.buildPayload(V, f, rows, stockById, { linkedRef, charges, manualNumber });
   const items = rows
     .filter((r) => r.itemId && num(r.qty) > 0)
     .map((r) => V.itemPayload(r, stockById.get(String(r.itemId))));
@@ -455,7 +455,9 @@ export const buildPayload = (V, f, rows, stockById, { linkedRef, charges } = {})
   const headerCharges = chargesPayload(charges ?? f.charges);
   const chargesTotal = chargesTotals(headerCharges).total;
   const payload = {
-    transactionNo: f.transactionNo,
+    // `transactionNo` is stripped by the server (a body may not choose a document's number); a number
+    // the person deliberately typed travels as `manualNumber`, which the voucher type has to allow.
+    ...(manualNumber ? { manualNumber } : {}),
     type: V.docType,
     partyType: V.partyType,
     partyId: f.partyId,
@@ -498,13 +500,15 @@ const pricedLineInput = (row) => {
 };
 
 // `charges` is always sent, even empty, so removing the last charge on an edit actually removes it.
-const pricedPayload = (header) => (V, f, rows, _stock, { charges } = {}) => ({
+const pricedPayload = (header) => (V, f, rows, _stock, { charges, manualNumber } = {}) => ({
   partyId: f.partyId,
   date: f.date,
   items: rows.filter((r) => r.itemId && num(r.qty) > 0).map(pricedLineInput),
   charges: chargesPayload(charges ?? f.charges),
   discount: num(f.discount),
   notes: f.notes || "",
+  // only present when the person chose to type one and the voucher type allows it
+  ...(manualNumber ? { manualNumber } : {}),
   ...header(f),
 });
 
@@ -523,7 +527,6 @@ const customerSide = {
   rowFromSaved: withStock,
   totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
   discount: true,
-  numberMode: false,
   referenceRequired: false,
   priority: false,
   sourceDocument: null,
@@ -533,6 +536,7 @@ const customerSide = {
 
 // An offer. Valid until a date, with terms that print on it; the number is assigned on save.
 VARIANTS.quotation = {
+  series: "QT",
   ...customerSide,
   key: "quotation",
   noun: "Quotation",
@@ -559,6 +563,7 @@ const DELIVERY_FIELDS = [
 ];
 
 VARIANTS.deliveryNote = {
+  series: "DLN",
   ...customerSide,
   key: "deliveryNote",
   noun: "Delivery note",
@@ -612,6 +617,7 @@ const vendorPayload = (header) => (V, f, rows, _stock, { charges } = {}) => ({
 
 // What a customer has asked for. Nothing is posted: goods are delivered against it and an invoice is raised from what was.
 VARIANTS.salesOrderDoc = {
+  series: "SORD",
   ...customerSide,
   key: "salesOrderDoc",
   noun: "Sales order",
@@ -629,6 +635,7 @@ VARIANTS.salesOrderDoc = {
 
 // What we have asked a vendor for.
 VARIANTS.purchaseOrderDoc = purchaseLike(null, {
+  series: "PORD",
   key: "purchaseOrderDoc",
   noun: "Purchase order",
   endpoint: "/trade-orders",
@@ -644,7 +651,6 @@ VARIANTS.purchaseOrderDoc = purchaseLike(null, {
   priority: false,
   sourceDocument: null,
   discount: true,
-  numberMode: false,
   attachments: false,
   statusOptions: null,
   totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
@@ -659,6 +665,7 @@ const RECEIPT_FIELDS = [
   { key: "driverName", label: "Driver" },
 ];
 VARIANTS.goodsReceived = purchaseLike(null, {
+  series: "GRN",
   key: "goodsReceived",
   noun: "Goods receipt",
   endpoint: "/goods-receipts",
@@ -672,7 +679,6 @@ VARIANTS.goodsReceived = purchaseLike(null, {
   priority: false,
   sourceDocument: null,
   discount: false,
-  numberMode: false,
   attachments: false,
   statusOptions: null,
   extraFields: RECEIPT_FIELDS,

@@ -129,8 +129,10 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
           columns={[
             { key: "account", label: "Account", className: "min-w-64 w-[38%]" },
             { key: "narration", label: "Narration / remarks" },
-            { key: "debit", label: moneyHeading("Debit"), align: "end", className: "w-36" },
-            { key: "credit", label: moneyHeading("Credit"), align: "end", className: "w-36" },
+            // A money column names the currency in its HEADING, once. `name` is what the cell is
+            // called to a screen reader, so it does not repeat "(AED)" on every row.
+            { key: "debit", label: moneyHeading("Debit"), name: "Debit", align: "end", className: "w-36" },
+            { key: "credit", label: moneyHeading("Credit"), name: "Credit", align: "end", className: "w-36" },
           ]}
           onAdd={() => setRows((rs) => [...rs, emptyJournalRow()])}
           onRemove={(i) => setRows((rs) => rs.filter((_, k) => k !== i))}
@@ -148,7 +150,7 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
             }
             return (
               <TextInput
-                aria-label={`${col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
+                aria-label={`${col.name || col.label}, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00"
                 value={row[col.key]} onChange={(e) => setAmount(i, col.key, e.target.value)} onBlur={() => tidy(i, col.key)}
               />
             );

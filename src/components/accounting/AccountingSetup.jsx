@@ -5,12 +5,14 @@ import { PageHeader, useToasts } from "./kit";
 import PostingAccounts from "./setup/PostingAccounts";
 import FiscalYears from "./setup/FiscalYears";
 import TaxCodes from "./setup/TaxCodes";
+import Numbering from "./setup/Numbering";
 import AuditLog from "./setup/AuditLog";
 
 const TABS = [
   { id: "posting", label: "Posting accounts", Component: PostingAccounts },
   { id: "years", label: "Fiscal years", Component: FiscalYears },
   { id: "tax", label: "Tax codes", Component: TaxCodes },
+  { id: "numbering", label: "Numbering", Component: Numbering },
   { id: "audit", label: "Audit log", Component: AuditLog },
 ];
 
@@ -25,7 +27,7 @@ export default function AccountingSetup() {
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Accounting setup" description="Decide which accounts each transaction posts to, which periods are open and how tax codes apply, and review every change." />
+      <PageHeader title="Accounting setup" description="Decide which accounts each transaction posts to, which periods are open, how tax codes apply and how documents are numbered, and review every change." />
       <Tabs value={active} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="overflow-x-auto"><TabsList>{TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList></div>
         {TABS.map((tab) => {

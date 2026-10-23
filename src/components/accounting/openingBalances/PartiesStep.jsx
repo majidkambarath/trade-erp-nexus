@@ -130,7 +130,8 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
                   { key: "reference", label: "Invoice no.", className: "min-w-36" },
                   { key: "date", label: "Invoice date", className: "w-44" },
                   { key: "dueDate", label: "Due date", className: "w-44" },
-                  { key: "amount", label: moneyHeading("Amount"), align: "end", className: "w-40" },
+                  // the heading carries the currency; `name` is what a screen reader calls each cell
+                  { key: "amount", label: moneyHeading("Amount"), name: "Amount", align: "end", className: "w-40" },
                 ]}
                 onAdd={() => setRows((rs) => [...rs, emptyPartyRow()])}
                 onRemove={(i) => setRows((rs) => rs.filter((_, n) => n !== i))}
@@ -150,7 +151,7 @@ export default function PartiesStep({ type, goLive, notify, onChanged, goToDate 
                   if (col.key === "date" || col.key === "dueDate") {
                     return (
                       <DateInput
-                        aria-label={`${col.label}, row ${i + 1}`} value={row[col.key]} max={col.key === "date" ? goLive : undefined}
+                        aria-label={`${col.name || col.label}, row ${i + 1}`} value={row[col.key]} max={col.key === "date" ? goLive : undefined}
                         placeholder={col.key === "date" ? "Go-live day" : "By terms"} onChange={(e) => patch(i, { [col.key]: e.target.value })}
                       />
                     );

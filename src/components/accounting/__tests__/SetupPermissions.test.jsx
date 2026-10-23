@@ -83,11 +83,12 @@ describe("fiscal years", () => {
     m.numberSeries.mockResolvedValue([{ _id: "n1", series: "SO", fiscalYear: "2026", prefix: "SO", next: 12 }]);
   });
 
-  it("lists the years and the numbering but offers no way to add, close or reopen to someone who may only look", async () => {
+  it("lists the years but offers no way to add, close or reopen to someone who may only look", async () => {
     status = statusFor("accounts.view");
     await at("/accounting-setup?tab=years");
     expect(await screen.findByRole("table", { name: "Fiscal years" })).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: "Number series" })).toBeInTheDocument();
+    // The counters moved to their own tab, where they can be changed; the years tab points at it.
+    expect(screen.getByRole("link", { name: "Open Numbering" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /New fiscal year/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Close year/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Reopen/ })).toBeNull();

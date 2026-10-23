@@ -198,6 +198,10 @@ export default function OrderForm({
   const [lookups, setLookups] = useState({ categories: [], units: [] });
   const [focusRequest, setFocusRequest] = useState(null);
   const [manualNumber, setManualNumber] = useState(false);
+  // Whether THIS kind of document may have its number typed at all. It is the voucher type's own
+  // setting (Accounting setup -> Numbering), off until somebody turns it on, so the box and the
+  // Auto / Manual switch are simply absent unless the organisation has asked for them.
+  const [numberMayBeTyped, setNumberMayBeTyped] = useState(false);
   const [sourceOpts, setSourceOpts] = useState([]);
   const [linkedRef, setLinkedRef] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -218,6 +222,21 @@ export default function OrderForm({
       .catch(() => {});
     return () => { live = false; };
   }, []);
+
+  // May this document's number be typed? A failure leaves it false, so the form falls back to the
+  // number the server allocates - never to an editable box the server would refuse.
+  useEffect(() => {
+    if (!V.series) return undefined;
+    let live = true;
+    axiosInstance
+      .get("/accounting/voucher-types")
+      .then((r) => {
+        const mine = (r.data?.data?.types || []).find((t) => t.key === V.series);
+        if (live) setNumberMayBeTyped(mine?.method === "auto_override" && mine?.isActive !== false);
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [V.series]);
   const selectOptions = useMemo(
     () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: taxCodeLabel(c) })) }),
     [taxCodes]
@@ -421,6 +440,11 @@ export default function OrderForm({
     }),
   });
 
+  // Only while the document is new: once a number has been issued it identifies the document, and
+  // changing it would leave the register pointing at a number nothing carries.
+  const numberMayBeChosen = numberMayBeTyped && !editing;
+  const numberIsEditable = numberMayBeChosen && manualNumber;
+
   const save = async () => {
     if (saving) return;
     const found = validate();
@@ -431,7 +455,13 @@ export default function OrderForm({
       return;
     }
     setSaving(true);
-    const payload = buildPayload(V, formData, rows, stockById, { charges, ...(V.sourceDocument ? { linkedRef } : {}) });
+    const payload = buildPayload(V, formData, rows, stockById, {
+      charges,
+      // Only when the person actually chose to type one. `transactionNo` in a body is a forgery and is
+      // stripped by the server; this is the deliberate field, and the voucher type has to allow it.
+      ...(numberIsEditable && formData.transactionNo ? { manualNumber: formData.transactionNo } : {}),
+      ...(V.sourceDocument ? { linkedRef } : {}),
+    });
     // Approving or rejecting is an action of its own on the server (stock, ledger, credit control), so the
     // document is saved first and the action follows; saving never sets those statuses directly.
     const afterSave = { APPROVED: "approve", REJECTED: "reject" }[payload.status] || null;
@@ -572,7 +602,6 @@ export default function OrderForm({
   const attachmentsLabel = V.party.idInDoc === "customerId"
     ? "Attachments (customer order, signed delivery note, proof of delivery)"
     : "Attachments (supplier invoice, delivery note, proof of delivery)";
-  const numberIsEditable = V.numberMode && manualNumber;
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
@@ -665,7 +694,7 @@ export default function OrderForm({
                       className={cn(fieldCls(false), "ps-9", !numberIsEditable && "bg-secondary text-muted-foreground")}
                     />
                   </div>
-                  {V.numberMode && (
+                  {numberMayBeChosen && (
                     <div className="inline-flex rounded-lg border border-input p-0.5 text-xs font-semibold" role="group" aria-label="Number mode">
                       <button type="button" aria-pressed={!manualNumber} onClick={() => setManualNumber(false)} className={cn("rounded-md px-2.5 py-1.5", !manualNumber ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Auto</button>
                       <button type="button" aria-pressed={manualNumber} onClick={() => setManualNumber(true)} className={cn("rounded-md px-2.5 py-1.5", manualNumber ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>Manual</button>

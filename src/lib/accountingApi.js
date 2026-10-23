@@ -73,6 +73,16 @@ export const accounting = {
   closeMonth: (id, month, body) => api.post(`/accounting/fiscal-years/${id}/months/${month}/close`, body),
   reopenMonth: (id, month) => api.post(`/accounting/fiscal-years/${id}/months/${month}/reopen`),
   numberSeries: () => api.get("/accounting/number-series"),
+
+  // How every kind of document is named and numbered (Accounting setup -> Numbering).
+  voucherTypes: (params) => api.get("/accounting/voucher-types", params),
+  createVoucherType: (body) => api.post("/accounting/voucher-types", body),
+  updateVoucherType: (key, body) => api.put(`/accounting/voucher-types/${key}`, body),
+  removeVoucherType: (key) => api.del(`/accounting/voucher-types/${key}`),
+  voucherTypeUsage: (key) => api.get(`/accounting/voucher-types/${key}/usage`),
+  // Every number given out, the deleted ones with their reason, and the holes in a sequence.
+  numberRegister: (params) => api.get("/accounting/number-register", params),
+  numberGaps: (params) => api.get("/accounting/number-register/gaps", params),
   taxCodes: () => api.get("/accounting/tax-codes"),
   createTaxCode: (body) => api.post("/accounting/tax-codes", body),
   updateTaxCode: (id, body) => api.put(`/accounting/tax-codes/${id}`, body),
