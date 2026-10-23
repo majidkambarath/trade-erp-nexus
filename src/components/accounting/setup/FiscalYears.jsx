@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { Lock, LockOpen, Plus } from "lucide-react";
 import { accounting } from "../../../lib/accountingApi";
 import { closedNote } from "../../../lib/yearEnd";
@@ -17,7 +18,6 @@ export default function FiscalYears({ notify }) {
   const canManage = canAny("accounts.manage");
   const canClose = canAny("accounts.close");
   const years = useAsync(() => accounting.fiscalYears(), []);
-  const series = useAsync(() => accounting.numberSeries(), []);
   const [modal, setModal] = useState(false);
   const [confirm, setConfirm] = useState(null); // { year, action }: the year-end dialog, which reads what closing would do first
   const [monthYear, setMonthYear] = useState(null); // the year whose months are listed (else the one being worked on)
@@ -94,21 +94,13 @@ export default function FiscalYears({ notify }) {
         </Panel>
       )}
 
-      <Panel title="Document numbering" description="One counter per series and year. Numbers are never reused: a gap means a number was issued and its document did not complete." bodyClassName="p-0">
-        {series.data?.length === 0 && <EmptyState title="No numbers issued yet" text="A series appears here the first time a document of that kind is created." />}
-        {series.data?.length > 0 && (
-          <DataTable
-            caption="Number series"
-            rows={series.data}
-            rowKey={(s) => s._id}
-            columns={[
-              { key: "series", header: "Series", card: "primary", className: "font-semibold", cell: (s) => s.series },
-              { key: "year", header: "Year", card: "meta", cell: (s) => s.fiscalYear },
-              { key: "prefix", header: "Prefix", card: "title", className: "font-mono text-xs", cell: (s) => s.prefix },
-              { key: "next", header: "Last number issued", align: "end", card: "amount", className: "tabular-nums", cell: (s) => s.next },
-            ]}
-          />
-        )}
+      {/* Numbering used to be a read-only table here, which was the only place it appeared anywhere.
+          It is its own tab now, where it can be changed - a person who comes looking for it here is
+          pointed at it rather than left wondering. */}
+      <Panel title="Document numbering" description="Each kind of document has its own prefix, counter width and year, set under Numbering.">
+        <Link to="/accounting-setup?tab=numbering" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          Open Numbering
+        </Link>
       </Panel>
 
       {modal && <YearModal onClose={() => setModal(false)} onSaved={(code) => { setModal(false); notify(`Fiscal year ${code} added`); years.reload(); }} />}
