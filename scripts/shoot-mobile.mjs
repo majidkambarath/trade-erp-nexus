@@ -1737,7 +1737,9 @@ function stubFor(pathname) {
     });
     return {
       types: [
-        vt(),
+        // The sales invoice allows a typed number here on purpose, so the order form's Auto / Manual
+        // switch is drawn and swept. It is `auto` for a real organisation until somebody turns it on.
+        vt({ method: "auto_override" }),
         vt({ key: "PO", name: "Purchase invoice", postsAs: "purchase_order", prefix: "PO", statutory: false }),
         vt({ key: "RV", name: "Receipt", kind: "voucher", postsAs: "receipt", prefix: "RV", statutory: false }),
         vt({ key: "JV", name: "Journal", kind: "voucher", postsAs: "journal", prefix: "JV", statutory: false, allowReuse: true }),
