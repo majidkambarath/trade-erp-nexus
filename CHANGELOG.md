@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.6.0.1 — 24 October 2026
+
+The statement of account reads any ledger account and groups a long one by month; a receipt can
+leave an invoice out; and three screens no longer break on a record that is missing a field.
+Backend 1.6.0.1.
+
+### Added
+
+- **Statement of account: a ledger account, not only a party.** "Statement of" now offers **Ledger
+  account** beside Customer and Vendor - a bank, a cash box, a loan, VAT, an expense - with the
+  picker filing every account under its own chart group and searching the account code as well as
+  the name. The choice is only offered to somebody the server will answer (`accounts.view`,
+  `reports.financial` or `finance.view`): a statement of any account is the general ledger by
+  another name, and a typed `?partyType=Account` without those keys falls back to Customer instead
+  of showing a door that would 403.
+- **Group by month**, on by default: each month's debits, credits and the balance it closed on.
+  A month's closing is the server's own running balance read off the last row, never a re-addition
+  of the rows above it, so the month line and the row beside it cannot drift apart. The CSV exports
+  what is on the screen, month subtotals and all, and now carries the narration column the page shows.
+- **An invoice can be left out of a receipt or a payment.** The row's **X** takes it off this
+  voucher - out of the grid, out of "oldest first" and out of the total below it - and it can be put
+  back; the invoice itself stays open and untouched. Beside it, **Pay all** sets the amount to
+  everything still listed, in the currency being paid in. Changing the party clears the list again.
+- **Remove logo** on Settings → Company, beside Upload. Like every other change on that page it is
+  applied on Save and can be undone first with "Keep the saved logo" or Discard.
+
+### Fixed
+
+- **One item with no name or no SKU took the whole stock screen down.** Typing a single character
+  searched `item.itemName.toLowerCase()` on every row, and generating the next SKU sorted on
+  `b.sku.localeCompare(...)`: either threw the moment such a row existed, and the page went to the
+  error screen for the whole organisation. Both fields are required on the model, but
+  `findOneAndUpdate` skips validators and rows written before they were required remain. Every field
+  searched is now read the way `itemId` already was - a record missing one simply does not match -
+  an item with no SKU is left out of the count-up rather than sorted, and a nameless row reads
+  "UNNAMED ITEM".
+- **Download gave every copy of a document in one file whatever the copy switch said.** Print has
+  always followed that switch; the PDF now does too, so what is drawn, printed and downloaded cannot
+  disagree.
+- **A grouped picker read as empty although a value was set.** `SearchSelect` found the chosen option
+  with a flat `find()`, so an option one level down inside a group (the statement's account picker)
+  was never matched.
+- The tax note's heading in the IFRS notes comes from the server, so it reads "Goods and services
+  tax" for an Indian organisation; the literal is kept only for a server from before that.
+
 ## 1.6.0.0 — 23 October 2026
 
 A screen for how documents are numbered, the answer to "why is there no invoice 41?", and a switch on
