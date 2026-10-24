@@ -20,8 +20,16 @@ vi.mock('../../../../lib/sendDocumentsApi', () => ({
   documentSends: { send: vi.fn(), handoff: vi.fn(), history: vi.fn(), retry: vi.fn(), withdraw: vi.fn() },
 }));
 
-// Mock the PDF libraries used on Download PDF
-vi.mock('html2canvas', () => ({ default: vi.fn(async () => ({ width: 800, height: 1200, toDataURL: vi.fn(() => 'data:image/png;base64,FAKE') })) }));
+// Mock the PDF libraries used on Download PDF. jsdom does not lay out the offscreen frame, so what was
+// drawn is read from the frame's own markup, which is still in the document at the moment of the call.
+const drawn = [];
+vi.mock('html2canvas', () => ({
+  default: vi.fn(async () => {
+    const frames = document.querySelectorAll('iframe');
+    drawn.push(frames[frames.length - 1]?.srcdoc || '');
+    return { width: 800, height: 1200, toDataURL: vi.fn(() => 'data:image/png;base64,FAKE') };
+  }),
+}));
 const pdfInstances = [];
 vi.mock('jspdf', () => ({
   jsPDF: vi.fn().mockImplementation(() => {
@@ -65,6 +73,7 @@ describe('SaleInvoiceView', () => {
   afterEach(() => {
     vi.clearAllMocks();
     pdfInstances.length = 0;
+    drawn.length = 0;
   });
 
   it('shows a draft under the invoice heading, never as a sales order, with the customer copy selected', () => {
@@ -176,16 +185,31 @@ describe('SaleInvoiceView', () => {
     expect(document.querySelector('iframe')).not.toBeNull();
   });
 
-  it('builds one PDF with the customer copy and the internal copy', async () => {
+  it('downloads the copy that is on screen, and only that one', async () => {
     const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
     renderView(baseProps);
 
     fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
 
     await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Draft-Invoice_SO-1234.pdf'));
-    // the second copy starts a new page
-    expect(pdfInstances[0].addPage).toHaveBeenCalled();
+    // one copy drawn, not every copy: the switch decides what the file holds, as it does for Print
+    expect(html2canvas).toHaveBeenCalledTimes(1);
+    expect(drawn[0]).toContain('Customer copy');
+    expect(drawn[0]).not.toContain('Internal copy');
+  });
+
+  it('downloads the internal copy once that is the one chosen', async () => {
+    const html2canvas = (await import('html2canvas')).default;
+    renderView(baseProps);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Internal copy' }));
+    fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
+
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Draft-Invoice_SO-1234.pdf'));
+    expect(html2canvas).toHaveBeenCalledTimes(1);
+    expect(drawn[0]).toContain('Internal copy');
   });
 
   it('navigates back to list on Back to list', () => {

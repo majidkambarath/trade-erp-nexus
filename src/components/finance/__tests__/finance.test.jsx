@@ -296,6 +296,53 @@ describe("receipt allocation", () => {
     expect(await screen.findByText("Enter the cheque number")).toBeInTheDocument();
     expect(m.create).not.toHaveBeenCalled();
   });
+
+  const openForm = async () => {
+    render(<PartyVoucherForm cfg={cfg} direction="receipt" onClose={() => {}} onSaved={() => {}} />);
+    await waitFor(() => expect(m.options).toHaveBeenCalled());
+    await choose(/^Customer/, "Al Noor");
+    await screen.findByLabelText("Amount against SO-2026-0001");
+    return within(screen.getByRole("region", { name: "Open invoices" }));
+  };
+
+  it("says what the party owes in total and settles all of it in one press", async () => {
+    const invoices = await openForm();
+    expect(invoices.getByText("Total open").closest("tr")).toHaveTextContent("200.00");
+
+    fireEvent.click(screen.getByRole("button", { name: /Receive all 200.00/ }));
+    expect(screen.getByLabelText(/Amount received/)).toHaveValue("200");
+    expect(screen.getByLabelText("Amount against SO-2026-0001")).toHaveValue("100");
+    expect(screen.getByLabelText("Amount against SO-2026-0002")).toHaveValue("100");
+    expect(invoices.getByText(/^Kept on account/).closest("tr")).toHaveTextContent("0.00");
+  });
+
+  it("an invoice left out leaves the total and the voucher, and can be put back", async () => {
+    const invoices = await openForm();
+    fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: "250" } });
+    expect(screen.getByLabelText("Amount against SO-2026-0002")).toHaveValue("100");
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave SO-2026-0002 out of this voucher" }));
+    expect(screen.queryByLabelText("Amount against SO-2026-0002")).toBeNull();
+    expect(invoices.getByText(/Total open \(1 of 2 invoices\)/).closest("tr")).toHaveTextContent("100.00");
+    expect(invoices.getByText("Against invoices").closest("tr")).toHaveTextContent("100.00");
+    expect(invoices.getByText(/^Kept on account/).closest("tr")).toHaveTextContent("150.00"); // the rest waits on account
+
+    fireEvent.click(screen.getByRole("button", { name: "Put SO-2026-0002 back on this voucher" }));
+    expect(screen.getByLabelText("Amount against SO-2026-0002")).toHaveValue(""); // back, with nothing against it
+    expect(invoices.getByText("Total open").closest("tr")).toHaveTextContent("200.00");
+  });
+
+  it("posts only the invoices still listed", async () => {
+    m.create.mockResolvedValue({ voucherNo: "RV-2026-0009" });
+    await openForm();
+    fireEvent.change(screen.getByLabelText(/Amount received/), { target: { value: "250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Leave SO-2026-0001 out of this voucher" }));
+    fireEvent.click(screen.getByRole("button", { name: "Post receipt" }));
+    await waitFor(() => expect(m.create).toHaveBeenCalledTimes(1));
+    expect(m.create.mock.calls[0][0]).toMatchObject({
+      totalAmount: 250, linkedInvoices: [{ invoiceId: "i2", amount: 100, balance: 0 }],
+    });
+  });
 });
 
 // ------------------------------------------------------------------------------- notes

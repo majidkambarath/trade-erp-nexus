@@ -91,6 +91,36 @@ describe("settings page", () => {
     expect(await screen.findByText("Settings saved")).toBeInTheDocument();
   });
 
+  it("takes the logo off when asked, and only once the page is saved", async () => {
+    m.get.mockResolvedValue({ data: { success: true, data: { ...PROFILE, companyLogo: { url: "https://cdn.test/logo.png" } } } });
+    at();
+    expect(await screen.findByAltText("Company logo")).toHaveAttribute("src", "https://cdn.test/logo.png");
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove logo/ }));
+    expect(screen.queryByAltText("Company logo")).toBeNull();
+    expect(screen.getByText("No logo yet")).toBeInTheDocument();
+    expect(screen.getByText("You have unsaved changes")).toBeInTheDocument();
+    expect(m.put).not.toHaveBeenCalled(); // nothing is taken off until the page is saved
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep the saved logo" })); // and it can be taken back
+    expect(screen.getByAltText("Company logo")).toBeInTheDocument();
+    expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove logo/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(m.put).toHaveBeenCalledTimes(1));
+    const form = m.put.mock.calls[0][1];
+    expect(form.get("removeLogo")).toBe("true"); // the instruction, not a file
+    expect(form.get("companyLogo")).toBeNull();
+  });
+
+  it("offers nothing to remove when the company has no logo", async () => {
+    at();
+    expect(await screen.findByText("No logo yet")).toBeInTheDocument();
+    expect(screen.getByText("Choose logo")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Remove logo/ })).toBeNull();
+  });
+
   it("checks the IBAN, and takes you to the bank tab when that is where the mistake is", async () => {
     at("bank");
     await screen.findByLabelText(/^IBAN/);

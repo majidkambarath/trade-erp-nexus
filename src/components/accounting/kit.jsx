@@ -374,7 +374,11 @@ export function SearchSelect({
   hintInListOnly = false, menuWidth,
   className, ...aria
 }) {
-  const selected = options.find((o) => String(o.value) === String(value ?? "")) || null;
+  // react-select takes either a flat list or GROUPS ({ label, options: [...] }) - the account picker on
+  // the statement files every account under its chart group. The chosen option then lives one level down,
+  // so a flat find() returns nothing and the box reads as empty although a value is set.
+  const flat = options.flatMap((o) => (Array.isArray(o.options) ? o.options : [o]));
+  const selected = flat.find((o) => String(o.value) === String(value ?? "")) || null;
   const [typed, setTyped] = useState("");
   // Escape closes the list when it is open; only an Escape pressed with the list already closed
   // reaches the dialog around it. The list is flagged on the native event so the dialog can tell.

@@ -11,13 +11,17 @@ export function taxTerms(country = orgCountry()) {
   const c = String(country || "AE").toUpperCase();
   const tax = GST_COUNTRIES.has(c) ? "GST" : VAT_COUNTRIES.has(c) ? "VAT" : "Tax";
   const taxId = c === "AE" ? "TRN" : c === "IN" ? "GSTIN" : tax === "Tax" ? "Tax no." : `${tax} no.`;
-  return { country: c, tax, taxId, uae: c === "AE", india: c === "IN" };
+  // The tax written out, for a heading that cannot use the initials ("Goods and services tax" over a note of GST rows).
+  const taxName = tax === "GST" ? "Goods and services tax" : tax === "VAT" ? "Value added tax" : "Tax";
+  return { country: c, tax, taxId, taxName, uae: c === "AE", india: c === "IN" };
 }
 
 /** "VAT" / "GST" / "Tax" for the organisation in scope. */
 export const taxWord = () => taxTerms().tax;
 /** "TRN" / "GSTIN" / "VAT no." / "Tax no." for the organisation in scope. */
 export const taxIdWord = () => taxTerms().taxId;
+/** "Value added tax" / "Goods and services tax" / "Tax" written out, for a heading. */
+export const taxName = () => taxTerms().taxName;
 /** True for a UAE organisation: UAE law text (the FTA, the reverse charge under Decree-Law No. 8) is printed only then. */
 export const isUae = () => taxTerms().uae;
 /** A sentence written with "VAT" / "TRN", in the organisation's words (for help texts kept in a table). */

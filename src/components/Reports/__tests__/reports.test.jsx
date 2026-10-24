@@ -5,12 +5,14 @@ import { MemoryRouter } from "react-router-dom";
 
 const m = vi.hoisted(() => ({
   ageing: vi.fn(), statement: vi.fn(), trialBalance: vi.fn(), profitLossDetail: vi.fn(), cashFlow: vi.fn(), balanceSheet: vi.fn(),
-  accountLedger: vi.fn(), attachments: vi.fn(), axiosGet: vi.fn(),
+  accountLedger: vi.fn(), attachments: vi.fn(), axiosGet: vi.fn(), postableAccounts: vi.fn(), canAny: vi.fn(),
 }));
 vi.mock("../../../lib/accountingApi", () => ({
-  accounting: { ageing: m.ageing, statement: m.statement, trialBalance: m.trialBalance, profitLossDetail: m.profitLossDetail, cashFlow: m.cashFlow, balanceSheet: m.balanceSheet, accountLedger: m.accountLedger, attachments: m.attachments },
+  accounting: { ageing: m.ageing, statement: m.statement, trialBalance: m.trialBalance, profitLossDetail: m.profitLossDetail, cashFlow: m.cashFlow, balanceSheet: m.balanceSheet, accountLedger: m.accountLedger, attachments: m.attachments, postableAccounts: m.postableAccounts },
 }));
 vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
+// Only the statement reads it, and only to decide whether a statement of ANY account is offered.
+vi.mock("../../shell/OrganisationContext", () => ({ useOrganisation: () => ({ canAny: m.canAny }) }));
 vi.mock("../../../utils/format", async (orig) => ({ ...(await orig()), downloadCSV: vi.fn() }));
 
 import AgeingReport from "../AgeingReport";
@@ -150,7 +152,26 @@ describe("statement of account", () => {
     party: { _id: "c1", name: "Aged Mart", type: "Customer" }, opening: 105, closing: 315, totals: { debit: 210, credit: 0 },
     rows: [{ _id: "e1", date: "2026-09-20", voucherNo: "SO-2026-0002", voucherType: "sales_order", debit: 210, credit: 0, balance: 315 }],
   };
-  beforeEach(() => m.axiosGet.mockResolvedValue({ data: { data: [{ _id: "c1", customerName: "Aged Mart" }, { _id: "c2", customerName: "Beta Foods" }] } }));
+  // Any ledger account can be stated too, so the picker reads the chart instead of a party master.
+  const CHART = [
+    { _id: "a1", accountName: "Emirates NBD", accountCode: "1010", groupName: "Bank", path: "Assets › Bank" },
+    { _id: "a2", accountName: "Travelling", accountCode: "5300", groupName: "Operating Expenses", path: "Expenses › Operating Expenses" },
+  ];
+  const ACCOUNT = {
+    subject: { kind: "account", _id: "a1", name: "Emirates NBD", code: "1010", category: "ASSET" },
+    account: { _id: "a1", accountCode: "1010", accountName: "Emirates NBD", category: "ASSET" },
+    party: null, source: "ledger", postingOff: false,
+    opening: 1000, openingNet: 1000, closing: 1250, closingNet: 1250, totals: { debit: 500, credit: 250 },
+    rows: [
+      { _id: "e1", date: "2026-09-20", voucherNo: "RV-2026-0002", voucherType: "receipt", narration: "Al Noor Trading", debit: 500, credit: 0, balance: 1500, net: 1500 },
+      { _id: "e2", date: "2026-10-04", voucherNo: "PV-2026-0007", voucherType: "payment", narration: "Mill", debit: 0, credit: 250, balance: 1250, net: 1250 },
+    ],
+  };
+  beforeEach(() => {
+    m.axiosGet.mockResolvedValue({ data: { data: [{ _id: "c1", customerName: "Aged Mart" }, { _id: "c2", customerName: "Beta Foods" }] } });
+    m.postableAccounts.mockResolvedValue(CHART);
+    m.canAny.mockReturnValue(true);
+  });
 
   it("asks for a party first", async () => {
     at(<StatementOfAccount />);
@@ -182,6 +203,65 @@ describe("statement of account", () => {
     await screen.findByText("SO-2026-0002");
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-09-01" } });
     await waitFor(() => expect(m.statement).toHaveBeenLastCalledWith(expect.objectContaining({ from: "2026-09-01" })));
+  });
+
+  it("states ANY ledger account, read from the chart and not from a party master", async () => {
+    m.statement.mockResolvedValue(ACCOUNT);
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    expect(await screen.findByText("RV-2026-0002")).toBeInTheDocument();
+    expect(m.statement).toHaveBeenCalledWith({ accountId: "a1", from: undefined, to: undefined });
+    expect(m.postableAccounts).toHaveBeenCalled();
+    // an account has no party, so the customer and vendor masters are never asked for
+    expect(m.axiosGet).not.toHaveBeenCalled();
+    expect(screen.getByText(/1010 . Emirates NBD/)).toBeInTheDocument(); // code and name head the panel
+    expect(screen.getByText("Al Noor Trading")).toBeInTheDocument(); // the narration tells one posting from another
+  });
+
+  it("reads an account's balance as Dr or Cr, with no party wording to put on it", async () => {
+    m.statement.mockResolvedValue({ ...ACCOUNT, closing: -400, closingNet: -400 });
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    expect(await screen.findByText("credit balance")).toBeInTheDocument();
+    expect(screen.queryByText("owes you this amount")).not.toBeInTheDocument();
+  });
+
+  it("groups the entries by month, each month carrying its own debits, credits and closing", async () => {
+    m.statement.mockResolvedValue(ACCOUNT);
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    expect(await screen.findByText("September 2026")).toBeInTheDocument();
+    expect(screen.getByText("October 2026")).toBeInTheDocument();
+    const september = screen.getByText("September 2026 total").closest("tr");
+    expect(within(september).getByText("500.00")).toBeInTheDocument();
+    expect(within(september).getByText("1,500.00")).toBeInTheDocument(); // the month closed on the last row's balance
+  });
+
+  it("stops grouping when the tick is cleared, and the entries stay", async () => {
+    m.statement.mockResolvedValue(ACCOUNT);
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    await screen.findByText("September 2026");
+    fireEvent.click(screen.getByLabelText("Group by month"));
+    expect(screen.queryByText("September 2026")).not.toBeInTheDocument();
+    expect(screen.getByText("RV-2026-0002")).toBeInTheDocument();
+  });
+
+  it("does not offer a statement of any account to someone who may only read reports", async () => {
+    // reports.view is the floor every organisation holds; a statement of any account is the general ledger
+    // by another name, so the server asks for accounts.view / reports.financial / finance.view and the
+    // screen must not offer a door the server will shut - nor honour a typed address that only 403s.
+    m.canAny.mockReturnValue(false);
+    m.statement.mockResolvedValue(STATEMENT);
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    expect(await screen.findByText("Choose a customer")).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Ledger account" })).not.toBeInTheDocument();
+    expect(m.statement).not.toHaveBeenCalled();
+    expect(m.canAny).toHaveBeenCalledWith(["accounts.view", "reports.financial", "finance.view"]);
+  });
+
+  it("says plainly that nothing reaches an account while ledger posting is off", async () => {
+    // A party's statement falls back to the documents; an account has no such fallback, so an empty page
+    // would read as "this account was never used" when the truth is that posting is switched off.
+    m.statement.mockResolvedValue({ ...ACCOUNT, rows: [], opening: 0, openingNet: 0, closing: 0, closingNet: 0, totals: { debit: 0, credit: 0 }, postingOff: true });
+    at(<StatementOfAccount />, "/statement?partyType=Account&accountId=a1");
+    expect(await screen.findByText(/nothing is posted to this account/i)).toBeInTheDocument();
   });
 });
 

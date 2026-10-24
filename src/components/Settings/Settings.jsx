@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Bell, Globe, Upload } from "lucide-react";
+import { Bell, Globe, Trash2, Upload } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { normalizeIban } from "../../lib/iban";
 import { STRENGTH, passwordStrength, validateProfile } from "../../lib/settingsForm";
@@ -100,6 +100,7 @@ export default function SettingsModule() {
   const [company, setCompany] = useState(EMPTY_COMPANY);
   const [bank, setBank] = useState(emptyBank);
   const [logoFile, setLogoFile] = useState(null);
+  const [logoRemoved, setLogoRemoved] = useState(false); // the saved logo is taken off when the page is saved, like every other change here
   const [logoPreview, setLogoPreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -114,6 +115,7 @@ export default function SettingsModule() {
       setCompany(next.company);
       setBank(next.bank);
       setLogoFile(null);
+      setLogoRemoved(false);
       setLogoPreview(next.logo);
       setErrors({});
     } catch (e) {
@@ -125,8 +127,8 @@ export default function SettingsModule() {
   useEffect(() => { load(); }, [load]);
 
   const dirty = useMemo(
-    () => Boolean(saved) && (JSON.stringify({ company, bank }) !== JSON.stringify({ company: saved.company, bank: saved.bank }) || Boolean(logoFile)),
-    [saved, company, bank, logoFile]
+    () => Boolean(saved) && (JSON.stringify({ company, bank }) !== JSON.stringify({ company: saved.company, bank: saved.bank }) || Boolean(logoFile) || logoRemoved),
+    [saved, company, bank, logoFile, logoRemoved]
   );
 
   const setField = (setter, key) => (value) => {
@@ -142,10 +144,12 @@ export default function SettingsModule() {
     if (!file.type.startsWith("image/")) return notify("Choose an image file (PNG or JPG)", "error");
     if (file.size > MAX_LOGO_BYTES) return notify("The logo must be smaller than 5 MB", "error");
     const reader = new FileReader();
-    reader.onload = () => { setLogoFile(file); setLogoPreview(reader.result); };
+    reader.onload = () => { setLogoFile(file); setLogoRemoved(false); setLogoPreview(reader.result); };
     reader.readAsDataURL(file);
   }
-  const restoreSavedLogo = () => { setLogoFile(null); setLogoPreview(saved?.logo || null); };
+  // Removing is not applied until the page is saved, so it can be undone with "Keep the saved logo" or Discard.
+  const removeLogo = () => { setLogoFile(null); setLogoRemoved(true); setLogoPreview(null); };
+  const restoreSavedLogo = () => { setLogoFile(null); setLogoRemoved(false); setLogoPreview(saved?.logo || null); };
 
   function discard() {
     setCompany(saved.company);
@@ -171,6 +175,7 @@ export default function SettingsModule() {
         bankDetails: { ...bank, ibanNumber: normalizeIban(bank.ibanNumber), swiftCode: bank.swiftCode.trim().toUpperCase() },
       }));
       if (logoFile) form.append("companyLogo", logoFile);
+      else if (logoRemoved) form.append("removeLogo", "true");
       await axiosInstance.put("/company/profile", form, { headers: { "Content-Type": "multipart/form-data" } });
       notify("Settings saved");
       await load();
@@ -244,8 +249,15 @@ export default function SettingsModule() {
                       <input type="file" accept="image/*" onChange={chooseLogo} className="sr-only" aria-label="Logo file" />
                     </label>
                   </Button>
-                  {logoFile && <Button variant="ghost" onClick={restoreSavedLogo}>Keep the saved logo</Button>}
+                  {saved?.logo && !logoFile && !logoRemoved && (
+                    <Button variant="ghost" onClick={removeLogo}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Remove logo
+                    </Button>
+                  )}
+                  {(logoFile || logoRemoved) && <Button variant="ghost" onClick={restoreSavedLogo}>Keep the saved logo</Button>}
                   {logoFile && <span className="text-sm text-muted-foreground">{logoFile.name} - save to apply</span>}
+                  {logoRemoved && <span className="text-sm text-muted-foreground">Removed - save to apply</span>}
                 </div>
               </div>
             </Panel>

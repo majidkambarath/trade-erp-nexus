@@ -72,6 +72,11 @@ const hasContent = (form) => {
 // keeps the backslash.)
 const TOUCH_HEIGHT = String.raw`[&_.search-select\_\_control]:min-h-11! lg:[&_.search-select\_\_control]:min-h-10!`;
 
+// A field read for searching: a record that is missing it simply does not match. Not every item in a
+// real book has every field - sku and itemName are required on the model today, but findOneAndUpdate
+// skips validators and older rows predate the requirement - and one such row must not blank the screen.
+const text = (value) => String(value ?? "").toLowerCase();
+
 // The distinct names a filter can offer, in order, plus the one currently chosen (a choice kept from before, or whose items were
 // all deleted since, must still be visible on the control: it is still filtering).
 const namesFor = (names, chosen) =>
@@ -305,13 +310,17 @@ const StockManagement = () => {
         (cat) => cat._id === formData.category
       );
       if (selectedCategory) {
-        const prefix = selectedCategory.name
+        const prefix = String(selectedCategory.name || "")
           .substring(0, 2)
           .toUpperCase()
           .replace(/[^A-Z]/g, "");
+        // An item with no SKU cannot be the one to count up from, so it is left out rather than sorted:
+        // `b.sku.localeCompare(...)` threw the moment one existed and took the whole page down, although
+        // the guard on the next line always knew a SKU could be absent. The field is required on the
+        // model, but findOneAndUpdate skips validators and rows written before it was required remain.
         const lastItem = stockItems
-          .filter((item) => item.category?._id === formData.category)
-          .sort((a, b) => b.sku.localeCompare(a.sku))[0];
+          .filter((item) => item.category?._id === formData.category && item.sku)
+          .sort((a, b) => String(b.sku).localeCompare(String(a.sku)))[0];
         let nextNumber = 1;
         if (lastItem && lastItem.sku) {
           const number = parseInt(lastItem.sku.replace(prefix, ""));
@@ -582,11 +591,14 @@ const StockManagement = () => {
 
   const sortedAndFilteredItems = useMemo(() => {
     let filtered = stockItems.filter((item) => {
+      // Every field searched is read the way itemId already was: a record missing one is a record that
+      // does not match, never a crash. Typing one character used to take the list down for the whole
+      // organisation if a single item had no name or no SKU.
+      const needle = searchTerm.toLowerCase();
       const matchesSearch =
-        item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.itemId &&
-          item.itemId.toLowerCase().includes(searchTerm.toLowerCase()));
+        text(item.itemName).includes(needle) ||
+        text(item.sku).includes(needle) ||
+        text(item.itemId).includes(needle);
       const matchesCategory = filterCategory
         ? item.category?.name === filterCategory
         : true;
@@ -1063,7 +1075,7 @@ const StockManagement = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900 truncate">
-                            {item.itemName.toUpperCase()}
+                            {item.itemName?.toUpperCase() || "UNNAMED ITEM"}
                             {isService(item) && <span className="ms-2 inline-block rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 align-middle text-xs font-medium text-indigo-700">Service</span>}
                           </p>
                           <p className="text-xs font-normal text-gray-500">SKU: {item.sku}</p>

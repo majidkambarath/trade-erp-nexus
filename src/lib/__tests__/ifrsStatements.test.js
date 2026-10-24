@@ -298,6 +298,27 @@ describe("notes", () => {
     expect(vat.rows.at(-1)).toMatchObject({ label: "Net VAT payable / (recoverable)", values: [-50, -15] });
   });
 
+  it("names the tax note as the organisation does: an Indian company reads GST throughout", () => {
+    setOrgLocale({ country: "IN" });
+    try {
+      const india = structuredClone(NOTES);
+      // what the server sends for an Indian organisation
+      india.tables.vat.title = "Goods and services tax";
+      india.tables.vat.rows = india.tables.vat.rows.map((r) => ({ ...r, label: r.label.replace("VAT", "GST") }));
+      const doc = notesDocument(india);
+      const vat = doc.blocks.find((b) => b.title === "11. Goods and services tax");
+      expect(vat, "the heading follows the rows under it").toBeTruthy();
+      expect(vat.rows.at(-1).label).toBe("Net GST payable / (recoverable)");
+      expect(doc.blocks.some((b) => b.type === "table" && b.title?.endsWith("Value added tax"))).toBe(false);
+
+      // a server from before this sends the rows and no title; the heading is still the organisation's word
+      delete india.tables.vat.title;
+      expect(notesDocument(india).blocks.some((b) => b.title === "11. Goods and services tax")).toBe(true);
+    } finally {
+      resetOrgLocale();
+    }
+  });
+
   it("shows the receipts not set against an invoice when the ledger and the invoices differ, and leaves VAT out when unmapped", () => {
     const odd = structuredClone(NOTES);
     odd.tables.tradeReceivables.ageing.notSetAgainstInvoices = -100;

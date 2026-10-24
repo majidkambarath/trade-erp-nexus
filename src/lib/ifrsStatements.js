@@ -1,6 +1,6 @@
 import { formatDate, formatNumber } from "../utils/format";
 import { orgCurrency } from "../utils/orgLocale";
-import { taxIdWord, taxWord } from "./taxTerms";
+import { taxIdWord, taxName, taxWord } from "./taxTerms";
 
 // Pure rules for the IFRS statements screen: turning what the API returns into the rows of a
 // statement, the CSV, the printed page, the headline figures and the warnings. No rendering here,
@@ -299,7 +299,9 @@ export function notesDocument(data) {
   }));
   if (t.vat) {
     blocks.push({
-      type: "table", title: numbered("Value added tax"), columns,
+      // the server names the tax in the organisation's own words ("Goods and services tax" in India); the literal is
+      // only for a server from before that, which sent the rows and no title
+      type: "table", title: numbered(t.vat.title || taxName()), columns,
       rows: [
         ...t.vat.rows.map((r) => ({ kind: "line", level: 0, label: r.label, values: values(r) })),
         { kind: "total", level: 0, label: `Net ${taxWord()} payable / (recoverable)`, values: values(t.vat.net) },

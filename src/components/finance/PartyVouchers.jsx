@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axiosInstance from "../../axios/axios";
-import { AlertTriangle, Copy, Eye, Plus, Wand2 } from "lucide-react";
+import { AlertTriangle, Copy, Eye, Plus, Wand2, X } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import { DataTable, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, Textarea, useAsync, useToasts, DateInput } from "../accounting/kit";
@@ -110,6 +110,9 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   // A copy brings no allocations: those settled the original's invoices, so this one is spread over
   // whatever is open today (the amount sits on account until it is).
   const [alloc, setAlloc] = useState({});
+  // Invoices this voucher is not settling. They are taken out of the grid, out of "oldest first"
+  // and out of the total below it - never off the books: they stay open and can be put back.
+  const [leftOut, setLeftOut] = useState({});
   const [narration, setNarration] = useState(initial?.narration || "");
   const [payment, setPayment] = useState(() => initial?.payment || emptyPayment());
   const [errors, setErrors] = useState({});
@@ -127,6 +130,9 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   const partyOptions = useMemo(() => (parties.data || []).map((p) => ({ value: p._id, label: p[cfg.nameKey], hint: p[cfg.idKey] })), [parties.data, cfg]);
   const party = (parties.data || []).find((p) => p._id === partyId);
   const open = invoices.data || [];
+  const listed = open.filter((i) => !leftOut[i._id]);
+  const aside = open.filter((i) => leftOut[i._id]);
+  const totalOpen = listed.reduce((t, i) => t + toCents(i.outstandingAmount), 0);
 
   // Opened from an invoice's own "Receive payment" / "Make payment": that invoice is already chosen, with what is owed on it (or
   // the amount asked for, if less) set against it, so the person only has to pick how it was paid and save.
@@ -168,16 +174,28 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
 
   // a new rate or day can leave the invoices allocated more than the amount now covers: refill them oldest first
   useEffect(() => {
-    if (currency && allocated > total) setAlloc(allocateOldestFirst(open, total));
+    if (currency && allocated > total) setAlloc(allocateOldestFirst(listed, total));
   }, [currency, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeAmount = (raw) => {
     const v = typedAmount(raw, currency ? decimals : 2);
     if (v === null) return;
     setAmount(v);
-    setAlloc(allocateOldestFirst(open, totalFor(v))); // the oldest invoices are settled first
+    setAlloc(allocateOldestFirst(listed, totalFor(v))); // the oldest invoices are settled first
   };
-  const changeParty = (id) => { setPartyId(id); setAlloc({}); setAmount(""); };
+  const changeParty = (id) => { setPartyId(id); setAlloc({}); setAmount(""); setLeftOut({}); };
+  // Leaving an invoice out takes it off this voucher only: its allocation goes with it, the invoice does not.
+  const leaveOut = (inv) => {
+    setLeftOut((m) => ({ ...m, [inv._id]: true }));
+    setAlloc((a) => { const next = { ...a }; delete next[inv._id]; return next; });
+  };
+  const putBack = (inv) => setLeftOut((m) => { const next = { ...m }; delete next[inv._id]; return next; });
+  // Settle everything still listed: the amount becomes the total open, in the currency being paid in.
+  const payAll = () => {
+    const text = String(currency ? foreignForBase(totalOpen, rateText, decimals) : fromCents(totalOpen));
+    setAmount(text);
+    setAlloc(allocateOldestFirst(listed, totalFor(text)));
+  };
   const changeCurrency = (code) => {
     // an amount means something different in another currency: start the amount over
     setCurrency(code === baseCode ? "" : code);
@@ -199,7 +217,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
     const e = {};
     if (!partyId) e.partyId = `Choose the ${cfg.noun.toLowerCase()}`;
     if (!(total > 0)) e.amount = "Enter the amount";
-    for (const inv of open) if (toCents(alloc[inv._id]) > toCents(inv.outstandingAmount)) e[inv._id] = `More than the ${money(toCents(inv.outstandingAmount))} open`;
+    for (const inv of listed) if (toCents(alloc[inv._id]) > toCents(inv.outstandingAmount)) e[inv._id] = `More than the ${money(toCents(inv.outstandingAmount))} open`;
     if (onAccount < 0) e.amount = "The invoices add up to more than the amount";
     if (currency) {
       const f = validateForeign({ fx: fxForm, master, masterError });
@@ -215,7 +233,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
     try {
       const saved = await vouchers.create({
         voucherType: cfg.voucherType, [cfg.partyField]: partyId, date, totalAmount: total / 100, narration: narration.trim() || undefined,
-        linkedInvoices: open.filter((i) => toCents(alloc[i._id]) > 0).map((i) => ({
+        linkedInvoices: listed.filter((i) => toCents(alloc[i._id]) > 0).map((i) => ({
           invoiceId: i._id, amount: toCents(alloc[i._id]) / 100, balance: (toCents(i.outstandingAmount) - toCents(alloc[i._id])) / 100,
         })),
         ...paymentPayload(payment),
@@ -284,40 +302,78 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
 
         {partyId && (
           <section aria-label="Open invoices">
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium text-foreground">Open invoices of {party?.[cfg.nameKey]}</h3>
                 <p className="text-xs text-muted-foreground">{currency ? `Invoices are in ${baseCode}. The ${currency} amount is converted at the rate above.` : `${amountsIn()}.`}</p>
               </div>
-              {open.length > 0 && total > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(open, total))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
+              {listed.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button" variant="outline" size="sm" onClick={payAll}
+                    disabled={!(totalOpen > 0) || (Boolean(currency) && !(Number(rateText) > 0))}
+                    title={currency ? `Settle every invoice listed: ${baseCode} ${money(totalOpen)}` : "Settle every invoice listed"}
+                  >
+                    {direction === "receipt" ? "Receive all" : "Pay all"} {money(totalOpen)}
+                  </Button>
+                  {total > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(listed, total))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
+                </div>
+              )}
             </div>
             {invoices.loading && <Spinner label="Loading invoices" />}
             {!invoices.loading && open.length === 0 && <p className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground">Nothing is open for {party?.[cfg.nameKey]}. The amount is kept on account.</p>}
-            {open.length > 0 && (
+            {!invoices.loading && open.length > 0 && listed.length === 0 && <p className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground">Every open invoice is left out of this voucher. The amount is kept on account.</p>}
+            {listed.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full text-sm">
+                {/* table-stack: a table in a dialog has nowhere to scroll to on a phone, so below md
+                    each row becomes a labelled block (see .table-stack in index.css). */}
+                <table className="table-stack w-full text-sm">
                   <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr><th className="px-4 py-2 text-start">Invoice</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Total</th><th className="px-3 py-2 text-end">Open</th><th className="px-4 py-2 text-end">This voucher</th></tr>
+                    <tr><th className="px-4 py-2 text-start">Invoice</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Total</th><th className="px-3 py-2 text-end">Open</th><th className="px-4 py-2 text-end">This voucher</th><th className="px-2 py-2"><span className="sr-only">Leave out</span></th></tr>
                   </thead>
                   <tbody>
-                    {open.map((inv) => (
+                    {listed.map((inv) => (
                       <tr key={inv._id} className="border-t border-border">
-                        <td className="px-4 py-1.5 font-mono text-xs font-semibold">{inv.transactionNo}</td>
-                        <td className="whitespace-nowrap px-3 py-1.5">{formatDateGB(inv.date)}</td>
-                        <td className="px-3 py-1.5 text-end tabular-nums text-muted-foreground">{money(toCents(inv.totalAmount))}</td>
-                        <td className="px-3 py-1.5 text-end tabular-nums">{money(toCents(inv.outstandingAmount))}</td>
-                        <td className="w-40 px-3 py-1">
+                        <td data-label="Invoice" className="px-4 py-1.5 font-mono text-xs font-semibold">{inv.transactionNo}</td>
+                        <td data-label="Date" className="whitespace-nowrap px-3 py-1.5">{formatDateGB(inv.date)}</td>
+                        <td data-label="Total" className="px-3 py-1.5 text-end tabular-nums text-muted-foreground">{money(toCents(inv.totalAmount))}</td>
+                        <td data-label="Open" className="px-3 py-1.5 text-end tabular-nums">{money(toCents(inv.outstandingAmount))}</td>
+                        <td data-label="This voucher" className="w-40 px-3 py-1">
                           <TextInput aria-label={`Amount against ${inv.transactionNo}`} inputMode="decimal" className="h-9 text-end tabular-nums" placeholder="0.00" value={alloc[inv._id] || ""} onChange={(e) => setAllocation(inv, e.target.value)} aria-invalid={errors[inv._id] ? true : undefined} />
                           {errors[inv._id] && <p className="mt-0.5 text-xs text-status-danger">{errors[inv._id]}</p>}
+                        </td>
+                        <td className="px-2 py-1 text-end">
+                          <button
+                            type="button" onClick={() => leaveOut(inv)} title="Not paying this one now"
+                            aria-label={`Leave ${inv.transactionNo} out of this voucher`}
+                            className="inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-muted-foreground hover:bg-accent hover:text-foreground lg:min-h-0 lg:py-1"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" /><span className="text-xs md:hidden">Leave out</span>
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="border-t-2 border-border bg-secondary/40 text-sm">
+                    <tr><td colSpan={3} className="px-4 py-2 text-end">{aside.length ? `Total open (${listed.length} of ${open.length} invoices)` : "Total open"}</td><td className="px-3 py-2 text-end font-medium tabular-nums">{money(totalOpen)}</td></tr>
                     <tr><td colSpan={4} className="px-4 py-2 text-end">Against invoices</td><td className="px-4 py-2 text-end tabular-nums">{money(allocated)}</td></tr>
                     <tr className="font-semibold"><td colSpan={4} className="px-4 py-2 text-end">{direction === "receipt" ? "Kept on account (advance from customer)" : "Kept on account (advance to vendor)"}</td><td className={onAccount < 0 ? "px-4 py-2 text-end text-status-danger tabular-nums" : "px-4 py-2 text-end tabular-nums"}>{money(Math.max(onAccount, 0))}</td></tr>
                   </tfoot>
                 </table>
+              </div>
+            )}
+            {aside.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>Left out of this voucher:</span>
+                {aside.map((inv) => (
+                  <button
+                    key={inv._id} type="button" onClick={() => putBack(inv)}
+                    aria-label={`Put ${inv.transactionNo} back on this voucher`} title="Put it back"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-card px-2 py-1 font-mono text-xs text-foreground hover:bg-accent lg:min-h-0"
+                  >
+                    {inv.transactionNo}<Plus className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                ))}
               </div>
             )}
           </section>

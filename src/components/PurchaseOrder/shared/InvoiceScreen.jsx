@@ -44,12 +44,13 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, pa
 
   const handlePrint = () => printMarkup(sheetMarkup(sheet, { copy, accent }));
 
+  // The file is the copy on screen, as Print is: the switch above chooses what is drawn, printed and
+  // downloaded, so the three cannot disagree. It used to put every copy in one file whatever was chosen.
   const handleDownload = async () => {
     setBusy(true);
     setError("");
     try {
-      const markups = copies.map((c) => sheetMarkup(sheet, { copy: c, accent }));
-      await downloadSheetsPdf(markups, fileName);
+      await downloadSheetsPdf([sheetMarkup(sheet, { copy, accent })], fileName);
     } catch (e) {
       console.error(e);
       setError(`The PDF could not be created: ${e.message || "unknown error"}. Try Print, then save as PDF.`);
