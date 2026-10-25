@@ -11,10 +11,15 @@ import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, 
 import { LedgerModal } from "../accounting/ChartOfAccounts";
 import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import SavedViews from "../lists/SavedViews";
+import { useListView } from "../../lib/useListView";
+import * as LF from "../../lib/ledgerFilters";
 
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.filter(([k]) => k));
+const DEFAULT_GL_FILTERS = { category: "", group: "", show: "all", groupsOnly: false, closing: false };
 const VOUCHER_TYPES = [
   ["sales_order", "Sales invoice"], ["sales_return", "Sales return"], ["purchase_order", "Purchase invoice"], ["purchase_return", "Purchase return"],
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
@@ -55,30 +60,50 @@ export default function LedgerReports() {
 // ---------------------------------------------------------------- general ledger
 
 function GeneralLedger({ range, onLedger }) {
-  const [category, setCategory] = useState("");
-  const [groupsOnly, setGroupsOnly] = useState(false);
-  const [closing, setClosing] = useState(false);
-  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: category || undefined, includeClosing: closing || undefined }), [range.from, range.to, category, closing]);
+  // The same state platform, vocabulary and saved views as the trial balance, so the two reports
+  // are narrowed the same way (lib/useListView.js, lib/ledgerFilters.js).
+  const list = useListView("general-ledger", { filters: DEFAULT_GL_FILTERS });
+  const f = list.filters;
+  const choices = { ...f, search: list.search };
+  const groupsOnly = Boolean(f.groupsOnly);
+  // The category is the one choice the SERVER applies, so it stays a request parameter. Everything
+  // else narrows what has already arrived, which is instant and asks the server for nothing.
+  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: f.category || undefined, includeClosing: f.closing || undefined }), [range.from, range.to, f.category, f.closing]);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="Category"><Select value={category} onChange={(e) => setCategory(e.target.value)} className="w-52">{CATEGORIES.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => setGroupsOnly(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
-        <ClosingEntriesToggle checked={closing} onChange={setClosing} />
-      </div>
       <Frame state={state}>
-        {(d) => {
+        {(all) => {
+          const groups = LF.filterGroups(all.groups, choices);
+          const narrowed = LF.isNarrowed(choices);
+          // Narrowed, the totals are of what survived; otherwise the server's own are the report.
+          const d = { ...all, groups, totals: narrowed ? LF.sumGroups(groups) : all.totals };
           const exportCsv = () => downloadCSV(`general-ledger-${range.from}-${range.to}.csv`, ["Group", "Code", "Account", "Opening", "Debit", "Credit", "Closing"],
             d.groups.flatMap((g) => (groupsOnly ? [[g.name, "", "", g.totals.opening, g.totals.debit, g.totals.credit, g.totals.closing]] : g.accounts.map((a) => [g.name, a.accountCode, a.accountName, a.opening, a.debit, a.credit, a.closing]))).concat([["Total", "", "", d.totals.opening, d.totals.debit, d.totals.credit, d.totals.closing]]));
           return (
             <>
+              <FilterBar
+                search={list.search}
+                onSearch={list.setSearch}
+                searchLabel="Search accounts"
+                placeholder="Search account, code or group…"
+                active={narrowed}
+                onClear={() => { list.setSearch(""); list.clearFilters(); }}
+                className="mb-4"
+              >
+                <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={CATEGORIES.filter(([k]) => k)} allLabel="All categories" className="sm:w-44" />
+                <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={LF.groupChoices(LF.filterGroups(all.groups, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
+                <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={LF.SHOW_OPTIONS} className="sm:w-56" />
+                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => list.setFilter("groupsOnly", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
+                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include year-end closing entries</label>
+                <SavedViews list={list} />
+              </FilterBar>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard title="Debits in period" count={money(d.totals.debit)} tone="teal" />
                 <StatCard title="Credits in period" count={money(d.totals.credit)} tone="plum" />
                 <StatCard title="Accounts with activity" count={String(d.groups.reduce((t, g) => t + g.accounts.length, 0))} tone="neutral" />
                 <StatCard title="Groups" count={String(d.groups.length)} tone="neutral" />
               </div>
-              <Panel bodyClassName="p-0" title="General ledger" description={`Opening balance, the period's debits and credits, and the closing balance of every account, by group. ${amountsIn()}.`}
+              <Panel bodyClassName="p-0" title={narrowed ? "Part of the general ledger" : "General ledger"} description={narrowed ? `Showing ${LF.countAccounts(groups)} of ${LF.countAccounts(all.groups)} accounts. ${amountsIn()}.` : `Opening balance, the period's debits and credits, and the closing balance of every account, by group. ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.groups.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.groups.length === 0 ? <EmptyState title="No postings" text="Nothing has been posted to the ledger for this selection." /> : (
                   <div className="erp-scroll table-pin-first overflow-x-auto">

@@ -13,10 +13,12 @@ import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { pageSession } from "../../lib/pageSession";
 import * as TB from "../../lib/trialBalance";
 import * as BSL from "../../lib/balanceSheet";
+import SavedViews from "../lists/SavedViews";
+import { useListView } from "../../lib/useListView";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
-const DEFAULT_TB_FILTERS = { search: "", category: "", group: "", show: "all", view: "group" };
+const DEFAULT_TB_FILTERS = { category: "", group: "", show: "all", view: "group", closing: false };
 const TAB_IDS = ["trial", "pl", "cash", "bs"];
 
 // The core statements, all read from the same ledger: they cannot disagree with each other.
@@ -45,39 +47,38 @@ export default function FinancialStatements() {
 }
 
 function TrialBalance({ range, onLedger }) {
+  // The same state platform the master lists use, so this report gets saved views for free: a named
+  // set of filters ("Payables only") that reopens later. The hook is storage and state, nothing
+  // list-shaped, which is why a report can sit on it (lib/useListView.js).
+  const list = useListView("trial-balance", { filters: DEFAULT_TB_FILTERS });
   const session = pageSession("trial-balance");
-  const [closing, setClosing] = useState(() => session.get("closing", false));
-  const [filters, setFilters] = useState(() => session.get("filters", DEFAULT_TB_FILTERS));
   const [open, setOpen] = useState(() => session.get("open", {}));
-  const set = (key, value) => setFilters((f) => {
-    const next = { ...f, [key]: value };
-    // Narrowing to one group and then changing the category would leave a group that is no longer offered.
-    if (key === "category") next.group = "";
-    session.set("filters", next);
-    return next;
-  });
+  const f = list.filters;
+  const choices = { ...f, search: list.search };
   const toggle = (key) => setOpen((o) => {
     const next = { ...o, [key]: !o[key] };
     session.set("open", next);
     return next;
   });
-  const clear = () => { setFilters(DEFAULT_TB_FILTERS); session.set("filters", DEFAULT_TB_FILTERS); };
-  const state = useAsync(() => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999`, includeClosing: closing || undefined }), [range.from, range.to, closing]);
+  const state = useAsync(
+    () => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999`, includeClosing: f.closing || undefined }),
+    [range.from, range.to, f.closing],
+  );
 
   return (
     <div className="space-y-4">
-    <ClosingEntriesToggle checked={closing} onChange={(v) => { setClosing(v); session.set("closing", v); }} />
     <Frame state={state}>
       {(d) => {
         const all = d.trialBalance;
-        const rows = TB.filterRows(all, filters);
+        const rows = TB.filterRows(all, choices);
         const groups = TB.groupRows(rows);
-        const narrowed = TB.isFiltered(filters);
-        // Nothing narrowed: the server's own summary is the report, and it is what proves the ledger balances.
+        // `view` is how the report is READ and `closing` is which entries it covers; neither hides a
+        // row, so neither counts as narrowing it. Only a choice that leaves accounts out does.
+        const narrowed = TB.isFiltered(choices);
         const totals = narrowed ? TB.sumRows(rows) : TB.reportTotals(d.summary, TB.sumRows(rows));
         const { isBalanced, difference } = narrowed ? TB.balanceOf(totals) : TB.balanceOf(d.summary);
         const exportCsv = () => {
-          const { headers, lines } = TB.trialBalanceCsv(filters.view, groups, rows, totals);
+          const { headers, lines } = TB.trialBalanceCsv(f.view, groups, rows, totals);
           downloadCSV(`trial-balance-${range.to}${narrowed ? "-filtered" : ""}.csv`, headers, lines);
         };
         const cell = (n) => (Math.abs(n || 0) < 0.005 ? "" : money(n));
@@ -85,17 +86,22 @@ function TrialBalance({ range, onLedger }) {
         return (
           <div className="space-y-4">
             <FilterBar
-              search={filters.search}
-              onSearch={(v) => set("search", v)}
+              search={list.search}
+              onSearch={list.setSearch}
               searchLabel="Search accounts"
               placeholder="Search account, code or group…"
               active={narrowed}
-              onClear={clear}
+              onClear={() => { list.setSearch(""); list.clearFilters(); }}
             >
-              <FilterSelect label="View" value={filters.view} onChange={(v) => set("view", v)} options={TB.VIEW_OPTIONS} className="sm:w-40" />
-              <FilterSelect label="Category" value={filters.category} onChange={(v) => set("category", v)} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
-              <FilterSelect label="Group" value={filters.group} onChange={(v) => set("group", v)} options={TB.groupOptions(TB.filterRows(all, { ...filters, group: "" }))} allLabel="All groups" className="sm:w-56" />
-              <FilterSelect label="Rows" value={filters.show} onChange={(v) => set("show", v)} options={TB.SHOW_OPTIONS} className="sm:w-56" />
+              <FilterSelect label="Layout" value={f.view} onChange={(v) => list.setFilter("view", v)} options={TB.VIEW_OPTIONS} className="sm:w-40" />
+              <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
+              <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={TB.groupOptions(TB.filterRows(all, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
+              <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} className="sm:w-56" />
+              <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
+                <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+                Include year-end closing entries
+              </label>
+              <SavedViews list={list} />
             </FilterBar>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -135,7 +141,7 @@ function TrialBalance({ range, onLedger }) {
                       <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-start">Category</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">Closing Dr</th><th className="px-5 py-2 text-end">Closing Cr</th></tr>
                     </thead>
                     <tbody>
-                      {filters.view === "group"
+                      {f.view === "group"
                         ? groups.map((g) => (
                           <React.Fragment key={g.key}>
                             <tr className="border-t border-border bg-secondary/30">

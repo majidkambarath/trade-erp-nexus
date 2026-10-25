@@ -8,6 +8,9 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, Field, PageHeader, Panel, Pill, Select, TextInput, useAsync } from "../accounting/kit";
 import { DateRange, Frame } from "./reportKit";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import SavedViews from "../lists/SavedViews";
+import { useListView } from "../../lib/useListView";
 
 const money = (n) => formatNumber(n, 2);
 
@@ -40,9 +43,11 @@ export default function PartyBalances() {
 
 function Parties({ type, asOn }) {
   const customer = type === "customer";
-  const [includeZero, setIncludeZero] = useState(false);
-  const [search, setSearch] = useState("");
-  const [focus, setFocus] = useState("");
+  // Customers and vendors are two reports, so they keep two sets of saved views.
+  const list = useListView(`party-balances-${type}`, { filters: { focus: "", includeZero: false } });
+  const search = list.search;
+  const focus = list.filters.focus;
+  const includeZero = Boolean(list.filters.includeZero);
   const state = useAsync(() => accounting.partyBalances({ type, asOn, includeZero: includeZero || undefined }), [type, asOn, includeZero]);
   // a party's advance (what it holds with us, or we with it, on account) is its own column, drawn only when someone has one
   const hasOnAccount = (state.data?.rows || []).some((r) => Math.abs(r.onAccount || 0) >= 0.005);
@@ -60,20 +65,27 @@ function Parties({ type, asOn }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="Search" className="w-72">
-          <TextInput type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={customer ? "Customer name or ID" : "Vendor name or ID"} />
-        </Field>
-        <Field label="Show" className="w-52">
-          <Select value={focus} onChange={(e) => setFocus(e.target.value)}>
-            <option value="">Everyone</option>
-            {customer && <option value="over">Over their limit</option>}
-            {customer && <option value="near">Near or over their limit</option>}
-            <option value="overdue">With overdue invoices</option>
-          </Select>
-        </Field>
-        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={list.setSearch}
+        searchLabel="Search"
+        placeholder={customer ? "Customer name or ID" : "Vendor name or ID"}
+        active={Boolean(search.trim()) || Boolean(focus) || includeZero}
+        onClear={() => { list.setSearch(""); list.clearFilters(); }}
+      >
+        <FilterSelect
+          label="Show"
+          value={focus}
+          onChange={(v) => list.setFilter("focus", v)}
+          options={customer
+            ? [["over", "Over their limit"], ["near", "Near or over their limit"], ["overdue", "With overdue invoices"]]
+            : [["overdue", "With overdue invoices"]]}
+          allLabel="Everyone"
+          className="sm:w-52"
+        />
+        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => list.setFilter("includeZero", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
+        <SavedViews list={list} />
+      </FilterBar>
       <Frame state={state}>
         {(d) => {
           const exportCsv = () => downloadCSV(`${customer ? "customer" : "vendor"}-balances-${asOn}.csv`,

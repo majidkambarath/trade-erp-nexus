@@ -316,7 +316,7 @@ describe("financial statements", () => {
     m.trialBalance.mockResolvedValue(TB);
     at(<FinancialStatements />);
     await screen.findByText("Debits equal credits");
-    fireEvent.change(screen.getByLabelText("View"), { target: { value: "account" } });
+    fireEvent.change(screen.getByLabelText("Layout"), { target: { value: "account" } });
     expect(await screen.findByRole("button", { name: /Customer - Settled Ltd/ })).toBeInTheDocument();
   });
 

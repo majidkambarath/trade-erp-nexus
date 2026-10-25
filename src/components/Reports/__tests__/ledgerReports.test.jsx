@@ -13,9 +13,12 @@ import LedgerReports from "../LedgerReports";
 import PartyBalances from "../PartyBalances";
 import { downloadCSV } from "../../../utils/format";
 import { lastMonth, monthStart, yearStart } from "../reportKit";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const at = (ui, url = "/") => render(<MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>);
-beforeEach(() => { Object.values(m).forEach((f) => f.mockReset()); downloadCSV.mockReset(); });
+// The reports remember their filters between visits (lib/pageSession): a tab-wide module Map, so
+// without this one test leaves the next one looking at a narrowed report.
+beforeEach(() => { Object.values(m).forEach((f) => f.mockReset()); downloadCSV.mockReset(); clearPageSessions(); });
 
 const GL = {
   groups: [
@@ -76,6 +79,44 @@ describe("general ledger", () => {
     m.generalLedger.mockResolvedValue({ groups: [], totals: { opening: 0, debit: 0, credit: 0, closing: 0 } });
     at(<LedgerReports />);
     expect(await screen.findByText("No postings")).toBeInTheDocument();
+  });
+
+  it("narrows to one group, and says it is only part of the report", async () => {
+    m.generalLedger.mockResolvedValue(GL);
+    at(<LedgerReports />);
+    await screen.findByText("Cash in Hand");
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Accounts Payable" } });
+    expect(await screen.findByText(/Showing 1 of 2 accounts/)).toBeInTheDocument();
+    expect(screen.getByText("Vendor - Gulf Mills")).toBeInTheDocument();
+    expect(screen.queryByText("Cash in Hand")).not.toBeInTheDocument();
+  });
+
+  it("the group filter does not go back to the server - the rows are already here", async () => {
+    m.generalLedger.mockResolvedValue(GL);
+    at(<LedgerReports />);
+    await screen.findByText("Cash in Hand");
+    const calls = m.generalLedger.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Cash" } });
+    await screen.findByText(/Showing 1 of 2 accounts/);
+    expect(m.generalLedger.mock.calls.length).toBe(calls);
+  });
+
+  it("the category filter DOES go back to the server, because the server applies it", async () => {
+    m.generalLedger.mockResolvedValue(GL);
+    at(<LedgerReports />);
+    await screen.findByText("Cash in Hand");
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "LIABILITY" } });
+    await waitFor(() => expect(m.generalLedger).toHaveBeenLastCalledWith(expect.objectContaining({ category: "LIABILITY" })));
+  });
+
+  it("an account with no closing balance can be filtered out", async () => {
+    const settled = { ...GL, groups: [...GL.groups, { groupId: "g3", name: "Accounts Receivable", category: "ASSET", totals: { opening: 0, debit: 500, credit: 500, closing: 0 }, accounts: [{ accountId: "a3", accountCode: "AR0001", accountName: "Customer - Settled Ltd", opening: 0, debit: 500, credit: 500, closing: 0 }] }] };
+    m.generalLedger.mockResolvedValue(settled);
+    at(<LedgerReports />);
+    expect(await screen.findByText("Customer - Settled Ltd")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Rows"), { target: { value: "nonzero" } });
+    await screen.findByText(/Showing 2 of 3 accounts/);
+    expect(screen.queryByText("Customer - Settled Ltd")).not.toBeInTheDocument();
   });
 
   it("reports a failure with a way to retry", async () => {
