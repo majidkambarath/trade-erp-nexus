@@ -19,9 +19,15 @@ import AgeingReport from "../AgeingReport";
 import StatementOfAccount from "../StatementOfAccount";
 import FinancialStatements from "../FinancialStatements";
 import { downloadCSV } from "../../../utils/format";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const at = (ui, url = "/") => render(<MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>);
-beforeEach(() => Object.values(m).forEach((f) => f.mockReset()));
+beforeEach(() => {
+  Object.values(m).forEach((f) => f.mockReset());
+  // the screens remember their filters between visits (lib/pageSession), which is a tab-wide
+  // module Map: without this, one test leaves the next one looking at a filtered report.
+  clearPageSessions();
+});
 
 const BUCKETS = [{ key: "current", label: "Not yet due" }, { key: "d1_30", label: "1-30 days" }, { key: "d31_60", label: "31-60 days" }, { key: "d61_90", label: "61-90 days" }, { key: "d90plus", label: "Over 90 days" }];
 const AGEING = {
@@ -268,8 +274,9 @@ describe("statement of account", () => {
 describe("financial statements", () => {
   const TB = {
     trialBalance: [
-      { _id: "a1", accountCode: "BANK0001", accountName: "Bank", category: "ASSET", openingBalance: 0, totalDebits: 500, totalCredits: 100, closingDebit: 400, closingCredit: 0 },
-      { _id: "a2", accountCode: "SAL0001", accountName: "Sales Revenue", category: "INCOME", openingBalance: 0, totalDebits: 0, totalCredits: 400, closingDebit: 0, closingCredit: 400 },
+      { _id: "a1", accountCode: "BANK0001", accountName: "Bank", category: "ASSET", groupName: "Bank", groupPath: ["Current Assets", "Bank"], openingBalance: 0, totalDebits: 500, totalCredits: 100, closingDebit: 400, closingCredit: 0 },
+      { _id: "a2", accountCode: "SAL0001", accountName: "Sales Revenue", category: "INCOME", groupName: "Sales Income", groupPath: ["Sales Income"], openingBalance: 0, totalDebits: 0, totalCredits: 400, closingDebit: 0, closingCredit: 400 },
+      { _id: "a3", accountCode: "AR0001", accountName: "Customer - Settled Ltd", category: "ASSET", groupName: "Accounts Receivable", groupPath: ["Current Assets", "Accounts Receivable"], openingBalance: 0, totalDebits: 250, totalCredits: 250, closingDebit: 0, closingCredit: 0 },
     ],
     summary: { totalDebits: 500, totalCredits: 500, closingDebit: 400, closingCredit: 400, isBalanced: true },
   };
@@ -280,7 +287,9 @@ describe("financial statements", () => {
     at(<FinancialStatements />);
     expect(await screen.findByText("Debits equal credits")).toBeInTheDocument();
     expect(screen.getByText("In balance")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Bank$/ }));
+    // group-wise is the default, so the account sits under its group until the group is opened
+    fireEvent.click(screen.getByRole("button", { name: /Current Assets > Bank/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Bank$/ }));
     expect(await screen.findByRole("dialog", { name: /BANK0001/ })).toBeInTheDocument();
   });
 
@@ -291,6 +300,47 @@ describe("financial statements", () => {
     expect(m.trialBalance).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: undefined }));
     fireEvent.click(screen.getByLabelText("Include year-end closing entries"));
     await waitFor(() => expect(m.trialBalance).toHaveBeenLastCalledWith(expect.objectContaining({ includeClosing: true })));
+  });
+
+  it("trial balance: reads group-wise, and collapses the accounts under their group", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    // three accounts become three group lines, and no account is drawn until its group is opened
+    expect(await screen.findByRole("button", { name: /Current Assets > Bank/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Current Assets > Accounts Receivable/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sales Income/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Customer - Settled Ltd/ })).not.toBeInTheDocument();
+  });
+
+  it("trial balance: account-wise lists every account instead", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    await screen.findByText("Debits equal credits");
+    fireEvent.change(screen.getByLabelText("Layout"), { target: { value: "account" } });
+    expect(await screen.findByRole("button", { name: /Customer - Settled Ltd/ })).toBeInTheDocument();
+  });
+
+  it("trial balance: a group filter narrows it, and says it is only part of the report", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    await screen.findByText("Debits equal credits");
+    fireEvent.change(screen.getByLabelText("Group"), { target: { value: "Bank" } });
+    expect(await screen.findByText(/Showing 1 of 3 accounts/)).toBeInTheDocument();
+    // a slice of a trial balance does not balance, so it must not claim to
+    expect(screen.queryByText("Debits equal credits")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sales Income/ })).not.toBeInTheDocument();
+  });
+
+  it("trial balance: a settled account can be filtered out by its closing balance", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    await screen.findByText("Debits equal credits");
+    // the receivable had 250 in and 250 out: transactions, but nothing owed
+    fireEvent.change(screen.getByLabelText("Rows"), { target: { value: "nonzero" } });
+    expect(await screen.findByText(/Showing 2 of 3 accounts/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Accounts Receivable/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Rows"), { target: { value: "activity" } });
+    expect(await screen.findByText(/Showing 3 of 3 accounts/)).toBeInTheDocument();
   });
 
   it("flags an out-of-balance ledger", async () => {
@@ -401,14 +451,67 @@ describe("financial statements", () => {
     expect(await screen.findByText("Differs from the ledgers by 50.00")).toBeInTheDocument();
   });
 
+  // What an older server answers: no classified `sections`, so the screen must still draw a statement.
+  const FLAT_BS = {
+    assets: [{ _id: "a", accountCode: "BANK0001", accountName: "Bank", amount: 400 }], liabilities: [], equity: [], profitToDate: 400,
+    totalAssets: 400, totalLiabilities: 0, totalEquity: 400, totalLiabilitiesAndEquity: 400, isBalanced: true,
+  };
+
+  const sec = (label, groups, amount, comparative = null) => ({ label, groups, amount, comparative });
+  const grp = (name, accounts, amount, comparative = null) => ({ name, accounts, amount, comparative });
+  const CLASSIFIED_BS = {
+    ...FLAT_BS,
+    profitBroughtForward: 0, profitForPeriod: 400,
+    sections: {
+      assets: {
+        nonCurrent: sec("Non-current assets", [grp("Fixed Assets", [{ _id: "v", accountCode: "FA0002", accountName: "Vehicles", amount: 1000, comparative: null }], 1000)], 1000),
+        current: sec("Current assets", [grp("Cash", [{ _id: "a", accountCode: "BANK0001", accountName: "Bank", amount: 400, comparative: null }], 400)], 400),
+        amount: 1400, comparative: null,
+      },
+      equity: sec("Equity", [grp("Profit for the period", [], 400)], 400),
+      liabilities: { nonCurrent: sec("Non-current liabilities", [], 0), current: sec("Current liabilities", [], 1000), amount: 1000, comparative: null },
+      equityAndLiabilities: { amount: 1400, comparative: null },
+    },
+  };
+
   it("balance sheet shows profit within equity and whether it balances", async () => {
-    m.balanceSheet.mockResolvedValue({
-      assets: [{ _id: "a", accountCode: "BANK0001", accountName: "Bank", amount: 400 }], liabilities: [], equity: [], profitToDate: 400,
-      totalAssets: 400, totalLiabilities: 0, totalEquity: 400, totalLiabilitiesAndEquity: 400, isBalanced: true,
-    });
+    m.balanceSheet.mockResolvedValue(FLAT_BS);
     at(<FinancialStatements />, "/?tab=bs");
     expect(await screen.findByText("Assets equal liabilities plus equity")).toBeInTheDocument();
-    expect(screen.getByText("Profit to date")).toBeInTheDocument();
+    expect(screen.getByText("Profit for the period")).toBeInTheDocument();
     expect(screen.getByLabelText("As at")).toBeInTheDocument();
+  });
+
+  it("balance sheet: current and non-current, with totals that read as a statement", async () => {
+    m.balanceSheet.mockResolvedValue(CLASSIFIED_BS);
+    at(<FinancialStatements />, "/?tab=bs");
+    expect(await screen.findByText("Non-current assets")).toBeInTheDocument();
+    expect(screen.getByText("Current assets")).toBeInTheDocument();
+    expect(screen.getByText("TOTAL ASSETS")).toBeInTheDocument();
+    expect(screen.getByText("TOTAL EQUITY AND LIABILITIES")).toBeInTheDocument();
+    // the groups are the statement; the accounts under them only on request
+    expect(screen.getByText("Fixed Assets")).toBeInTheDocument();
+    expect(screen.queryByText("Vehicles")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Show each account"));
+    expect(await screen.findByText("Vehicles")).toBeInTheDocument();
+  });
+
+  it("balance sheet: a deduction reads in brackets, not with a minus", async () => {
+    m.balanceSheet.mockResolvedValue({
+      ...CLASSIFIED_BS,
+      sections: { ...CLASSIFIED_BS.sections, equity: sec("Equity", [grp("Less: Drawings", [], -9000)], -9000) },
+    });
+    at(<FinancialStatements />, "/?tab=bs");
+    // the group line and the total it rolls into both read it the same way
+    expect((await screen.findAllByText("(9,000.00)")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("-9,000.00")).not.toBeInTheDocument();
+  });
+
+  it("balance sheet: asking for a comparison sends the earlier date and draws its column", async () => {
+    m.balanceSheet.mockResolvedValue({ ...CLASSIFIED_BS, comparative: { asOf: "2025-10-25", totalAssets: 1200 } });
+    at(<FinancialStatements />, "/?tab=bs");
+    await screen.findByText("TOTAL ASSETS");
+    fireEvent.change(screen.getByLabelText("Compare with"), { target: { value: "year" } });
+    await waitFor(() => expect(m.balanceSheet).toHaveBeenLastCalledWith(expect.objectContaining({ compareTo: expect.stringContaining("2025-") })));
   });
 });

@@ -1,17 +1,24 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { CheckCircle2, Download, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { amountsIn, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, formatDate, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, ViewBar, yearStart } from "./reportKit";
+import FilterBar, { FilterSelect } from "../lists/FilterBar";
+import { pageSession } from "../../lib/pageSession";
+import * as TB from "../../lib/trialBalance";
+import * as BSL from "../../lib/balanceSheet";
+import SavedViews from "../lists/SavedViews";
+import { useListView } from "../../lib/useListView";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
+const DEFAULT_TB_FILTERS = { category: "", group: "", show: "", closing: false };
 const TAB_IDS = ["trial", "pl", "cash", "bs"];
 
 // The core statements, all read from the same ledger: they cannot disagree with each other.
@@ -40,48 +47,149 @@ export default function FinancialStatements() {
 }
 
 function TrialBalance({ range, onLedger }) {
-  const [closing, setClosing] = useState(false);
-  const state = useAsync(() => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999`, includeClosing: closing || undefined }), [range.from, range.to, closing]);
+  // The same state platform the master lists use, so this report gets saved views for free: a named
+  // set of filters ("Payables only") that reopens later. The hook is storage and state, nothing
+  // list-shaped, which is why a report can sit on it (lib/useListView.js).
+  const list = useListView("trial-balance", { filters: DEFAULT_TB_FILTERS });
+  const session = pageSession("trial-balance");
+  const [open, setOpen] = useState(() => session.get("open", {}));
+  // The layout is not a filter - it hides no row - so it is remembered beside the open groups
+  // rather than inside list.filters, where it would read as "this report is narrowed".
+  const [view, setView] = useState(() => session.get("view", "group"));
+  const f = list.filters;
+  const choices = { ...f, search: list.search };
+  const toggle = (key) => setOpen((o) => {
+    const next = { ...o, [key]: !o[key] };
+    session.set("open", next);
+    return next;
+  });
+  const state = useAsync(
+    () => accounting.trialBalance({ dateFrom: range.from, dateTo: `${range.to}T23:59:59.999`, includeClosing: f.closing || undefined }),
+    [range.from, range.to, f.closing],
+  );
+
   return (
     <div className="space-y-4">
-    <ClosingEntriesToggle checked={closing} onChange={setClosing} />
     <Frame state={state}>
       {(d) => {
-        const exportCsv = () => downloadCSV(`trial-balance-${range.to}.csv`,
-          ["Code", "Account", "Category", "Opening", "Debit", "Credit", "Closing Dr", "Closing Cr"],
-          [...d.trialBalance.map((a) => [a.accountCode, a.accountName, CAT[a.category], a.openingBalance, a.totalDebits, a.totalCredits, a.closingDebit, a.closingCredit]),
-            ["", "Total", "", "", d.summary.totalDebits, d.summary.totalCredits, d.summary.closingDebit, d.summary.closingCredit]]);
+        const all = d.trialBalance;
+        const rows = TB.filterRows(all, choices);
+        const groups = TB.groupRows(rows);
+        // `view` is how the report is READ and `closing` is which entries it covers; neither hides a
+        // row, so neither counts as narrowing it. Only a choice that leaves accounts out does.
+        const narrowed = TB.isFiltered(choices);
+        const totals = narrowed ? TB.sumRows(rows) : TB.reportTotals(d.summary, TB.sumRows(rows));
+        const { isBalanced, difference } = narrowed ? TB.balanceOf(totals) : TB.balanceOf(d.summary);
+        const exportCsv = () => {
+          const { headers, lines } = TB.trialBalanceCsv(view, groups, rows, totals);
+          downloadCSV(`trial-balance-${range.to}${narrowed ? "-filtered" : ""}.csv`, headers, lines);
+        };
+        const cell = (n) => (Math.abs(n || 0) < 0.005 ? "" : money(n));
+
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard title="Debits in period" count={money(d.summary.totalDebits)} tone="teal" />
-              <StatCard title="Credits in period" count={money(d.summary.totalCredits)} tone="plum" />
-              <StatCard title="Closing debits" count={money(d.summary.closingDebit)} tone="neutral" />
-              <StatCard title="Closing credits" count={money(d.summary.closingCredit)} tone="neutral" />
+              <StatCard title="Debits in period" count={money(totals.totalDebits)} tone="teal" subText={CURRENCY} />
+              <StatCard title="Credits in period" count={money(totals.totalCredits)} tone="plum" subText={CURRENCY} />
+              <StatCard title="Closing debits" count={money(totals.closingDebit)} tone="neutral" subText={CURRENCY} />
+              <StatCard title="Closing credits" count={money(totals.closingCredit)} tone="neutral" subText={CURRENCY} />
             </div>
-            <Panel bodyClassName="p-0" title={d.summary.isBalanced ? "In balance" : "Out of balance"}
-              actions={<><Pill tone={d.summary.isBalanced ? "success" : "danger"}>{d.summary.isBalanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}{d.summary.isBalanced ? "Debits equal credits" : `Difference ${money(Math.abs(d.summary.closingDebit - d.summary.closingCredit))}`}</Pill><Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.trialBalance.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button></>}>
-              {d.trialBalance.length === 0 && <EmptyState title="No postings" text="Nothing has been posted to the ledger up to this date." />}
-              {d.trialBalance.length > 0 && (
+            <ViewBar list={list}>
+              <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
+                <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+                Include year-end closing entries
+              </label>
+            </ViewBar>
+            <FilterBar
+              search={list.search}
+              onSearch={list.setSearch}
+              searchLabel="Search accounts"
+              placeholder="Search accounts…"
+              active={narrowed}
+              onClear={() => { list.setSearch(""); list.clearFilters(); }}
+              dense
+            >
+              <FilterSelect label="Layout" value={view} onChange={(v) => { setView(v); session.set("view", v); }} options={TB.VIEW_OPTIONS} className="sm:w-40" />
+              <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
+              <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={TB.groupOptions(TB.filterRows(all, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
+              <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} allLabel={TB.SHOW_ALL_LABEL} className="sm:w-56" />
+                  </FilterBar>
+
+
+            <Panel
+              bodyClassName="p-0"
+              title={narrowed ? "Part of the trial balance" : (isBalanced ? "In balance" : "Out of balance")}
+              description={narrowed
+                ? `Showing ${rows.length} of ${all.length} accounts. A part of a trial balance does not balance on its own - clear the filters to prove the whole.`
+                : undefined}
+              actions={<>
+                {!narrowed && (
+                  <Pill tone={isBalanced ? "success" : "danger"}>
+                    {isBalanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
+                    {isBalanced ? "Debits equal credits" : `Difference ${money(Math.abs(difference))}`}
+                  </Pill>
+                )}
+                <Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>
+              </>}
+            >
+              {rows.length === 0 && (
+                <EmptyState
+                  title={all.length ? "No account matches these filters" : "No postings"}
+                  text={all.length ? "Widen the filters, or clear them to see the whole trial balance." : "Nothing has been posted to the ledger up to this date."}
+                />
+              )}
+              {rows.length > 0 && (
                 <div className="erp-scroll table-pin-first overflow-x-auto">
                   <table className="w-full text-sm">
+                    <caption className="sr-only">Trial balance{narrowed ? ", filtered" : ""}</caption>
                     <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                       <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-start">Category</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">Closing Dr</th><th className="px-5 py-2 text-end">Closing Cr</th></tr>
                     </thead>
                     <tbody>
-                      {d.trialBalance.map((a) => (
-                        <tr key={a._id} className="border-t border-border hover:bg-accent/40">
-                          <td className="px-5 py-2"><button type="button" onClick={() => onLedger(a)} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button></td>
-                          <td className="px-3 py-2 text-muted-foreground">{CAT[a.category]}</td>
-                          <td className="px-3 py-2 text-end tabular-nums">{money(a.openingBalance)}</td>
-                          <td className="px-3 py-2 text-end tabular-nums">{a.totalDebits ? money(a.totalDebits) : ""}</td>
-                          <td className="px-3 py-2 text-end tabular-nums">{a.totalCredits ? money(a.totalCredits) : ""}</td>
-                          <td className="px-3 py-2 text-end tabular-nums">{a.closingDebit ? money(a.closingDebit) : ""}</td>
-                          <td className="px-5 py-2 text-end tabular-nums">{a.closingCredit ? money(a.closingCredit) : ""}</td>
-                        </tr>
-                      ))}
+                      {view === "group"
+                        ? groups.map((g) => (
+                          <React.Fragment key={g.key}>
+                            <tr className="border-t border-border bg-secondary/30">
+                              <td className="px-5 py-2">
+                                <button type="button" onClick={() => toggle(g.key)} aria-expanded={!!open[g.key]} className="flex items-center gap-1.5 text-start font-medium hover:underline">
+                                  {open[g.key] ? <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                                  {g.label}
+                                  <span className="ms-1 text-xs font-normal text-muted-foreground">{g.count}</span>
+                                </button>
+                              </td>
+                              <td className="px-3 py-2 text-muted-foreground">{CAT[g.category]}</td>
+                              <td className="px-3 py-2 text-end font-medium tabular-nums">{cell(g.openingBalance)}</td>
+                              <td className="px-3 py-2 text-end font-medium tabular-nums">{cell(g.totalDebits)}</td>
+                              <td className="px-3 py-2 text-end font-medium tabular-nums">{cell(g.totalCredits)}</td>
+                              <td className="px-3 py-2 text-end font-medium tabular-nums">{cell(g.closingDebit)}</td>
+                              <td className="px-5 py-2 text-end font-medium tabular-nums">{cell(g.closingCredit)}</td>
+                            </tr>
+                            {open[g.key] && g.accounts.map((a) => (
+                              <tr key={a._id} className="border-t border-border hover:bg-accent/40">
+                                <td className="py-1.5 pe-3 ps-11"><button type="button" onClick={() => onLedger(a)} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button></td>
+                                <td className="px-3 py-1.5" />
+                                <td className="px-3 py-1.5 text-end tabular-nums">{cell(a.openingBalance)}</td>
+                                <td className="px-3 py-1.5 text-end tabular-nums">{cell(a.totalDebits)}</td>
+                                <td className="px-3 py-1.5 text-end tabular-nums">{cell(a.totalCredits)}</td>
+                                <td className="px-3 py-1.5 text-end tabular-nums">{cell(a.closingDebit)}</td>
+                                <td className="px-5 py-1.5 text-end tabular-nums">{cell(a.closingCredit)}</td>
+                              </tr>
+                            ))}
+                          </React.Fragment>
+                        ))
+                        : rows.map((a) => (
+                          <tr key={a._id} className="border-t border-border hover:bg-accent/40">
+                            <td className="px-5 py-2"><button type="button" onClick={() => onLedger(a)} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button></td>
+                            <td className="px-3 py-2 text-muted-foreground">{CAT[a.category]}</td>
+                            <td className="px-3 py-2 text-end tabular-nums">{cell(a.openingBalance)}</td>
+                            <td className="px-3 py-2 text-end tabular-nums">{cell(a.totalDebits)}</td>
+                            <td className="px-3 py-2 text-end tabular-nums">{cell(a.totalCredits)}</td>
+                            <td className="px-3 py-2 text-end tabular-nums">{cell(a.closingDebit)}</td>
+                            <td className="px-5 py-2 text-end tabular-nums">{cell(a.closingCredit)}</td>
+                          </tr>
+                        ))}
                     </tbody>
-                    <tfoot><tr className="border-t-2 border-border bg-secondary/60 font-semibold"><td className="px-5 py-2.5" colSpan={3}>Total</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.summary.totalDebits)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.summary.totalCredits)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(d.summary.closingDebit)}</td><td className="px-5 py-2.5 text-end tabular-nums">{money(d.summary.closingCredit)}</td></tr></tfoot>
+                    <tfoot><tr className="border-t-2 border-border bg-secondary/60 font-semibold"><td className="px-5 py-2.5" colSpan={3}>{narrowed ? `Total of these ${rows.length} accounts` : "Total"}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(totals.totalDebits)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(totals.totalCredits)}</td><td className="px-3 py-2.5 text-end tabular-nums">{money(totals.closingDebit)}</td><td className="px-5 py-2.5 text-end tabular-nums">{money(totals.closingCredit)}</td></tr></tfoot>
                   </table>
                 </div>
               )}
@@ -91,23 +199,6 @@ function TrialBalance({ range, onLedger }) {
       }}
     </Frame>
     </div>
-  );
-}
-
-function Section({ title, rows, total, onLedger }) {
-  return (
-    <Panel bodyClassName="p-0" title={title} actions={<span className="text-sm font-semibold tabular-nums">{money(total)}</span>}>
-      {rows.length === 0 ? <p className="px-5 py-4 text-sm text-muted-foreground">Nothing in this period.</p> : (
-        <ul className="divide-y divide-border">
-          {rows.map((a) => (
-            <li key={a._id} className="flex items-center gap-3 px-5 py-2 text-sm">
-              <button type="button" onClick={() => onLedger?.(a)} className="min-w-0 flex-1 truncate text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{a.accountCode}</span>{a.accountName}</button>
-              <span className="tabular-nums">{money(a.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
   );
 }
 
@@ -236,26 +327,92 @@ function CashFlow({ range }) {
   );
 }
 
-function BalanceSheet({ asOf, onLedger }) {
-  const state = useAsync(() => accounting.balanceSheet({ dateTo: `${asOf}T23:59:59.999` }), [asOf]);
+// One row of the statement. The kind decides how it reads: a heading, a section caption, a group,
+// an account under it, a subtotal with a rule above, or a total with a rule above and below.
+function StatementRow({ row, columns, onLedger }) {
+  const pad = ["ps-5", "ps-5", "ps-8", "ps-12"][Math.min(row.level, 3)];
+  if (row.kind === "heading") {
+    return <tr className="bg-secondary/50"><th colSpan={columns.length + 1} scope="colgroup" className="px-5 py-2 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">{row.label}</th></tr>;
+  }
+  if (row.kind === "caption") {
+    return <tr><td colSpan={columns.length + 1} className={`${pad} pe-5 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground`}>{row.label}</td></tr>;
+  }
+  const tone = row.kind === "total"
+    ? "border-y-2 border-border bg-secondary/60 font-semibold"
+    : row.kind === "subtotal" ? "border-t border-border font-medium" : "hover:bg-accent/40";
+  const label = row.kind === "detail" && onLedger && row.id !== "profit"
+    ? <button type="button" onClick={() => onLedger({ _id: row.id, accountCode: row.code, accountName: row.label })} className="text-start hover:underline"><span className="me-2 font-mono text-xs text-muted-foreground">{row.code}</span>{row.label}</button>
+    : <>{row.code && <span className="me-2 font-mono text-xs text-muted-foreground">{row.code}</span>}{row.label}</>;
   return (
-    <Frame state={state}>
-      {(d) => (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Pill tone={d.isBalanced ? "success" : "danger"}>{d.isBalanced ? "Assets equal liabilities plus equity" : "Does not balance"}</Pill>
-            <span className="text-sm text-muted-foreground">Profit earned to date is shown within equity.</span>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-4"><Section title="Assets" rows={d.assets} total={d.totalAssets} onLedger={onLedger} /></div>
+    <tr className={tone}>
+      <td className={`${pad} pe-3 py-1.5 text-sm`}>{label}</td>
+      {columns.map((c, i) => <td key={c} className="px-5 py-1.5 text-end text-sm tabular-nums">{BSL.formatAmount(row.values[i])}</td>)}
+    </tr>
+  );
+}
+
+function BalanceSheet({ asOf, onLedger }) {
+  const session = pageSession("balance-sheet");
+  const [compare, setCompare] = useState(() => session.get("compare", "none"));
+  const [detail, setDetail] = useState(() => session.get("detail", false));
+  const compareTo = BSL.compareDate(asOf, compare);
+  const state = useAsync(
+    () => accounting.balanceSheet({ dateTo: `${asOf}T23:59:59.999`, ...(compareTo ? { compareTo: `${compareTo}T23:59:59.999` } : {}) }),
+    [asOf, compareTo],
+  );
+  return (
+    <div className="space-y-4">
+      <FilterBar dense className="sm:items-end">
+        <FilterSelect label="Compare with" value={compare} onChange={(v) => { setCompare(v); session.set("compare", v); }} options={BSL.COMPARE_OPTIONS} className="sm:w-48" />
+        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
+          <input type="checkbox" checked={detail} onChange={(e) => { setDetail(e.target.checked); session.set("detail", e.target.checked); }} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+          Show each account
+        </label>
+      </FilterBar>
+      <Frame state={state}>
+        {(d) => {
+          const columns = BSL.columnsOf(asOf, d);
+          const rows = BSL.statementRows(d, { detail });
+          const exportCsv = () => {
+            const { headers, lines } = BSL.balanceSheetCsv(rows, columns);
+            downloadCSV(`balance-sheet-${asOf}.csv`, headers, lines);
+          };
+          return (
             <div className="space-y-4">
-              <Section title="Liabilities" rows={d.liabilities} total={d.totalLiabilities} onLedger={onLedger} />
-              <Section title="Equity" rows={[...d.equity, { _id: "profit", accountCode: "", accountName: "Profit to date", amount: d.profitToDate }]} total={d.totalEquity} onLedger={(a) => a._id !== "profit" && onLedger(a)} />
-              <div className="flex justify-between rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold shadow-card"><span>Liabilities and equity</span><span className="tabular-nums">{money(d.totalLiabilitiesAndEquity)}</span></div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Pill tone={d.isBalanced ? "success" : "danger"}>
+                  {d.isBalanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
+                  {d.isBalanced ? "Assets equal liabilities plus equity" : `Difference ${money(Math.abs(d.totalAssets - d.totalLiabilitiesAndEquity))}`}
+                </Pill>
+                <span className="hidden text-sm text-muted-foreground sm:inline">Profit earned to date is shown within equity.</span>
+              </div>
+              <Panel
+                bodyClassName="p-0"
+                title="Statement of financial position"
+                description={<>{`As at ${formatDate(asOf)}. ${amountsIn()}.`}<span className="hidden sm:inline"> Deductions are shown in brackets.</span></>}
+                actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}
+              >
+                {rows.length === 0 ? <EmptyState title="Nothing posted" text="No account carries a balance as at this date." /> : (
+                  <div className="erp-scroll table-pin-first overflow-x-auto">
+                    <table className="w-full">
+                      <caption className="sr-only">Statement of financial position as at {formatDate(asOf)}</caption>
+                      <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-5 py-2 text-start">Account</th>
+                          {columns.map((c) => <th key={c} className="px-5 py-2 text-end">{formatDate(c)}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, i) => <StatementRow key={`${row.kind}-${row.label}-${i}`} row={row} columns={columns} onLedger={onLedger} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Panel>
             </div>
-          </div>
-        </div>
-      )}
-    </Frame>
+          );
+        }}
+      </Frame>
+    </div>
   );
 }

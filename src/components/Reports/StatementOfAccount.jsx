@@ -9,6 +9,8 @@ import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Balance, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, SearchSelect, Spinner, useAsync, DateInput } from "../accounting/kit";
 import { useOrganisation } from "../shell/OrganisationContext";
+import FilterBar from "../lists/FilterBar";
+import { pageSession } from "../../lib/pageSession";
 
 const TYPES = {
   Customer: { noun: "customer", path: "/customers/customers", name: "customerName", code: "customerId", owes: "owes you" },
@@ -47,7 +49,8 @@ export default function StatementOfAccount() {
   const accountId = params.get("accountId") || "";
   const subjectId = isAccount ? accountId : partyId;
   const [range, setRange] = useState({ from: params.get("from") || "", to: params.get("to") || "" });
-  const [byMonth, setByMonth] = useState(true);
+  const session = pageSession("account-statement");
+  const [byMonth, setByMonth] = useState(() => session.get("byMonth", true));
   const [parties, setParties] = useState({ loading: true, rows: [], error: null });
 
   const choose = (id) => setParams({ partyType, ...(id ? { [isAccount ? "accountId" : "partyId"]: id } : {}) }, { replace: true });
@@ -120,7 +123,7 @@ export default function StatementOfAccount() {
           </>
         )} />
 
-      <div className="mb-5 flex flex-wrap items-end gap-3 print:hidden">
+      <FilterBar className="mb-5">
         <Field label="Statement of" className="w-44">
           <Select value={partyType} onChange={(e) => setParams({ partyType: e.target.value }, { replace: true })}>
             <option value="Customer">Customer</option>
@@ -139,10 +142,10 @@ export default function StatementOfAccount() {
         <Field label="From"><DateInput value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} /></Field>
         <Field label="To"><DateInput value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} /></Field>
         <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
-          <input type="checkbox" checked={byMonth} onChange={(e) => setByMonth(e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+          <input type="checkbox" checked={byMonth} onChange={(e) => { setByMonth(e.target.checked); session.set("byMonth", e.target.checked); }} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
           Group by month
         </label>
-      </div>
+      </FilterBar>
       {parties.error && <ErrorNote error={parties.error} />}
 
       {!subjectId && <Panel><EmptyState title={isAccount ? "Choose an account" : `Choose a ${TYPES[partyType].noun}`} text="Their statement appears here." /></Panel>}

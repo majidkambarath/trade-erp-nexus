@@ -24,6 +24,7 @@ export default function FilterBar({
   placeholder = "Search…",
   active = false,
   onClear,
+  dense = false,
   children,
   className,
 }) {
@@ -53,7 +54,10 @@ export default function FilterBar({
           ) : null}
         </div>
       )}
-      {children}
+      {/* `dense` puts two controls on a phone row instead of one. A report can carry five of them,
+          and one per line pushed the figures a whole screen down; `sm:contents` dissolves the grid
+          again from `sm` up, so the wrapping flex row above is unchanged on anything wider. */}
+      {dense ? <div className="grid grid-cols-2 gap-3 sm:contents">{children}</div> : children}
       {active && onClear && (
         <Button type="button" variant="outline" onClick={onClear} className="w-full sm:w-auto">
           Clear filters
