@@ -697,8 +697,9 @@ const serviceItem = {
 // shape each screen actually reads - an array for most lists, an object where the screen wants
 // a summary beside its rows. Getting this wrong shows up as a blank page, which is exactly what
 // the harness is watching for, so it has to be right for the check to mean anything.
-function stubFor(pathname) {
+function stubFor(pathname, search = "") {
   const p = pathname;
+  const q = new URLSearchParams(search);
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
 
   // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
@@ -1976,6 +1977,73 @@ function stubFor(pathname) {
       reconciliation: { available: true, stockValue: 2400, ledgerBalance: 2400, difference: 0, reconciles: true, account: { name: "Inventory Stock" } },
     };
   }
+  // The Statements screen: trial balance, profit and loss, cash flow, balance sheet. They share one
+  // endpoint and are told apart by reportType. Without these the page drew nothing and the sweep
+  // happily called it ok - the blank-page trap the header comment above warns about.
+  if (p.includes("/vouchers/reports/financial")) {
+    const acc = (id, code, name, category, group, path, dr, cr, closeDr, closeCr) => ({
+      _id: id, accountCode: code, accountName: name, accountType: category.toLowerCase(), category,
+      groupName: group, groupId: `g-${group}`, groupPath: path,
+      openingBalance: 0, totalDebits: dr, totalCredits: cr, balance: closeDr - closeCr,
+      closingDebit: closeDr, closingCredit: closeCr,
+    });
+    // Deliberately lopsided: three customers of which two have settled in full, so the group view,
+    // the group filter and the "with a closing balance" rule all have something to bite on.
+    const rows = [
+      acc("t3", "AR0001", "Customer - Al Madina Fresh Supermarket LLC", "ASSET", "Accounts Receivable", ["Current Assets", "Accounts Receivable"], 197689, 0, 197689, 0),
+      acc("t4", "AR0004", "Customer - Spice Garden Restaurant LLC", "ASSET", "Accounts Receivable", ["Current Assets", "Accounts Receivable"], 74706, 74706, 0, 0),
+      acc("t5", "AR0009", "Customer - Bright Star Wholesale LLC", "ASSET", "Accounts Receivable", ["Current Assets", "Accounts Receivable"], 41860, 41860, 0, 0),
+      acc("t6", "INV0001", "Inventory Stock", "ASSET", "Inventory", ["Current Assets", "Inventory"], 353064, 0, 353064, 0),
+      acc("t1", "CASH0001", "Cash in Hand", "ASSET", "Cash", ["Current Assets", "Cash"], 96792, 0, 96792, 0),
+      acc("t2", "BANK0002", "Emirates NBD - Current Account", "ASSET", "Bank", ["Current Assets", "Bank"], 434644, 0, 434644, 0),
+      acc("t7", "FA0002", "Vehicles", "ASSET", "Fixed Assets", ["Fixed Assets"], 168000, 0, 168000, 0),
+      acc("t8", "AP0001", "Vendor - Gulf Grain Importers LLC", "LIABILITY", "Accounts Payable", ["Current Liabilities", "Accounts Payable"], 0, 268325, 0, 268325),
+      acc("t9", "LTL0001", "Bank Loan", "LIABILITY", "Long-term Liabilities", ["Long-term Liabilities"], 0, 132432, 0, 132432),
+      acc("t10", "EQ0001", "Owner's Capital", "EQUITY", "Equity", ["Equity"], 0, 904100, 0, 904100),
+      acc("t11", "EQ0004", "Owner's Drawings", "EQUITY", "Equity", ["Equity"], 90000, 0, 90000, 0),
+      acc("t12", "SAL0001", "Sales Revenue", "INCOME", "Sales Income", ["Sales Income"], 0, 820000, 0, 820000),
+      acc("t13", "COGS0001", "Cost of Goods Sold", "EXPENSE", "Cost of Goods Sold", ["Cost of Goods Sold"], 612000, 0, 612000, 0),
+      acc("t14", "OE0004", "Rent Expense", "EXPENSE", "Operating Expenses", ["Operating Expenses"], 144000, 0, 144000, 0),
+      acc("t15", "OE0009", "Utilities", "EXPENSE", "Operating Expenses", ["Operating Expenses"], 28668, 0, 28668, 0),
+    ];
+    const add = (k) => rows.reduce((t, r) => t + r[k], 0);
+    if (q.get("reportType") === "trial_balance") {
+      return { report: { trialBalance: rows, summary: { totalDebits: add("totalDebits"), totalCredits: add("totalCredits"), closingDebit: add("closingDebit"), closingCredit: add("closingCredit"), isBalanced: add("closingDebit") === add("closingCredit") } } };
+    }
+    if (q.get("reportType") === "balance_sheet") {
+      const flat = (cat) => rows.filter((r) => r.category === cat).map((r) => ({ _id: r._id, accountCode: r.accountCode, accountName: r.accountName, groupName: r.groupName, amount: r.category === "ASSET" ? r.closingDebit : r.closingCredit - r.closingDebit, nonCurrent: r.groupPath[0] === "Fixed Assets" || r.groupPath[0] === "Long-term Liabilities" }));
+      const assets = flat("ASSET"); const liabilities = flat("LIABILITY"); const equity = flat("EQUITY");
+      const sum = (l) => l.reduce((t, a) => t + a.amount, 0);
+      const profit = 820000 - 612000 - 144000 - 28668;
+      const sec = (label, list) => ({ label, groups: [...new Set(list.map((a) => a.groupName))].map((name) => ({ name, accounts: list.filter((a) => a.groupName === name), amount: sum(list.filter((a) => a.groupName === name)), comparative: null })), amount: sum(list), comparative: null });
+      const side = (word, list) => ({ nonCurrent: sec(`Non-current ${word}`, list.filter((a) => a.nonCurrent)), current: sec(`Current ${word}`, list.filter((a) => !a.nonCurrent)), amount: sum(list), comparative: null });
+      const equitySection = sec("Equity", equity);
+      equitySection.groups.push({ name: "Profit for the period", synthetic: true, accounts: [], amount: profit, comparative: null });
+      equitySection.amount = sum(equity) + profit;
+      return { report: {
+        asOf: null, assets, liabilities, equity, profitToDate: profit, profitBroughtForward: 0, profitForPeriod: profit,
+        totalAssets: sum(assets), totalLiabilities: sum(liabilities), totalEquity: sum(equity) + profit,
+        totalLiabilitiesAndEquity: sum(liabilities) + sum(equity) + profit,
+        isBalanced: Math.abs(sum(assets) - (sum(liabilities) + sum(equity) + profit)) < 0.01,
+        sections: { assets: side("assets", assets), liabilities: side("liabilities", liabilities), equity: equitySection, equityAndLiabilities: { amount: sum(liabilities) + sum(equity) + profit, comparative: null } },
+        comparative: null,
+      } };
+    }
+    return { report: {} };
+  }
+
+  if (p.includes("/accounting/reports/profit-loss")) {
+    const g = (name, accounts) => ({ groupId: `g-${name}`, name, accounts });
+    const a = (code, name, amount) => ({ accountId: code, accountCode: code, accountName: name, amount });
+    const section = (groups) => ({ groups, total: groups.flatMap((x) => x.accounts).reduce((t, x) => t + x.amount, 0) });
+    const revenue = section([g("Sales Income", [a("SAL0001", "Sales Revenue", 820000)])]);
+    const direct = section([g("Cost of Goods Sold", [a("COGS0001", "Cost of Goods Sold", 612000)])]);
+    const other = section([g("Other Income", [a("OI0001", "Other Income", 4200)])]);
+    const operating = section([g("Operating Expenses", [a("OE0004", "Rent Expense", 144000), a("OE0009", "Utilities", 28668)])]);
+    const gross = revenue.total - direct.total;
+    return { revenue, directCosts: direct, otherIncome: other, operatingExpenses: operating, grossProfit: gross, grossMargin: (gross / revenue.total) * 100, netProfit: gross + other.total - operating.total };
+  }
+
   if (p.includes("/accounting/settings")) {
     return { creditControl: { mode: "warn", overdueBlockDays: 30 }, returnWindowDays: 14, requireReturnLink: false, approvals: { separateApprover: false, secondApprovalAbove: null }, profile: { legalName: "Harbour Trading LLC", trn: "100123456700003" } };
   }
@@ -2127,7 +2195,7 @@ const api = createServer((req, res) => {
   // person sees on a slow line instead of the instant one a stub gives. Off unless it is set.
   if (process.env.SHOT_HOLD && new RegExp(process.env.SHOT_HOLD).test(url.pathname)) return;
   res.setHeader("Content-Type", "application/json");
-  const data = stubFor(url.pathname);
+  const data = stubFor(url.pathname, url.search);
   res.end(
     JSON.stringify({
       success: true,
