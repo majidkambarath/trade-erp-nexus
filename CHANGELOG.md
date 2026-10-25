@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.7.0.0 — 26 October 2026
+
+The balance sheet reads as a statement, the trial balance opens group-wise, and the reports that
+list ledger accounts are all narrowed the same way and remember how. Backend 1.7.0.0.
+
+### Added
+
+- **Trial balance, group-wise.** It opens collapsed to its account groups - on a real set of books
+  34 accounts read as 10 lines - and a group opens to the accounts under it. That is how a trial
+  balance is read in Tally, and it is the difference between a report and a list of every ledger
+  account. **Layout** switches back to account-wise.
+- **Filters on the trial balance and the general ledger**: **Category**, **Group** (the payables,
+  the receivables, the expenses), a **Rows** rule of *All accounts* / *With transactions in the
+  period* / *With a closing balance*, and a search over the account, its code and its group. The
+  last one matters more than it sounds: a customer who has paid in full has transactions and no
+  balance, and on live books eight of thirteen receivable accounts were in exactly that state,
+  taking a row each. A narrowed report says "Showing 4 of 34 accounts", recomputes its totals from
+  what survived, and drops the balanced badge - a slice of a trial balance does not balance, and it
+  must not claim to be out of balance either.
+- **Saved views** on the trial balance, the general ledger and party balances: name a set of
+  choices ("Payables only") and reopen it later, per person. The account statement deliberately has
+  none - its subject and dates live in the address, which is already a shareable, reload-proof
+  version of the same idea.
+- **The balance sheet is a statement.** One vertical column in place of the old two: ASSETS with
+  non-current and current sections and their subtotals, TOTAL ASSETS, then equity and liabilities,
+  ruled subtotals and double-ruled totals, deductions in brackets rather than with a minus sign, and
+  a header saying what it is, as at when, and in which currency - none of which was on the page.
+  **Compare with** adds a column for a year or a month earlier; **Show each account** opens the
+  groups. Clicking a line still opens its ledger, which the IFRS tab cannot do, and there is a CSV
+  button where before this was the only tab on the screen with no export at all.
+- **Money the owners took out is a named deduction** ("Less: Drawings") under the capital it
+  reduces, instead of a negative line sitting among the positives.
+- **The four reports remember their filters** while you visit another page, and share one filter
+  row with the same control order, so a choice means the same thing wherever it is made.
+
+### Fixed
+
+- **Every report opened claiming it had changed.** The saved-view picker showed a "changed" pill and
+  offered to save a view of the screen's own defaults, because `viewMatches` reads any truthy filter
+  value as a change and the defaults were ordinary strings. "No filter" is `""` now, the value every
+  filter control already uses, and the LAYOUT choice left the filters altogether - it hides no row,
+  so it is not a filter.
+- **The general ledger's Layout control contradicted the table under it**, reading "Groups only"
+  while the accounts were drawn, because its default had no option of its own.
+- **On a phone the figures were a screen and a half down.** The summary cards now come above the
+  filter row, two controls share a phone row instead of one each, and two sentences of commentary
+  wait for a wider screen. Desktop and tablet are unchanged.
+- **The screenshot sweep had no stub for these reports**, so all four Statements tabs rendered
+  nothing and `check:mobile` reported them ok. With the stubs in place it immediately caught the old
+  balance sheet 502px wide on a 390px phone.
+
+### Verified
+
+- `lib/__tests__/trialBalance.test.js` (24 pure), `lib/__tests__/ledgerFilters.test.js` (13 pure),
+  and new cases across `Reports/__tests__`. The report test files now clear the remembered filters
+  between tests - they live in a tab-wide map, and one test was leaving the next looking at a
+  narrowed report.
+- Lint 0 errors, `audit:mobile` 0, and `check:mobile` clean at 390 / 820 / 1440 on
+  `/financial-statements`, `/ledger-reports`, `/party-balances` and `/statement`.
+
 ## 1.6.0.1 — 24 October 2026
 
 The statement of account reads any ledger account and groups a long one by month; a receipt can
