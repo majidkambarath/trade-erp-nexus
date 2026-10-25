@@ -19,7 +19,7 @@ import * as LF from "../../lib/ledgerFilters";
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.filter(([k]) => k));
-const DEFAULT_GL_FILTERS = { category: "", group: "", show: "all", groupsOnly: false, closing: false };
+const DEFAULT_GL_FILTERS = { category: "", group: "", show: "", groupsOnly: false, closing: false };
 const VOUCHER_TYPES = [
   ["sales_order", "Sales invoice"], ["sales_return", "Sales return"], ["purchase_order", "Purchase invoice"], ["purchase_return", "Purchase return"],
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
@@ -92,7 +92,7 @@ function GeneralLedger({ range, onLedger }) {
               >
                 <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={CATEGORIES.filter(([k]) => k)} allLabel="All categories" className="sm:w-44" />
                 <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={LF.groupChoices(LF.filterGroups(all.groups, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
-                <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={LF.SHOW_OPTIONS} className="sm:w-56" />
+                <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={LF.SHOW_OPTIONS} allLabel={LF.SHOW_ALL_LABEL} className="sm:w-56" />
                 <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => list.setFilter("groupsOnly", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
                 <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include year-end closing entries</label>
                 <SavedViews list={list} />

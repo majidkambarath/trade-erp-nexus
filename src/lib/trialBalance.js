@@ -23,11 +23,13 @@ export const VIEW_OPTIONS = [["group", "Group-wise"], ["account", "Account-wise"
 // Which rows are worth drawing. The wording is Zoho's, because it is the clearest of the three and
 // it says what it does: a settled customer account has transactions but no balance, and the two
 // questions ("did anything happen?" and "is anything owed?") have different answers.
+// "" is "all of them": the no-filter value every FilterSelect uses for its allLabel, and the value
+// lib/savedViews.js needs for "nothing is narrowed" to be true.
 export const SHOW_OPTIONS = [
-  ["all", "All accounts"],
   ["activity", "With transactions in the period"],
   ["nonzero", "With a closing balance"],
 ];
+export const SHOW_ALL_LABEL = "All accounts";
 
 const r2 = (n) => Math.round(((Number(n) || 0) + Number.EPSILON) * 100) / 100;
 const ZERO = 0.005; // the rounding the server uses; below this an amount is nothing
@@ -53,7 +55,7 @@ const hasBalance = (row) => Math.abs(row.closingDebit || 0) >= ZERO || Math.abs(
  * The rows a set of choices leaves. `search` matches the account name, its code and its group, so
  * typing "receivable" finds the group and typing "AR0007" finds the one account.
  */
-export function filterRows(rows = [], { search = "", category = "", group = "", show = "all" } = {}) {
+export function filterRows(rows = [], { search = "", category = "", group = "", show = "" } = {}) {
   const term = String(search || "").trim().toLowerCase();
   return rows.filter((row) => {
     if (category && row.category !== category) return false;
@@ -67,8 +69,8 @@ export function filterRows(rows = [], { search = "", category = "", group = "", 
 }
 
 /** True when any choice is narrowing the report, which is what puts "Clear filters" on the screen. */
-export const isFiltered = ({ search = "", category = "", group = "", show = "all" } = {}) =>
-  Boolean(String(search || "").trim()) || Boolean(category) || Boolean(group) || show !== "all";
+export const isFiltered = ({ search = "", category = "", group = "", show = "" } = {}) =>
+  Boolean(String(search || "").trim()) || Boolean(category) || Boolean(group) || Boolean(show);
 
 /** Every group present in the rows, in reading order, for the Group filter. */
 export function groupOptions(rows = []) {

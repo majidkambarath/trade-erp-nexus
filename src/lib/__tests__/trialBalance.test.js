@@ -117,11 +117,11 @@ describe("filtering", () => {
 
   it("knows when it is narrowing anything, which is what offers Clear filters", () => {
     expect(TB.isFiltered({})).toBe(false);
-    expect(TB.isFiltered({ search: "", category: "", group: "", show: "all" })).toBe(false);
+    expect(TB.isFiltered({ search: "", category: "", group: "", show: "" })).toBe(false);
     expect(TB.isFiltered({ search: "   " })).toBe(false);
     expect(TB.isFiltered({ show: "nonzero" })).toBe(true);
     expect(TB.isFiltered({ group: "Cash" })).toBe(true);
-    // the view is how it is read, not a filter: it hides nothing
+    // the layout is how it is read, not a filter: it hides nothing, and it is not kept here
     expect(TB.isFiltered({ view: "account" })).toBe(false);
   });
 });

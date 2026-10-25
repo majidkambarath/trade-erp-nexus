@@ -7,9 +7,9 @@
 // filters inside grouping the server already did. The two keep the same vocabulary on purpose -
 // Category, Group, Rows - so the choices mean the same thing on every report.
 
-import { SHOW_OPTIONS, CATEGORY_OPTIONS, CATEGORY_LABELS } from "./trialBalance";
+import { SHOW_OPTIONS, SHOW_ALL_LABEL, CATEGORY_OPTIONS, CATEGORY_LABELS } from "./trialBalance";
 
-export { SHOW_OPTIONS, CATEGORY_OPTIONS, CATEGORY_LABELS };
+export { SHOW_OPTIONS, SHOW_ALL_LABEL, CATEGORY_OPTIONS, CATEGORY_LABELS };
 
 const ZERO = 0.005;
 const CATEGORY_ORDER = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"];
@@ -23,7 +23,7 @@ const holds = (a) => Math.abs(a.closing || 0) >= ZERO;
  * an empty heading is noise, not information. Totals are recomputed from what survived, because a
  * subtotal that still counts rows nobody can see is simply wrong.
  */
-export function filterGroups(groups = [], { search = "", category = "", group = "", show = "all" } = {}) {
+export function filterGroups(groups = [], { search = "", category = "", group = "", show = "" } = {}) {
   const term = String(search || "").trim().toLowerCase();
   const out = [];
   for (const g of groups) {
@@ -55,8 +55,8 @@ export const sumGroups = (groups = []) => sumAccounts(groups.map((g) => g.totals
 export const countAccounts = (groups = []) => groups.reduce((t, g) => t + (g.accounts?.length || 0), 0);
 
 /** True when a choice is leaving something out. A category or group chosen, a search, or a rows rule. */
-export const isNarrowed = ({ search = "", category = "", group = "", show = "all" } = {}) =>
-  Boolean(String(search || "").trim()) || Boolean(category) || Boolean(group) || show !== "all";
+export const isNarrowed = ({ search = "", category = "", group = "", show = "" } = {}) =>
+  Boolean(String(search || "").trim()) || Boolean(category) || Boolean(group) || Boolean(show);
 
 /** The groups on offer, in reading order, for the Group filter. */
 export const groupChoices = (groups = []) =>

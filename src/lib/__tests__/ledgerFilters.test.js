@@ -93,7 +93,7 @@ describe("the totals and the group list", () => {
 
   it("knows when a choice is leaving something out", () => {
     expect(LF.isNarrowed({})).toBe(false);
-    expect(LF.isNarrowed({ show: "all", search: "  " })).toBe(false);
+    expect(LF.isNarrowed({ show: "", search: "  " })).toBe(false);
     expect(LF.isNarrowed({ group: "Cash" })).toBe(true);
     expect(LF.isNarrowed({ show: "nonzero" })).toBe(true);
     // how the report is READ hides nothing, so it does not count

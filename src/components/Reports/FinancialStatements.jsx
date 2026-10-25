@@ -18,7 +18,7 @@ import { useListView } from "../../lib/useListView";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
-const DEFAULT_TB_FILTERS = { category: "", group: "", show: "all", view: "group", closing: false };
+const DEFAULT_TB_FILTERS = { category: "", group: "", show: "", closing: false };
 const TAB_IDS = ["trial", "pl", "cash", "bs"];
 
 // The core statements, all read from the same ledger: they cannot disagree with each other.
@@ -53,6 +53,9 @@ function TrialBalance({ range, onLedger }) {
   const list = useListView("trial-balance", { filters: DEFAULT_TB_FILTERS });
   const session = pageSession("trial-balance");
   const [open, setOpen] = useState(() => session.get("open", {}));
+  // The layout is not a filter - it hides no row - so it is remembered beside the open groups
+  // rather than inside list.filters, where it would read as "this report is narrowed".
+  const [view, setView] = useState(() => session.get("view", "group"));
   const f = list.filters;
   const choices = { ...f, search: list.search };
   const toggle = (key) => setOpen((o) => {
@@ -78,7 +81,7 @@ function TrialBalance({ range, onLedger }) {
         const totals = narrowed ? TB.sumRows(rows) : TB.reportTotals(d.summary, TB.sumRows(rows));
         const { isBalanced, difference } = narrowed ? TB.balanceOf(totals) : TB.balanceOf(d.summary);
         const exportCsv = () => {
-          const { headers, lines } = TB.trialBalanceCsv(f.view, groups, rows, totals);
+          const { headers, lines } = TB.trialBalanceCsv(view, groups, rows, totals);
           downloadCSV(`trial-balance-${range.to}${narrowed ? "-filtered" : ""}.csv`, headers, lines);
         };
         const cell = (n) => (Math.abs(n || 0) < 0.005 ? "" : money(n));
@@ -93,10 +96,10 @@ function TrialBalance({ range, onLedger }) {
               active={narrowed}
               onClear={() => { list.setSearch(""); list.clearFilters(); }}
             >
-              <FilterSelect label="Layout" value={f.view} onChange={(v) => list.setFilter("view", v)} options={TB.VIEW_OPTIONS} className="sm:w-40" />
+              <FilterSelect label="Layout" value={view} onChange={(v) => { setView(v); session.set("view", v); }} options={TB.VIEW_OPTIONS} className="sm:w-40" />
               <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
               <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={TB.groupOptions(TB.filterRows(all, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
-              <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} className="sm:w-56" />
+              <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} allLabel={TB.SHOW_ALL_LABEL} className="sm:w-56" />
               <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
                 <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
                 Include year-end closing entries
@@ -141,7 +144,7 @@ function TrialBalance({ range, onLedger }) {
                       <tr><th className="px-5 py-2 text-start">Account</th><th className="px-3 py-2 text-start">Category</th><th className="px-3 py-2 text-end">Opening</th><th className="px-3 py-2 text-end">Debit</th><th className="px-3 py-2 text-end">Credit</th><th className="px-3 py-2 text-end">Closing Dr</th><th className="px-5 py-2 text-end">Closing Cr</th></tr>
                     </thead>
                     <tbody>
-                      {f.view === "group"
+                      {view === "group"
                         ? groups.map((g) => (
                           <React.Fragment key={g.key}>
                             <tr className="border-t border-border bg-secondary/30">
