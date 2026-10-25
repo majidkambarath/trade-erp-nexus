@@ -9,7 +9,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, ViewBar, yearStart } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import SavedViews from "../lists/SavedViews";
@@ -19,7 +19,10 @@ import * as LF from "../../lib/ledgerFilters";
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
 const CATEGORY_LABEL = Object.fromEntries(CATEGORIES.filter(([k]) => k));
-const DEFAULT_GL_FILTERS = { category: "", group: "", show: "", groupsOnly: false, closing: false };
+// "" is the default on every one of these, so "nothing has been changed" is true at rest
+// (lib/savedViews.js viewMatches reads any truthy filter as a change).
+const GL_LAYOUTS = [["groups", "Groups only"]];
+const DEFAULT_GL_FILTERS = { category: "", group: "", show: "", layout: "", closing: false };
 const VOUCHER_TYPES = [
   ["sales_order", "Sales invoice"], ["sales_return", "Sales return"], ["purchase_order", "Purchase invoice"], ["purchase_return", "Purchase return"],
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
@@ -65,7 +68,7 @@ function GeneralLedger({ range, onLedger }) {
   const list = useListView("general-ledger", { filters: DEFAULT_GL_FILTERS });
   const f = list.filters;
   const choices = { ...f, search: list.search };
-  const groupsOnly = Boolean(f.groupsOnly);
+  const groupsOnly = f.layout === "groups";
   // The category is the one choice the SERVER applies, so it stays a request parameter. Everything
   // else narrows what has already arrived, which is instant and asks the server for nothing.
   const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: f.category || undefined, includeClosing: f.closing || undefined }), [range.from, range.to, f.category, f.closing]);
@@ -81,21 +84,22 @@ function GeneralLedger({ range, onLedger }) {
             d.groups.flatMap((g) => (groupsOnly ? [[g.name, "", "", g.totals.opening, g.totals.debit, g.totals.credit, g.totals.closing]] : g.accounts.map((a) => [g.name, a.accountCode, a.accountName, a.opening, a.debit, a.credit, a.closing]))).concat([["Total", "", "", d.totals.opening, d.totals.debit, d.totals.credit, d.totals.closing]]));
           return (
             <>
+              <ViewBar list={list}>
+                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include year-end closing entries</label>
+              </ViewBar>
               <FilterBar
                 search={list.search}
                 onSearch={list.setSearch}
                 searchLabel="Search accounts"
-                placeholder="Search account, code or group…"
+                placeholder="Search accounts…"
                 active={narrowed}
                 onClear={() => { list.setSearch(""); list.clearFilters(); }}
                 className="mb-4"
               >
+                <FilterSelect label="Layout" value={f.layout} onChange={(v) => list.setFilter("layout", v)} options={GL_LAYOUTS} allLabel="Groups and accounts" className="sm:w-48" />
                 <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={CATEGORIES.filter(([k]) => k)} allLabel="All categories" className="sm:w-44" />
                 <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={LF.groupChoices(LF.filterGroups(all.groups, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
                 <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={LF.SHOW_OPTIONS} allLabel={LF.SHOW_ALL_LABEL} className="sm:w-56" />
-                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={groupsOnly} onChange={(e) => list.setFilter("groupsOnly", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Groups only</label>
-                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include year-end closing entries</label>
-                <SavedViews list={list} />
               </FilterBar>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <StatCard title="Debits in period" count={money(d.totals.debit)} tone="teal" />

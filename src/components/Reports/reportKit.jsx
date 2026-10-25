@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "../ui/button";
 import { ErrorNote, Field, PageSpinner, TextInput, DateInput } from "../accounting/kit";
 import { todayInput } from "../../utils/format";
+import SavedViews from "../lists/SavedViews";
 
 // Small pieces the report screens share: the date range with its presets, and the loading / error frame.
 
@@ -75,4 +76,16 @@ export function Frame({ state, label = "Working out the figures", children }) {
   if (state.loading && !state.data) return <PageSpinner label={label} />;
   if (state.error) return <ErrorNote error={state.error} onRetry={state.reload} />;
   return state.data ? children(state.data) : null;
+}
+
+// A report's toolbar says two different things, so it is drawn as two rows: which VIEW is open (a
+// named set of choices, saved and reopened later), then how that view is narrowed. Crammed into one
+// wrapping row the picker ends up orphaned below the filters, showing a bare "All".
+export function ViewBar({ list, children }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-end gap-3 print:hidden">
+      <SavedViews list={list} showLabel />
+      {children}
+    </div>
+  );
 }

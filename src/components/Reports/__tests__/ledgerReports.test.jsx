@@ -68,7 +68,8 @@ describe("general ledger", () => {
     await screen.findByText("Cash in Hand");
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "ASSET" } });
     await waitFor(() => expect(m.generalLedger).toHaveBeenLastCalledWith(expect.objectContaining({ category: "ASSET" })));
-    fireEvent.click(screen.getByLabelText("Groups only"));
+    // "Groups only" is the Layout choice now, the same control the trial balance has
+    fireEvent.change(screen.getByLabelText("Layout"), { target: { value: "groups" } });
     expect(screen.queryByText("Cash in Hand")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     expect(downloadCSV).toHaveBeenCalledTimes(1);

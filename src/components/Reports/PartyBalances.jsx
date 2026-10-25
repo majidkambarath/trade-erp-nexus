@@ -7,9 +7,8 @@ import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, Field, PageHeader, Panel, Pill, Select, TextInput, useAsync } from "../accounting/kit";
-import { DateRange, Frame } from "./reportKit";
+import { DateRange, Frame, ViewBar } from "./reportKit";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
-import SavedViews from "../lists/SavedViews";
 import { useListView } from "../../lib/useListView";
 
 const money = (n) => formatNumber(n, 2);
@@ -65,6 +64,7 @@ function Parties({ type, asOn }) {
 
   return (
     <div className="space-y-4">
+      <ViewBar list={list} />
       <FilterBar
         search={search}
         onSearch={list.setSearch}
@@ -84,7 +84,6 @@ function Parties({ type, asOn }) {
           className="sm:w-52"
         />
         <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => list.setFilter("includeZero", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
-        <SavedViews list={list} />
       </FilterBar>
       <Frame state={state}>
         {(d) => {

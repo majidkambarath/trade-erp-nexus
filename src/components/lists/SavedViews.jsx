@@ -9,7 +9,10 @@ import { viewMatches } from "../../lib/savedViews";
 // LONG, which this is not. "All" (no view chosen) is always first and cannot be removed.
 //
 //   <SavedViews list={list} />   // `list` is whatever useListView(...) returned
-export default function SavedViews({ list }) {
+// showLabel draws the "View" caption. A list keeps it hidden - its toolbar is one row of labelled
+// controls and the picker reads from its place among them - but a report gives the picker a row of
+// its own, where a bare "All" says nothing.
+export default function SavedViews({ list, showLabel = false }) {
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState(null); // the view being renamed
   const [deleting, setDeleting] = useState(null); // the view being deleted
@@ -20,7 +23,7 @@ export default function SavedViews({ list }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Field label="View" className="w-full sm:w-52" labelClassName="sr-only">
+      <Field label="View" className="w-full sm:w-52" labelClassName={showLabel ? undefined : "sr-only"}>
         <Select value={list.currentViewId} onChange={(e) => list.goToView(e.target.value)} aria-label="View">
           <option value="">{list.DEFAULT_VIEW.name}</option>
           {list.views.map((v) => (

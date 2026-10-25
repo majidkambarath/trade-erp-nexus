@@ -8,7 +8,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, ViewBar, yearStart } from "./reportKit";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { pageSession } from "../../lib/pageSession";
 import * as TB from "../../lib/trialBalance";
@@ -88,11 +88,17 @@ function TrialBalance({ range, onLedger }) {
 
         return (
           <div className="space-y-4">
+            <ViewBar list={list}>
+              <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
+                <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
+                Include year-end closing entries
+              </label>
+            </ViewBar>
             <FilterBar
               search={list.search}
               onSearch={list.setSearch}
               searchLabel="Search accounts"
-              placeholder="Search account, code or group…"
+              placeholder="Search accounts…"
               active={narrowed}
               onClear={() => { list.setSearch(""); list.clearFilters(); }}
             >
@@ -100,12 +106,7 @@ function TrialBalance({ range, onLedger }) {
               <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
               <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={TB.groupOptions(TB.filterRows(all, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
               <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} allLabel={TB.SHOW_ALL_LABEL} className="sm:w-56" />
-              <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
-                <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
-                Include year-end closing entries
-              </label>
-              <SavedViews list={list} />
-            </FilterBar>
+                  </FilterBar>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard title="Debits in period" count={money(totals.totalDebits)} tone="teal" subText={CURRENCY} />
