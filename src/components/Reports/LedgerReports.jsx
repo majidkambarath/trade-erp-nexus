@@ -84,6 +84,12 @@ function GeneralLedger({ range, onLedger }) {
             d.groups.flatMap((g) => (groupsOnly ? [[g.name, "", "", g.totals.opening, g.totals.debit, g.totals.credit, g.totals.closing]] : g.accounts.map((a) => [g.name, a.accountCode, a.accountName, a.opening, a.debit, a.credit, a.closing]))).concat([["Total", "", "", d.totals.opening, d.totals.debit, d.totals.credit, d.totals.closing]]));
           return (
             <>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <StatCard title="Debits in period" count={money(d.totals.debit)} tone="teal" />
+                <StatCard title="Credits in period" count={money(d.totals.credit)} tone="plum" />
+                <StatCard title="Accounts with activity" count={String(d.groups.reduce((t, g) => t + g.accounts.length, 0))} tone="neutral" />
+                <StatCard title="Groups" count={String(d.groups.length)} tone="neutral" />
+              </div>
               <ViewBar list={list}>
                 <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include year-end closing entries</label>
               </ViewBar>
@@ -94,6 +100,7 @@ function GeneralLedger({ range, onLedger }) {
                 placeholder="Search accounts…"
                 active={narrowed}
                 onClear={() => { list.setSearch(""); list.clearFilters(); }}
+                dense
                 className="mb-4"
               >
                 <FilterSelect label="Layout" value={f.layout} onChange={(v) => list.setFilter("layout", v)} options={GL_LAYOUTS} allLabel="Groups and accounts" className="sm:w-48" />
@@ -101,12 +108,6 @@ function GeneralLedger({ range, onLedger }) {
                 <FilterSelect label="Group" value={f.group} onChange={(v) => list.setFilter("group", v)} options={LF.groupChoices(LF.filterGroups(all.groups, { ...choices, group: "" }))} allLabel="All groups" className="sm:w-56" />
                 <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={LF.SHOW_OPTIONS} allLabel={LF.SHOW_ALL_LABEL} className="sm:w-56" />
               </FilterBar>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard title="Debits in period" count={money(d.totals.debit)} tone="teal" />
-                <StatCard title="Credits in period" count={money(d.totals.credit)} tone="plum" />
-                <StatCard title="Accounts with activity" count={String(d.groups.reduce((t, g) => t + g.accounts.length, 0))} tone="neutral" />
-                <StatCard title="Groups" count={String(d.groups.length)} tone="neutral" />
-              </div>
               <Panel bodyClassName="p-0" title={narrowed ? "Part of the general ledger" : "General ledger"} description={narrowed ? `Showing ${LF.countAccounts(groups)} of ${LF.countAccounts(all.groups)} accounts. ${amountsIn()}.` : `Opening balance, the period's debits and credits, and the closing balance of every account, by group. ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!d.groups.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {d.groups.length === 0 ? <EmptyState title="No postings" text="Nothing has been posted to the ledger for this selection." /> : (

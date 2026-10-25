@@ -64,27 +64,6 @@ function Parties({ type, asOn }) {
 
   return (
     <div className="space-y-4">
-      <ViewBar list={list} />
-      <FilterBar
-        search={search}
-        onSearch={list.setSearch}
-        searchLabel="Search"
-        placeholder={customer ? "Customer name or ID" : "Vendor name or ID"}
-        active={Boolean(search.trim()) || Boolean(focus) || includeZero}
-        onClear={() => { list.setSearch(""); list.clearFilters(); }}
-      >
-        <FilterSelect
-          label="Show"
-          value={focus}
-          onChange={(v) => list.setFilter("focus", v)}
-          options={customer
-            ? [["over", "Over their limit"], ["near", "Near or over their limit"], ["overdue", "With overdue invoices"]]
-            : [["overdue", "With overdue invoices"]]}
-          allLabel="Everyone"
-          className="sm:w-52"
-        />
-        <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => list.setFilter("includeZero", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
-      </FilterBar>
       <Frame state={state}>
         {(d) => {
           const exportCsv = () => downloadCSV(`${customer ? "customer" : "vendor"}-balances-${asOn}.csv`,
@@ -113,6 +92,28 @@ function Parties({ type, asOn }) {
                   ? <StatCard className="col-span-2 lg:col-span-1" title="Over their limit" count={String(d.totals.overLimit)} subText={`${d.totals.nearLimit} more near it`} tone={d.totals.overLimit > 0 ? "danger" : "neutral"} />
                   : <StatCard className="col-span-2 lg:col-span-1" title="Vendors" count={String(d.rows.length)} tone="neutral" />}
               </div>
+              <ViewBar list={list} />
+              <FilterBar
+                search={search}
+                onSearch={list.setSearch}
+                searchLabel="Search"
+                placeholder={customer ? "Customer name or ID" : "Vendor name or ID"}
+                active={Boolean(search.trim()) || Boolean(focus) || includeZero}
+                onClear={() => { list.setSearch(""); list.clearFilters(); }}
+                dense
+              >
+                <FilterSelect
+                  label="Show"
+                  value={focus}
+                  onChange={(v) => list.setFilter("focus", v)}
+                  options={customer
+                    ? [["over", "Over their limit"], ["near", "Near or over their limit"], ["overdue", "With overdue invoices"]]
+                    : [["overdue", "With overdue invoices"]]}
+                  allLabel="Everyone"
+                  className="sm:w-52"
+                />
+                <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground"><input type="checkbox" checked={includeZero} onChange={(e) => list.setFilter("includeZero", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Include zero balances</label>
+              </FilterBar>
               <Panel bodyClassName="p-0" title={customer ? "Customer balances" : "Vendor balances"} description={`As on ${asOn}. ${customer ? "Dr means the customer owes us." : "Cr means we owe the vendor."} ${amountsIn()}.`}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv} disabled={!rows.length}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}>
                 {rows.length === 0 ? <EmptyState title="Nothing to show" text={d.rows.length ? "No one matches this filter." : "No balances on this date."} /> : (

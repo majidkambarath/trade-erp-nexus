@@ -88,6 +88,12 @@ function TrialBalance({ range, onLedger }) {
 
         return (
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard title="Debits in period" count={money(totals.totalDebits)} tone="teal" subText={CURRENCY} />
+              <StatCard title="Credits in period" count={money(totals.totalCredits)} tone="plum" subText={CURRENCY} />
+              <StatCard title="Closing debits" count={money(totals.closingDebit)} tone="neutral" subText={CURRENCY} />
+              <StatCard title="Closing credits" count={money(totals.closingCredit)} tone="neutral" subText={CURRENCY} />
+            </div>
             <ViewBar list={list}>
               <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
                 <input type="checkbox" checked={Boolean(f.closing)} onChange={(e) => list.setFilter("closing", e.target.checked)} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
@@ -101,6 +107,7 @@ function TrialBalance({ range, onLedger }) {
               placeholder="Search accounts…"
               active={narrowed}
               onClear={() => { list.setSearch(""); list.clearFilters(); }}
+              dense
             >
               <FilterSelect label="Layout" value={view} onChange={(v) => { setView(v); session.set("view", v); }} options={TB.VIEW_OPTIONS} className="sm:w-40" />
               <FilterSelect label="Category" value={f.category} onChange={(v) => { list.setFilter("category", v); list.setFilter("group", ""); }} options={TB.CATEGORY_OPTIONS} allLabel="All categories" className="sm:w-40" />
@@ -108,12 +115,6 @@ function TrialBalance({ range, onLedger }) {
               <FilterSelect label="Rows" value={f.show} onChange={(v) => list.setFilter("show", v)} options={TB.SHOW_OPTIONS} allLabel={TB.SHOW_ALL_LABEL} className="sm:w-56" />
                   </FilterBar>
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard title="Debits in period" count={money(totals.totalDebits)} tone="teal" subText={CURRENCY} />
-              <StatCard title="Credits in period" count={money(totals.totalCredits)} tone="plum" subText={CURRENCY} />
-              <StatCard title="Closing debits" count={money(totals.closingDebit)} tone="neutral" subText={CURRENCY} />
-              <StatCard title="Closing credits" count={money(totals.closingCredit)} tone="neutral" subText={CURRENCY} />
-            </div>
 
             <Panel
               bodyClassName="p-0"
@@ -361,7 +362,7 @@ function BalanceSheet({ asOf, onLedger }) {
   );
   return (
     <div className="space-y-4">
-      <FilterBar className="sm:items-end">
+      <FilterBar dense className="sm:items-end">
         <FilterSelect label="Compare with" value={compare} onChange={(v) => { setCompare(v); session.set("compare", v); }} options={BSL.COMPARE_OPTIONS} className="sm:w-48" />
         <label className="flex items-center gap-2 pb-2.5 text-sm text-foreground">
           <input type="checkbox" checked={detail} onChange={(e) => { setDetail(e.target.checked); session.set("detail", e.target.checked); }} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />
@@ -383,12 +384,12 @@ function BalanceSheet({ asOf, onLedger }) {
                   {d.isBalanced ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <TriangleAlert className="h-3 w-3" aria-hidden="true" />}
                   {d.isBalanced ? "Assets equal liabilities plus equity" : `Difference ${money(Math.abs(d.totalAssets - d.totalLiabilitiesAndEquity))}`}
                 </Pill>
-                <span className="text-sm text-muted-foreground">Profit earned to date is shown within equity.</span>
+                <span className="hidden text-sm text-muted-foreground sm:inline">Profit earned to date is shown within equity.</span>
               </div>
               <Panel
                 bodyClassName="p-0"
                 title="Statement of financial position"
-                description={`As at ${formatDate(asOf)}. ${amountsIn()}. Deductions are shown in brackets.`}
+                description={<>{`As at ${formatDate(asOf)}. ${amountsIn()}.`}<span className="hidden sm:inline"> Deductions are shown in brackets.</span></>}
                 actions={<Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button>}
               >
                 {rows.length === 0 ? <EmptyState title="Nothing posted" text="No account carries a balance as at this date." /> : (
