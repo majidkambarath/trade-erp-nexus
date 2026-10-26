@@ -1,6 +1,7 @@
 // The product's identity is its own thing, and no customer's name may be compiled into it.
 // Both are easy to get wrong, and the mistake only shows on a second client's installation.
 import { describe, it, expect } from "vitest";
+import pkg from "../../../package.json";
 import { PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_VERSION } from "../product";
 import { BRANDS, DEFAULT_BRAND_ID, getBrand } from "../brands";
 
@@ -10,6 +11,12 @@ describe("product identity", () => {
     expect(PRODUCT_TAGLINE).toBeTruthy();
     // major.minor, with an optional patch and build: 1.0, 1.0.0, 1.0.0.1
     expect(PRODUCT_VERSION).toMatch(/^\d+\.\d+(\.\d+){0,2}$/);
+  });
+
+  // The sign-in page and the service worker's cache name read PRODUCT_VERSION, and it is typed by hand. It was left at 1.6.0.1
+  // through three releases because nothing compared it with the version that is actually released.
+  it("is the version this package is released as", () => {
+    expect(PRODUCT_VERSION).toBe(pkg.version);
   });
 
   it("ships one neutral brand pack carrying no customer's name", () => {
