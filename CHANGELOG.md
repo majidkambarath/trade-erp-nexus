@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.9.0.0 — 26 October 2026
+
+The cheque register follows a cheque the way a finance desk does. Held in the drawer, taken to the bank, cleared or
+sent back, with the reason and the cost of a bounce on file, plus two new views of what falls due. Needs backend
+1.9.0.0 (new endpoints). Frontend 1.9.0.0.
+
+### Added
+
+- **Register tabs** for every state: Pending, Deposited, On hold, Cleared, Bounced, Handed back, Cancelled, All.
+  The three live ones are worklists with no period. The buttons on a row come from one rule table (`lib/chequeRules.js`),
+  the screen's twin of the server's, so what is offered cannot drift from what is allowed; the server stays the
+  authority and its refusal is shown in the dialog in its own words.
+- **Deposit** (date and paying-in slip) and **Hold** (reason required) dialogs; neither posts anything, and Deposit
+  says so. **Resume** and **Hand back** (a cheque given back unpresented; the server's state `returned` is shown as
+  "Handed back" because the register already had a "Returned" button meaning the bank sent it back).
+- **Several at once**: tick cheques to deposit, clear, hold or resume them together. Each button counts only the
+  ticked cheques it could apply to, and a partial failure names the first problem.
+- **A bounce records more**: a pick-list of reasons, the bank's memo (date, reference, certificate reference), the
+  part the bank paid, an optional bank charge (with VAT) and an optional charge-back to the customer. The fee and
+  charge-back sections load only when ticked, so an ordinary bounce is unchanged and sends exactly `{ reason }`.
+- **Due dates** and **Cash forecast** as views of the Cheques page (`?view=due`, `?view=forecast`), with CSV export.
+  A cheque on hold is shown beside the forecast, not in it. In a single-branch view the whole organisation's bank
+  balance is not shown against that branch's cheques.
+
+### Not built
+
+- Entering a strip of cheques in one step, and re-presenting a bounced cheque.
+
 ## 1.8.0.0 — 26 October 2026
 
 The first industry vertical: Garage, a workshop module sold per organisation like the CRM. Board,
