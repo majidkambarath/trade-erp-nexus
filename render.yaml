@@ -8,6 +8,12 @@
 # Render does not read public/_redirects (that file is Netlify's); the SPA
 # fallback has to be the rewrite route below, or deep links such as
 # /dashboard 404 even though index.html is published.
+#
+# IMPORTANT: the live service was created in the Render DASHBOARD, and a
+# dashboard-made static site ignores this file's `routes:` and `headers:`
+# entirely. Everything here must be mirrored as dashboard rules to take
+# effect - the SPA fallback already is. This file is what a Blueprint deploy
+# would apply, and the record of what the dashboard is meant to say.
 services:
   - type: web
     runtime: static
@@ -15,10 +21,30 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Baked into the bundle at build time by src/axios/axios.js.
+      # Baked into the bundle at build time by src/axios/axios.js. A RELATIVE path on purpose: the
+      # browser sends every API call to this site's own origin and the /api/* rewrite below passes it
+      # to the backend, so the backend's address is in no request a client can see.
+      #
+      # That rewrite makes a fresh server-to-server request and the visitor's address does NOT survive
+      # it, so the backend must be told (its own environment):
+      #   SHARED_CLIENT_ADDRESS=true   - the sign-in limits move off the address, which is now one
+      #                                  shared bucket (middleware/loginThrottle.js explains it)
+      #   SESSION_COOKIE_SAMESITE=lax  - app and API are one origin now, so Lax is correct, and it is
+      #                                  a stronger CSRF defence than the Origin check it replaces
       - key: VITE_API_URL
+        value: /api/v1
+      # The developer console reaches the backend directly, so its sign-in limit (10 per 15 minutes
+      # per address) stays per visitor rather than per proxy - it is the door that creates and
+      # suspends organisations. Only /platform uses it, and it is a lazily-loaded chunk, so this
+      # address never reaches the bundle a customer downloads.
+      - key: VITE_PLATFORM_API_URL
         value: https://trade-erp-nexus-nodejs.onrender.com/api/v1
     routes:
+      # MUST come before the SPA fallback. Below it, /* catches every API call and answers index.html,
+      # and the whole app fails on a JSON parse error at the first request.
+      - type: rewrite
+        source: /api/*
+        destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html

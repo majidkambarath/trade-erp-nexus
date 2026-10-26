@@ -1,10 +1,20 @@
 import axios from "axios";
-import { API_BASE_URL } from "../axios/axios";
+import { API_BASE_URL, resolveApiBaseUrl } from "../axios/axios";
 import { clearConsoleSession, getConsoleToken, setConsoleSession } from "./platformSession";
+
+// Where the console reaches the backend. The app itself may go through its OWN origin (VITE_API_URL=/api/v1 plus an /api/*
+// rewrite) to keep the backend's address out of a client's Network tab. Behind that rewrite every request arrives at the
+// backend from ONE proxy address, so the console's sign-in limit - 10 tries per 15 minutes per address - would become a single
+// global allowance on the door that creates and suspends organisations. VITE_PLATFORM_API_URL names the backend directly and
+// keeps that limit per visitor. Only /platform imports this module and it is a lazily-loaded chunk, so the address never
+// reaches the bundle a customer downloads. Unset - and in development - the console simply goes the same way as the app.
+const PLATFORM_API_BASE_URL = import.meta.env?.VITE_PLATFORM_API_URL
+  ? resolveApiBaseUrl(import.meta.env.VITE_PLATFORM_API_URL)
+  : API_BASE_URL;
 
 // The developer console's own HTTP client. It is deliberately NOT the product's axios instance: that one carries a
 // customer's token and renews it through a cookie, and a console token must never be sent there (nor a customer's here).
-const client = axios.create({ baseURL: `${API_BASE_URL}/platform`, headers: { "Content-Type": "application/json" } });
+const client = axios.create({ baseURL: `${PLATFORM_API_BASE_URL}/platform`, headers: { "Content-Type": "application/json" } });
 
 client.interceptors.request.use((config) => {
   const token = getConsoleToken();
