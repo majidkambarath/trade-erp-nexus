@@ -20,6 +20,10 @@ export const banking = {
 
   cheques: (params) => api.get("/banking/cheques", params),
   cheque: (id) => api.get(`/banking/cheques/${id}`),
+  // { asOn, direction, bankAccountId, partyId, groupBy: bucket|party|bank|month } -> groups, totals, every cheque nearest first
+  chequeMaturity: (params) => api.get("/banking/cheques/maturity", params),
+  // { asOn, unit: week|month, count, bankAccountId } -> what the cheques do to the bank, period by period
+  chequeForward: (params) => api.get("/banking/cheques/forward", params),
   depositCheque: (id, body) => api.post(`/banking/cheques/${id}/deposit`, body),
   holdCheque: (id, body) => api.post(`/banking/cheques/${id}/hold`, body),
   resumeCheque: (id, body) => api.post(`/banking/cheques/${id}/resume`, body),
