@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.8.0.0 — 26 October 2026
+
+The first industry vertical: Garage, a workshop module sold per organisation like the CRM. Board,
+Job cards, Vehicles, Claims, Reports and Setup, reached from their own rail item - never offered to
+an organisation that has not bought the module. Frontend 1.8.0.0.
+
+### Added
+
+- **Board** (`/garage/board`): counts, a health ring, a column per task every live job is currently
+  held up by (waiting for approval, a named task, ready for collection, delivered but not invoiced),
+  and a "My work" panel for a technician's own tasks with one-tap Start/Done.
+- **Job cards**: the full register, and the job card itself - check-in (a body-diagram walk-around,
+  what the customer had with them, photos, a signature), the 3 Cs (concern/cause/correction) per
+  complaint, one estimate of parts/labour/sublet/consumable priced live from the item master, the
+  customer's or insurer's decision (whole or in part, with how it was given), supplementary estimates
+  once teardown finds more, tasks with Start/Done, raising the invoice, and the gate pass. A part
+  short of stock is shown with its usual vendor and a **Raise purchase order** button that opens a
+  real draft purchase order under Purchase > Orders. **Comeback**: opening a new job on a vehicle
+  still under an earlier job's warranty offers to mark it against that job. A standard job from Setup
+  fills the estimate and tasks in one tap.
+- **Print**: Job card, Estimate and Gate pass each print and download as a PDF from inside the job
+  card, on the same printed-sheet layout a delivery note already uses - no separate screen.
+- **Vehicles**: the organisation's own master, found again by plate or chassis however either is
+  typed; opening one shows its real service history (every job, newest first), when it is next due,
+  total spend and past owners - the reason a workshop buys this in the first place. Make/model
+  suggestions from what is already on file (a datalist, never a forced correction).
+- **Claims**: the insurer side of an accident job - survey, the insurer's decision with the excess and
+  depreciation, and the two invoices it raises.
+- **Setup** (`/garage/setup`, `garage.manage`): the service menu (standard jobs) and bays, both as
+  plain lists with an add/edit dialog.
+- **Reports**: revenue by stream, hours taken by technician, and the workshop's own figures
+  (turnaround, on-time rate, comeback rate, effective labour rate).
+
+### Fixed
+
+- **`RankTip`** (the shared `Dashborad/FlowCharts.jsx` tooltip, used by the Dashboard, the CRM and now
+  Garage Reports) crashed when a caller passed no `describe` function; it now degrades to showing just
+  the name.
+- **`FormSelect`** (Stock Items) drew a required-field asterisk on every label regardless of whether
+  the field actually was required; it now takes a `required` prop.
+- Three `DateInput` fields across the garage screens (an insurance claim's accident date, a job card's
+  promised date, a vehicle's registration expiry) were wired to receive the raw change EVENT instead
+  of unwrapping its value, so the field silently never reached the form - found live, by typing a date
+  and watching it not save.
+
 ## 1.7.0.0 — 26 October 2026
 
 The balance sheet reads as a statement, the trial balance opens group-wise, and the reports that
