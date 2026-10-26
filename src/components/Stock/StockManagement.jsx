@@ -91,6 +91,7 @@ const FormSelect = ({
   options,
   onAddNew,
   data,
+  required = false,
   ...props
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -114,7 +115,7 @@ const FormSelect = ({
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
-        <Icon size={16} className="inline mr-2" /> {label} *
+        <Icon size={16} className="inline mr-2" /> {label}{required && " *"}
       </label>
       <div className="relative">
         <div
@@ -1418,6 +1419,7 @@ const StockManagement = () => {
                     name="unitOfMeasure"
                     value={formData.unitOfMeasure}
                     onChange={handleChange}
+                    required
                     options={units.map((unit) => ({
                       value: unit._id,
                       label: unit.unitName,

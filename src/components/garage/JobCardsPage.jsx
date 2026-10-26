@@ -1,18 +1,24 @@
 import React, { useMemo, useState } from "react";
-import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync } from "../accounting/kit.jsx";
+import { Plus } from "lucide-react";
+import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
+import Can from "../shell/Can.jsx";
 import { jobCards } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
+import JobCardForm from "./JobCardForm";
+import JobCardView from "./JobCardView";
 
 // Inventory > Garage > Job cards: every live and finished job, searchable by number, plate or customer, filtered
-// by status. Opening a card (the detail view, with check-in, the estimate, tasks and the invoice) is not built
-// yet in this first pass - the board (GarageBoard.jsx) is where a job is actually worked day to day.
+// by status. The board (GarageBoard.jsx) is where a job is worked day to day; this is the full register.
 const STATUS_OPTIONS = Object.keys(JOB_STATUS).map((k) => [k, JOB_STATUS[k].label]);
 
 export default function JobCardsPage() {
+  const { notify, toastNode } = useToasts();
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [open, setOpen] = useState(null);
   const list = useAsync(() => jobCards.list({ status: status || undefined, search: search || undefined }), [status, search]);
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
   const filtersOn = Boolean(status || search);
@@ -45,7 +51,22 @@ export default function JobCardsPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Job cards" description="Every vehicle checked in, from complaint to invoice. Opened and worked day to day on the Board." />
+      <PageHeader
+        title="Job cards"
+        description="Every vehicle checked in, from complaint to invoice. Opened and worked day to day on the Board."
+        actions={
+          <Can permission="garage.create">
+            <button
+              type="button"
+              data-shortcut="new"
+              onClick={() => setCreating(true)}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" /> New job card
+            </button>
+          </Can>
+        }
+      />
 
       <div className="mt-6">
         <FilterBar
@@ -66,13 +87,29 @@ export default function JobCardsPage() {
         {list.data && rows.length === 0 && (
           <EmptyState
             title={filtersOn ? "Nothing matches" : "No job cards yet"}
-            text={filtersOn ? "Clear the filters to see the rest." : "A vehicle checked in on the Board becomes a job card, and appears here."}
+            text={filtersOn ? "Clear the filters to see the rest." : "Check a vehicle in and it appears here."}
           />
         )}
         {list.data && rows.length > 0 && (
-          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} columns={columns} />
+          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => setOpen(r._id)} columns={columns} />
         )}
       </Panel>
+
+      {creating && (
+        <JobCardForm
+          onClose={() => setCreating(false)}
+          onSaved={(c, message) => { setCreating(false); notify(message); list.reload(); setOpen(c._id); }}
+        />
+      )}
+      {open && (
+        <JobCardView
+          id={open}
+          onClose={() => setOpen(null)}
+          onChanged={(m) => { notify(m); list.reload(); }}
+          onRemoved={(m) => { setOpen(null); notify(m); list.reload(); }}
+        />
+      )}
+      {toastNode}
     </div>
   );
 }
