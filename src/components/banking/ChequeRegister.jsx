@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Ban, CheckCircle2, History, RotateCcw, Search } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Ban, CheckCircle2, History, Landmark, Pause, Play, RotateCcw, Search } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import StatCard from "../ui/stat-card";
@@ -15,12 +15,20 @@ import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import ListPager from "../lists/ListPager";
 import ListEmpty from "../lists/ListEmpty";
 import { pageFigures } from "../../lib/pagination";
+import { canDo, isLive, isWorklist, LABEL, TABS, TONE } from "../../lib/chequeRules";
+import { useOrganisation } from "../shell/OrganisationContext";
+import { useAction } from "./useAction";
+import { ChequeBulkBar, DepositDialog, HoldDialog, ResumeDialog } from "./ChequeActions";
 
 // Every cheque received from a customer or issued to a vendor. A cheque waits here until it
 // clears; a bounced one reverses the receipt or payment it was taken for.
 
-const TABS = [["pending", "Pending"], ["cleared", "Cleared"], ["bounced", "Bounced"], ["cancelled", "Cancelled"], ["", "All"]];
-const TONE = { pending: "warning", cleared: "success", bounced: "danger", cancelled: "neutral" };
+// What each worklist tab is. A worklist shows every date: a cheque post-dated a year ahead is still to be presented.
+const WORKLIST_NOTE = {
+  pending: "every cheque still to be presented or paid, whatever its date",
+  deposited: "taken to the bank and waiting to clear, whatever its date",
+  hold: "kept in hand on purpose, whatever its date",
+};
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const todayInput = () => day(new Date());
 
@@ -36,7 +44,7 @@ export default function ChequeRegister() {
   // other tabs (cleared, bounced, cancelled, all) open on this calendar month, by the date on the cheque.
   const periodFilter = usePeriodFilter();
   const { period } = periodFilter;
-  const dated = status !== "pending";
+  const dated = !isWorklist(status);
   const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${dated ? period.key : "any"}`);
   const { data, loading, error, reload } = useAsync(
     () => banking.cheques({
@@ -47,7 +55,13 @@ export default function ChequeRegister() {
   );
   const rows = data?.rows || [];
   useClampPage({ pagination: data && { pages: Math.max(1, Math.ceil((data.total || 0) / pageSize)), total: data.total }, loaded: Boolean(data) && !loading, page, setPage });
-  const done = (msg) => { setAction(null); notify(msg); reload(); };
+  // Ticked rows are for ONE view of the list: a new filter, page or tab starts with nothing ticked, so a bulk act can
+  // never reach a row the person can no longer see.
+  const [selection, setSelection] = useState([]);
+  useEffect(() => { setSelection([]); }, [status, direction, q, page, pageSize, period.key]);
+  const { can } = useOrganisation();
+  const canAct = can("finance.approve");
+  const done = (msg) => { setAction(null); setSelection([]); notify(msg); reload(); };
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -83,8 +97,8 @@ export default function ChequeRegister() {
         <PeriodNote filter={periodFilter} count={data ? data.total : null} noun="cheques" one="cheque" className="-mt-1 mb-4" />
       ) : (
         <p className="-mt-1 mb-4 text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">Pending</span>
-          {" · every cheque still to be presented or paid, whatever its date"}
+          <span className="font-semibold text-foreground">{LABEL[status]}</span>
+          {` · ${WORKLIST_NOTE[status]}`}
           {data ? ` · ${data.total} ${data.total === 1 ? "cheque" : "cheques"}` : ""}
         </p>
       )}
@@ -101,27 +115,30 @@ export default function ChequeRegister() {
             caption="Cheques"
             rows={rows}
             rowKey={(c) => c._id}
+            selection={canAct ? selection : undefined}
+            onSelection={canAct ? setSelection : undefined}
+            selectName={(c) => `Select cheque ${c.chequeNo}`}
+            bulkBar={canAct ? <ChequeBulkBar rows={rows.filter((c) => selection.includes(c._id))} onClear={() => setSelection([])} onDone={done} /> : undefined}
             columns={[
               { key: "cheque", header: "Cheque", card: "primary", cell: (c) => <><span className="font-mono text-xs font-semibold">{c.chequeNo}</span><span className="block text-xs font-normal text-muted-foreground">{c.direction === "receipt" ? "Received" : "Issued"} · {c.voucherNo}</span></> },
-              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (c) => <>{formatDateGB(c.chequeDate)}{c.status === "pending" && !c.matured && <Pill tone="info" className="ms-2">Post-dated</Pill>}</> },
+              { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (c) => <>{formatDateGB(c.chequeDate)}{isLive(c.status) && !c.matured && <Pill tone="info" className="ms-2">Post-dated</Pill>}</> },
               { key: "party", header: "Party", card: "title", className: "font-medium", cell: (c) => c.partyName },
               { key: "bank", header: "Bank", card: "meta", className: "text-muted-foreground", cell: (c) => <>{c.direction === "receipt" ? c.drawnOnBankName : c.bankAccountName}{c.direction === "receipt" && c.bankAccountName && <span className="block text-xs md:inline md:ms-1">into {c.bankAccountName}</span>}</> },
               { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (c) => <>{formatNumber(c.amount, 2)}{c.foreignAmount > 0 && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(c.foreignAmount, c.currency)} @ {formatRate(c.exchangeRate)}</span>}</> },
-              { key: "status", header: "Status", card: "badge", cell: (c) => <><Pill tone={TONE[c.status]}>{c.status[0].toUpperCase() + c.status.slice(1)}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.reason}>{c.reason}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (c) => <><Pill tone={TONE[c.status]}>{LABEL[c.status] || c.status}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.reason}>{c.reason}</span>}{c.status === "hold" && c.holdReason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.holdReason}>{c.holdReason}{c.holdUntil ? ` · until ${formatDateGB(c.holdUntil)}` : ""}</span>}{c.status === "deposited" && c.presentedOn && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground">{formatDateGB(c.presentedOn)}{c.depositSlipNo ? ` · slip ${c.depositSlipNo}` : ""}</span>}</> },
               {
                 key: "actions", header: "Actions", align: "end", card: "actions", className: "whitespace-nowrap",
                 cell: (c) => (
                   <>
                     {/* clearing, bouncing and cancelling a cheque post to the books: finance.approve, as on the server */}
                     <Can permission="finance.approve">
-                      {c.status === "pending" && (
-                        <>
-                          <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>
-                          <Button size="sm" variant="outline" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Bounced</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>
-                        </>
-                      )}
-                      {c.status === "cleared" && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Returned</Button>}
+                      {/* What is offered is what the rules allow (lib/chequeRules.js canDo, the twin of the server's table). */}
+                      {canDo("deposit", c) && <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot deposit before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "deposit", cheque: c })}><Landmark className="h-3.5 w-3.5" aria-hidden="true" />Deposit</Button>}
+                      {canDo("clear", c) && <Button size="sm" variant="outline" disabled={!c.matured} title={c.matured ? undefined : `Cannot clear before ${formatDateGB(c.chequeDate)}`} onClick={() => setAction({ kind: "clear", cheque: c })}><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Clear</Button>}
+                      {canDo("resume", c) && <Button size="sm" variant="outline" onClick={() => setAction({ kind: "resume", cheque: c })}><Play className="h-3.5 w-3.5" aria-hidden="true" />Resume</Button>}
+                      {canDo("hold", c) && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "hold", cheque: c })}><Pause className="h-3.5 w-3.5" aria-hidden="true" />Hold</Button>}
+                      {canDo("bounce", c) && <Button size="sm" variant={c.status === "cleared" ? "ghost" : "outline"} onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />{c.status === "cleared" ? "Returned" : "Bounced"}</Button>}
+                      {canDo("cancel", c) && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>}
                     </Can>
                     <Button size="sm" variant="ghost" onClick={() => setAudit(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Audit trail</Button>
                   </>
@@ -141,6 +158,9 @@ export default function ChequeRegister() {
           />
         )}
       </Panel>
+      {action?.kind === "deposit" && <DepositDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
+      {action?.kind === "hold" && <HoldDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
+      {action?.kind === "resume" && <ResumeDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "clear" && <ClearDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "bounce" && <BounceDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "cancel" && <CancelDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
@@ -150,22 +170,7 @@ export default function ChequeRegister() {
   );
 }
 
-function useAction(run, onDone, message) {
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState(null);
-  const go = async () => {
-    setBusy(true);
-    setProblem(null);
-    try {
-      await run();
-      onDone(message);
-    } catch (e) {
-      setProblem(e);
-      setBusy(false);
-    }
-  };
-  return { busy, problem, go };
-}
+
 
 function ClearDialog({ cheque, onClose, onDone }) {
   const [on, setOn] = useState(todayInput());
