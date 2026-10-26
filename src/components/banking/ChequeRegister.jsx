@@ -33,7 +33,7 @@ const WORKLIST_NOTE = {
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const todayInput = () => day(new Date());
 
-export default function ChequeRegister() {
+export default function ChequeRegister({ embedded = false }) {
   const [status, setStatus] = useState("pending");
   // the cheque whose voucher's audit trail is open, or null
   const [audit, setAudit] = useState(null);
@@ -65,8 +65,8 @@ export default function ChequeRegister() {
   const done = (msg) => { setAction(null); setSelection([]); notify(msg); reload(); };
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Cheques" description="Cheques you have received and issued. They move to the bank account when they clear." />
+    <div className={embedded ? undefined : "mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8"}>
+      {!embedded && <PageHeader title="Cheques" description="Cheques you have received and issued. They move to the bank account when they clear." />}
       {data && (
         <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard title="To collect" count={formatNumber(data.summary.receivable.amount, 2)} subText={`${data.summary.receivable.count} cheque${data.summary.receivable.count === 1 ? "" : "s"} received, not cleared`} tone="teal" />
