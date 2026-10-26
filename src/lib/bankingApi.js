@@ -19,6 +19,12 @@ export const banking = {
   updateCard: (id, body) => api.put(`/banking/cards/${id}`, body),
 
   cheques: (params) => api.get("/banking/cheques", params),
+  cheque: (id) => api.get(`/banking/cheques/${id}`),
+  depositCheque: (id, body) => api.post(`/banking/cheques/${id}/deposit`, body),
+  holdCheque: (id, body) => api.post(`/banking/cheques/${id}/hold`, body),
+  resumeCheque: (id, body) => api.post(`/banking/cheques/${id}/resume`, body),
+  // { action: deposit|clear|hold|resume, ids, on, slipNo, reason, until, note } -> { successful: [{id, chequeNo}], failed: [{id, code, message}] }
+  bulkCheques: (body) => api.post("/banking/cheques/bulk", body),
   clearCheque: (id, body) => api.post(`/banking/cheques/${id}/clear`, body),
   bounceCheque: (id, body) => api.post(`/banking/cheques/${id}/bounce`, body),
   cancelCheque: (id, body) => api.post(`/banking/cheques/${id}/cancel`, body),
