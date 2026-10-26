@@ -1044,6 +1044,31 @@ function stubFor(pathname, search = "") {
     return { name: "Super Admin", email: "admin@test.uae", role: "Admin", permissions: [] };
   }
 
+  // The cheque reports (Cheques > Due dates, Cash forecast). They must answer BEFORE the register's stub below, which
+  // matches any path with "cheque" in it and would hand them the wrong shape.
+  if (p.includes("/banking/cheques/maturity")) {
+    const slot = (amount, count) => ({ amount, count });
+    const g = (key, label, r, p2, h) => ({ key, label, receivable: slot(r, r ? 2 : 0), payable: slot(p2, p2 ? 1 : 0), onHold: slot(h, h ? 1 : 0), net: r - p2 });
+    return {
+      asOn: "2026-10-26", groupBy: "bucket", capped: false, atBank: slot(5400, 1),
+      totals: { receivable: slot(24800, 3), payable: slot(11200, 2), onHold: slot(5400, 1), net: 13600 },
+      groups: [g("overdue", "Overdue", 10800, 0, 0), g("week", "Next 7 days", 14000, 5400, 5400), g("month", "8 to 30 days", 0, 5800, 0)],
+      rows: n((i) => ({ _id: `m${i}`, chequeNo: `0012${i}`, direction: i % 2 ? "receipt" : "payment", partyName: `Al Noor Trading ${i}`, chequeDay: `2026-10-${20 + i}`, days: i - 6, status: ["pending", "hold", "deposited"][i % 3], amount: 5400 * i, voucherNo: `RV-2026-000${i}`, bankName: "Current account" })),
+    };
+  }
+  if (p.includes("/banking/cheques/forward")) {
+    const s = (r, pay, h) => ({ receipts: { amount: r, count: r ? 1 : 0 }, payments: { amount: pay, count: pay ? 1 : 0 }, onHold: { amount: h, count: h ? 1 : 0 }, net: r - pay });
+    return {
+      asOn: "2026-10-26", unit: "week", openingKnown: true, opening: 88000, capped: false, due: s(10800, 0, 0), afterDue: 98800,
+      periods: [
+        { key: "w1", label: "26 Oct - 1 Nov", from: "2026-10-26", to: "2026-11-01", ...s(14000, 5400, 5400), closing: 107400 },
+        { key: "w2", label: "2 Nov - 8 Nov", from: "2026-11-02", to: "2026-11-08", ...s(0, 5800, 0), closing: 101600 },
+        { key: "w3", label: "9 Nov - 15 Nov", from: "2026-11-09", to: "2026-11-15", ...s(0, 0, 0), closing: 101600 },
+      ],
+      later: s(0, 0, 0), totals: { receipts: 24800, payments: 11200, onHold: 5400, closing: 101600 },
+    };
+  }
+
   // { rows, total, summary } - ChequeRegister reads all three
   if (p.includes("cheque")) {
     return {

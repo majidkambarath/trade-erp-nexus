@@ -19,6 +19,18 @@ export const banking = {
   updateCard: (id, body) => api.put(`/banking/cards/${id}`, body),
 
   cheques: (params) => api.get("/banking/cheques", params),
+  cheque: (id) => api.get(`/banking/cheques/${id}`),
+  // { asOn, direction, bankAccountId, partyId, groupBy: bucket|party|bank|month } -> groups, totals, every cheque nearest first
+  chequeMaturity: (params) => api.get("/banking/cheques/maturity", params),
+  // { asOn, unit: week|month, count, bankAccountId } -> what the cheques do to the bank, period by period
+  chequeForward: (params) => api.get("/banking/cheques/forward", params),
+  depositCheque: (id, body) => api.post(`/banking/cheques/${id}/deposit`, body),
+  holdCheque: (id, body) => api.post(`/banking/cheques/${id}/hold`, body),
+  resumeCheque: (id, body) => api.post(`/banking/cheques/${id}/resume`, body),
+  // handed back to the party before it was presented (the server calls this state "returned")
+  returnCheque: (id, body) => api.post(`/banking/cheques/${id}/return`, body),
+  // { action: deposit|clear|hold|resume, ids, on, slipNo, reason, until, note } -> { successful: [{id, chequeNo}], failed: [{id, code, message}] }
+  bulkCheques: (body) => api.post("/banking/cheques/bulk", body),
   clearCheque: (id, body) => api.post(`/banking/cheques/${id}/clear`, body),
   bounceCheque: (id, body) => api.post(`/banking/cheques/${id}/bounce`, body),
   cancelCheque: (id, body) => api.post(`/banking/cheques/${id}/cancel`, body),

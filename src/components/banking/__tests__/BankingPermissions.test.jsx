@@ -136,6 +136,27 @@ describe("the cheque register (finance.approve)", () => {
     expect(act(/^bounced$/i)).toHaveLength(0);
   });
 
+  it("deposit, hold and the tick boxes for acting on several cheques are finance.approve too - a viewer gets none", async () => {
+    m.cheques.mockResolvedValue(register());
+    await renderAs([...VIEW, "finance.view"], <ChequeRegister />);
+    expect(await screen.findByText("000111")).toBeInTheDocument();
+    expect(act(/^deposit$/i)).toHaveLength(0);
+    expect(act(/^hold$/i)).toHaveLength(0);
+    expect(act(/^hand back$/i)).toHaveLength(0);
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByRole("toolbar", { name: "Selected cheques" })).toBeNull();
+  });
+
+  it("whoever holds finance.approve gets Deposit and Hold on a pending cheque and can tick rows", async () => {
+    m.cheques.mockResolvedValue(register());
+    await renderAs([...VIEW, "finance.view", "finance.approve"], <ChequeRegister />);
+    expect(await screen.findByText("000111")).toBeInTheDocument();
+    expect(act(/^deposit$/i)).toHaveLength(1);
+    expect(act(/^hold$/i)).toHaveLength(1);
+    expect(act(/^hand back$/i)).toHaveLength(1);
+    expect(screen.queryAllByRole("checkbox").length).toBeGreaterThan(0);
+  });
+
   it("a person who holds finance.approve gets Clear, Bounced and Cancel on a pending cheque and Returned on a cleared one", async () => {
     m.cheques.mockResolvedValue(register());
     await renderAs([...VIEW, "finance.view", "finance.approve"], <ChequeRegister />);
