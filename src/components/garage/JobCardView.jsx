@@ -267,6 +267,65 @@ function ReleaseDialog({ card, onClose, onDone }) {
   );
 }
 
+// A part this card needs that is not on hand (plan part 1.2 step 8: "if a part is not in stock, a purchase
+// order goes to a vendor"). One vendor at a time - the usual case - with its own items ticked by default;
+// other vendors' shortages are raised on a second pass. Raising this is informational on the card: the
+// storekeeper confirms, receives and invoices it through the ordinary Purchase screens, not here.
+function RaisePurchaseOrderDialog({ cardId, shortages, masters, onClose, onDone }) {
+  const [vendorId, setVendorId] = useState(shortages[0]?.vendorId || "");
+  const [rows, setRows] = useState(() => shortages.map((s) => ({ ...s, picked: s.vendorId === (shortages[0]?.vendorId || s.vendorId), qty: String(s.short), price: String(s.purchasePrice || "") })));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const toggle = (itemId) => setRows((r) => r.map((row) => (row.itemId === itemId ? { ...row, picked: !row.picked } : row)));
+  const setRow = (itemId, patch) => setRows((r) => r.map((row) => (row.itemId === itemId ? { ...row, ...patch } : row)));
+  const picked = rows.filter((r) => r.picked && Number(r.qty) > 0);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const r = await jobCards.raisePurchaseOrder(cardId, {
+        vendorId,
+        items: picked.map((p) => ({ itemId: p.itemId, qty: Number(p.qty), price: Number(p.price) || 0 })),
+      });
+      onDone(r.jobCard, `Purchase order ${r.order.orderNo} raised.`);
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="md"
+      onClose={onClose}
+      title="Raise a purchase order"
+      description="For the parts this job is short of. Received and invoiced through the ordinary Purchase screens."
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy || !vendorId || picked.length === 0}>{busy ? "Raising…" : "Raise purchase order"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
+        <Field label="Order from" required error={!vendorId ? "Choose the vendor" : undefined}>
+          <SearchSelect value={vendorId} onChange={setVendorId} options={masters.vendorOptions} loading={masters.loading} placeholder="Choose the vendor…" />
+        </Field>
+        <ul className="grid gap-2 rounded-lg border p-2">
+          {rows.map((r) => (
+            <li key={r.itemId} className="grid grid-cols-[1.5rem_minmax(0,1fr)_5rem_6rem] items-center gap-2 text-sm">
+              <input type="checkbox" checked={r.picked} onChange={() => toggle(r.itemId)} />
+              <span className="min-w-0 truncate">
+                {r.itemName}
+                {r.vendorName && <span className="ms-1 text-xs text-muted-foreground">({r.vendorName} usually)</span>}
+              </span>
+              <AmountInput value={r.qty} onChange={(e) => setRow(r.itemId, { qty: e.target.value })} min="0" aria-label={`Quantity for ${r.itemName}`} />
+              <AmountInput value={r.price} onChange={(e) => setRow(r.itemId, { price: e.target.value })} min="0" aria-label={`Price for ${r.itemName}`} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Modal>
+  );
+}
+
 // Opening the insurance side of the job: an insurer, the policy, and - if known yet - the accident itself.
 // Everything after this (survey, the insurer's decision, the invoices it raises) happens on the claim's own
 // screen (ClaimView.jsx), reached from here once it exists.
@@ -373,7 +432,9 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
   const [openingClaim, setOpeningClaim] = useState(false);
   const [viewingClaim, setViewingClaim] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [raisingPO, setRaisingPO] = useState(false);
   const c = one.data;
+  const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id]);
 
   async function run(fn, message) {
     setBusy(true);
@@ -503,6 +564,37 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
             ) : <p className="text-sm text-muted-foreground">No lines yet. Edit the card to add parts and labour.</p>}
           </Section>
 
+          {shortages.data?.length > 0 && (
+            <Section title="Short of stock">
+              <ul className="grid gap-1.5 text-sm">
+                {shortages.data.map((s) => (
+                  <li key={s.itemId} className="flex items-center justify-between gap-2 rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2">
+                    <span>
+                      {s.itemName} <span className="text-muted-foreground">- short {s.short} ({s.onHand} on hand)</span>
+                      {s.vendorName && <span className="ms-1 text-xs text-muted-foreground">usually from {s.vendorName}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <Can permission="garage.edit">
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => setRaisingPO(true)}>Raise purchase order</Button>
+              </Can>
+            </Section>
+          )}
+
+          {c.purchaseOrders?.length > 0 && (
+            <Section title="Purchase orders raised">
+              <ul className="divide-y rounded-lg border text-sm">
+                {c.purchaseOrders.map((po, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span>{po.no} <span className="text-muted-foreground">({po.vendorName})</span></span>
+                    <span className="tabular-nums">{money(po.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
           <Section title="Tasks">
             {c.tasks?.length ? (
               <ul className="grid gap-2">
@@ -578,6 +670,15 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
       {revising && <ReviseEstimateDialog card={c} masters={masters} onClose={() => setRevising(false)} onDone={changed} />}
       {invoicing && <CreateInvoiceDialog card={c} onClose={() => setInvoicing(false)} onDone={changed} />}
       {releasing && <ReleaseDialog card={c} onClose={() => setReleasing(false)} onDone={changed} />}
+      {raisingPO && (
+        <RaisePurchaseOrderDialog
+          cardId={c._id}
+          shortages={shortages.data || []}
+          masters={masters}
+          onClose={() => setRaisingPO(false)}
+          onDone={async (_r, m) => { setRaisingPO(false); onChanged(m); await one.reload(); await shortages.reload(); }}
+        />
+      )}
       {completing && (
         <CompleteTaskDialog
           jobCardId={c._id}

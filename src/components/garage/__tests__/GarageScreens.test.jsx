@@ -9,7 +9,7 @@ const m = vi.hoisted(() => ({
   vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
   clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(),
-  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(),
+  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
 }));
 
@@ -19,6 +19,7 @@ vi.mock("../../../lib/garageApi", () => ({
     staff: m.jcStaff, assignees: m.jcAssignees, startTask: vi.fn(), completeTask: vi.fn(), sendEstimate: vi.fn(),
     recordApproval: vi.fn(), reviseEstimate: vi.fn(), createInvoice: vi.fn(), release: vi.fn(), cancel: vi.fn(),
     analysis: m.jcAnalysis, committed: vi.fn(), recordCheckIn: m.jcCheckIn, comebackCandidates: m.jcComebacks,
+    shortages: m.jcShortages, raisePurchaseOrder: m.jcRaisePO,
   },
   vehicles: { list: m.vList, find: m.vFind, get: m.vGet, activity: vi.fn(), jobs: m.vJobs, catalogue: m.vCatalogue, create: m.vCreate, update: m.vUpdate },
   partyChoices: { customers: m.customers, vendors: m.vendors, createCustomer: m.createCustomer },
@@ -107,6 +108,7 @@ beforeEach(() => {
   m.vJobs.mockResolvedValue([]);
   m.vCatalogue.mockResolvedValue({ makes: [], modelsByMake: {} });
   m.jcComebacks.mockResolvedValue([]);
+  m.jcShortages.mockResolvedValue([]);
   m.setupBays.mockResolvedValue([]);
   m.setupServices.mockResolvedValue([]);
   m.setupCreateBay.mockResolvedValue({ _id: "b1", name: "Ramp 1", active: true });
@@ -246,6 +248,26 @@ describe("job cards list", () => {
     await waitFor(() => expect(m.jcCheckIn).toHaveBeenCalledWith("j1", expect.objectContaining({ itemsPresent: ["Spare wheel"] })));
     const body = m.jcCheckIn.mock.calls[0][1];
     expect(body.damagePoints).toEqual([{ panel: "Front bumper", kind: "scratch", notes: "" }]);
+  });
+
+  it("shows a short part and raises a purchase order for it", async () => {
+    m.jcShortages.mockResolvedValue([{ itemId: "i1", itemCode: "PART-DISC", itemName: "Brake disc", needed: 2, onHand: 0, short: 2, vendorId: "ve1", vendorName: "Shine Painters", purchasePrice: 150 }]);
+    m.jcRaisePO.mockResolvedValue({ jobCard: jobCardFull(), order: { _id: "po1", orderNo: "PORD-2026-0001" } });
+    render(<JobCardsPage />);
+    fireEvent.click(await screen.findByText("JC-2026-0001"));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(m.jcShortages).toHaveBeenCalledWith("j1"));
+    expect(within(dialog).getByText(/Brake disc/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Raise purchase order" }));
+    const poDialog = await screen.findByRole("dialog", { name: /Raise a purchase order/ });
+    fireEvent.click(within(poDialog).getByRole("button", { name: "Raise purchase order" }));
+
+    await waitFor(() => expect(m.jcRaisePO).toHaveBeenCalled());
+    const [cardId, body] = m.jcRaisePO.mock.calls[0];
+    expect(cardId).toBe("j1");
+    expect(body.vendorId).toBe("ve1");
+    expect(body.items).toEqual([{ itemId: "i1", qty: 2, price: 150 }]);
   });
 });
 

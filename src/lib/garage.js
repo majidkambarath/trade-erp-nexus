@@ -82,5 +82,8 @@ const WORDS = {
   SERVICE_NAME_REQUIRED: (e) => e.message,
   SERVICE_ITEM_REQUIRED: (e) => e.message,
   ITEM_NOT_A_SERVICE: (e) => e.message,
+  // Shortages / purchase orders
+  NOTHING_TO_ORDER: () => "Choose at least one item to order.",
+  VENDOR_REQUIRED: () => "Choose who to order from.",
 };
 export const garageErrorText = (err) => (err ? (WORDS[err.code] ? WORDS[err.code](err) : err.message || "Something went wrong") : "");

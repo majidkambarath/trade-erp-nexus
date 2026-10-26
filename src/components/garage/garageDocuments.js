@@ -94,7 +94,10 @@ export function buildEstimateDocument(card, company, currency) {
       currency,
       notes: "",
       notice: "This is an estimate, not a tax invoice. Work starts only on the lines approved.",
-      signatures: { deliveredBy: [], receivedBy: [["Name", ""], ["Signature", ""], ["Date", ""]] },
+      // No signature boxes: DeliverySheet always draws BOTH ("Delivered by" / "Received by"), which reads
+      // oddly on a document nothing has been delivered against yet. The approval itself is recorded
+      // electronically (recordApproval) with who gave it and how (WhatsApp, a call, an LPO...).
+      signatures: null,
     },
   };
 }
