@@ -23,6 +23,7 @@ import {
   Truck,
   Users,
   Warehouse,
+  Wrench,
 } from "lucide-react";
 // (with its extension: the mobile sweep loads this file straight from node, which does not guess one)
 import { ERP_MODULES, tabInPlan } from "../lib/organisation.js";
@@ -202,6 +203,24 @@ export const MODULES = [
       { label: "Categories", to: "/category-management", permission: "inventory.view" },
       { label: "Units", to: "/unit-setup", permission: "inventory.view", keywords: ["unit of measure", "uom"] },
       { label: "Batches", to: "/batches", permission: "inventory.view", feature: "batches", keywords: ["expiry", "shelf life", "write off", "fefo", "lot"] },
+    ],
+  },
+  // The first industry vertical: a workshop's vehicles and job cards. Opt-in per organisation (utils/plans.js
+  // OPT_IN_MODULES on the server), off for every plan and every existing client until the developer console
+  // switches it on - a person without the module simply never sees this rail item, the same way a person
+  // without crm.view never sees the CRM. Not mobilePrimary: the four pinned slots are already sales, purchase,
+  // inventory and finance (CLAUDE.md), and flagging a fifth would silently drop one of those on a phone.
+  {
+    id: "garage",
+    label: "Garage",
+    icon: Wrench,
+    tabs: [
+      { label: "Board", to: "/garage/board", permission: "garage.view", keywords: ["workshop", "job cards", "today", "in progress", "ready", "waiting for approval"] },
+      { label: "Job cards", to: "/garage/job-cards", permission: "garage.view", keywords: ["job card", "estimate", "complaint", "repair", "service", "task"] },
+      { label: "Vehicles", to: "/garage/vehicles", permission: "garage.view", keywords: ["vehicle", "car", "plate", "chassis", "vin", "service history"] },
+      { label: "Claims", to: "/garage/claims", permission: "garage.view", keywords: ["insurance", "insurer", "surveyor", "lpo", "excess", "depreciation", "accident"] },
+      { label: "Reports", to: "/garage/reports", permission: "garage.view", keywords: ["efficiency", "revenue", "technician", "turnaround", "comeback", "effective labour rate"] },
+      { label: "Setup", to: "/garage/setup", permission: "garage.manage", keywords: ["service menu", "standard job", "bay", "ramp", "lift"] },
     ],
   },
   {

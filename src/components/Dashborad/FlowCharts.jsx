@@ -95,10 +95,13 @@ export function Waterfall({ steps, height }) {
 function RankTip({ active, payload, describe }) {
   const r = active ? payload?.[0]?.payload : null;
   if (!r?.name) return null;
+  // `describe` is meant to be supplied (every caller before this one did), but a missing one must read as a
+  // plain tooltip, not crash the page a bar sits on - found when a new caller left it out.
+  const line = typeof describe === "function" ? describe(r) : null;
   return (
     <div style={tipBox} className="text-sm">
       <p className="font-semibold">{r.name}</p>
-      <p className="mt-0.5 text-muted-foreground">{describe(r)}</p>
+      {line && <p className="mt-0.5 text-muted-foreground">{line}</p>}
     </div>
   );
 }

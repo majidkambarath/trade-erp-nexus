@@ -219,7 +219,7 @@ describe("getMobileNav", () => {
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
     const { primary, rest } = getMobileNav(modulesIn(ERP, getVisibleModules()));
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
-    expect(ids(rest)).toEqual(["inventory", "accounts", "reports", "people", "settings"]);
+    expect(ids(rest)).toEqual(["inventory", "garage", "accounts", "reports", "people", "settings"]);
   });
 
   it("gives the CRM workspace its own bar, with no ERP page on it", () => {
