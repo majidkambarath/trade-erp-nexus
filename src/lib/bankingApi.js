@@ -23,6 +23,8 @@ export const banking = {
   depositCheque: (id, body) => api.post(`/banking/cheques/${id}/deposit`, body),
   holdCheque: (id, body) => api.post(`/banking/cheques/${id}/hold`, body),
   resumeCheque: (id, body) => api.post(`/banking/cheques/${id}/resume`, body),
+  // handed back to the party before it was presented (the server calls this state "returned")
+  returnCheque: (id, body) => api.post(`/banking/cheques/${id}/return`, body),
   // { action: deposit|clear|hold|resume, ids, on, slipNo, reason, until, note } -> { successful: [{id, chequeNo}], failed: [{id, code, message}] }
   bulkCheques: (body) => api.post("/banking/cheques/bulk", body),
   clearCheque: (id, body) => api.post(`/banking/cheques/${id}/clear`, body),

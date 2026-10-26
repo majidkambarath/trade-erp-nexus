@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Ban, CheckCircle2, History, Landmark, Pause, Play, RotateCcw, Search } from "lucide-react";
+import { Ban, CheckCircle2, History, Landmark, Pause, Play, RotateCcw, Search, Undo2 } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can";
 import StatCard from "../ui/stat-card";
@@ -15,10 +15,11 @@ import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import ListPager from "../lists/ListPager";
 import ListEmpty from "../lists/ListEmpty";
 import { pageFigures } from "../../lib/pagination";
-import { canDo, isLive, isWorklist, LABEL, TABS, TONE } from "../../lib/chequeRules";
+import { canDo, chargesNote, isLive, isWorklist, LABEL, TABS, TONE } from "../../lib/chequeRules";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { useAction } from "./useAction";
 import { ChequeBulkBar, DepositDialog, HoldDialog, ResumeDialog } from "./ChequeActions";
+import { BounceDialog, ReturnDialog } from "./ChequeBounce";
 
 // Every cheque received from a customer or issued to a vendor. A cheque waits here until it
 // clears; a bounced one reverses the receipt or payment it was taken for.
@@ -125,7 +126,7 @@ export default function ChequeRegister() {
               { key: "party", header: "Party", card: "title", className: "font-medium", cell: (c) => c.partyName },
               { key: "bank", header: "Bank", card: "meta", className: "text-muted-foreground", cell: (c) => <>{c.direction === "receipt" ? c.drawnOnBankName : c.bankAccountName}{c.direction === "receipt" && c.bankAccountName && <span className="block text-xs md:inline md:ms-1">into {c.bankAccountName}</span>}</> },
               { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (c) => <>{formatNumber(c.amount, 2)}{c.foreignAmount > 0 && <span className="block text-xs font-normal text-muted-foreground">{formatForeign(c.foreignAmount, c.currency)} @ {formatRate(c.exchangeRate)}</span>}</> },
-              { key: "status", header: "Status", card: "badge", cell: (c) => <><Pill tone={TONE[c.status]}>{LABEL[c.status] || c.status}</Pill>{c.status === "bounced" && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.reason}>{c.reason}</span>}{c.status === "hold" && c.holdReason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.holdReason}>{c.holdReason}{c.holdUntil ? ` · until ${formatDateGB(c.holdUntil)}` : ""}</span>}{c.status === "deposited" && c.presentedOn && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground">{formatDateGB(c.presentedOn)}{c.depositSlipNo ? ` · slip ${c.depositSlipNo}` : ""}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (c) => <><Pill tone={TONE[c.status]}>{LABEL[c.status] || c.status}</Pill>{(c.status === "bounced" || c.status === "returned") && c.reason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.reason}>{c.reason}</span>}{c.status === "bounced" && chargesNote(c) && <span className="mt-0.5 block max-w-56 truncate text-xs font-normal text-muted-foreground" title={chargesNote(c)}>{chargesNote(c)}</span>}{c.status === "hold" && c.holdReason && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground" title={c.holdReason}>{c.holdReason}{c.holdUntil ? ` · until ${formatDateGB(c.holdUntil)}` : ""}</span>}{c.status === "deposited" && c.presentedOn && <span className="mt-0.5 block max-w-48 truncate text-xs font-normal text-muted-foreground">{formatDateGB(c.presentedOn)}{c.depositSlipNo ? ` · slip ${c.depositSlipNo}` : ""}</span>}</> },
               {
                 key: "actions", header: "Actions", align: "end", card: "actions", className: "whitespace-nowrap",
                 cell: (c) => (
@@ -138,6 +139,7 @@ export default function ChequeRegister() {
                       {canDo("resume", c) && <Button size="sm" variant="outline" onClick={() => setAction({ kind: "resume", cheque: c })}><Play className="h-3.5 w-3.5" aria-hidden="true" />Resume</Button>}
                       {canDo("hold", c) && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "hold", cheque: c })}><Pause className="h-3.5 w-3.5" aria-hidden="true" />Hold</Button>}
                       {canDo("bounce", c) && <Button size="sm" variant={c.status === "cleared" ? "ghost" : "outline"} onClick={() => setAction({ kind: "bounce", cheque: c })}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />{c.status === "cleared" ? "Returned" : "Bounced"}</Button>}
+                      {canDo("return", c) && <Button size="sm" variant="ghost" title="Give the cheque back to the party before it was presented" onClick={() => setAction({ kind: "return", cheque: c })}><Undo2 className="h-3.5 w-3.5" aria-hidden="true" />Hand back</Button>}
                       {canDo("cancel", c) && <Button size="sm" variant="ghost" onClick={() => setAction({ kind: "cancel", cheque: c })}><Ban className="h-3.5 w-3.5" aria-hidden="true" />Cancel</Button>}
                     </Can>
                     <Button size="sm" variant="ghost" onClick={() => setAudit(c)}><History className="h-3.5 w-3.5" aria-hidden="true" />Audit trail</Button>
@@ -161,6 +163,7 @@ export default function ChequeRegister() {
       {action?.kind === "deposit" && <DepositDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "hold" && <HoldDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "resume" && <ResumeDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
+      {action?.kind === "return" && <ReturnDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "clear" && <ClearDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "bounce" && <BounceDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
       {action?.kind === "cancel" && <CancelDialog cheque={action.cheque} onClose={() => setAction(null)} onDone={done} />}
@@ -187,22 +190,7 @@ function ClearDialog({ cheque, onClose, onDone }) {
   );
 }
 
-function BounceDialog({ cheque, onClose, onDone }) {
-  const [reason, setReason] = useState("");
-  const [err, setErr] = useState("");
-  const { busy, problem, go } = useAction(() => banking.bounceCheque(cheque._id, { reason }), onDone, `Cheque ${cheque.chequeNo} marked bounced`);
-  const submit = () => (reason.trim() ? go() : setErr("Say why the cheque was returned"));
-  return (
-    <Modal
-      size="sm" onClose={onClose} title={`Cheque ${cheque.chequeNo} bounced`}
-      description={`${cheque.voucherNo} is reversed${cheque.direction === "receipt" ? ": the customer owes the invoices it settled again." : ": the vendor is owed the invoices it settled again."}`}
-      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="destructive" onClick={submit} disabled={busy}>{busy ? "Working…" : "Mark bounced"}</Button></>}
-    >
-      <ErrorNote error={problem} />
-      <Field label="Reason" required error={err}><Textarea rows={2} value={reason} onChange={(e) => { setReason(e.target.value); setErr(""); }} maxLength={250} placeholder="e.g. Insufficient funds" data-autofocus /></Field>
-    </Modal>
-  );
-}
+
 
 function CancelDialog({ cheque, onClose, onDone }) {
   const { busy, problem, go } = useAction(() => banking.cancelCheque(cheque._id, {}), onDone, `Cheque ${cheque.chequeNo} cancelled`);

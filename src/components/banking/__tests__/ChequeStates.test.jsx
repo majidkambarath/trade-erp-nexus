@@ -5,11 +5,15 @@ import "@testing-library/jest-dom";
 
 // Stage 1 of the cheque lifecycle on the screen: the Deposited and On hold tabs, the buttons each state offers (only what
 // the rules allow), the deposit and hold dialogs, and acting on several cheques at once.
-const m = vi.hoisted(() => ({ cheques: vi.fn(), depositCheque: vi.fn(), holdCheque: vi.fn(), resumeCheque: vi.fn(), bulkCheques: vi.fn() }));
+const m = vi.hoisted(() => ({
+  cheques: vi.fn(), depositCheque: vi.fn(), holdCheque: vi.fn(), resumeCheque: vi.fn(), bulkCheques: vi.fn(),
+  bounceCheque: vi.fn(), returnCheque: vi.fn(), postable: vi.fn(), taxCodes: vi.fn(),
+}));
 vi.mock("../../../lib/bankingApi", () => ({
-  banking: { cheques: m.cheques, depositCheque: m.depositCheque, holdCheque: m.holdCheque, resumeCheque: m.resumeCheque, bulkCheques: m.bulkCheques, clearCheque: vi.fn(), bounceCheque: vi.fn(), cancelCheque: vi.fn() },
+  banking: { cheques: m.cheques, depositCheque: m.depositCheque, holdCheque: m.holdCheque, resumeCheque: m.resumeCheque, bulkCheques: m.bulkCheques, clearCheque: vi.fn(), bounceCheque: m.bounceCheque, returnCheque: m.returnCheque, cancelCheque: vi.fn() },
   vouchers: { get: vi.fn() },
 }));
+vi.mock("../../../lib/accountingApi", () => ({ accounting: { postableAccounts: m.postable, taxCodes: m.taxCodes }, ApiError: class extends Error {} }));
 
 import ChequeRegister from "../ChequeRegister";
 import { todayInput } from "../../../utils/format";
@@ -25,6 +29,9 @@ beforeEach(() => {
   show([row(1)]);
   m.depositCheque.mockResolvedValue({}); m.holdCheque.mockResolvedValue({}); m.resumeCheque.mockResolvedValue({});
   m.bulkCheques.mockResolvedValue({ action: "deposit", successful: [{ id: "c1" }, { id: "c2" }], failed: [] });
+  m.bounceCheque.mockResolvedValue({}); m.returnCheque.mockResolvedValue({});
+  m.postable.mockResolvedValue([{ _id: "inc1", category: "INCOME", accountCode: "4100", accountName: "Other Income" }]);
+  m.taxCodes.mockResolvedValue([{ _id: "tx1", name: "VAT 5%", ratePercent: 5, isActive: true }, { _id: "tx2", name: "Reverse charge 5%", ratePercent: 5, isActive: true, kind: "reverse_charge" }]);
 });
 
 describe("the tabs", () => {
@@ -173,5 +180,116 @@ describe("several at once", () => {
     await screen.findByRole("toolbar", { name: "Selected cheques" });
     fireEvent.click(screen.getByRole("tab", { name: "On hold" }));
     await waitFor(() => expect(screen.queryByRole("toolbar", { name: "Selected cheques" })).toBeNull());
+  });
+});
+
+// ---- Stage 2: a cheque the bank sent back, and a cheque handed back ----
+describe("handing a cheque back", () => {
+  it("is offered for a pending or held cheque, never one at the bank", async () => {
+    show([row(1), row(2, { status: "hold", holdReason: "x" }), row(3, { status: "deposited" })]);
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    expect(btn(/^hand back$/i)).toHaveLength(2);
+  });
+
+  it("needs a reason, then sends it and reports it", async () => {
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    fireEvent.click(btn(/^hand back$/i)[0]);
+    const dialog = await screen.findByRole("dialog", { name: /hand back cheque CHQ1/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hand back" }));
+    expect(await within(dialog).findByText("Say why the cheque is being handed back")).toBeInTheDocument();
+    expect(m.returnCheque).not.toHaveBeenCalled();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "Replaced by a transfer" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Hand back" }));
+    await waitFor(() => expect(m.returnCheque).toHaveBeenCalledWith("c1", { reason: "Replaced by a transfer" }));
+    expect(await screen.findByText("Cheque CHQ1 handed back")).toBeInTheDocument();
+  });
+
+  it("has its own tab, and shows why on the row", async () => {
+    show([row(1, { status: "returned", reason: "Replaced by a transfer" })]);
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    fireEvent.click(screen.getByRole("tab", { name: "Handed back" }));
+    await waitFor(() => expect(last().status).toBe("returned"));
+    expect(last().from).toBeDefined(); // it is how a cheque ended, not a worklist: it carries a period
+    expect(screen.getByText("Replaced by a transfer")).toBeInTheDocument();
+    expect(btn(/^hand back$/i)).toHaveLength(0);
+  });
+});
+
+describe("a cheque the bank sent back", () => {
+  const open = async (over) => {
+    show([row(1, over)]);
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    fireEvent.click(btn(/^bounced$/i)[0]);
+    return screen.findByRole("dialog", { name: /bounced/i });
+  };
+  const submit = (dialog) => fireEvent.click(within(dialog).getByRole("button", { name: "Mark bounced" }));
+
+  it("an ordinary bounce sends only the reason and fetches nothing it does not need", async () => {
+    const dialog = await open();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "Insufficient funds" } });
+    submit(dialog);
+    await waitFor(() => expect(m.bounceCheque).toHaveBeenCalledWith("c1", { reason: "Insufficient funds" }));
+    expect(m.postable).not.toHaveBeenCalled();
+    expect(m.taxCodes).not.toHaveBeenCalled();
+  });
+
+  it("picking a reason from the list words it, and sends the code with the words", async () => {
+    const dialog = await open();
+    fireEvent.change(within(dialog).getByLabelText(/Why it came back/), { target: { value: "account_closed" } });
+    expect(within(dialog).getByLabelText(/Reason/)).toHaveValue("Account closed");
+    submit(dialog);
+    await waitFor(() => expect(m.bounceCheque).toHaveBeenCalledWith("c1", { reason: "Account closed", reasonCode: "account_closed" }));
+  });
+
+  it("the bank's fee: shown when ticked, must be filled in, and sent with the reason", async () => {
+    const dialog = await open();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "Insufficient funds" } });
+    expect(within(dialog).queryByLabelText(/^Bank charge/)).toBeNull();
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /The bank charged a fee/ }));
+    const amount = await within(dialog).findByLabelText(/^Bank charge/);
+    submit(dialog);
+    expect(await within(dialog).findByText("Enter the bank's charge")).toBeInTheDocument();
+    expect(m.bounceCheque).not.toHaveBeenCalled();
+    fireEvent.change(amount, { target: { value: "52.5" } });
+    submit(dialog);
+    await waitFor(() => expect(m.bounceCheque).toHaveBeenCalledWith("c1", { reason: "Insufficient funds", bankCharge: { amount: 52.5 } }));
+    expect(m.taxCodes).toHaveBeenCalled();
+  });
+
+  it("charging it back to the customer needs an account, and is only offered on a customer's cheque", async () => {
+    const dialog = await open();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "r" } });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Charge it back to the customer/ }));
+    fireEvent.change(await within(dialog).findByLabelText(/^Charge the customer/), { target: { value: "60" } });
+    submit(dialog);
+    expect(await within(dialog).findByText("Choose the account the recovered charge is credited to")).toBeInTheDocument();
+    expect(m.bounceCheque).not.toHaveBeenCalled();
+    expect(m.postable).toHaveBeenCalled();
+  });
+
+  it("a cheque we issued has no customer to charge back", async () => {
+    const dialog = await open({ direction: "payment" });
+    expect(within(dialog).queryByRole("checkbox", { name: /Charge it back/ })).toBeNull();
+    expect(within(dialog).getByRole("checkbox", { name: /The bank charged a fee/ })).toBeInTheDocument();
+  });
+
+  it("the server's refusal stays in the dialog in its own words, and nothing is reported done", async () => {
+    m.bounceCheque.mockRejectedValue(Object.assign(new Error("The cheque was not marked bounced, because its charge needs an approver: over your limit"), { code: "APPROVAL_LIMIT_EXCEEDED" }));
+    const dialog = await open();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "r" } });
+    submit(dialog);
+    expect(await within(dialog).findByText(/its charge needs an approver/)).toBeInTheDocument();
+    expect(screen.queryByText(/marked bounced$/)).toBeNull();
+  });
+
+  it("a bounced row says what the bounce cost", async () => {
+    show([row(1, { status: "bounced", reason: "Insufficient funds", charges: { expenseVoucherNo: "EV-2026-0007", rechargeVoucherNo: "DN-2026-0003" } })]);
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    expect(screen.getByText("Bank charge EV-2026-0007 · charged back DN-2026-0003")).toBeInTheDocument();
   });
 });

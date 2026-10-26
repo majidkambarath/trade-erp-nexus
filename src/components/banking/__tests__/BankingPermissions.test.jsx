@@ -142,6 +142,7 @@ describe("the cheque register (finance.approve)", () => {
     expect(await screen.findByText("000111")).toBeInTheDocument();
     expect(act(/^deposit$/i)).toHaveLength(0);
     expect(act(/^hold$/i)).toHaveLength(0);
+    expect(act(/^hand back$/i)).toHaveLength(0);
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     expect(screen.queryByRole("toolbar", { name: "Selected cheques" })).toBeNull();
   });
@@ -152,6 +153,7 @@ describe("the cheque register (finance.approve)", () => {
     expect(await screen.findByText("000111")).toBeInTheDocument();
     expect(act(/^deposit$/i)).toHaveLength(1);
     expect(act(/^hold$/i)).toHaveLength(1);
+    expect(act(/^hand back$/i)).toHaveLength(1);
     expect(screen.queryAllByRole("checkbox").length).toBeGreaterThan(0);
   });
 
