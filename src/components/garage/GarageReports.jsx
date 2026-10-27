@@ -4,7 +4,7 @@ import { CountUp } from "../Dashborad/CountUp";
 import { RankedBars } from "../Dashborad/FlowCharts";
 import { useGarageReveal } from "./useGarageReveal";
 import { jobCards } from "../../lib/garageApi";
-import { ErrorNote, Panel, PageHeader, PageSpinner, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, useAsync } from "../accounting/kit";
 import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { formatCurrencyAED, formatNumber } from "../../utils/format";
@@ -16,6 +16,8 @@ import { formatCurrencyAED, formatNumber } from "../../utils/format";
 // screen only draws it. A rate with nothing to measure reads as "–", never 0.
 const STREAM_LABEL = { part: "Parts", labour: "Labour", sublet: "Sublet", consumable: "Consumables" };
 const STREAM_COLOR = { part: "var(--chart-2)", labour: "var(--chart-1)", sublet: "var(--chart-3)", consumable: "var(--chart-4)" };
+
+const DESCRIPTION = "The workshop's own numbers: revenue by stream, technician efficiency, and how reliably jobs go out on time.";
 
 const pct = (n) => (n == null ? "–" : `${formatNumber(n, 1)}%`);
 const hrs = (n) => (n == null ? "–" : `${formatNumber(n, 1)} h`);
@@ -32,7 +34,25 @@ export default function GarageReports() {
   if (report.error) return <ErrorNote error={report.error} onRetry={report.reload} />;
   const j = report.data?.jobs;
   const people = report.data?.people || [];
-  if (!j) return null;
+  // A server that answers without `jobs` - an older build, or a period it has nothing for - must still leave
+  // the page usable. This returned null, which is a blank window: no heading, no message and no period picker,
+  // so there was no way to ask for another period. The five sibling garage pages all keep their shell.
+  if (!j) {
+    return (
+      <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+        <PageHeader title="Reports" description={DESCRIPTION} />
+        <div className="mt-6 flex flex-wrap items-end gap-3">
+          <PeriodSelect filter={filter} labelled />
+        </div>
+        <Panel className="mt-6">
+          <EmptyState
+            title="Nothing to report for this period"
+            text="No job cards were delivered in it. Pick another period, or deliver a job card and its numbers appear here."
+          />
+        </Panel>
+      </div>
+    );
+  }
 
   const revenueTotal = j.revenue?.total || 0;
   const streamRows = Object.keys(STREAM_LABEL)
@@ -42,7 +62,7 @@ export default function GarageReports() {
 
   return (
     <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader title="Reports" description="The workshop's own numbers: revenue by stream, technician efficiency, and how reliably jobs go out on time." />
+      <PageHeader title="Reports" description={DESCRIPTION} />
 
       <div className="mt-6 flex flex-wrap items-end gap-3">
         <PeriodSelect filter={filter} labelled />

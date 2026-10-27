@@ -261,11 +261,14 @@ const DEEP = {
     // Zarvia AI opens from the top bar on every screen, so it is measured on this one: the panel
     // with its suggestions, then a real exchange with its citation and its link button.
     { name: "assistant", clicks: ["^Ask Zarvia AI$"], settle: 900 },
-    { name: "assistant-answer", clicks: ["^Ask Zarvia AI$", "^How do I raise an invoice\?$"], settle: 1100 },
-    { name: "document", page: true, clicks: ["^View all invoices", "^View( [0-9]|$)"], settle: 1600 },
-    { name: "send", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send$"], settle: 1800 },
+    // The "?" is written as [?] on purpose: these patterns are plain strings fed to new RegExp, and in a
+    // double-quoted string "\?" collapses to "?", which the engine then reads as a quantifier - so the step
+    // silently matched nothing and skipped. A character class cannot lose its meaning that way.
+    { name: "assistant-answer", clicks: ["^Ask Zarvia AI$", "^How do I raise an invoice[?]$"], settle: 1100 },
+    { name: "document", page: true, clicks: ["^View all invoices", "^View( [A-Z0-9]|$)"], settle: 1600 },
+    { name: "send", clicks: ["^View all invoices", "^View( [A-Z0-9]|$)", "^Send$"], settle: 1800 },
     { name: "send-row", clicks: ["^View all invoices", "^Send (SO|[0-9])"], settle: 1600 },
-    { name: "history", clicks: ["^View all invoices", "^View( [0-9]|$)", "^Send history$"], settle: 1500 },
+    { name: "history", clicks: ["^View all invoices", "^View( [A-Z0-9]|$)", "^Send history$"], settle: 1500 },
     // the audit trail, from the button on a card
     { name: "audit", cards: true, clicks: ["^View all invoices", "^Audit trail$"], settle: 1600 },
     // the entry form behind the Add button, and a second line added on it: the form a phone has to fill in
@@ -275,7 +278,7 @@ const DEEP = {
   // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
   "purchase-invoices": [
     { name: "list", page: true, clicks: ["^View all purchase invoices"], settle: 1200 },
-    { name: "document", cards: true, page: true, clicks: ["^View all purchase invoices", "^View( [0-9]|$)"], settle: 1600 },
+    { name: "document", cards: true, page: true, clicks: ["^View all purchase invoices", "^View( [A-Z0-9]|$)"], settle: 1600 },
     { name: "audit", cards: true, clicks: ["^View all purchase invoices", "^Audit trail$"], settle: 1600 },
     { name: "form", page: true, clicks: ["^New purchase invoice"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New purchase invoice", "^Add line"], settle: 1300 },
@@ -2194,6 +2197,34 @@ function stubFor(pathname, search = "") {
     };
   }
 
+  // Garage > Reports draws `data.jobs` and `data.people` (trade ERP node/utils/garage.js analysis). It has to
+  // be answered ABOVE the generic rules below: "/garage/job-cards/analysis" contains "card", so it fell through
+  // to the bank rule and came back as a list of banks - no `jobs`, and the page drew nothing at every width.
+  // The figures are the shape the server really sends, so the stat cards and both charts get measured at 390px.
+  if (p.endsWith("/garage/job-cards/analysis")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      jobs: {
+        delivered: 38,
+        revenue: { part: 184500, labour: 96200, sublet: 18400, consumable: 7300, total: 306400 },
+        avgInvoice: 8063.16,
+        avgTurnaroundHours: 26.4,
+        withPromise: 34, onTime: 29, onTimePct: 85.3,
+        comebacks: 2, comebackPct: 5.3,
+        hoursSold: 412.5, hoursTaken: 389.25,
+        efficiencyPct: 106,
+        avgHoursPerJob: 10.9,
+        effectiveLabourRate: 247.14,
+      },
+      people: [
+        { key: "st1", label: "Imran Qureshi", done: 14, hoursSold: 162.5, hoursTaken: 148.75, efficiencyPct: 109.2, waitHours: 1.8 },
+        { key: "st2", label: "Mohammed Rafi", done: 11, hoursSold: 121, hoursTaken: 118.5, efficiencyPct: 102.1, waitHours: 2.4 },
+        { key: "st3", label: "Sunil Thomas", done: 9, hoursSold: 94, hoursTaken: 99.5, efficiencyPct: 94.5, waitHours: 3.1 },
+        { key: "st4", label: "Arun Prasad", done: 4, hoursSold: 35, hoursTaken: 22.5, efficiencyPct: 155.6, waitHours: 0.9 },
+      ],
+    };
+  }
+
   // Everything else is a list, and a list comes back as an array.
   if (p.includes("voucher")) return n(voucher);
   if (p.includes("transaction") || p.includes("order")) return n(doc);
@@ -2236,6 +2267,20 @@ const api = createServer((req, res) => {
 // ---------------------------------------------------------------- run
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The FIRST visit to a route makes Vite compile its modules on demand, so networkidle2 can fire while React is
+// still mounting and the fixed settle after it then expires over a spinner: the page measures as BLANK though
+// nothing ails it. On one cold run seven pages read blank on the phone pass (phone goes first) and every one of
+// them drew when asked again, and crm-communications timed out the same way. So wait for <main> to carry
+// something before measuring. This hides nothing: a page that truly draws nothing runs the budget out and is
+// still reported BLANK - which is how garage-reports was caught, blank six times out of six.
+const drawn = (page, timeout = 8000) =>
+  page
+    .waitForFunction(
+      () => ((document.querySelector("main") || document.getElementById("root"))?.innerText || "").trim().length >= 10,
+      { timeout, polling: 150 }
+    )
+    .catch(() => {});
 
 async function waitForServer(url, tries = 90) {
   for (let i = 0; i < tries; i++) {
@@ -2326,6 +2371,7 @@ for (const vp of VIEWPORTS) {
     problems.length = 0;
     try {
       await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: 30000 });
+      await drawn(page); // the page itself, before the settle below is spent waiting for it
       await wait(900); // let charts and async loaders settle
       // Anything wider than the window is the defect this harness is really looking for.
       const overflow = await page.evaluate(() => {
@@ -2553,6 +2599,7 @@ for (const vp of VIEWPORTS) {
         }
         // back to a clean page for the next step
         await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: 30000 });
+        await drawn(page); // or the next step hunts for a control on a page that has not drawn yet
         await wait(700);
       }
 
