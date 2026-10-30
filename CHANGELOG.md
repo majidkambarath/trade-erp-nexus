@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.10.0.0 — 30 October 2026
+
+A QA pass of the garage module (Garage-Test-Report.xlsx, run against the live Al Manara Auto Garage LLC
+organisation) found every garage estimate and invoice charging 0% VAT, a gate pass that could let a car
+go for work it was never invoiced for, and a dozen smaller gaps. Needs backend 1.10.0.0. Frontend
+1.10.0.0.
+
+### Added
+
+- A discount-percent column on the job-card line grid and the supplementary-estimate dialog; "Promised"
+  now takes an optional time beside its date.
+- An "Insurer" checkbox on the customer form (Basic tab) - without it no customer could ever be chosen
+  as the insurer on a claim.
+- A vehicle's own Attachments panel (registration, insurance policy, a damage photo); the job card's own
+  estimate history (past versions, when each was sent and decided, and its total).
+- The sales invoice number is now a link, in both the table and card views of the Sales invoices list.
+
+### Fixed
+
+- **Every garage line showed 0% VAT, and the printed documents carried none either.** The estimate and
+  the job card now read the real `vatPercent`/`taxableAmount`/`vatAmount` the pricing engine computed,
+  never the pre-VAT figure the job card's own screen could still show for a line saved before the
+  backend fix. The invoice raised from a job card now carries its job number and plate on the printed
+  tax invoice, and is a working link from the card's own Invoices section into the real Sales invoice
+  screen, not inert text with no way to open the document that actually matters.
+- The check-in block (damage, items, notes) now prints on the job card; a check-in's photos are visible
+  on the card's own screen, not only inside the dialog that took them; the gate pass shows who released
+  the vehicle by name, not a raw account id, and prints both warranty limits (date and kilometres), not
+  just whichever was set first.
+- The Release dialog's override tick (which lets a car go despite money owed) is now shown only to
+  someone the server will actually honour it for.
+- A blank price, a deliberate stage of 0, and a line, task or damage mark with other data typed but no
+  item/name/panel chosen now refuse with a message instead of silently being coerced or dropped; the
+  odometer fields let a typed minus sign through so the server's own refusal is seen; the complaints
+  section now shows why Save is disabled when nothing has been written down yet.
+- The comeback-candidate check (a return visit still within an earlier job's warranty) is now re-checked
+  when the odometer is typed, not only when the vehicle is first picked.
+- The workshop board's health ring gained a "Not started" share, so its own total agrees with the "Jobs
+  in the workshop" tile beside it.
+- A duplicate SKU now marks the field on the form, not only a generic toast; the service-menu setup
+  form's hint text no longer leaks an internal field name.
+- A line shows "Declined", not "Pending", once the card has moved on and that reading is unambiguous.
+- `ago()` (the "x hours ago" wording used across the dashboard) no longer misreads a day-only date -
+  stored at UTC midnight - as several hours old once the organisation's own time zone is ahead of UTC.
+- The sales invoice list no longer reads "0 orders" for a moment before the first page of results
+  arrives; a cash receipt's own reference field now actually reaches the stored voucher.
+- A dialog kept mounted by its parent after being closed no longer asks "Leave without saving?" on its
+  next open for nothing typed that time.
+- The committed deploy configuration (`render.yaml`, `.env.production`) now matches the 26 October 2026
+  decision to proxy the API through this frontend's own origin; a session-restore failure is logged with
+  which of two reasons it was, for diagnosing a dropped session cookie.
+
 ## 1.9.0.0 — 26 October 2026
 
 The cheque register follows a cheque the way a finance desk does. Held in the drawer, taken to the bank, cleared or
