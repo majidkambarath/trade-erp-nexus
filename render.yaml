@@ -8,6 +8,14 @@
 # Render does not read public/_redirects (that file is Netlify's); the SPA
 # fallback has to be the rewrite route below, or deep links such as
 # /dashboard 404 even though index.html is published.
+#
+# The backend is proxied through this frontend (CLAUDE.md "Deployment (Render)", 26 Oct 2026): the API
+# rewrite must sit ABOVE the SPA fallback - below it, /* would answer every API call with index.html and
+# the app would die on a JSON parse error at the first request. This keeps the backend's own host out of
+# every request a browser can see; the backend's own render.yaml must ship SESSION_COOKIE_SAMESITE=lax in
+# the SAME deploy, since app and API are one origin now and the backend may no longer see an Origin header
+# to check. (A dashboard-made service ignores this file - see the note at the top of the backend's
+# render.yaml - so this is the record to apply by hand in the dashboard, not something that deploys itself.)
 services:
   - type: web
     runtime: static
@@ -15,10 +23,15 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Baked into the bundle at build time by src/axios/axios.js.
+      # Baked into the bundle at build time by src/axios/axios.js. Relative on purpose: resolveApiBaseUrl's
+      # "host only" branch exists for the OLDER bare-host value this used to be; a relative path keeps the
+      # backend's address out of the bundle entirely.
       - key: VITE_API_URL
-        value: https://trade-erp-nexus-nodejs.onrender.com/api/v1
+        value: /api/v1
     routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html

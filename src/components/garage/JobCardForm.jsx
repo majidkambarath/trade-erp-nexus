@@ -6,10 +6,22 @@ import { garageErrorText } from "../../lib/garage";
 import { useGarageMasters } from "./garageShared";
 import VehicleForm from "./VehicleForm";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, QuickAddSelect, SearchSelect, Select, Textarea, TextInput, useAsync } from "../accounting/kit";
+import { orgTimezone } from "../../utils/orgLocale";
 
 async function createCustomer(name) {
   const c = await partyChoices.createCustomer(name);
   return { value: c.id, label: c.name };
+}
+
+// A stored promisedAt may be a bare day (UTC midnight, no time ever given - D07) or a real wall-clock time
+// in the organisation's own zone (jobCardService.js promisedInstant). UTC midnight is read back as "no
+// time", never as a deliberate 00:00, since nothing in this form can ever set that time on purpose.
+function timeOf(promisedAt) {
+  if (!promisedAt) return "";
+  const d = new Date(promisedAt);
+  if (Number.isNaN(d.getTime())) return "";
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) return "";
+  return new Intl.DateTimeFormat("en-GB", { timeZone: orgTimezone(), hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
 }
 
 const FUEL_LEVELS = [["", "–"], ["E", "Empty"], ["1/4", "1/4"], ["1/2", "1/2"], ["3/4", "3/4"], ["F", "Full"]];
@@ -36,6 +48,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
     customerId: jobCard?.customerId ? String(jobCard.customerId?._id || jobCard.customerId) : "",
     jobType: jobCard?.jobType || "retail",
     promisedAt: jobCard?.promisedAt ? String(jobCard.promisedAt).slice(0, 10) : "",
+    promisedTime: timeOf(jobCard?.promisedAt),
     odometerIn: jobCard?.odometerIn ? String(jobCard.odometerIn) : "",
     fuelLevelIn: jobCard?.fuelLevelIn || "",
     comebackOf: jobCard?.comebackOf ? String(jobCard.comebackOf?._id || jobCard.comebackOf) : "",
@@ -56,7 +69,10 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
 
   // A returning vehicle still within an earlier job's warranty: offered, never assumed (utils/garage.js
   // comebackCandidates). Only on a new card - an existing one already carries its own answer.
-  const comebacks = useAsync(() => (!editing && form.vehicleId ? jobCards.comebackCandidates(form.vehicleId, form.odometerIn || undefined) : Promise.resolve([])), [editing, form.vehicleId]);
+  // Keyed on odometerIn too (D14): the vehicle is usually picked BEFORE the odometer is typed, and an
+  // earlier job whose warranty is an odometer limit (not a date) would otherwise be matched against
+  // whatever odometerIn held at the moment the vehicle was last changed - typically still blank.
+  const comebacks = useAsync(() => (!editing && form.vehicleId ? jobCards.comebackCandidates(form.vehicleId, form.odometerIn || undefined) : Promise.resolve([])), [editing, form.vehicleId, form.odometerIn]);
 
   // A standard job from the service menu (Setup) fills in its usual labour/parts and tasks in one tap, as a
   // starting point - every row stays editable, and nothing here is saved until the whole form is.
@@ -86,8 +102,16 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
 
   const canSave = form.vehicleId && form.customerId && form.complaints.some((c) => c.concern.trim());
 
+  // A row with no item/name but something else typed into it (a qty, an hour, a staff pick) used to vanish
+  // silently on save, with nothing on screen explaining why (D11). An untouched blank row (nobody typed
+  // anything into it at all) is still simply dropped - that is a row never filled in, not data lost.
+  const touchedLine = (l) => !l.itemId && (l.qty !== "1" && l.qty !== "" || l.price !== "" || l.discountPercent !== "" || l.vendorId);
+  const touchedTask = (t) => !t.name.trim() && (t.standardHours !== "" || t.staffId || t.vendorId || t.bayId);
+
   async function submit() {
     if (!canSave) return;
+    if (form.lines.some(touchedLine)) return setFailure({ message: "A line has a quantity or price but no item chosen. Choose the item, or clear the row." });
+    if (form.tasks.some(touchedTask)) return setFailure({ message: "A task has hours or a person assigned but no name. Give it a name, or clear the row." });
     setBusy(true);
     setFailure(null);
     try {
@@ -96,6 +120,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
         customerId: form.customerId,
         jobType: form.jobType,
         promisedAt: form.promisedAt || undefined,
+        promisedTime: form.promisedAt && form.promisedTime ? form.promisedTime : undefined,
         odometerIn: form.odometerIn === "" ? undefined : Number(form.odometerIn),
         fuelLevelIn: form.fuelLevelIn || undefined,
         comebackOf: form.comebackOf || undefined,
@@ -103,10 +128,14 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
         complaints: form.complaints.filter((c) => c.concern.trim()).map((c) => ({ _id: c._id, concern: c.concern, cause: c.cause, correction: c.correction })),
         lines: form.lines
           .filter((l) => l.itemId)
-          .map((l) => ({ _id: l._id, kind: l.kind, itemId: l.itemId, qty: Number(l.qty) || 0, price: Number(l.price) || 0, discountPercent: l.discountPercent ? Number(l.discountPercent) : undefined, vendorId: l.kind === "sublet" ? l.vendorId : undefined })),
+          // A blank price is sent as undefined, not coerced to 0 (D11): the server already refuses a
+          // missing price ("enter the price") and an EXPLICIT 0 - a free line, a genuine case - still passes.
+          .map((l) => ({ _id: l._id, kind: l.kind, itemId: l.itemId, qty: Number(l.qty) || 0, price: l.price === "" ? undefined : Number(l.price), discountPercent: l.discountPercent ? Number(l.discountPercent) : undefined, vendorId: l.kind === "sublet" ? l.vendorId : undefined })),
         tasks: form.tasks
           .filter((t) => t.name.trim())
-          .map((t) => ({ _id: t._id, name: t.name, mode: t.mode, stage: Number(t.stage) || 1, standardHours: t.standardHours ? Number(t.standardHours) : undefined, staffId: t.mode === "in_house" ? t.staffId || undefined : undefined, vendorId: t.mode === "sublet" ? t.vendorId || undefined : undefined, bayId: t.bayId || undefined })),
+          // A deliberate "0" is sent as 0, not quietly turned into 1 (D11): the server already refuses an
+          // out-of-range stage with a real message. A blank stage still defaults to 1 - the form's own default.
+          .map((t) => ({ _id: t._id, name: t.name, mode: t.mode, stage: t.stage === "" ? undefined : Number(t.stage), standardHours: t.standardHours ? Number(t.standardHours) : undefined, staffId: t.mode === "in_house" ? t.staffId || undefined : undefined, vendorId: t.mode === "sublet" ? t.vendorId || undefined : undefined, bayId: t.bayId || undefined })),
       };
       const c = editing ? await jobCards.update(jobCard._id, body) : await jobCards.create(body);
       onSaved(c, `${c.jobNo || "Job card"} saved.`);
@@ -146,8 +175,20 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
             <Field label="Job type">
               <Select value={form.jobType} onChange={setField("jobType")}>{JOB_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
             </Field>
-            <Field label="Promised"><DateInput value={form.promisedAt} onChange={setField("promisedAt")} /></Field>
-            <Field label="Odometer in (km)"><AmountInput value={form.odometerIn} onChange={setField("odometerIn")} min="0" /></Field>
+            <Field label="Promised">
+              <div className="flex gap-1.5">
+                <DateInput value={form.promisedAt} onChange={setField("promisedAt")} className="flex-1" />
+                <input
+                  type="time"
+                  value={form.promisedTime}
+                  onChange={setField("promisedTime")}
+                  disabled={!form.promisedAt}
+                  aria-label="Promised time"
+                  className="h-10 w-24 rounded-md border border-input bg-background px-2 text-sm lg:h-9"
+                />
+              </div>
+            </Field>
+            <Field label="Odometer in (km)"><AmountInput value={form.odometerIn} onChange={setField("odometerIn")} min="0" allowNegative /></Field>
             <Field label="Fuel">
               <Select value={form.fuelLevelIn} onChange={setField("fuelLevelIn")}>{FUEL_LEVELS.map(([v, l]) => <option key={v || "none"} value={v}>{l}</option>)}</Select>
             </Field>
@@ -181,6 +222,10 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
               ))}
               <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => addRow("complaints", emptyComplaint)}><Plus className="me-1 h-4 w-4" /> Add complaint</Button>
             </div>
+            {/* Save was disabled by this very condition with nothing on screen saying why (D11). */}
+            {!form.complaints.some((c) => c.concern.trim()) && (
+              <p className="mt-1 text-xs font-medium text-status-danger">Write down at least one concern before saving.</p>
+            )}
             {editing && <p className="mt-1 text-xs text-muted-foreground">Cause and Correction - the trade's "3 Cs" - can be filled in once diagnosis has found something.</p>}
           </section>
 
@@ -200,7 +245,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
               {form.lines.map((l, i) => {
                 const options = STOCKED_KINDS.has(l.kind) ? m.partOptions : m.serviceOptions;
                 return (
-                  <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_2.5rem] items-start gap-2 rounded-lg border p-2">
+                  <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_5rem_2.5rem] items-start gap-2 rounded-lg border p-2">
                     <Select value={l.kind} onChange={(e) => setRow("lines", i, { kind: e.target.value, itemId: "" })}>{LINE_KINDS.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</Select>
                     <SearchSelect
                       value={l.itemId}
@@ -212,9 +257,10 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
                     />
                     <AmountInput value={l.qty} onChange={(e) => setRow("lines", i, { qty: e.target.value })} min="0" placeholder="Qty" aria-label="Quantity" />
                     <AmountInput value={l.price} onChange={(e) => setRow("lines", i, { price: e.target.value })} min="0" placeholder="Price" aria-label="Price" />
+                    <AmountInput value={l.discountPercent} onChange={(e) => setRow("lines", i, { discountPercent: e.target.value })} min="0" max="100" placeholder="Disc %" aria-label="Discount percent" />
                     <Button type="button" variant="outline" size="sm" onClick={() => removeRow("lines", i)} aria-label="Remove line"><X className="h-4 w-4" /></Button>
                     {l.kind === "sublet" && (
-                      <div className="col-span-5">
+                      <div className="col-span-6">
                         <SearchSelect value={l.vendorId} onChange={(v) => setRow("lines", i, { vendorId: v })} options={m.vendorOptions} placeholder="Who the work goes out to…" compact />
                       </div>
                     )}

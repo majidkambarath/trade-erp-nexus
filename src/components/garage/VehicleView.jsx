@@ -2,17 +2,27 @@
 // whole reason a workshop buys software (CLAUDE.md garage plan, part 1.2 step 2) - it sells the next job and
 // settles an argument about what was done before. Reached by opening a row on VehiclesPage; Edit opens the
 // ordinary VehicleForm on top of it.
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button } from "../ui/button";
-import { vehicles } from "../../lib/garageApi";
+import { vehicles, filesFor } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import VehicleForm from "./VehicleForm";
 import JobCardView from "./JobCardView";
+import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
 
 function money(n) {
   return (Number(n) || 0).toFixed(2);
+}
+
+// Whichever runs out first ends the warranty (utils/garage.js warrantyUntil); print both when both are set
+// (D09: warranty km was shown nowhere on this screen, same as the gate pass before its own fix).
+function warrantyNote(w) {
+  const parts = [];
+  if (w?.until) parts.push(`until ${formatDate(w.until)}`);
+  if (w?.untilOdometer) parts.push(`${w.untilOdometer} km`);
+  return parts.length ? `Warranty ${parts.join(" or ")}` : null;
 }
 
 export default function VehicleView({ id, onClose, onChanged }) {
@@ -24,12 +34,15 @@ export default function VehicleView({ id, onClose, onChanged }) {
   const jobs = Array.isArray(history.data) ? history.data : [];
   const closedJobs = jobs.filter((j) => j.delivery?.gatePassAt);
   const totalSpend = closedJobs.reduce((t, j) => t + (Number(j.estimate?.total) || 0), 0);
+  // D18: the backend door (garageAttachmentService, /garage/vehicles/:id/attachments) already existed
+  // with no screen that opened it - the registration card, an insurance policy, a photo of existing damage.
+  const vehicleFiles = useMemo(() => (v?._id ? filesFor("vehicle", v._id) : null), [v?._id]);
 
   return (
     <Modal
       size="lg"
       onClose={onClose}
-      title={v ? v.plateNumber || v.chassisNo : "Vehicle"}
+      title={v ? `${v.plateNumber || v.chassisNo}${v.plateEmirate ? ` (${v.plateEmirate})` : ""}` : "Vehicle"}
       description={v ? `${[v.make, v.model, v.variant].filter(Boolean).join(" ")}${v.year ? ` · ${v.year}` : ""}${v.colour ? ` · ${v.colour}` : ""}` : undefined}
       footer={<><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit</Button></>}
     >
@@ -81,6 +94,13 @@ export default function VehicleView({ id, onClose, onChanged }) {
             </section>
           )}
 
+          {vehicleFiles && (
+            <section>
+              <h3 className="mb-2 text-sm font-semibold">Attachments</h3>
+              <AttachmentPanel source={vehicleFiles} label="Vehicle documents" />
+            </section>
+          )}
+
           <section>
             <h3 className="mb-2 text-sm font-semibold">Job history</h3>
             {history.loading && <Spinner label="Loading the job history" />}
@@ -94,6 +114,7 @@ export default function VehicleView({ id, onClose, onChanged }) {
                       <span className="font-medium">{j.jobNo || "(draft)"}</span>
                       <span className="ms-2 text-xs text-muted-foreground">{j.receivedAt ? formatDate(j.receivedAt) : ""}</span>
                       {j.comebackOf && <span className="ms-2 rounded bg-secondary px-1.5 py-0.5 text-xs">Comeback</span>}
+                      {warrantyNote(j.warranty) && <span className="ms-2 text-xs text-muted-foreground">· {warrantyNote(j.warranty)}</span>}
                     </span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{money(j.estimate?.total)}</span>
                     <Pill tone={JOB_STATUS[j.status]?.tone || "neutral"}>{JOB_STATUS[j.status]?.label || j.status}</Pill>

@@ -168,7 +168,13 @@ const TableView = ({
                       )}`}
                     ></div>
                     <div>
-                      <p className="font-medium text-foreground">{so.transactionNo}</p>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedSO(so); setActiveView("invoice"); }}
+                        className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
+                      >
+                        {so.transactionNo}
+                      </button>
                       {so.createdBy && !/^[a-f0-9]{24}$/i.test(String(so.createdBy || "")) && <p className="text-xs text-muted-foreground">{so.createdBy}</p>}
                     </div>
                   </div>

@@ -34,7 +34,11 @@ const TILES = [
 // The health reading: four states that say whether the workshop is on top of its work, not merely busy with
 // it. Status tokens, not categorical hues - CLAUDE.md's own reasoning for why an age scale takes colour
 // applies here word for word: this is a state, not a group.
+// Every live card lands in exactly one of these five (counts.jobs is their sum, D17): a DRAFT card, or one
+// with no open task, used to be in none of them, so the ring's own total disagreed with the "Jobs in the
+// workshop" tile beside it.
 const RING_ROWS = [
+  { key: "notStarted", name: "Not started", color: "var(--muted-foreground)" },
   { key: "awaitingApproval", name: "Waiting for approval", color: "var(--status-warning)" },
   { key: "inProgress", name: "In progress", color: "var(--chart-2)" },
   { key: "ready", name: "Ready for collection", color: "var(--status-success)" },

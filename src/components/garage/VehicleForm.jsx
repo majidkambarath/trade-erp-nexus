@@ -127,7 +127,7 @@ export default function VehicleForm({ vehicle, onClose, onSaved }) {
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Odometer (km)"><AmountInput value={form.odometer} onChange={setField("odometer")} min="0" /></Field>
+          <Field label="Odometer (km)"><AmountInput value={form.odometer} onChange={setField("odometer")} min="0" allowNegative /></Field>
           <Field label="Registration expiry"><DateInput value={form.registrationExpiry} onChange={setField("registrationExpiry")} /></Field>
         </div>
 

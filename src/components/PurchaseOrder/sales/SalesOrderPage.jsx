@@ -75,6 +75,7 @@ import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText }
 import { orgCurrency } from "../../../utils/orgLocale";
 import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
+import { isService } from "../../../lib/itemTypes";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
@@ -111,7 +112,9 @@ const SalesOrderManagement = () => {
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Starts true (D22): the first paint, before fetchTransactions has even run once, used to take the
+  // non-loading branch and show "0 orders" rather than a loading state.
+  const [isLoading, setIsLoading] = useState(true);
   const [formErrors, setFormErrors] = useState({});
   const [createdSO, setCreatedSO] = useState(null);
 
@@ -277,6 +280,8 @@ const SalesOrderManagement = () => {
       refNo: t.lpono ?? t.refNo ?? "",
       docNo: t.docno ?? t.docNo ?? "",
       discount: typeof t.discount === "number" ? t.discount : 0,
+      // Set only when this invoice was raised from a garage job card; absent on every other invoice.
+      jobCardRef: t.jobCardRef || null,
     };
   })
 );
@@ -640,7 +645,9 @@ const SalesOrderManagement = () => {
         so.items.forEach((it) => {
           const stock = stockItems.find((s) => String(s._id) === String(it.itemId));
           const qty = parseFloat(it.qty) || 0;
-          if (stock && typeof stock.currentStock === 'number' && qty > stock.currentStock) {
+          // A service never carries stock (D06): it always reads currentStock 0/null, which made every
+          // service line on an invoice warn as "insufficient" on approval.
+          if (stock && !isService(stock) && typeof stock.currentStock === 'number' && qty > stock.currentStock) {
             addNotification(`Insufficient stock for ${stock.itemName} (available ${stock.currentStock})`, 'warning');
           }
         });

@@ -453,6 +453,37 @@ Every list of documents opens on **this calendar month** (1st to last day, not "
   - **Order forms** (sales, purchase, both returns, quotation, delivery note: `OrderEntry/*`): the item picker labels a service "(Service)"; choosing one fills its sales or purchase price and marks the line (`itemType`, `currentStock: null`); the "In stock" cell says **Service**; batch and expiry cells on a purchase say not applicable; the delivery-note availability request and its "not enough free stock" warning cover the goods only (`stockedItemIds`). Creating an item from a line (`Create "..."`) asks goods or service, and origin / brand are required of goods only (`quickCreate.js`: a field's `required` may be a function of the values). The server decides the line's type; the form never sends `itemType` on a line. The four order pages keep an explicit list of the item fields they read from `/stock/stock` and now include `itemType`.
   - **Elsewhere**: the Inventory page's movement form lists goods only; Stock reports skip services (valuation, movement, item ledger, expiry, slow stock, reorder) but **Sales analysis counts their revenue** (a Service badge, cost of goods nil); the dashboard's inventory figures leave them out; Opening balances > Stock does not offer them; a printed invoice prints a service line like any other (code, description, quantity, price, VAT: no stock fields); a delivery note lists a service but its pick list does not.
 
+## 8b. Garage (vehicles, job cards, insurance claims)
+
+A workshop module, added 26 Oct 2026 (see CLAUDE.md "Garage" for the backend design and the 30 Oct 2026
+QA fixes). Permission module `garage` (opt-in, like Production). API `/api/v1/garage/*`.
+
+- **Screens** (`src/components/garage/`): `GarageBoard.jsx` (what is in the workshop today - counts,
+  columns, "my work"), `JobCardsPage.jsx` / `JobCardForm.jsx` / `JobCardView.jsx` (the estimate, tasks,
+  check-in, approval, invoicing, release), `VehiclesPage.jsx` / `VehicleForm.jsx` / `VehicleView.jsx`
+  (the vehicle master and its service history, attachments and warranty), `ClaimsPage.jsx` /
+  `ClaimView.jsx` (an insurance claim's survey, decision and the excess/depreciation split charged to the
+  customer), `GarageReports.jsx`, `GarageSetupPage.jsx` (bays and the service menu, `garage.manage`).
+  `CheckInDialog.jsx` is the walk-around (items present, damage points, photos via the shared
+  `AttachmentPanel`); the same panel, read-only, shows those photos on the card's own screen afterwards.
+- **A job card's lines carry the pricing engine's own figures** (`taxCodeId`, `vatPercent`, `vatAmount`,
+  `taxableAmount`, `lineTotal`) once the estimate is priced - the tax-code column on the line grid
+  defaults to the organisation's standard code, and the printed estimate and job card read these fields
+  directly rather than recomputing anything. "Promised" takes an optional time
+  (`<input type="time">` beside the date); a bare day is unchanged (midnight UTC, like every other
+  day-only field in the app).
+- **Release** (`JobCardView.jsx`'s Release dialog) shows the override tick only to someone who holds
+  `garage.manage` as well as `garage.approve` - the server now refuses the override from `garage.approve`
+  alone. Odometer fields (`AmountInput ... allowNegative`) let a typed minus sign through so the server's
+  own refusal shows, rather than silently turning `-5` into `5`.
+- **The customer form's "Insurer" checkbox** (Basic tab, customer only) is what lets a customer be chosen
+  as the insurer on a claim (`isInsurer`); without it the claim's insurer picker shows nothing newly
+  created. An existing customer flagged this way shows up at once.
+- **Not built:** a claims-ageing view; a server-side atomic SKU allocator (still a client-computed
+  `max + 1`, both on the item form and the order forms' quick-add); a separate "with job worker"-style
+  phone field on the vehicle form's quick-add customer (name only, by design).
+- **Tests:** `src/lib/__tests__/garage.test.js`, `src/components/garage/__tests__/GarageScreens.test.jsx`.
+
 ## 9. Vendors & Customers
 - Vendor Management: `src/components/VendorModule/VendorManagement.jsx`
   - Hooks: `src/hooks/Vendor/*`

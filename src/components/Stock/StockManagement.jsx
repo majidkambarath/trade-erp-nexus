@@ -452,10 +452,13 @@ const StockManagement = () => {
       session.remove("lastSaveTime");
       session.remove("autoSku");
     } catch (error) {
-      showToastMessage(
-        error.response?.data?.message || "Failed to save stock item.",
-        "error"
-      );
+      const message = error.response?.data?.message || "Failed to save stock item.";
+      // A duplicate SKU answers with the field name, in one of two shapes (the pre-check's AppError
+      // puts it under details, the raw unique-index clash at the top level) - D20: it used to reach
+      // only the toast, with nothing marking the SKU input itself.
+      const fields = error.response?.data?.fields || error.response?.data?.details?.fields || [];
+      if (fields.includes("sku")) setErrors((prev) => ({ ...prev, sku: message }));
+      showToastMessage(message, "error");
     } finally {
       setIsSubmitting(false);
     }

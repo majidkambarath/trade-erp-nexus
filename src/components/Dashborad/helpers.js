@@ -1,5 +1,4 @@
 import { CURRENCY, formatDate, formatNumber, toInputDate } from "@/utils/format";
-import { orgTimezone } from "@/utils/orgLocale";
 
 // What every tab of the home dashboard shares: chart colours, the tooltip, short labels for months
 // and days, relative times, the link of a voucher and the status rows.
@@ -217,17 +216,16 @@ export function compactAmount(value) {
 }
 export const signed = (pct) => `${pct > 0 ? "+" : pct < 0 ? "-" : ""}${formatNumber(Math.abs(pct), 1)}%`;
 
-// "Today", "Yesterday", "3 days ago", "2 hours ago", "5 min ago". A moment at exactly midnight in
-// the organisation's zone is a date typed without a time, so it is read by day rather than by hour.
-const clocks = new Map();
-const clockFor = (zone) => {
-  if (!clocks.has(zone)) clocks.set(zone, new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }));
-  return clocks.get(zone);
-};
+// "Today", "Yesterday", "3 days ago", "2 hours ago", "5 min ago". A date typed without a time is a day
+// only, read by day rather than by hour.
 export function ago(iso, now = new Date()) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const dayOnly = clockFor(orgTimezone()).format(d) === "00:00";
+  // A day-only date is stored at UTC MIDNIGHT (CLAUDE.md's own convention, every day-only field in the
+  // app), not at midnight on the organisation's own clock (D22) - the previous check asked the latter,
+  // which in Dubai (UTC+4) reads "04:00" for every such date, so it fell through to the hour branch and
+  // reported `localHour - 4`: a voucher dated today read as up to "12 hours ago" by late afternoon.
+  const dayOnly = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
   const days = Math.round((new Date(`${toInputDate(now)}T00:00:00Z`) - new Date(`${toInputDate(d)}T00:00:00Z`)) / 86400000);
   if (days >= 30) return formatDate(d);
   if (dayOnly || days >= 2) return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;

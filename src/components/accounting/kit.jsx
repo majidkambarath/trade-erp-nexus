@@ -671,7 +671,11 @@ export function Modal({ title, description, onClose, children, footer, size = "m
   // What the watching cannot see: choosing from a SearchSelect without typing, and a Radix switch
   // or checkbox (both are buttons, so neither fires an input or change event). A dialog where that
   // is the whole of the editing should pass `dirty` itself.
-  const [typed, watchTyping] = useTypedIn(dirty === undefined);
+  // `forget` is the third element useTypedIn returns, FOR exactly this: a dialog whose own component
+  // instance stays mounted past a close (kept alive by its parent instead of unmounted) must start clean
+  // again, or the NEXT open reads as dirty from nothing typed this time (D19's phantom prompt) - dropping
+  // it here left the registry's cleanup (which only runs on unmount) as the one way the flag ever cleared.
+  const [typed, watchTyping, forget] = useTypedIn(dirty === undefined);
   const unsaved = dirty === undefined ? typed : Boolean(dirty);
   const [asking, setAsking] = useState(false);
   // While there is something unsaved: warn before a reload, and tell the guard around the pages, so
@@ -697,6 +701,7 @@ export function Modal({ title, description, onClose, children, footer, size = "m
       setAsking(true); // the question is asked over the dialog; the dialog itself stays exactly as it was
       return;
     }
+    forget();
     onClose?.();
   };
 
@@ -772,6 +777,7 @@ export function Modal({ title, description, onClose, children, footer, size = "m
           safeDefault
           onConfirm={() => {
             setAsking(false);
+            forget();
             onClose?.();
           }}
           onClose={() => setAsking(false)}

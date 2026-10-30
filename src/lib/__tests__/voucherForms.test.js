@@ -52,7 +52,10 @@ describe("payment modes", () => {
   });
 
   it("builds only the fields of the chosen mode", () => {
-    expect(paymentPayload(pay({ mode: "cash", reference: "ignored", chequeNo: "ignored" }))).toEqual({ paymentMode: "cash", paymentDetails: {} });
+    // A cash receipt's own reference field (D22, Garage-Test-Report.xlsx) is kept; a stray chequeNo is
+    // still not cash's to carry.
+    expect(paymentPayload(pay({ mode: "cash", reference: "Receipt book 12", chequeNo: "ignored" }))).toEqual({ paymentMode: "cash", paymentDetails: { reference: "Receipt book 12" } });
+    expect(paymentPayload(pay({ mode: "cash" }))).toEqual({ paymentMode: "cash", paymentDetails: {} });
     expect(paymentPayload(pay({ mode: "transfer", accountId: "b1", reference: " T-1 ", referenceDate: TODAY }))).toEqual({ paymentMode: "transfer", paymentDetails: { accountId: "b1", reference: "T-1", referenceDate: TODAY } });
     expect(paymentPayload(pay({ mode: "cheque", accountId: "b1", chequeNo: "555", chequeDate: TODAY, drawnOnBankName: "Mashreq" }))).toEqual({
       paymentMode: "cheque", paymentDetails: { accountId: "b1", chequeNo: "555", chequeDate: TODAY, drawnOnBankName: "Mashreq" },

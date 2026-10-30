@@ -62,7 +62,8 @@ export function validatePayment(p, { direction, options, voucherDate } = {}) {
 export function paymentPayload(p) {
   const d = {};
   if (p.accountId) d.accountId = p.accountId;
-  if (["bank", "transfer"].includes(p.mode)) {
+  if (["bank", "transfer", "cash"].includes(p.mode)) {
+    // D22: a cash receipt's own reference field is new - without "cash" here it was typed and then dropped.
     if (p.reference) d.reference = p.reference.trim();
     if (p.mode === "transfer" && p.referenceDate) d.referenceDate = p.referenceDate;
   }
