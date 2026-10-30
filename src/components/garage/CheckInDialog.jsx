@@ -25,6 +25,11 @@ export default function CheckInDialog({ jobCardId, checkIn, onClose, onDone }) {
   const removeRow = (i) => setDamage((d) => d.filter((_, idx) => idx !== i));
 
   async function submit() {
+    // A damage row with a kind/notes typed but no panel named used to vanish silently on save (D11).
+    if (damage.some((d) => !d.panel.trim() && (d.notes.trim() || d.kind !== "scratch"))) {
+      setFailure({ message: "A damage mark has a kind or a note but no panel named. Name the panel, or remove the row." });
+      return;
+    }
     setBusy(true);
     setFailure(null);
     try {

@@ -121,6 +121,9 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         ["LPO / reference", so.refNo ?? so.lpono ?? ""],
         ["Doc no.", so.docNo ?? so.docno ?? ""],
         ["Payment terms", customer.paymentTerms || ""],
+        // Present only on an invoice raised from a garage job card (jobCardService.createInvoice).
+        ...(so.jobCardRef?.jobNo ? [["Job card no.", so.jobCardRef.jobNo]] : []),
+        ...(so.jobCardRef?.plateNumber ? [["Vehicle", so.jobCardRef.plateNumber]] : []),
       ],
       company,
       currency,

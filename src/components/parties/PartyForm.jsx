@@ -93,6 +93,14 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
           <TextInput value={value.salesPerson} onChange={text("salesPerson")} maxLength={100} />
         </Field>
       )}
+      {kind === "customer" && (
+        <Field label="Insurer" className="sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={value.isInsurer} onChange={(e) => set({ isInsurer: e.target.checked })} />
+            This customer is an insurance company (so it can be named on a garage insurance claim).
+          </label>
+        </Field>
+      )}
       <Field label="Status">
         <Select value={value.status} onChange={text("status")}>
           {statuses.map((s) => <option key={s} value={s}>{s}</option>)}

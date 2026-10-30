@@ -247,9 +247,15 @@ describe("rules", () => {
     expect(ago("2026-10-05T09:59:50.000Z", now)).toBe("Just now");
     expect(ago("2026-10-05T07:00:00.000Z", now)).toBe("3 hours ago");
     expect(ago("2026-10-05T09:00:00.000Z", now)).toBe("1 hour ago");
-    expect(ago("2026-10-04T20:00:00.000Z", now)).toBe("Today", "midnight in Dubai is a date typed without a time");
-    expect(ago("2026-10-03T20:00:00.000Z", now)).toBe("Yesterday");
-    expect(ago("2026-10-01T20:00:00.000Z", now)).toBe("3 days ago");
+    // A day-only date is stored at UTC MIDNIGHT (every such field in the app - Voucher.date confirmed on
+    // the live database: "2026-10-30T00:00:00.000Z"), never at midnight on the organisation's own clock.
+    // D22: this file used to test the latter ("2026-10-04T20:00:00.000Z", Dubai midnight) and read "Today"
+    // under the OLD, buggy code for the wrong reason - that timestamp is not how a real date is ever
+    // stored, so the test passed while production (fed real UTC-midnight dates) answered "4 hours ago"
+    // for Dubai's +4 offset, or up to "12 hours ago" by late afternoon.
+    expect(ago("2026-10-05T00:00:00.000Z", now)).toBe("Today", "UTC midnight is a date typed without a time");
+    expect(ago("2026-10-04T00:00:00.000Z", now)).toBe("Yesterday");
+    expect(ago("2026-10-02T00:00:00.000Z", now)).toBe("3 days ago");
     expect(ago("2026-10-04T05:00:00.000Z", now)).toBe("Yesterday");
     expect(ago("2026-10-01T05:00:00.000Z", now)).toBe("4 days ago");
     expect(ago("2026-08-01T05:00:00.000Z", now)).toBe(formatDate("2026-08-01T05:00:00.000Z"));

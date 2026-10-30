@@ -87,6 +87,7 @@ export default function VehiclesPage() {
             ),
           },
           { key: "chassisNo", header: "Chassis", card: "meta", cell: (r) => r.chassisNo || "" },
+          { key: "customerName", header: "Owner", sortable: true, card: "meta", cell: (r) => r.customerName || "–" },
           { key: "odometer", header: "Odometer", align: "end", card: "meta", cell: (r) => (r.odometer ? `${r.odometer} km` : "–") },
           { key: "registration", header: "Registration expiry", card: "meta", cell: (r) => (r.registrationExpiry ? formatDate(r.registrationExpiry) : "–") },
           { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={r.status === "inactive" ? "neutral" : "success"}>{r.status === "inactive" ? "Inactive" : "Active"}</Pill> },

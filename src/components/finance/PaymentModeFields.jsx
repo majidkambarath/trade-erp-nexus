@@ -71,6 +71,11 @@ export default function PaymentModeFields({ value, onChange, direction, options,
         {value.mode === "cash" && cashAccounts.length <= 1 && (
           <p className="text-sm text-muted-foreground sm:col-span-2">{isReceipt ? "Goes into" : "Comes out of"} {cashAccounts[0]?.label || "the cash account"}.</p>
         )}
+        {value.mode === "cash" && (
+          <Field label="Reference" hint="Optional - a receipt book number or note.">
+            <TextInput value={value.reference} onChange={(e) => set({ reference: e.target.value })} maxLength={60} />
+          </Field>
+        )}
 
         {["bank", "transfer", "cheque"].includes(value.mode) && (
           <Field label={value.mode === "cheque" ? (isReceipt ? "Deposit cheque to" : "Cheque drawn on") : accountLabel} required={!single} error={errors.accountId} className="sm:col-span-2">

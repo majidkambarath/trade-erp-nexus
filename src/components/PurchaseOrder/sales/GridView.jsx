@@ -63,7 +63,13 @@ const GridView = ({
                   }}
                 />
                 <div>
-                  <h3 className="text-lg font-extrabold text-foreground whitespace-nowrap">{so.transactionNo}</h3>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedSO(so); setActiveView("invoice"); }}
+                    className="text-lg font-extrabold text-foreground underline underline-offset-2 whitespace-nowrap hover:text-primary"
+                  >
+                    {so.transactionNo}
+                  </button>
                   <p className="text-sm text-muted-foreground">{so.customerName}</p>
                 </div>
               </div>

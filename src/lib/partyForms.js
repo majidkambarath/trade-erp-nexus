@@ -177,7 +177,7 @@ const DOC_KEYS = ["documentTypeId", "typeName", "number", "issueDate", "expiryDa
 
 export function emptyParty(kind) {
   return {
-    name: "", contactPerson: "", phone: "", email: "", website: "", salesPerson: "",
+    name: "", contactPerson: "", phone: "", email: "", website: "", salesPerson: "", isInsurer: false,
     billingAddress: "", shippingAddress: "", address: "",
     status: kind === "vendor" ? "Compliant" : "Active",
     vatStatus: "unregistered", trn: "", tradeLicenseNo: "",
@@ -199,7 +199,7 @@ export function partyToForm(kind, record) {
     ...base,
     name: (kind === "vendor" ? r.vendorName : r.customerName) || "",
     contactPerson: r.contactPerson || "", phone: r.phone || "", email: r.email || "", website: r.website || "",
-    salesPerson: r.salesPerson || "",
+    salesPerson: r.salesPerson || "", isInsurer: Boolean(r.isInsurer),
     billingAddress: r.billingAddress || "", shippingAddress: r.shippingAddress || "", address: r.address || "",
     status: r.status || base.status,
     vatStatus: r.vat?.status || (trn ? "registered" : "unregistered"),
@@ -242,7 +242,9 @@ export function formToPayload(kind, form) {
   if (kind === "vendor") return { vendorName: trimmed(form.name), address: trimmed(form.address), ...body };
   return {
     customerName: trimmed(form.name), billingAddress: trimmed(form.billingAddress), shippingAddress: trimmed(form.shippingAddress),
-    salesPerson: trimmed(form.salesPerson) || null, creditLimit: Number(form.creditLimit) || 0, ...body,
+    salesPerson: trimmed(form.salesPerson) || null, creditLimit: Number(form.creditLimit) || 0,
+    isInsurer: Boolean(form.isInsurer), // D10: who the garage's insurance claims may name as the insurer
+    ...body,
   };
 }
 

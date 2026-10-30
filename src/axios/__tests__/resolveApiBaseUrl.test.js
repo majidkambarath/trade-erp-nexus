@@ -32,4 +32,14 @@ describe("resolveApiBaseUrl", () => {
       "https://example.com/erp/api/v1"
     );
   });
+
+  // CLAUDE.md's "Deployment (Render)": the live deploy sets VITE_API_URL=/api/v1, a RELATIVE path -
+  // the backend's address is proxied through this frontend's own render.yaml rewrite and never appears
+  // in the bundle. Until now nothing here exercised that branch at all (it falls through to the same
+  // `value.includes(API_PATH)` check as an absolute URL, since "/api/v1" already contains "/api/v1"),
+  // so a regression here would have shipped unnoticed.
+  it("keeps a relative API path as given, the shape the deployed site actually uses", () => {
+    expect(resolveApiBaseUrl("/api/v1")).toBe("/api/v1");
+    expect(resolveApiBaseUrl("/api/v1/")).toBe("/api/v1");
+  });
 });

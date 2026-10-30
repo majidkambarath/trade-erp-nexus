@@ -54,7 +54,18 @@ export const refreshSession = () => {
 };
 
 // True when the session was restored from the cookie, false when the browser has no session left.
-export const restoreSession = () => refreshSession().then(() => true, () => false);
+// D13: logs WHY at console.debug before discarding the error, so "the cookie was never sent" (NO_SESSION_COOKIE
+// - third-party cookie blocking, a cross-origin deploy) can be told apart from "the session itself ended"
+// (SESSION_REVOKED - an administrator's reset, a detected reuse) without changing what the screen does either
+// way: both still send the person back to sign in.
+export const restoreSession = () =>
+  refreshSession().then(
+    () => true,
+    (err) => {
+      console.debug("Session not restored:", err?.response?.data?.errorCode || err?.message || err);
+      return false;
+    }
+  );
 
 // Ends the session in this tab and tells the others. The server call is the caller's job
 // (useSession.logout): only the caller knows whether the server answered.

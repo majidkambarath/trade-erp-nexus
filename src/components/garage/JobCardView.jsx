@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Download, Plus, Printer, X } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
-import { jobCards, claims } from "../../lib/garageApi";
+import { jobCards, claims, filesFor } from "../../lib/garageApi";
+import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
 import { JOB_STATUS, TASK_STATUS, INVOICE_STATUS_LABEL, garageErrorText } from "../../lib/garage";
 import { useGarageMasters, CompleteTaskDialog } from "./garageShared";
 import JobCardForm from "./JobCardForm";
@@ -16,6 +17,7 @@ import { downloadSheetsPdf, printMarkup, sheetMarkup } from "../PurchaseOrder/sh
 import { readAccent } from "../PurchaseOrder/shared/invoiceModel";
 import { orgCurrency } from "../../utils/orgLocale";
 import { buildEstimateDocument, buildGatePassDocument, buildJobCardDocument } from "./garageDocuments";
+import { DocLink } from "../salesDocs/parts";
 
 const APPROVAL_METHODS = [["whatsapp", "WhatsApp"], ["email", "Email"], ["signed", "Signed"], ["call", "A call"], ["counter", "At the counter"], ["lpo", "Insurer's LPO"], ["portal", "Online portal"]];
 
@@ -96,7 +98,7 @@ function ApprovalDialog({ card, onClose, onDone }) {
 // Teardown found more: new lines on the SAME card, pending until named in a later approval. Work already
 // released keeps running - this never touches the card's status or its tasks.
 function ReviseEstimateDialog({ card, masters, onClose, onDone }) {
-  const [rows, setRows] = useState([{ kind: "part", itemId: "", qty: "1", price: "", vendorId: "" }]);
+  const [rows, setRows] = useState([{ kind: "part", itemId: "", qty: "1", price: "", discountPercent: "", vendorId: "" }]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
   const setRow = (i, patch) => setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
@@ -106,7 +108,8 @@ function ReviseEstimateDialog({ card, masters, onClose, onDone }) {
     setBusy(true);
     setFailure(null);
     try {
-      const lines = rows.filter((r) => r.itemId).map((r) => ({ kind: r.kind, itemId: r.itemId, qty: Number(r.qty) || 0, price: Number(r.price) || 0, vendorId: r.kind === "sublet" ? r.vendorId : undefined }));
+      // A blank price is undefined, not 0 (D11): the server refuses it ("enter the price") while an explicit 0 still passes.
+      const lines = rows.filter((r) => r.itemId).map((r) => ({ kind: r.kind, itemId: r.itemId, qty: Number(r.qty) || 0, price: r.price === "" ? undefined : Number(r.price), discountPercent: r.discountPercent ? Number(r.discountPercent) : undefined, vendorId: r.kind === "sublet" ? r.vendorId : undefined }));
       const r = await jobCards.reviseEstimate(card._id, { lines });
       onDone(r, "Supplementary estimate added.");
     } catch (err) {
@@ -128,7 +131,7 @@ function ReviseEstimateDialog({ card, masters, onClose, onDone }) {
         {rows.map((l, i) => {
           const options = stocked.has(l.kind) ? masters.partOptions : masters.serviceOptions;
           return (
-            <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_2.5rem] items-start gap-2 rounded-lg border p-2">
+            <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_5rem_2.5rem] items-start gap-2 rounded-lg border p-2">
               <Select value={l.kind} onChange={(e) => setRow(i, { kind: e.target.value, itemId: "" })}>
                 <option value="part">Part</option>
                 <option value="labour">Labour</option>
@@ -144,11 +147,12 @@ function ReviseEstimateDialog({ card, masters, onClose, onDone }) {
               />
               <AmountInput value={l.qty} onChange={(e) => setRow(i, { qty: e.target.value })} min="0" aria-label="Quantity" />
               <AmountInput value={l.price} onChange={(e) => setRow(i, { price: e.target.value })} min="0" aria-label="Price" />
+              <AmountInput value={l.discountPercent} onChange={(e) => setRow(i, { discountPercent: e.target.value })} min="0" max="100" aria-label="Discount percent" placeholder="Disc %" />
               <Button type="button" variant="outline" size="sm" onClick={() => setRows((r) => r.filter((_, idx) => idx !== i))} aria-label="Remove"><X className="h-4 w-4" /></Button>
             </div>
           );
         })}
-        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setRows((r) => [...r, { kind: "part", itemId: "", qty: "1", price: "", vendorId: "" }])}><Plus className="me-1 h-4 w-4" /> Add line</Button>
+        <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={() => setRows((r) => [...r, { kind: "part", itemId: "", qty: "1", price: "", discountPercent: "", vendorId: "" }])}><Plus className="me-1 h-4 w-4" /> Add line</Button>
       </div>
     </Modal>
   );
@@ -245,7 +249,7 @@ function ReleaseDialog({ card, onClose, onDone }) {
       <div className="grid gap-4">
         {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Odometer out (km)"><AmountInput value={odometerOut} onChange={(e) => setOdometerOut(e.target.value)} min="0" /></Field>
+          <Field label="Odometer out (km)"><AmountInput value={odometerOut} onChange={(e) => setOdometerOut(e.target.value)} min="0" allowNegative /></Field>
           <Field label="Handed to"><TextInput value={handedTo} onChange={(e) => setHandedTo(e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -434,7 +438,13 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
   const [checkingIn, setCheckingIn] = useState(false);
   const [raisingPO, setRaisingPO] = useState(false);
   const c = one.data;
-  const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id]);
+  // Keyed on status too (D21): cancelling the card changes nothing about c._id, and the server's own
+  // CANCELLED refusal (an empty list) would otherwise sit unseen behind a list fetched before the cancel.
+  const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id, c?.status]);
+  // The check-in's own photos, uploaded through this same door by CheckInDialog - read-only here so they
+  // are visible SOMEWHERE on the card, not only inside the dialog that took them (D08: "the check-in block
+  // vanishes from the screen" once the dialog that recorded it is closed).
+  const checkInFiles = useMemo(() => (c?._id ? filesFor("jobcard", c._id) : null), [c?._id]);
 
   async function run(fn, message) {
     setBusy(true);
@@ -525,6 +535,7 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
                 </ul>
               )}
               {c.checkIn.notes && <p className="mt-1 text-sm text-muted-foreground">{c.checkIn.notes}</p>}
+              {checkInFiles && <AttachmentPanel source={checkInFiles} label="Check-in photos" readOnly className="mt-2" />}
             </Section>
           )}
 
@@ -546,23 +557,62 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
             {c.lines?.length ? (
               <>
                 <ul className="divide-y rounded-lg border text-sm">
-                  {c.lines.map((l) => (
-                    <li key={l._id} className="flex items-center justify-between gap-2 px-3 py-2">
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="me-2 rounded bg-secondary px-1.5 py-0.5 text-xs uppercase text-muted-foreground">{l.kind}</span>
-                        {l.description}
-                      </span>
-                      <span className="shrink-0 tabular-nums">{money(l.lineTotal)}</span>
-                      <Pill tone={l.invoiced ? "info" : l.approved === false ? "neutral" : "success"}>
-                        {l.invoiced ? "Invoiced" : l.approved === false ? "Pending" : "Approved"}
-                      </Pill>
-                    </li>
-                  ))}
+                  {c.lines.map((l) => {
+                    // `approved === false` means two different things (D21): declined at the first
+                    // decision, or a later supplementary line nobody has decided on yet - and the two
+                    // are told apart ONLY where it is unambiguous: a line from the ORIGINAL estimate
+                    // (addedInVersion 1) once the card has moved past AWAITING_APPROVAL can only be
+                    // declined, because the first decision settles every version-1 line, true or false,
+                    // with nothing left pending from it. A later-version line that is still false stays
+                    // "Pending" - it may yet be decided in the next round, and nothing on the line itself
+                    // says which round last looked at it.
+                    const declined = l.approved === false && (l.addedInVersion || 1) <= 1 && !["DRAFT", "AWAITING_APPROVAL"].includes(c.status);
+                    const label = l.invoiced ? "Invoiced" : declined ? "Declined" : l.approved === false ? "Pending" : "Approved";
+                    const tone = l.invoiced ? "info" : declined ? "neutral" : l.approved === false ? "warning" : "success";
+                    return (
+                      <li key={l._id} className="flex items-center justify-between gap-2 px-3 py-2">
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="me-2 rounded bg-secondary px-1.5 py-0.5 text-xs uppercase text-muted-foreground">{l.kind}</span>
+                          {l.description}
+                        </span>
+                        <span className="shrink-0 tabular-nums">{money(l.lineTotal)}</span>
+                        <Pill tone={tone}>{label}</Pill>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <p className="mt-2 text-end text-sm font-medium">Total (approved): {money(c.totals?.total)}</p>
               </>
             ) : <p className="text-sm text-muted-foreground">No lines yet. Edit the card to add parts and labour.</p>}
           </Section>
+
+          {/* D18: a supplementary estimate (reviseEstimate) was recorded on estimateHistory with nowhere
+              on screen to show it, so "teardown found more" left no visible trail of what the FIRST
+              estimate had asked for. */}
+          {c.estimateHistory?.length > 0 && (
+            <Section title="Estimate history">
+              <ul className="divide-y rounded-lg border text-sm">
+                {c.estimateHistory.map((h, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span>
+                      v{h.version} - sent {h.sentAt ? formatDate(h.sentAt) : ""}
+                      {h.decidedAt && <span className="text-muted-foreground"> · decided {formatDate(h.decidedAt)} ({h.method})</span>}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">{money(h.total)}</span>
+                  </li>
+                ))}
+                {c.estimate?.version && (
+                  <li className="flex items-center justify-between gap-2 px-3 py-2">
+                    <span>
+                      v{c.estimate.version} (current) - sent {c.estimate.sentAt ? formatDate(c.estimate.sentAt) : ""}
+                      {c.estimate.decidedAt && <span className="text-muted-foreground"> · decided {formatDate(c.estimate.decidedAt)} ({c.estimate.method})</span>}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">{money(c.totals?.total)}</span>
+                  </li>
+                )}
+              </ul>
+            </Section>
+          )}
 
           {shortages.data?.length > 0 && (
             <Section title="Short of stock">
@@ -627,7 +677,11 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
               <ul className="divide-y rounded-lg border text-sm">
                 {c.invoices.map((inv, i) => (
                   <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span>{inv.no} <span className="text-muted-foreground">({inv.billTo})</span></span>
+                    <span>
+                      {/* Approved only: a draft invoice has no printable tax invoice yet, and "/sales-order?search=" opens the
+                          list filtered to this number either way, so a draft still lands somewhere useful. */}
+                      <DocLink kind="sales_order" no={inv.no}>{inv.no}</DocLink> <span className="text-muted-foreground">({inv.billTo})</span>
+                    </span>
                     <span className="tabular-nums">{money(inv.amount)}</span>
                     <Pill tone={inv.status === "APPROVED" ? "success" : "warning"}>{inv.status}</Pill>
                   </li>

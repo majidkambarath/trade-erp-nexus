@@ -98,7 +98,7 @@ function ServiceDialog({ svc, masters, onClose, onSaved }) {
           <Field label="Category"><TextInput value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Oil service, brakes…" /></Field>
         </div>
         <Field label="Name" required><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="40,000 km service" /></Field>
-        <Field label="Service item" required hint="A labour item - itemType: service - carrying the price, VAT and income account.">
+        <Field label="Service item" required hint="A service item (Inventory > Stock items) carrying the price and income account.">
           <SearchSelect value={serviceItemId} onChange={setServiceItemId} options={masters.serviceOptions} loading={masters.loading} placeholder="Choose the labour item…" />
         </Field>
         <Field label="Standard hours"><AmountInput value={standardHours} onChange={(e) => setStandardHours(e.target.value)} min="0" /></Field>
