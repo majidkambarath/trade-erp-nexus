@@ -12,6 +12,7 @@ vi.mock("../../../lib/accountingApi", () => ({ accounting: { postableAccounts: v
 import { ListBody, ListToolbar, useVoucherList } from "../shared";
 import { todayInput, formatDate } from "../../../utils/format";
 import { addMonths, lastDayOf } from "../../../lib/calendarDays";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const month = todayInput().slice(0, 7);
 const lastMonth = addMonths(month, -1);
@@ -43,6 +44,7 @@ const pager = () => screen.getByRole("navigation", { name: "Pages" });
 
 beforeEach(() => {
   m.list.mockReset();
+  clearPageSessions(); // useVoucherList now remembers its period and filters between visits (F12)
 });
 
 describe("the voucher list's period", () => {

@@ -165,13 +165,23 @@ const extras = (row) => {
   return out;
 };
 
+// A blank VAT cell with no tax code chosen sends no rate at all, so the server's own default
+// standard code applies (TaxCodeService.applyToItems) instead of posting the line at 0% (F01,
+// finance QA review 1 Nov 2026). An explicit value - 0 included, a deliberate zero-rated entry -
+// is always sent as it stands, and so is any value once a tax code is chosen.
+const vatPercentField = (raw, taxCodeId, computed) => {
+  const blank = raw === "" || raw === null || raw === undefined;
+  return blank && !taxCodeId ? {} : { vatPercent: computed };
+};
+
 // The backend recalculates every line from `price` (calculateItems), so `price` MUST be the
 // unit price the user entered. The purchase return used to send the stock record's system
 // price here, which silently overrode what was typed.
 const itemPayload = (V, row, stock) => {
   const qty = num(row.qty);
   const unit = num(row[V.fields.unitPrice]);
-  const vatPercent = num(row[V.fields.vatPercent]);
+  const vatRaw = row[V.fields.vatPercent];
+  const vatPercent = num(vatRaw);
   const line = rowLine({ qty, price: unit, vatPercent, discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
   return {
     ...(row.lineId ? { _id: row.lineId } : {}),
@@ -181,7 +191,7 @@ const itemPayload = (V, row, stock) => {
     qty,
     price: unit,
     rate: line.lineValue,
-    vatPercent,
+    ...vatPercentField(vatRaw, row.taxCodeId, vatPercent),
     vatAmount: line.vatAmount,
     lineTotal: line.lineTotal, // VAT-inclusive, as the backend contract requires
     grandTotal: line.lineTotal,
@@ -202,7 +212,7 @@ const salesReturnItem = (row) => {
     qty,
     price,
     rate: line.lineValue,
-    vatPercent,
+    ...vatPercentField(row.taxPercent, row.taxCodeId, vatPercent),
     vatAmount: line.vatAmount,
     lineTotal: line.lineTotal,
     category: row.category || "",
@@ -491,7 +501,7 @@ const pricedLineInput = (row) => {
     description: row.description || "",
     qty: num(row.qty),
     price: num(row.rate),
-    vatPercent: num(row.vatPercent),
+    ...vatPercentField(row.vatPercent, row.taxCodeId, num(row.vatPercent)),
   };
   const discount = num(row.discountPercent);
   if (discount > 0) out.discountPercent = Math.min(100, discount);
@@ -596,7 +606,7 @@ const vendorLineInput = (row) => {
     description: row.description || "",
     qty: num(row.qty),
     price: num(row.currentPurchasePrice),
-    vatPercent: num(row.vatPercent),
+    ...vatPercentField(row.vatPercent, row.taxCodeId, num(row.vatPercent)),
     batchNumber: row.batchNumber || "",
     expiryDate: row.expiryDate || null,
   };

@@ -68,6 +68,30 @@ describe("settings page", () => {
     expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
   });
 
+  // F05: a free-text box with a datalist of suggestions still let anything through (a typo, an abbreviation, a
+  // trailing space), which is exactly what the VAT return's own emirate setting reads when this one stands for
+  // it. A UAE company gets a hard choice of the seven; anywhere else "state" stays free text (there is no fixed list).
+  it("offers the seven emirates as a locked choice for a UAE company, and saves the one chosen", async () => {
+    at();
+    const emirate = await screen.findByRole("combobox", { name: "State / emirate" });
+    expect(emirate).toHaveValue("Dubai");
+    expect(within(emirate).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Choose an emirate", "Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Fujairah", "Ras Al Khaimah", "Umm Al Quwain",
+    ]);
+    fireEvent.change(emirate, { target: { value: "Sharjah" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(m.put).toHaveBeenCalledTimes(1));
+    expect(sent().state).toBe("Sharjah");
+  });
+
+  it("stays a free-text field outside the UAE, where there is no fixed list of states", async () => {
+    m.get.mockResolvedValue({ data: { success: true, data: { ...PROFILE, country: "India", state: "Maharashtra" } } });
+    at();
+    const emirate = await screen.findByLabelText(/State \/ emirate/);
+    expect(emirate).toHaveValue("Maharashtra");
+    expect(emirate.tagName).toBe("INPUT");
+  });
+
   it("will not save without the required details", async () => {
     at();
     await screen.findByLabelText(/Company name/);

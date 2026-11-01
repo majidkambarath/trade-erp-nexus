@@ -35,8 +35,11 @@ const STALE_CHEQUE_DAYS = 183;
 const dayStart = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); };
 
 // What is missing or wrong for the chosen mode. The server checks again; this saves the round trip.
-// `options` is the list the form was given (accounts, cards...).
-export function validatePayment(p, { direction, options, voucherDate } = {}) {
+// `options` is the list the form was given (accounts, cards...). `requireBankReference`: a receipt
+// or payment voucher (money actually changing hands) needs a slip or reference for BANK mode too,
+// not transfer alone (F03, finance QA review 1 Nov 2026) - an expense paid by bank stays optional,
+// so PartyVouchers.jsx passes this and ExpenseVouchers.jsx does not.
+export function validatePayment(p, { direction, options, voucherDate, requireBankReference = false } = {}) {
   const e = {};
   const banks = options?.bankAccounts || [];
   if (p.mode === "cash") return e;
@@ -44,6 +47,7 @@ export function validatePayment(p, { direction, options, voucherDate } = {}) {
     e.accountId = direction === "receipt" ? "Choose the bank account the money goes into" : "Choose the bank account it is paid from";
   }
   if (p.mode === "transfer" && !String(p.reference).trim()) e.reference = "Enter the transfer reference";
+  if (p.mode === "bank" && requireBankReference && !String(p.reference).trim()) e.reference = "Enter the deposit slip or reference number";
   if (p.mode === "cheque") {
     if (!String(p.chequeNo).trim()) e.chequeNo = "Enter the cheque number";
     else if (!/^[A-Za-z0-9-]{3,20}$/.test(String(p.chequeNo).trim())) e.chequeNo = "Use letters, digits and dashes only (3 to 20)";

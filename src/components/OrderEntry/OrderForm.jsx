@@ -242,11 +242,25 @@ export default function OrderForm({
     [taxCodes]
   );
 
+  // The organisation's own default tax code (Setup > Tax codes > "Use as the default for new
+  // lines"): a fresh line gets it at once, so a new invoice never starts with no tax treatment at
+  // all (F01, finance QA review 1 Nov 2026). Falls back to nothing when none is set, or while the
+  // codes are still loading - a line then keeps the plain 5% rowTemplate() has always carried.
+  const defaultCode = useMemo(
+    () => taxCodes.find((c) => c.isDefault && c.kind === "standard") || null,
+    [taxCodes]
+  );
+  const freshRow = useCallback(() => {
+    const row = V.rowTemplate();
+    if (!defaultCode) return row;
+    return { ...row, taxCodeId: defaultCode._id, [V.fields.vatPercent]: String(defaultCode.ratePercent) };
+  }, [V, defaultCode]);
+
   // A page that opens the form with no lines still gets one editable row.
   const hasRows = rows.length > 0;
   useEffect(() => {
-    if (!hasRows) setFormData((prev) => ({ ...prev, items: [V.rowTemplate()] }));
-  }, [hasRows, V, setFormData]);
+    if (!hasRows) setFormData((prev) => ({ ...prev, items: [freshRow()] }));
+  }, [hasRows, V, setFormData, freshRow]);
 
   const allParties = useMemo(() => uniqById([...parties, ...extraParties]), [parties, extraParties]);
   const allStock = useMemo(() => uniqById([...stockItems, ...extraStock]), [stockItems, extraStock]);
@@ -281,6 +295,22 @@ export default function OrderForm({
     (fn) => setFormData((prev) => ({ ...prev, items: fn(prev.items || []) })),
     [setFormData]
   );
+
+  // The tax codes load after the form's first render, so the very first line (made above, before
+  // they arrived) can start with none. Once the default is known, give it to every row nobody has
+  // touched yet - never a line with an item, a tax code, a saved line or a return line - once only.
+  const stampedDefault = useRef(false);
+  useEffect(() => {
+    if (!defaultCode || editing || stampedDefault.current) return;
+    stampedDefault.current = true;
+    setRows((items) =>
+      items.map((row) =>
+        !row.itemId && !row.taxCodeId && !row.lineId && !row.returnOfLineId
+          ? { ...row, taxCodeId: defaultCode._id, [V.fields.vatPercent]: String(defaultCode.ratePercent) }
+          : row
+      )
+    );
+  }, [defaultCode, editing, V, setRows]);
 
   const setHeader = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -318,14 +348,23 @@ export default function OrderForm({
         items.map((row, i) => {
           if (i !== r) return row;
           let next = { ...row, itemId };
-          if (stock) next = { ...next, ...V.hydrate(next, stock) };
-          else next = { ...next, description: "", brand: "", origin: "", itemType: "" };
+          if (stock) {
+            next = { ...next, ...V.hydrate(next, stock) };
+            // hydrate sets the line's VAT % from the stock record, which has no tax field of its
+            // own and so always reads "5" - a row that already carries a tax code keeps that
+            // code's own rate instead, so a default other than 5% is not silently overwritten the
+            // moment an item is chosen.
+            if (next.taxCodeId) {
+              const code = taxCodes.find((c) => c._id === next.taxCodeId);
+              if (code) next[V.fields.vatPercent] = String(code.ratePercent);
+            }
+          } else next = { ...next, description: "", brand: "", origin: "", itemType: "" };
           return recalc(V, next);
         })
       );
       clearErrors([`itemId_${r}`]);
     },
-    [V, stockById, setRows, clearErrors]
+    [V, stockById, setRows, clearErrors, taxCodes]
   );
 
   const changeCell = useCallback(
@@ -358,7 +397,7 @@ export default function OrderForm({
   };
   const removeCharge = (i) => setCharges((c) => c.filter((_, j) => j !== i));
 
-  const addRow = useCallback(() => setRows((items) => [...items, V.rowTemplate()]), [V, setRows]);
+  const addRow = useCallback(() => setRows((items) => [...items, freshRow()]), [freshRow, setRows]);
 
   const removeRow = useCallback(
     (r) => {
@@ -568,7 +607,7 @@ export default function OrderForm({
   const chooseSource = async (opt) => {
     if (!opt) {
       setLinkedRef(null);
-      setRows(() => [V.rowTemplate()]);
+      setRows(() => [freshRow()]);
       return;
     }
     const original = sourceOpts.find((p) => p._id === opt.value);

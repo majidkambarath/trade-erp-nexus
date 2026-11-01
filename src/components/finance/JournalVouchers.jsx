@@ -36,6 +36,8 @@ export default function JournalVouchers() {
             rows={list.rows}
             rowKey={(v) => v._id}
             onRowClick={(v) => setViewing(v._id)}
+            // The full editor is for a PENDING voucher only: an approved one is locked (F04,
+            // finance QA review 1 Nov 2026) and offers "Edit narration" from View instead.
             columns={[
               { key: "no", header: "Voucher", card: "primary", className: "whitespace-nowrap font-mono text-xs font-semibold", cell: (v) => <>{v.voucherNo}{!v.ledgerBased && <Pill className="ms-2">Older format</Pill>}</> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (v) => formatDateGB(v.date) },
@@ -43,7 +45,7 @@ export default function JournalVouchers() {
               { key: "rows", header: "Rows", align: "end", card: "meta", className: "tabular-nums", cell: (v) => `${v.entries?.length || 0} rows` },
               { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}{v.ledgerBased && (<Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && v.status === "pending" && (<Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>)}{v.ledgerBased && (<Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>)}</>) },
             ]}
           />
         </ListBody>
@@ -81,8 +83,17 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
   }
 
   function setAmount(i, side, raw) {
+    // A minus is refused with a message, not silently dropped character by character (which left
+    // "-100" reading as "100" - F03, finance QA review 1 Nov 2026). validateJournal's own negative
+    // check (voucherForms.js) could then never fire, because the regex below had already stripped
+    // the sign off every keystroke before a negative value could ever reach it.
+    if (String(raw).includes("-")) {
+      setErrors((e) => ({ ...e, [i]: "Amounts cannot be negative" }));
+      return;
+    }
     const v = clean(raw);
     if (!AMOUNT.test(v)) return;
+    setErrors((e) => (e[i] ? { ...e, [i]: undefined } : e));
     patch(i, { [side]: v, ...(toCents(v) ? { [side === "debit" ? "credit" : "debit"]: "" } : {}) });
   }
   const tidy = (i, side) => rows[i][side] && patch(i, { [side]: fromCents(toCents(rows[i][side])).toFixed(2) });

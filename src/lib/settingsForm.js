@@ -24,6 +24,9 @@ export function validateProfile(company, bank) {
 export const approvalsFrom = (approvals) => ({
   separateApprover: approvals?.separateApprover === true,
   secondApprovalAbove: approvals?.secondApprovalAbove === null || approvals?.secondApprovalAbove === undefined || approvals?.secondApprovalAbove === "" ? "" : String(approvals.secondApprovalAbove),
+  // "Credit and debit notes wait for approval" (F08, finance QA review 1 Nov 2026): off by default,
+  // so an organisation that has not asked for it sees no change - a note posts at once as before.
+  notesNeedApproval: approvals?.notesNeedApproval === true,
 });
 
 /**
@@ -33,7 +36,7 @@ export const approvalsFrom = (approvals) => ({
 export function approvalsPayload(form) {
   const text = String(form?.secondApprovalAbove ?? "").replace(/,/g, "").trim();
   if (text !== "" && !/^\d+(\.\d+)?$/.test(text)) return { ok: false, error: "Enter an amount of 0 or more, or leave it empty" };
-  return { ok: true, body: { approvals: { separateApprover: form?.separateApprover === true, secondApprovalAbove: text === "" ? null : Number(text) } } };
+  return { ok: true, body: { approvals: { separateApprover: form?.separateApprover === true, secondApprovalAbove: text === "" ? null : Number(text), notesNeedApproval: form?.notesNeedApproval === true } } };
 }
 
 export function passwordStrength(password) {

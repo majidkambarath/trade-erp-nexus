@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 const mocks = vi.hoisted(() => ({
   chart: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   linkAttachment: vi.fn(),
   documentAudit: vi.fn(),
   voucherAudit: vi.fn(),
+  voucherGet: vi.fn(),
 }));
 
 vi.mock("../../../lib/accountingApi", () => ({
@@ -33,8 +35,8 @@ vi.mock("../../../lib/accountingApi", () => ({
   downloadAttachment: vi.fn(),
   documents: { audit: mocks.documentAudit },
 }));
-// only the audit call is replaced: the rest of the banking api stays real
-vi.mock("../../../lib/bankingApi", async (importOriginal) => ({ ...(await importOriginal()), vouchers: { audit: mocks.voucherAudit } }));
+// only the audit and get calls are replaced: the rest of the banking api stays real
+vi.mock("../../../lib/bankingApi", async (importOriginal) => ({ ...(await importOriginal()), vouchers: { audit: mocks.voucherAudit, get: mocks.voucherGet } }));
 
 import ChartOfAccounts from "../ChartOfAccounts";
 
@@ -183,6 +185,36 @@ describe("chart of accounts", () => {
     expect(within(dialog).getByLabelText(/Account name/)).toHaveAttribute("aria-invalid", "true");
   });
 
+  // F11 (finance QA review, 1 Nov 2026): the server's refusal is now put in focus, which also
+  // scrolls it into view - a dialog with Description, Opening balance and Documents below the name
+  // left the message easy to miss.
+  it("moves focus to the field named in a server refusal", async () => {
+    const err = Object.assign(new Error('An account named "ADCB" already exists'), { code: "DUPLICATE_ACCOUNT" });
+    mocks.createAccount.mockRejectedValue(err);
+    render(<ChartOfAccounts />);
+    await screen.findByText("Emirates NBD");
+    fireEvent.click(screen.getByRole("button", { name: "Add account to Bank" }));
+    const dialog = await screen.findByRole("dialog", { name: "New account" });
+    fireEvent.change(within(dialog).getByLabelText(/Account name/), { target: { value: "ADCB" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create account" }));
+    await within(dialog).findByText('An account named "ADCB" already exists');
+    await waitFor(() => expect(within(dialog).getByLabelText(/Account name/)).toHaveFocus());
+  });
+
+  it("an opening balance needs its side chosen - the box no longer defaults to Debit", async () => {
+    render(<ChartOfAccounts />);
+    await screen.findByText("Emirates NBD");
+    fireEvent.click(screen.getByRole("button", { name: "Add account to Bank" }));
+    const dialog = await screen.findByRole("dialog", { name: "New account" });
+    fireEvent.change(within(dialog).getByLabelText(/Account name/), { target: { value: "ADCB" } });
+    expect(within(dialog).getByLabelText("Side")).toHaveValue("");
+    fireEvent.change(within(dialog).getByLabelText(/Amount/), { target: { value: "500" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create account" }));
+    expect(await within(dialog).findByText("Say whether the opening balance is a debit or a credit")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Side")).toHaveAttribute("aria-invalid", "true");
+    expect(mocks.createAccount).not.toHaveBeenCalled();
+  });
+
   it("Escape closes the dialog; clicking outside does not lose the form", async () => {
     render(<ChartOfAccounts />);
     await screen.findByText("Emirates NBD");
@@ -288,6 +320,33 @@ describe("chart of accounts", () => {
       fireEvent.click(await within(dialog).findByRole("button", { name: "SO-2025-0009" }));
       await waitFor(() => expect(mocks.documentAudit).toHaveBeenCalledWith("t9"));
       expect(mocks.voucherAudit).not.toHaveBeenCalled();
+    });
+
+    // F18 (finance QA review, 1 Nov 2026): a finance voucher's own number opens the voucher
+    // itself; a small icon beside it still reaches the audit trail.
+    it("opens a receipt voucher itself, not the audit trail, when its number is clicked", async () => {
+      ledgerWith({ voucherId: "r1", voucherNo: "RV-2026-0001", voucherType: "receipt" });
+      mocks.voucherGet.mockResolvedValue({ _id: "r1", voucherNo: "RV-2026-0001", voucherType: "receipt", status: "approved", date: "2026-10-01T00:00:00.000Z", totalAmount: 5000, entries: [] });
+      const dialog = await openLedger();
+      fireEvent.click(within(dialog).getByRole("button", { name: "RV-2026-0001" }));
+      expect(await screen.findByRole("heading", { name: /Receipt voucher RV-2026-0001/ })).toBeInTheDocument();
+      expect(mocks.voucherGet).toHaveBeenCalledWith("r1");
+      expect(mocks.voucherAudit).not.toHaveBeenCalled();
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Audit trail of RV-2026-0001" }));
+      mocks.voucherAudit.mockResolvedValue({ ...VOUCHER_TRAIL, voucher: { ...VOUCHER_TRAIL.voucher, voucherNo: "RV-2026-0001" } });
+      await waitFor(() => expect(mocks.voucherAudit).toHaveBeenCalledWith("r1"));
+    });
+
+    it("links a sales invoice to its own document, not the audit trail, when its number is clicked", async () => {
+      ledgerWith({ voucherId: "so1", voucherNo: "SO-2026-0042", voucherType: "sales_order" });
+      render(<MemoryRouter><ChartOfAccounts /></MemoryRouter>);
+      await screen.findByText("Emirates NBD");
+      fireEvent.click(screen.getByRole("button", { name: "Ledger of Emirates NBD" }));
+      const dialog = await screen.findByRole("dialog", { name: /BANK0001/ });
+      const link = await within(dialog).findByRole("link", { name: "SO-2026-0042" });
+      expect(link).toHaveAttribute("href", "/sales-order?search=SO-2026-0042");
+      expect(within(dialog).getByRole("button", { name: "Audit trail of SO-2026-0042" })).toBeInTheDocument();
     });
   });
 

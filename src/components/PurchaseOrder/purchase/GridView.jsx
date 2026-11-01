@@ -199,7 +199,8 @@ const GridView = ({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {po.status === "PENDING" && (
+                {/* F15 (finance QA review, 1 Nov 2026): a document is created DRAFT - "PENDING" never occurs - so Approve never showed here */}
+                {po.status === "DRAFT" && (
                   <>
                     {stateOf(po).canApprove && (
                       <Can permission="purchase.approve">

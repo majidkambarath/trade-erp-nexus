@@ -16,7 +16,9 @@ const ICON = { ok: CheckCircle2, warning: AlertTriangle, blocker: XCircle };
 const ICON_TONE = { ok: "text-status-success", warning: "text-status-warning", blocker: "text-status-danger" };
 
 // One line of the checks list; the month close (MonthCloseDialog.jsx) lists its checks the same way.
-export function Check({ check, ticked, onTick }) {
+// `readOnly` (F14, finance QA review 1 Nov 2026): the month checklist can be opened just to look -
+// nothing here closes or changes anything, so a warning is shown as plain text, not something to tick.
+export function Check({ check, ticked, onTick, readOnly = false }) {
   const Icon = ICON[check.level] || CheckCircle2;
   const body = (
     <>
@@ -28,7 +30,7 @@ export function Check({ check, ticked, onTick }) {
     <li className="flex items-start gap-3 text-sm" data-level={check.level}>
       <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${ICON_TONE[check.level]}`} aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        {check.level === "warning" ? (
+        {check.level === "warning" && !readOnly ? (
           <label className="flex cursor-pointer items-start gap-2">
             <input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={ticked.has(check.code)} onChange={() => onTick(check.code)} />
             <span className="min-w-0">

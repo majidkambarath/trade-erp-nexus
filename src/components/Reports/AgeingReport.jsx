@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, TextInput, useAsync, DateInput } from "../accounting/kit";
 import { cn } from "../../lib/utils";
+import { useExportPreamble } from "./reportKit";
 
 const money = (n) => (n ? formatNumber(n, 2) : "–");
 const TYPES = {
@@ -23,6 +24,7 @@ export default function AgeingReport() {
   const [open, setOpen] = useState({});
   const { data, loading, error, reload } = useAsync(() => accounting.ageing({ type, asOf }), [type, asOf]);
   const t = TYPES[type];
+  const preambleFor = useExportPreamble(t.label);
   // What the party accounts hold in the books against the open invoices above: the two differ by the returns, credit notes and
   // balances on account that are not set against an invoice. Nothing is said when they agree.
   const tie = data?.reconciliation && Math.abs(Number(data.reconciliation.unapplied) || 0) >= 0.005 ? data.reconciliation : null;
@@ -36,7 +38,7 @@ export default function AgeingReport() {
       const blank = data.buckets.map(() => "");
       rows.push([UNAPPLIED_LABEL, "", ...blank, tie.unapplied], [ledgerLabel, "", ...blank, tie.ledger]);
     }
-    downloadCSV(`ageing-${type}-${asOf}.csv`, heads, rows);
+    downloadCSV(`ageing-${type}-${asOf}.csv`, heads, rows, { preamble: preambleFor(`As at ${formatDateGB(asOf)}`) });
   }
 
   return (

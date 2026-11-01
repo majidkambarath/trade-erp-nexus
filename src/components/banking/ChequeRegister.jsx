@@ -7,7 +7,7 @@ import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNot
 import { banking } from "../../lib/bankingApi";
 import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
-import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
+import { CURRENCY, formatDateGB, formatNumber, todayInput } from "../../utils/format";
 import { VoucherAuditTrail } from "../audit/AuditTrail";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { useClampPage, useServerPage } from "../lists/useServerPage";
@@ -30,8 +30,29 @@ const WORKLIST_NOTE = {
   deposited: "taken to the bank and waiting to clear, whatever its date",
   hold: "kept in hand on purpose, whatever its date",
 };
+// A day-only value (the cheque's own date, already stored at midnight) as "YYYY-MM-DD": not a
+// "today" computation, so the plain UTC slice agrees with the organisation's own calendar day.
 const day = (d) => new Date(d).toISOString().slice(0, 10);
-const todayInput = () => day(new Date());
+
+// A "Due" filter on the worklist tabs (F18, finance QA review 1 Nov 2026): none of them had a way
+// to see what is due soon among cheques dated far apart. The server already filters any status by
+// chequeDate (from/to); this sends the same params the dated tabs' own period picker does. "Now"
+// goes through todayInput (utils/format.js), the organisation's own calendar day - a plain UTC
+// read of "today" named the wrong day for part of the day in Dubai.
+const DUE_FILTERS = [
+  { value: "any", label: "Any due date" },
+  { value: "overdue", label: "Overdue" },
+  { value: "week", label: "This week" },
+  { value: "next7", label: "Next 7 days" },
+];
+const addDays = (dayStr, n) => day(new Date(new Date(`${dayStr}T00:00:00Z`).getTime() + n * 86400000));
+const startOfWeek = (dayStr) => addDays(dayStr, -((new Date(`${dayStr}T00:00:00Z`).getUTCDay() + 6) % 7)); // Monday
+const dueRangeFor = (value, today = todayInput()) => {
+  if (value === "overdue") return { to: `${today}T23:59:59.999Z` };
+  if (value === "week") { const start = startOfWeek(today); return { from: start, to: `${addDays(start, 6)}T23:59:59.999Z` }; }
+  if (value === "next7") return { from: today, to: `${addDays(today, 7)}T23:59:59.999Z` };
+  return {};
+};
 
 export default function ChequeRegister({ embedded = false }) {
   const [status, setStatus] = useState("pending");
@@ -46,20 +67,27 @@ export default function ChequeRegister({ embedded = false }) {
   const periodFilter = usePeriodFilter();
   const { period } = periodFilter;
   const dated = !isWorklist(status);
-  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${dated ? period.key : "any"}`);
+  // A worklist tab has no period of its own (a cheque post-dated a year ahead is still listed), but
+  // can still be narrowed to what is due soon or already overdue.
+  const [dueFilter, setDueFilter] = useState("any");
+  const showDue = isWorklist(status);
+  const dueRange = showDue ? dueRangeFor(dueFilter) : {};
+  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${dated ? period.key : showDue ? dueFilter : "any"}`);
   const { data, loading, error, reload } = useAsync(
     () => banking.cheques({
       status: status || undefined, direction: direction || undefined, q: q || undefined,
-      from: (dated && period.from) || undefined, to: dated && period.to ? `${period.to}T23:59:59.999Z` : undefined, page, limit: pageSize,
+      from: (dated && period.from) || dueRange.from || undefined,
+      to: (dated && period.to ? `${period.to}T23:59:59.999Z` : undefined) || dueRange.to || undefined,
+      page, limit: pageSize,
     }),
-    [status, direction, q, dated, period.key, page, pageSize]
+    [status, direction, q, dated, period.key, showDue, dueFilter, page, pageSize]
   );
   const rows = data?.rows || [];
   useClampPage({ pagination: data && { pages: Math.max(1, Math.ceil((data.total || 0) / pageSize)), total: data.total }, loaded: Boolean(data) && !loading, page, setPage });
   // Ticked rows are for ONE view of the list: a new filter, page or tab starts with nothing ticked, so a bulk act can
   // never reach a row the person can no longer see.
   const [selection, setSelection] = useState([]);
-  useEffect(() => { setSelection([]); }, [status, direction, q, page, pageSize, period.key]);
+  useEffect(() => { setSelection([]); }, [status, direction, q, page, pageSize, period.key, dueFilter]);
   const { can } = useOrganisation();
   const canAct = can("finance.approve");
   const done = (msg) => { setAction(null); setSelection([]); notify(msg); reload(); };
@@ -93,6 +121,13 @@ export default function ChequeRegister({ embedded = false }) {
           <TextInput aria-label="Search cheques" className="ps-9" placeholder="Cheque no., party, voucher or bank…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         {dated && <PeriodSelect filter={periodFilter} labelled />}
+        {showDue && (
+          <Field label="Due" className="w-full sm:w-44">
+            <select className={inputClass} value={dueFilter} onChange={(e) => setDueFilter(e.target.value)}>
+              {DUE_FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+          </Field>
+        )}
       </div>
       {dated ? (
         <PeriodNote filter={periodFilter} count={data ? data.total : null} noun="cheques" one="cheque" className="-mt-1 mb-4" />
@@ -104,14 +139,18 @@ export default function ChequeRegister({ embedded = false }) {
         </p>
       )}
       <Panel bodyClassName="p-0">
-        {loading && !data && <Spinner label="Loading cheques" />}
+        {/* F12/F16b (finance QA review, 1 Nov 2026): a slow request left the previous tab's rows, or
+            its empty message, on screen while a new one loaded. With nothing to show yet, the
+            spinner is the honest answer; with rows already up, they stay, dimmed and marked busy. */}
+        {rows.length === 0 && (loading || !data) && <Spinner label="Loading cheques" />}
         {error && <div className="p-5"><ErrorNote error={error} onRetry={reload} /></div>}
-        {data && rows.length === 0 && (dated && !period.all ? (
+        {data && rows.length === 0 && !loading && (dated && !period.all ? (
           <ListEmpty filter={periodFilter} noun="cheques" inPeriod={null} filtered={Boolean(q || direction)} onClearFilters={() => { setQ(""); setDirection(""); }} emptyTitle="No cheques here" createText="Cheques appear when a receipt or payment is taken by cheque." />
         ) : (
           <EmptyState title="No cheques here" text="Cheques appear when a receipt or payment is taken by cheque." />
         ))}
         {rows.length > 0 && (
+          <div className={loading ? "opacity-60 transition-opacity" : undefined} aria-busy={loading || undefined}>
           <DataTable
             caption="Cheques"
             rows={rows}
@@ -148,6 +187,7 @@ export default function ChequeRegister({ embedded = false }) {
               },
             ]}
           />
+          </div>
         )}
         {data && rows.length > 0 && (
           <ListPager

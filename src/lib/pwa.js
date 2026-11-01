@@ -112,6 +112,13 @@ export function registerServiceWorker({ onUpdate } = {}) {
 
   window.addEventListener("load", async () => {
     try {
+      // Whether THIS tab was already controlled before registering. A fresh visit with no
+      // worker yet has none - the one that installs activates on its own (no previous active
+      // worker to wait on) and `clients.claim()` then hands it control with no reload needed:
+      // that is a first install, not a version switch, and must never bounce the page.
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      let askedToReload = false;
+
       const registration = await navigator.serviceWorker.register("/sw.js");
 
       const offer = (worker) => {
@@ -119,6 +126,7 @@ export function registerServiceWorker({ onUpdate } = {}) {
         // A worker that installs with no controller is the first one: nothing to update to.
         if (!navigator.serviceWorker.controller) return;
         onUpdate?.(() => {
+          askedToReload = true;
           worker.postMessage("skip-waiting");
         });
       };
@@ -132,11 +140,23 @@ export function registerServiceWorker({ onUpdate } = {}) {
         });
       });
 
-      let reloading = false;
+      let settled = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (reloading) return;
-        reloading = true;
-        window.location.reload();
+        if (settled) return;
+        settled = true;
+        // First install claiming this tab: there was nothing showing before, so there is
+        // nothing to refresh - reloading here is the forced-reload bug this guards against.
+        if (!hadController) return;
+        // This tab pressed the update banner's button: it asked, so it reloads.
+        if (askedToReload) {
+          window.location.reload();
+          return;
+        }
+        // Some OTHER tab accepted the update and this tab's controller switched under it.
+        // Reloading a tab that never asked would throw away whatever it was doing; it keeps
+        // running the old code until its own `onUpdate` banner (offered by the same
+        // `updatefound` event, which every tab sharing this registration also received) is
+        // accepted, or it is next opened fresh.
       });
 
       // Catch a version published while the app was left open.

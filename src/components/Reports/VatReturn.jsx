@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { CheckCircle2, ChevronLeft, ChevronRight, Download, Printer, TriangleAlert } from "lucide-react";
 import { vat } from "../../lib/accountingApi";
 import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
@@ -10,6 +10,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ConfirmDialog, DateInput, EmptyState, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
 import { DateRange, Frame, lastQuarter, quarterStart } from "./reportKit";
+import { canViewAllBranches } from "../../lib/organisation";
 
 const money = (n) => formatNumber(n, 2);
 const TAB_IDS = ["return", "documents", "saved"];
@@ -61,6 +62,11 @@ export default function VatReturn() {
 function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
   const state = useAsync(() => vat.compute({ from: range.from, to: range.to }), [range.from, range.to]);
   const [busy, setBusy] = useState(false);
+  const { status, branch } = useOrganisation();
+  // One return is filed for the whole organisation (one TRN), never a branch's slice of it - the server refuses to
+  // save, finalise or file one from a branch view (F05, assertWholeOrganisation). Head office looking at one branch,
+  // or anyone confined to a branch, is told why here rather than meeting that refusal with no way to act on it.
+  const singleBranch = !canViewAllBranches(status) || Boolean(branch?.selected);
 
   async function saveDraft() {
     setBusy(true);
@@ -90,6 +96,13 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
               <StatCard title="Lines without a tax treatment" count={String(d.unclassified.count)} tone={d.unclassified.count ? "danger" : "neutral"} onClick={d.unclassified.count ? onShowUnclassified : undefined} subText={d.unclassified.count ? `${money(d.unclassified.amount)} AED` : "Every line is classified"} />
             </div>
 
+            {singleBranch && (
+              <div role="note" className="flex items-start gap-3 rounded-xl border border-status-warning/25 bg-status-warning-soft p-4 text-sm text-status-warning">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <p>The VAT return covers the whole organisation on one TRN, never a single branch's slice of it. The figures below are shown for reference; switch to All branches to save, finalise or file it.</p>
+              </div>
+            )}
+
             {d.unclassified.count > 0 && (
               <div role="alert" className="flex flex-wrap items-start gap-3 rounded-xl border border-status-warning/25 bg-status-warning-soft p-4 text-sm text-status-warning">
                 <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -102,10 +115,14 @@ function ReturnTab({ range, notify, onShowUnclassified, onSaved }) {
             )}
 
             <Panel bodyClassName="p-0" title={`VAT 201 · ${formatDate(range.from)} to ${formatDate(range.to)}`} description={`${amountsIn()}. Standard-rated supplies are reported under the emirate of your establishment (${d.emirate}), set in Settings > Business rules > Tax identity.`}
-              actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button><Can permission="reports.vat"><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></Can></>}>
+              actions={<><Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button><Button size="sm" variant="outline" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button>{!singleBranch && <Can permission="reports.vat"><Button size="sm" onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save as draft"}</Button></Can>}</>}>
               {d.emirateAssumed && (
                 <div className="border-b border-border px-4 py-2.5 sm:px-5">
-                  <Pill tone="warning" className="whitespace-normal text-start"><TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />Company emirate not set: reported under Dubai</Pill>
+                  <Pill tone="warning" className="whitespace-normal text-start">
+                    <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    Emirate not set or not recognised: reported under Dubai.{" "}
+                    <Link to="/settings?tab=rules" className="underline">Set it in Business rules</Link>
+                  </Pill>
                 </div>
               )}
               <div className="erp-scroll table-pin-first overflow-x-auto">

@@ -6,7 +6,7 @@ import { Button } from "../../ui/button";
 import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, useAsync } from "../kit";
-import { say } from "../../../lib/taxTerms";
+import { say, isUae } from "../../../lib/taxTerms";
 
 export const KINDS = {
   standard: "Standard-rated",
@@ -51,6 +51,9 @@ export default function TaxCodes({ notify }) {
             { key: "kind", header: "Treatment", card: "title", cell: (c) => KINDS[c.kind] },
             { key: "rate", header: "Rate", align: "end", card: "amount", className: "tabular-nums", cell: (c) => `${formatNumber(c.ratePercent, 2)}%` },
             { key: "history", header: "Rate changes", card: "meta", className: "text-xs text-muted-foreground", cell: (c) => c.rateHistory?.length ? c.rateHistory.map((h) => `${formatNumber(h.ratePercent, 2)}% from ${formatDateGB(h.date)}`).join(" · ") : "—" },
+            // F05: which VAT 201 box a line of this kind lands in, for a sale and for a purchase - a code is not
+            // itself "a sales code" or "a purchase code". UAE only: the box numbers belong to the UAE's own return.
+            ...(isUae() ? [{ key: "box", header: "VAT return box", card: "meta", className: "text-xs text-muted-foreground", cell: (c) => c.box ? <>Sales: {c.box.sales} · Purchases: {c.box.purchases}</> : "—" }] : []),
             { key: "status", header: "Status", card: "badge", cell: (c) => c.isActive ? <Pill tone="success">Active</Pill> : <Pill>Inactive</Pill> },
             ...(canManage ? [{ key: "edit", header: <span className="sr-only">Edit</span>, align: "end", card: "actions", cell: (c) => <button type="button" onClick={() => setModal({ code: c })} aria-label={`Edit ${c.name}`} className="grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent"><Pencil className="h-4 w-4" aria-hidden="true" /></button> }] : []),
           ]}

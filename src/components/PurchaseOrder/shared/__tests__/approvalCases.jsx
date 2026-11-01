@@ -28,7 +28,9 @@ const FINAL = { data: { data: { transaction: { status: "APPROVED" } } } };
 
 /**
  * @param module     "sales" | "purchase"
- * @param open       the status of a document that can be approved: "DRAFT" (sales, returns) or "PENDING" (purchase)
+ * @param open       the status of a document that can be approved: "DRAFT" for every module (F15, finance QA review 1 Nov
+ *                   2026 - the purchase screens checked for "PENDING" instead, a status the server never writes, so Approve
+ *                   never showed there; this parameter now agrees with the server for every caller)
  * @param Page       the module's list page
  * @param api        the mocked axios instance ({ get, post, put, delete, patch } as vi.fn)
  * @param setStatus  points the file's mocked organisation status at this person

@@ -74,6 +74,8 @@ describe("general ledger", () => {
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     expect(downloadCSV).toHaveBeenCalledTimes(1);
     expect(downloadCSV.mock.calls[0][2][0][0]).toBe("Cash");
+    // F07: names the report and the period it covers, ahead of the rows.
+    expect(downloadCSV.mock.calls[0][3].preamble[0]).toEqual(["General ledger"]);
   });
 
   it("says plainly when nothing was posted", async () => {
@@ -291,11 +293,12 @@ describe("journals", () => {
     expect(screen.getAllByText(/^JV-2026-/)).toHaveLength(20);
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     await waitFor(() => expect(downloadCSV).toHaveBeenCalledTimes(1));
-    const [name, heads, rows] = downloadCSV.mock.calls[0];
+    const [name, heads, rows, opts] = downloadCSV.mock.calls[0];
     expect(name).toMatch(/^journals-/);
     expect(heads).toEqual(["Date", "Voucher", "Narration", "Account code", "Account", "Debit", "Credit"]);
     expect(rows).toHaveLength(410); // 205 journals, two lines each
     expect(rows[409]).toEqual([expect.any(String), "JV-2026-0205", "Accrual 205", "CASH0001", "Cash in Hand", 0, 10]);
+    expect(opts.preamble[0]).toEqual(["Journals"]); // F07
     const exportCalls = m.dayBook.mock.calls.map(([p]) => p).filter((p) => p.limit === 200);
     expect(exportCalls.map((p) => p.page)).toEqual([1, 2]);
     expect(exportCalls.every((p) => p.type === "journal" && p.includeLines === true)).toBe(true);
@@ -392,6 +395,7 @@ describe("party balances", () => {
     await waitFor(() => expect(m.partyBalances).toHaveBeenLastCalledWith(expect.objectContaining({ includeZero: true })));
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
     expect(downloadCSV.mock.calls[0][2]).toHaveLength(3);
+    expect(downloadCSV.mock.calls[0][3].preamble[0]).toEqual(["Customer balances"]); // F07
   });
 
   describe("advances and accounts on the other side", () => {

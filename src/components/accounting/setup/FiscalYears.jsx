@@ -87,7 +87,12 @@ export default function FiscalYears({ notify }) {
                   ? <Button size="sm" variant="outline" onClick={() => setMonthDialog({ year: shown, month: m, action: "close" })}><Lock className="h-3.5 w-3.5" aria-hidden="true" />Close month</Button>
                   : m.canReopen
                     ? <Button size="sm" variant="outline" onClick={() => setMonthDialog({ year: shown, month: m, action: "reopen" })}><LockOpen className="h-3.5 w-3.5" aria-hidden="true" />Reopen month</Button>
-                    : null),
+                    // every other open month still has a checklist to look at (F14, finance QA review 1 Nov 2026):
+                    // months close strictly in order, so this one is not next, but what would stand in its way can
+                    // still be seen without closing anything out of order.
+                    : m.status === "open"
+                      ? <Button size="sm" variant="outline" onClick={() => setMonthDialog({ year: shown, month: m, action: "preview" })}>Checklist</Button>
+                      : null),
               }] : []),
             ]}
           />

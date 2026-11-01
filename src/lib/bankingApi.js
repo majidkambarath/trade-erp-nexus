@@ -60,7 +60,10 @@ export const vouchers = {
       .then((r) => { const d = r.data?.data; return d?.voucher ? { ...d.voucher, ledgerEntries: d.ledgerEntries } : d; })
       .catch(fail),
   create: (body) => axiosInstance.post("/vouchers/vouchers", body).then((r) => r.data?.data).catch(fail),
-  update: (id, body) => axiosInstance.put(`/vouchers/vouchers/${id}`, { ...body, forceUpdate: true }).then((r) => r.data?.data).catch(fail),
+  // A posted voucher is locked (F04, finance QA review 1 Nov 2026): the server refuses any change
+  // to its figures outright. `forceUpdate` no longer lifts anything there and is not sent; editing
+  // a pending voucher still needs no flag at all.
+  update: (id, body) => axiosInstance.put(`/vouchers/vouchers/${id}`, body).then((r) => r.data?.data).catch(fail),
   remove: (id) => axiosInstance.delete(`/vouchers/vouchers/${id}`).then((r) => r.data).catch(fail),
   // Approve (or reject) a voucher that is waiting. Above the organisation's second-approver amount an approve only records the
   // first approval and answers { approval: { awaitingSecond: true } }, leaving the voucher pending (lib/approvals wasFirstApproval).

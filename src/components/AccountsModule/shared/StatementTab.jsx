@@ -1,11 +1,17 @@
 import React, { useMemo, useState } from "react";
-import { Download, Printer } from "lucide-react";
+import { Download, FileText, Printer } from "lucide-react";
 import { cn } from "../../../lib/utils";
-import { amountsIn, downloadCSV, formatDate, formatNumber } from "../../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, reportPreamble } from "../../../utils/format";
+import { statementDocument } from "../../../lib/statement";
+import { taxIdWord } from "../../../lib/taxTerms";
+import { printMarkup, downloadSheetsPdf } from "../../PurchaseOrder/shared/documentPdf";
 import { Button } from "../../ui/button";
 import { Balance, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, DateInput } from "../../accounting/kit";
+import { useCompanyProfile } from "../../PurchaseOrder/shared/useCompanyProfile";
 import { Skeleton } from "./partyAccountParts";
 import { PRESETS, activePreset, netOf, presetRange, sideText, slug, sumRows, typeOptions, voucherLabel } from "./partyAccountUtils";
+
+const STATEMENT_HEADERS = ["Date", "Voucher no", "Type", "Narration", "Debit", "Credit", "Balance"];
 
 const COLUMNS = 7;
 
@@ -17,6 +23,7 @@ const COLUMNS = 7;
 export default function StatementTab({ k, name, statement, range, onRange }) {
   const [chosen, setChosen] = useState("all");
   const { data, loading, error, reload } = statement;
+  const profile = useCompanyProfile();
 
   const options = useMemo(() => typeOptions(data?.rows), [data]);
   // a type that the new period no longer has falls back to all of them
@@ -30,14 +37,35 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
 
   const period = range.from || range.to ? `${range.from ? formatDate(range.from) : "the start"} to ${range.to ? formatDate(range.to) : "today"}` : "All dates";
   const count = `${shown.length} ${shown.length === 1 ? "entry" : "entries"}`;
+  const statementTitle = `Statement of account - ${name}`;
 
-  function exportCsv() {
-    const rows = [
+  // The same rows go to the CSV, the print and the PDF: one figure, never a second copy that could drift.
+  function statementRows() {
+    return [
       [range.from ? formatDate(range.from) : "", "Opening balance", "", "", "", "", sideText(net(data.opening))],
       ...shown.map((r) => [formatDate(r.date), r.voucherNo, voucherLabel(r.voucherType), r.narration || "", r.debit || "", r.credit || "", sideText(net(r.balance))]),
       [range.to ? formatDate(range.to) : "", "Closing balance", "", "", totals.debit, totals.credit, sideText(net(data.closing))],
     ];
-    downloadCSV(`statement-${slug(name)}-${range.from || "start"}-${range.to || "latest"}.csv`, ["Date", "Voucher no", "Type", "Narration", "Debit", "Credit", "Balance"], rows);
+  }
+
+  function exportCsv() {
+    downloadCSV(`statement-${slug(name)}-${range.from || "start"}-${range.to || "latest"}.csv`, STATEMENT_HEADERS, statementRows(),
+      { preamble: reportPreamble({ company: profile.companyName, title: statementTitle, period }) });
+  }
+
+  function documentMarkup() {
+    return statementDocument({
+      company: profile.companyName, trn: profile.vatNumber ? `${taxIdWord()} ${profile.vatNumber}` : "",
+      title: statementTitle, period, currency: CURRENCY, headers: STATEMENT_HEADERS, rows: statementRows(),
+    });
+  }
+  // F07: the frame-based printMarkup (not window.print()) prints only the statement's own table, never the
+  // app shell around it, and cannot be stopped by a pop-up blocker.
+  function printStatement() {
+    printMarkup(documentMarkup());
+  }
+  function downloadPdf() {
+    downloadSheetsPdf([documentMarkup()], `statement-${slug(name)}-${range.from || "start"}-${range.to || "latest"}`);
   }
 
   const hasActivity = data && (data.rows.length > 0 || data.opening !== 0);
@@ -80,7 +108,8 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
           data && (
             <div className="flex items-center gap-2 print:hidden">
               <Button type="button" variant="outline" size="sm" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />Export CSV</Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button>
+              <Button type="button" variant="outline" size="sm" onClick={printStatement}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button>
+              <Button type="button" variant="outline" size="sm" onClick={downloadPdf}><FileText className="h-3.5 w-3.5" aria-hidden="true" />Download PDF</Button>
             </div>
           )
         }

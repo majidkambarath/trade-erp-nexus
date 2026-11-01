@@ -2,12 +2,12 @@ import React, { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Download } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { amountsIn, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, Field, PageHeader, Panel, Pill, Select, TextInput, useAsync } from "../accounting/kit";
-import { DateRange, Frame, ViewBar } from "./reportKit";
+import { DateRange, Frame, useExportPreamble, ViewBar } from "./reportKit";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { useListView } from "../../lib/useListView";
 
@@ -48,6 +48,7 @@ function Parties({ type, asOn }) {
   const focus = list.filters.focus;
   const includeZero = Boolean(list.filters.includeZero);
   const state = useAsync(() => accounting.partyBalances({ type, asOn, includeZero: includeZero || undefined }), [type, asOn, includeZero]);
+  const preambleFor = useExportPreamble(customer ? "Customer balances" : "Vendor balances");
   // a party's advance (what it holds with us, or we with it, on account) is its own column, drawn only when someone has one
   const hasOnAccount = (state.data?.rows || []).some((r) => Math.abs(r.onAccount || 0) >= 0.005);
 
@@ -78,7 +79,8 @@ function Parties({ type, asOn }) {
               ...(hasOnAccount ? [r.onAccount || 0] : []),
               ...(customer ? [r.creditLimit, r.utilisation ?? "", STATUS[r.status].label] : []),
               r.overdue,
-            ]));
+            ]),
+            { preamble: preambleFor(`As at ${formatDateGB(asOn)}`) });
           // Two different things were once one figure labelled "Paid in advance". `onAccount` is what the party holds on account (an
           // advance); `advances` is any account whose net balance is on the other side, which a return or an overpayment leaves.
           return (

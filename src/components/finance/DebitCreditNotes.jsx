@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { Copy, Eye, Plus } from "lucide-react";
@@ -118,6 +118,16 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
   const partyOptions = useMemo(() => (parties.data || []).map((p) => ({ value: p._id, label: p[nameKey], hint: p[partyType === "Vendor" ? "vendorId" : "customerId"] })), [parties.data, nameKey, partyType]);
 
   const canSettle = reduces(type, partyType);
+  // A customer credit note (or vendor debit note) reduces a sale: default its one still-blank line
+  // to the Sales Returns account, once accounts have loaded (F08, finance QA review 1 Nov 2026 -
+  // there was no such account to pick, so the line was left on Sales Revenue itself). The person may
+  // still change it; a copied note, or one already started, is left alone.
+  useEffect(() => {
+    if (copied || !canSettle || !accounts?.length) return;
+    const salesReturns = accounts.find((a) => a.accountName === "Sales Returns");
+    if (!salesReturns) return;
+    setLines((ls) => (ls.length === 1 && !ls[0].accountId && !ls[0].description && !ls[0].amount ? [{ ...ls[0], accountId: salesReturns._id }] : ls));
+  }, [copied, canSettle, accounts]);
   const invoices = useAsync(
     () => (partyId && canSettle
       ? axiosInstance.get("/transactions/transactions", { params: { type: partyType === "Vendor" ? "purchase_order" : "sales_order", partyId, status: "APPROVED", limit: 100 } })
@@ -195,7 +205,21 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
             }
             if (col.key === "description") return <TextInput aria-label={`Description, row ${i + 1}`} value={row.description} onChange={(e) => patch(i, { description: e.target.value })} maxLength={200} placeholder="What it is for…" />;
             if (col.key === "taxCodeId") return <SearchSelect aria-label={`Tax code, row ${i + 1}`} value={row.taxCodeId} onChange={(v) => patch(i, { taxCodeId: v })} options={taxOptions} clearable placeholder={`No ${taxWord()}`} />;
-            return <TextInput aria-label={`Amount, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00" value={row.amount} onChange={(e) => AMOUNT.test(e.target.value.replace(/,/g, "")) && patch(i, { amount: e.target.value.replace(/,/g, "") })} />;
+            return (
+              <TextInput
+                aria-label={`Amount, row ${i + 1}`} inputMode="decimal" className="text-end tabular-nums" placeholder="0.00" value={row.amount}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  // A minus is refused with a message, not silently dropped character by character
+                  // (which left "-100" reading as "100" - F03, finance QA review 1 Nov 2026).
+                  if (raw.includes("-")) { setErrors((er) => ({ ...er, [i]: "Amounts cannot be negative" })); return; }
+                  const v = raw.replace(/,/g, "");
+                  if (!AMOUNT.test(v)) return;
+                  setErrors((er) => (er[i] ? { ...er, [i]: undefined } : er));
+                  patch(i, { amount: v });
+                }}
+              />
+            );
           }}
           footer={
             <>

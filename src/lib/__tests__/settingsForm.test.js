@@ -36,17 +36,21 @@ describe("passwordStrength", () => {
 
 describe("the approval rules form", () => {
   it("starts from what the server stored, and an unset rule reads as off", () => {
-    expect(approvalsFrom({ separateApprover: true, secondApprovalAbove: 5000 })).toEqual({ separateApprover: true, secondApprovalAbove: "5000" });
-    expect(approvalsFrom({ separateApprover: false, secondApprovalAbove: null })).toEqual({ separateApprover: false, secondApprovalAbove: "" });
-    expect(approvalsFrom(undefined)).toEqual({ separateApprover: false, secondApprovalAbove: "" });
+    expect(approvalsFrom({ separateApprover: true, secondApprovalAbove: 5000 })).toEqual({ separateApprover: true, secondApprovalAbove: "5000", notesNeedApproval: false });
+    expect(approvalsFrom({ separateApprover: false, secondApprovalAbove: null })).toEqual({ separateApprover: false, secondApprovalAbove: "", notesNeedApproval: false });
+    expect(approvalsFrom(undefined)).toEqual({ separateApprover: false, secondApprovalAbove: "", notesNeedApproval: false });
     expect(approvalsFrom({ secondApprovalAbove: 0 }).secondApprovalAbove).toBe("0"); // 0 is a real amount: every document needs two
+    // F08 (finance QA review, 1 Nov 2026): "credit and debit notes wait for approval"
+    expect(approvalsFrom({ notesNeedApproval: true }).notesNeedApproval).toBe(true);
+    expect(approvalsFrom({ notesNeedApproval: "true" }).notesNeedApproval).toBe(false); // only a real boolean switches it on
   });
 
   it("sends the amount as a number, and nothing as null (switched off)", () => {
-    expect(approvalsPayload({ separateApprover: true, secondApprovalAbove: "5000" })).toEqual({ ok: true, body: { approvals: { separateApprover: true, secondApprovalAbove: 5000 } } });
+    expect(approvalsPayload({ separateApprover: true, secondApprovalAbove: "5000" })).toEqual({ ok: true, body: { approvals: { separateApprover: true, secondApprovalAbove: 5000, notesNeedApproval: false } } });
     expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: " 1,250.50 " }).body.approvals.secondApprovalAbove).toBe(1250.5);
     expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "" }).body.approvals.secondApprovalAbove).toBeNull();
     expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "0" }).body.approvals.secondApprovalAbove).toBe(0);
+    expect(approvalsPayload({ separateApprover: false, secondApprovalAbove: "", notesNeedApproval: true }).body.approvals.notesNeedApproval).toBe(true);
   });
 
   it("refuses an amount that is not an amount, before anything is sent", () => {
