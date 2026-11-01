@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.1.0.0 — 1 November 2026
+
+Frontend half of the Finance QA fixes (see trade ERP node and foodERP/CLAUDE.md "Finance test report
+fixes" for the full list and the server-side rules). Needs backend 2.1.0.0. Frontend 2.1.0.0.
+
+### Fixed
+
+- A posted voucher's Edit is replaced by "Edit narration" (reason required); Print carries the
+  organisation's letterhead, "Received from"/"Paid to", the amount in words, and the invoices it
+  settled - shown on screen too. A blocked pop-up says so instead of doing nothing.
+- A new order line gets the organisation's default tax code as soon as it has loaded; a blank VAT
+  cell sends no rate at all, not 0.
+- Tax codes show which VAT 201 box they land in (UAE only); the Company tab's "State / emirate" is a
+  locked choice of the seven for a UAE company; the VAT return warns and hides Save as draft on a
+  single branch and links to where the emirate is actually set.
+- Exported reports (Financial statements, Ledger reports, Party balances, Ageing, IFRS statements,
+  Account statement) carry a short header - company, report, period, printed on. The account
+  statement can be printed through a hidden frame and downloaded as a PDF, not only `window.print()`
+  on the live page.
+- A bank-mode receipt/payment needs a slip or reference; typing a minus shows a message instead of
+  silently dropping the keystroke.
+- Voucher and cheque lists no longer show stale rows as the answer while a search or period change
+  is loading, and remember their period between visits.
+- The app shell no longer reloads a tab that never asked to update (a first install, or another
+  tab's update); a cold-start network error or 5xx on session refresh no longer signs the person out.
+- Chart of accounts: focuses the first invalid field after a refusal, Opening side starts as
+  "Choose…"; a ledger row for a finance voucher opens its view.
+- The purchase order list's "awaiting approval" styling uses the real rule instead of a literal
+  `status === "PENDING"` no document is ever saved with.
+- Deleted two dead invoice-view files that hard-coded another company's details and were imported
+  nowhere.
+
 ## 2.0.0.1 — 30 October 2026
 
 A QA pass of the garage module (Garage-Test-Report.xlsx, run against the live Al Manara Auto Garage LLC
