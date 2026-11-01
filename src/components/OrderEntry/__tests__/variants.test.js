@@ -33,6 +33,44 @@ describe("purchase return payload (regression: priced with the system price, tot
   });
 });
 
+// F01 (finance QA review 1 Nov 2026): a blank VAT cell with no tax code chosen sends no rate at
+// all, so TaxCodeService.applyToItems applies the organisation's own default standard code
+// instead of posting the line at 0%. Once a tax code is chosen, or the person typed an explicit
+// value (0 included - a deliberate zero-rated entry), it is always sent as it stands.
+describe("a blank VAT cell sends no rate at all, so the server's own default can apply", () => {
+  const V = VARIANTS.sales;
+  const baseRow = { ...V.rowTemplate(), itemId: "s1", description: "Basmati", qty: "10", rate: "20" };
+
+  it("omits vatPercent when the cell is blank and no tax code is chosen", () => {
+    const row = { ...baseRow, vatPercent: "", taxCodeId: "" };
+    const p = buildPayload(V, { partyId: "c1" }, [row], byId(stock()));
+    expect(p.items[0]).not.toHaveProperty("vatPercent");
+  });
+
+  it("sends an explicit 0 as it stands - it is a deliberate entry, not an omission", () => {
+    const row = { ...baseRow, vatPercent: "0", taxCodeId: "" };
+    const p = buildPayload(V, { partyId: "c1" }, [row], byId(stock()));
+    expect(p.items[0].vatPercent).toBe(0);
+  });
+
+  it("sends the rate once a tax code is chosen, even if it later reads blank", () => {
+    const row = { ...baseRow, vatPercent: "", taxCodeId: "tc1" };
+    const p = buildPayload(V, { partyId: "c1" }, [row], byId(stock()));
+    expect(p.items[0]).toHaveProperty("vatPercent", 0);
+    expect(p.items[0].taxCodeId).toBe("tc1");
+  });
+
+  it("purchase, purchase return and sales return lines follow the same rule", () => {
+    const purchaseRow = { ...VARIANTS.purchase.rowTemplate(), itemId: "s1", qty: "10", currentPurchasePrice: "12.5", vatPercent: "", taxCodeId: "" };
+    const pr = buildPayload(VARIANTS.purchase, { partyId: "v1" }, [purchaseRow], byId(stock()));
+    expect(pr.items[0]).not.toHaveProperty("vatPercent");
+
+    const returnRow = { ...VARIANTS.salesReturn.rowTemplate(), itemId: "s1", description: "Juice", qty: "10", salesPrice: "12.5", taxPercent: "", category: "Drinks" };
+    const rr = buildPayload(VARIANTS.salesReturn, { partyId: "c1" }, [returnRow], byId(stock()));
+    expect(rr.items[0]).not.toHaveProperty("vatPercent");
+  });
+});
+
 describe("sales return payload (regressions: taxPercent ignored, quantity counted twice)", () => {
   const V = VARIANTS.salesReturn;
   const row = { ...V.rowTemplate(), itemId: "s1", description: "Juice", qty: "10", salesPrice: "12.5", taxPercent: "5", category: "Drinks" };

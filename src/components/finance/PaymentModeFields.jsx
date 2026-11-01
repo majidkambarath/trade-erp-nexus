@@ -18,8 +18,10 @@ const accountOptions = (accounts) =>
 // How the money moved on a receipt or payment: cash, bank, transfer, cheque or card, with the
 // fields that mode needs. `value` is the form state (see emptyPayment); `onChange` receives a
 // patch. `options` is what the server offers (accounts, banks, cards). `amount` lets a card
-// receipt show the processor's fee.
-export default function PaymentModeFields({ value, onChange, direction, options, errors = {}, voucherDate, amount }) {
+// receipt show the processor's fee. `requireBankReference`: a receipt or payment voucher needs a
+// slip or reference for bank mode too (F03, finance QA review 1 Nov 2026) - PartyVouchers.jsx
+// passes it, ExpenseVouchers.jsx does not (an expense paid by bank stays optional).
+export default function PaymentModeFields({ value, onChange, direction, options, errors = {}, voucherDate, amount, requireBankReference = false }) {
   const isReceipt = direction === "receipt";
   const set = (patch) => onChange({ ...value, ...patch });
   const bankAccounts = useMemo(() => accountOptions(options?.bankAccounts || []), [options]);
@@ -87,7 +89,7 @@ export default function PaymentModeFields({ value, onChange, direction, options,
         )}
 
         {value.mode === "bank" && (
-          <Field label="Slip or reference" hint="Optional.">
+          <Field label="Slip or reference" required={requireBankReference} hint={requireBankReference ? undefined : "Optional."} error={errors.reference}>
             <TextInput value={value.reference} onChange={(e) => set({ reference: e.target.value })} maxLength={60} />
           </Field>
         )}

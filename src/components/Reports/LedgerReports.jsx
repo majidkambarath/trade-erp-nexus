@@ -9,7 +9,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, ViewBar, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, yearStart } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import SavedViews from "../lists/SavedViews";
@@ -66,6 +66,7 @@ function GeneralLedger({ range, onLedger }) {
   // The same state platform, vocabulary and saved views as the trial balance, so the two reports
   // are narrowed the same way (lib/useListView.js, lib/ledgerFilters.js).
   const list = useListView("general-ledger", { filters: DEFAULT_GL_FILTERS });
+  const preambleFor = useExportPreamble("General ledger");
   const f = list.filters;
   const choices = { ...f, search: list.search };
   const groupsOnly = f.layout === "groups";
@@ -81,7 +82,8 @@ function GeneralLedger({ range, onLedger }) {
           // Narrowed, the totals are of what survived; otherwise the server's own are the report.
           const d = { ...all, groups, totals: narrowed ? LF.sumGroups(groups) : all.totals };
           const exportCsv = () => downloadCSV(`general-ledger-${range.from}-${range.to}.csv`, ["Group", "Code", "Account", "Opening", "Debit", "Credit", "Closing"],
-            d.groups.flatMap((g) => (groupsOnly ? [[g.name, "", "", g.totals.opening, g.totals.debit, g.totals.credit, g.totals.closing]] : g.accounts.map((a) => [g.name, a.accountCode, a.accountName, a.opening, a.debit, a.credit, a.closing]))).concat([["Total", "", "", d.totals.opening, d.totals.debit, d.totals.credit, d.totals.closing]]));
+            d.groups.flatMap((g) => (groupsOnly ? [[g.name, "", "", g.totals.opening, g.totals.debit, g.totals.credit, g.totals.closing]] : g.accounts.map((a) => [g.name, a.accountCode, a.accountName, a.opening, a.debit, a.credit, a.closing]))).concat([["Total", "", "", d.totals.opening, d.totals.debit, d.totals.credit, d.totals.closing]]),
+            { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -168,13 +170,14 @@ function DayBook({ range }) {
   const state = useAsync(() => accounting.dayBook({ from: range.from, to: range.to, type: type || undefined, search: needle || undefined, page, limit: PAGE }), [range.from, range.to, type, needle, page]);
   const { notify, toastNode } = useToasts();
   const [exporting, setExporting] = useState(false);
+  const preambleFor = useExportPreamble("Day book");
 
   // The file holds every voucher the dates, type and search select - not the page on screen.
   async function exportAll() {
     setExporting(true);
     try {
       const { rows, total, truncated } = await fetchAllPages((p) => accounting.dayBook({ from: range.from, to: range.to, type: type || undefined, search: needle || undefined, ...p }));
-      downloadCSV(`day-book-${range.from}-${range.to}.csv`, DAY_BOOK_HEADERS, dayBookRows(rows, formatDate));
+      downloadCSV(`day-book-${range.from}-${range.to}.csv`, DAY_BOOK_HEADERS, dayBookRows(rows, formatDate), { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
       notify(exportedText({ written: rows.length, total, truncated }, "voucher", "vouchers"));
     } catch (e) {
       notify(errorMessage(e), "error");
@@ -282,13 +285,14 @@ function Journals({ range }) {
   const state = useAsync(() => accounting.dayBook({ from: range.from, to: range.to, type: "journal", includeLines: true, page, limit: 20 }), [range.from, range.to, page]);
   const { notify, toastNode } = useToasts();
   const [exporting, setExporting] = useState(false);
+  const preambleFor = useExportPreamble("Journals");
 
   // every journal of the period, each with its lines, not the twenty on screen
   async function exportAll() {
     setExporting(true);
     try {
       const { rows, total, truncated } = await fetchAllPages((p) => accounting.dayBook({ from: range.from, to: range.to, type: "journal", includeLines: true, ...p }));
-      downloadCSV(`journals-${range.from}-${range.to}.csv`, JOURNAL_HEADERS, journalRows(rows, formatDate));
+      downloadCSV(`journals-${range.from}-${range.to}.csv`, JOURNAL_HEADERS, journalRows(rows, formatDate), { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
       notify(exportedText({ written: rows.length, total, truncated }, "journal", "journals"));
     } catch (e) {
       notify(errorMessage(e), "error");
@@ -350,13 +354,15 @@ function Journals({ range }) {
 function CashAndBankBook({ range, onLedger }) {
   const [kind, setKind] = useState("");
   const state = useAsync(() => accounting.cashBook({ from: range.from, to: range.to, kind: kind || undefined }), [range.from, range.to, kind]);
+  const preambleFor = useExportPreamble("Cash and bank book");
   return (
     <div className="space-y-4">
       <Field label="Show" className="w-52"><Select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">Cash and bank</option><option value="cash">Cash only</option><option value="bank">Bank only</option></Select></Field>
       <Frame state={state}>
         {(d) => {
           const exportCsv = () => downloadCSV(`cash-and-bank-${range.from}-${range.to}.csv`, ["Code", "Account", "Type", "Opening", "Receipts", "Payments", "Closing"],
-            d.rows.map((r) => [r.accountCode, r.accountName, r.kind === "cash" ? "Cash" : "Bank", r.opening, r.receipts, r.payments, r.closing]).concat([["", "Total", "", d.totals.all.opening, d.totals.all.receipts, d.totals.all.payments, d.totals.all.closing]]));
+            d.rows.map((r) => [r.accountCode, r.accountName, r.kind === "cash" ? "Cash" : "Bank", r.opening, r.receipts, r.payments, r.closing]).concat([["", "Total", "", d.totals.all.opening, d.totals.all.receipts, d.totals.all.payments, d.totals.all.closing]]),
+            { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

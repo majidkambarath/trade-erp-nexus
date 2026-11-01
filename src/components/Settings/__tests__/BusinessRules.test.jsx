@@ -85,7 +85,7 @@ describe("approvals", () => {
     fireEvent.click(await ready(screen.findByLabelText(/The person who prepared a document cannot approve it/)));
     fireEvent.change(screen.getByLabelText(/Ask for a second approver on documents above/), { target: { value: "5000" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: 5000 } }));
+    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: 5000, notesNeedApproval: false } }));
     expect(notify).toHaveBeenCalledWith("Approval rules saved");
   });
 
@@ -94,7 +94,18 @@ describe("approvals", () => {
     show();
     fireEvent.change(await ready(screen.findByLabelText(/Ask for a second approver on documents above/)), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: null } }));
+    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: null, notesNeedApproval: false } }));
+  });
+
+  // F08 (finance QA review, 1 Nov 2026): a credit or debit note posts the moment it is saved unless
+  // the organisation switches this on, and then it is held - whatever its amount - until approved.
+  it("switches on 'credit and debit notes wait for approval', off by default", async () => {
+    show();
+    const checkbox = await ready(screen.findByLabelText(/Credit and debit notes wait for approval/));
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
+    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: false, secondApprovalAbove: null, notesNeedApproval: true } }));
   });
 
   it("will not send an amount that is not an amount, and says so beside the field", async () => {

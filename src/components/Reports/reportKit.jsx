@@ -1,10 +1,22 @@
 import React from "react";
 import { Button } from "../ui/button";
 import { ErrorNote, Field, PageSpinner, TextInput, DateInput } from "../accounting/kit";
-import { todayInput } from "../../utils/format";
+import { reportPreamble, todayInput } from "../../utils/format";
+import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import SavedViews from "../lists/SavedViews";
 
 // Small pieces the report screens share: the date range with its presets, and the loading / error frame.
+
+// F07: an exported report used to open as a bare grid with no way to tell whose figures they were
+// or as of when, once saved, renamed or forwarded on. The organisation's own name (the same
+// letterhead a printed document carries) plus the report's title, the period it covers and when
+// it was made, as `downloadCSV`'s `preamble` - one hook so every report's export reads it the
+// same way. `period` is a string the screen has already formatted for a person to read; leave it
+// out for a point-in-time report (a balance sheet, an ageing report, a statement "as at" a day).
+export function useExportPreamble(title) {
+  const profile = useCompanyProfile();
+  return (period) => reportPreamble({ company: profile.companyName, title, period });
+}
 
 const pad = (n) => String(n).padStart(2, "0");
 export const monthStart = (today = todayInput()) => `${today.slice(0, 7)}-01`;

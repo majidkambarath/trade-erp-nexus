@@ -5,7 +5,7 @@ import { ifrs } from "../../lib/ifrsApi";
 import {
   COMPARE_OPTIONS, TABS, buildDocument, documentCsv, fileSlug, formatAmount, isAsAtTab, isTab, keyFigures, printDocument, requestFor, warnings,
 } from "../../lib/ifrsStatements";
-import { CURRENCY, downloadCSV, formatDate, todayInput } from "../../utils/format";
+import { CURRENCY, downloadCSV, formatDate, reportPreamble, todayInput } from "../../utils/format";
 import { getBrand } from "../../config/brands";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -91,7 +91,8 @@ function StatementTab({ tab, range, compare, detail }) {
   const company = data.entity?.name || getBrand().name;
   const exportCsv = () => {
     const { headers, rows } = documentCsv(doc);
-    downloadCSV(`ifrs-${fileSlug(tab)}-${data.asAt || data.to}.csv`, headers, rows);
+    const period = data.asAt ? `As at ${formatDate(data.asAt)}` : data.from ? `${formatDate(data.from)} to ${formatDate(data.to)}` : undefined;
+    downloadCSV(`ifrs-${fileSlug(tab)}-${data.asAt || data.to}.csv`, headers, rows, { preamble: reportPreamble({ company, title: doc.title, period }) });
   };
   const print = () => {
     if (!printDocument(doc, { company, trn: data.entity?.trn, currency: data.currency || CURRENCY })) notify("Allow pop-ups for this site to print the statement.", "error");

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accountOptions, findAccount, groupByMonth, monthKeyOf, monthLabel, netOf } from "../statement";
+import { accountOptions, findAccount, groupByMonth, monthKeyOf, monthLabel, netOf, statementDocument } from "../statement";
 
 // The rules behind Reports -> Account statement that can be judged without rendering: which month a
 // posting falls in, what a month's own line says, how the whole chart is offered in the picker, and the
@@ -121,5 +121,60 @@ describe("the whole chart, offered in the picker", () => {
     expect(findAccount(chart, "a1").accountName).toBe("Travelling");
     expect(findAccount(chart, "nope")).toBeNull();
     expect(findAccount([], "a1")).toBeNull();
+  });
+});
+
+// F07: the printable / PDF body is the same table the screen and the CSV show - no second, disagreeing
+// copy of the figures. Body-only markup: neither reader of it (printMarkup, downloadSheetsPdf) wants a
+// second <html> nested inside the one they wrap it in.
+describe("statementDocument", () => {
+  const args = {
+    company: "Harbour Trading", trn: "TRN 100123456700003", title: "Statement of account - Al Noor",
+    period: "1 Sep 2026 to 30 Sep 2026", currency: "AED",
+    headers: ["Date", "Voucher no", "Type", "Narration", "Debit", "Credit", "Balance"],
+    rows: [
+      ["", "Opening balance", "", "", "", "", "1,000.00 Dr"],
+      ["05/09/2026", "SO-2026-0001", "Sales invoice", "Sales invoice", 2000, "", "3,000.00 Dr"],
+      ["", "Closing balance", "", "", 2000, "", "3,000.00 Dr"],
+    ],
+  };
+
+  it("has no <html> or <head> of its own - it is loaded into another document's frame", () => {
+    const html = statementDocument(args);
+    expect(html).not.toContain("<html");
+    expect(html).not.toContain("<head");
+    expect(html).not.toContain("<body");
+  });
+
+  it("carries the company, the TRN, the title and the period", () => {
+    const html = statementDocument(args);
+    expect(html).toContain("Harbour Trading");
+    expect(html).toContain("TRN 100123456700003");
+    expect(html).toContain("Statement of account - Al Noor");
+    expect(html).toContain("1 Sep 2026 to 30 Sep 2026");
+    expect(html).toContain("AED");
+  });
+
+  it("leaves the TRN line out when there is none", () => {
+    expect(statementDocument({ ...args, trn: "" })).not.toContain("TRN 100123456700003");
+  });
+
+  it("draws the same headers and rows the CSV export was given, debit/credit/balance right-aligned", () => {
+    const html = statementDocument(args);
+    expect(html).toContain("<th class=\"n\">Debit</th>");
+    expect(html).toContain("<th>Narration</th>"); // not right-aligned
+    expect(html).toContain("SO-2026-0001");
+    expect(html).toContain("3,000.00 Dr");
+  });
+
+  it("escapes a party or voucher name that could break out of a cell", () => {
+    const html = statementDocument({ ...args, title: 'Statement - <script>alert(1)</script>' });
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("holds a blank cell for an empty row value rather than printing 'null' or 'undefined'", () => {
+    const html = statementDocument({ ...args, rows: [["", "Opening balance", "", "", "", null, undefined]] });
+    expect(html).not.toMatch(/null|undefined/);
   });
 });

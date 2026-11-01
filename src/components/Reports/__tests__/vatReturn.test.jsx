@@ -6,13 +6,21 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({ compute: vi.fn(), detail: vi.fn(), returns: vi.fn(), saveDraft: vi.fn(), finalize: vi.fn(), file: vi.fn(), removeReturn: vi.fn() }));
 vi.mock("../../../lib/accountingApi", () => ({ vat: m }));
 vi.mock("../../../utils/format", async (orig) => ({ ...(await orig()), downloadCSV: vi.fn() }));
+// All-branches by default (what every test before F05 ran against): the real OrganisationContext's own default
+// (no provider) also reads as "may see every branch, nothing chosen", so this changes nothing for them.
+const org = vi.hoisted(() => ({ state: { status: null, branch: { selected: null, label: null }, canAny: () => true, can: () => true } }));
+vi.mock("../../shell/OrganisationContext", () => ({ useOrganisation: () => org.state }));
 
 import VatReturn from "../VatReturn";
 import { downloadCSV } from "../../../utils/format";
 import { lastQuarter, quarterStart } from "../reportKit";
 
 const at = (url = "/") => render(<MemoryRouter initialEntries={[url]}><VatReturn /></MemoryRouter>);
-beforeEach(() => { Object.values(m).forEach((f) => f.mockReset()); downloadCSV.mockReset(); });
+beforeEach(() => {
+  Object.values(m).forEach((f) => f.mockReset());
+  downloadCSV.mockReset();
+  org.state = { status: null, branch: { selected: null, label: null }, canAny: () => true, can: () => true };
+});
 
 const b = (box, label, amount = 0, vatAmount = 0) => ({ box, label, amount, vat: vatAmount });
 const RETURN = (over = {}) => ({
@@ -64,18 +72,21 @@ describe("the return", () => {
     expect(note).toHaveTextContent("(Sharjah)");
     expect(note).toHaveTextContent("Settings > Business rules > Tax identity");
     expect(screen.queryByText(/until customers carry their own emirate/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Company emirate not set/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Emirate not set or not recognised/)).not.toBeInTheDocument();
   });
 
-  it("warns, in the return itself, when no emirate is set and Dubai was assumed", async () => {
+  it("warns, in the return itself, when no emirate is set or recognised and Dubai was assumed, with a link to fix it", async () => {
     m.compute.mockResolvedValue(RETURN({ emirate: "Dubai", emirateAssumed: true }));
     at();
     await screen.findByText("Standard-rated supplies in Dubai");
-    const pill = screen.getByText("Company emirate not set: reported under Dubai");
+    const pill = screen.getByText(/Emirate not set or not recognised: reported under Dubai/).closest(".inline-flex");
     expect(pill.className).toMatch(/status-warning/);
     // it sits in the return panel, above the boxes, and the rule is still explained
     expect(pill.closest("section")).toContainElement(screen.getByText("Standard-rated supplies in Dubai"));
     expect(screen.getByText(/emirate of your establishment \(Dubai\)/)).toBeInTheDocument();
+    // links straight to where it is set (Settings > Business rules > Tax identity)
+    const link = within(pill).getByRole("link", { name: "Set it in Business rules" });
+    expect(link).toHaveAttribute("href", "/settings?tab=rules");
     // the reconciliation behaviour next to it is unchanged
     expect(within(screen.getByText("Input VAT", { selector: "span" }).closest("li")).getByText("Differs by 5.00")).toBeInTheDocument();
   });
@@ -84,9 +95,43 @@ describe("the return", () => {
     m.compute.mockResolvedValue(RETURN());
     at();
     await screen.findByText("Standard-rated supplies in Dubai");
-    expect(screen.queryByText(/Company emirate not set/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Emirate not set or not recognised/)).not.toBeInTheDocument();
+  });
+});
+
+// F05: the return covers the whole organisation on one TRN, never a branch's slice of it - the server refuses to
+// save, finalise or file one while a branch view is in force (ALL_BRANCHES_REQUIRED). The screen says so and hides
+// Save as draft before anyone meets that refusal, rather than after.
+describe("the return and a branch view", () => {
+  it("shows nothing about branches, and Save as draft, for someone who may see every branch and has not chosen one", async () => {
+    m.compute.mockResolvedValue(RETURN());
+    org.state = { status: { branch: { canViewAll: true } }, branch: { selected: null, label: "All branches" }, canAny: () => true, can: () => true };
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    expect(screen.queryByText(/never a single branch's slice of it/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save as draft" })).toBeInTheDocument();
   });
 
+  it("warns and hides Save as draft when head office has switched to one branch", async () => {
+    m.compute.mockResolvedValue(RETURN());
+    org.state = { status: { branch: { canViewAll: true } }, branch: { selected: "shj", label: "Sharjah" }, canAny: () => true, can: () => true };
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    expect(screen.getByRole("note")).toHaveTextContent("never a single branch's slice of it");
+    expect(screen.queryByRole("button", { name: "Save as draft" })).toBeNull();
+  });
+
+  it("warns and hides Save as draft for someone confined to one branch, even with nothing chosen", async () => {
+    m.compute.mockResolvedValue(RETURN());
+    org.state = { status: { branch: { canViewAll: false } }, branch: { selected: null, label: "Sharjah" }, canAny: () => true, can: () => true };
+    at();
+    await screen.findByText("Standard-rated supplies in Dubai");
+    expect(screen.getByRole("note")).toHaveTextContent("never a single branch's slice of it");
+    expect(screen.queryByRole("button", { name: "Save as draft" })).toBeNull();
+  });
+});
+
+describe("the return", () => {
   it("warns about lines with no treatment and takes you to them", async () => {
     m.compute.mockResolvedValue(RETURN({ unclassified: { count: 2, amount: 80, vat: 0, lines: [{ docNo: "SO-2026-0007" }, { docNo: "SO-2026-0009" }] } }));
     m.detail.mockResolvedValue({ total: 0, page: 1, limit: 50, totals: { taxable: 0, vat: 0 }, rows: [] });

@@ -178,8 +178,15 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   }, [currency, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeAmount = (raw) => {
+    // A minus is refused with a message, not silently dropped character by character (which left
+    // "-10" reading as "10" - F03, finance QA review 1 Nov 2026).
+    if (String(raw).includes("-")) {
+      setErrors((e) => ({ ...e, amount: "Amounts cannot be negative" }));
+      return;
+    }
     const v = typedAmount(raw, currency ? decimals : 2);
     if (v === null) return;
+    setErrors((e) => (e.amount ? { ...e, amount: undefined } : e));
     setAmount(v);
     setAlloc(allocateOldestFirst(listed, totalFor(v))); // the oldest invoices are settled first
   };
@@ -203,8 +210,13 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   };
   const changeDate = (iso) => { setDate(iso); setRateTyped(null); setReason(""); }; // the rate follows the day
   const setAllocation = (inv, raw) => {
+    if (String(raw).includes("-")) {
+      setErrors((e) => ({ ...e, [inv._id]: "Amounts cannot be negative" }));
+      return;
+    }
     const v = typedAmount(raw, 2);
     if (v === null) return;
+    setErrors((e) => (e[inv._id] ? { ...e, [inv._id]: undefined } : e));
     const next = { ...alloc, [inv._id]: v };
     if (!toCents(v)) delete next[inv._id];
     setAlloc(next);
@@ -225,7 +237,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
       if (f.exchangeRate) e.exchangeRate = f.exchangeRate;
       if (f.rateOverrideReason) e.rateOverrideReason = f.rateOverrideReason;
     }
-    Object.assign(e, validatePayment(payment, { direction, options: opts, voucherDate: date }));
+    Object.assign(e, validatePayment(payment, { direction, options: opts, voucherDate: date, requireBankReference: true }));
     setErrors(e);
     if (Object.keys(e).length) return;
     setBusy(true);
@@ -379,7 +391,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
           </section>
         )}
 
-        {opts && <PaymentModeFields value={payment} onChange={setPayment} direction={direction} options={opts} errors={errors} voucherDate={date} amount={total / 100} />}
+        {opts && <PaymentModeFields value={payment} onChange={setPayment} direction={direction} options={opts} errors={errors} voucherDate={date} amount={total / 100} requireBankReference />}
         <Field label="Narration"><Textarea rows={2} value={narration} onChange={(e) => setNarration(e.target.value)} maxLength={200} placeholder="Optional note on this voucher" /></Field>
       </div>
     </Modal>

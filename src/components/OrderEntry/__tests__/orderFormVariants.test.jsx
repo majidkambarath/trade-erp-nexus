@@ -175,3 +175,55 @@ describe("the sales order it already served", () => {
     expect(axiosInstance.get).not.toHaveBeenCalledWith("/delivery-notes/availability", expect.anything());
   });
 });
+
+// F01 (finance QA review 1 Nov 2026): a sales invoice used to start with a blank tax code, which
+// a QA run found leaves 27 lines with no tax treatment. A fresh line now gets the organisation's
+// own default standard code the moment the codes load.
+describe("a new line gets the organisation's default tax code", () => {
+  it("stamps the default standard code onto a fresh row once the codes load", async () => {
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url === "/accounting/tax-codes") {
+        return {
+          data: {
+            data: [
+              { _id: "tc-std", name: "Standard 5%", kind: "standard", ratePercent: 5, isDefault: true, isActive: true },
+              { _id: "tc-zero", name: "Zero-rated", kind: "zero_rated", ratePercent: 0, isDefault: false, isActive: true },
+            ],
+          },
+        };
+      }
+      return { data: { data: [] } };
+    });
+    const blankForm = () => ({
+      transactionNo: "", partyId: "c1", partyType: "Customer", date: "2026-10-06", deliveryDate: "2026-10-07", status: "DRAFT",
+      refNo: "", docNo: "", notes: "", discount: "0", charges: [], items: [],
+    });
+    await show(<Harness variant={VARIANTS.sales} initial={blankForm()} />);
+    await waitFor(() => expect(screen.getByLabelText("Tax code, row 1")).toHaveValue("tc-std"));
+    expect(screen.getByLabelText("VAT %, row 1")).toHaveValue(5);
+  });
+
+  it("does not disturb a saved line's own tax code when editing", async () => {
+    axiosInstance.get.mockImplementation(async (url) => {
+      if (url === "/accounting/tax-codes") {
+        return {
+          data: {
+            data: [
+              { _id: "tc-std", name: "Standard 5%", kind: "standard", ratePercent: 5, isDefault: true, isActive: true },
+              { _id: "tc-zero", name: "Zero-rated", kind: "zero_rated", ratePercent: 0, isDefault: false, isActive: true },
+            ],
+          },
+        };
+      }
+      return { data: { data: [] } };
+    });
+    const savedRow = { ...recalcRow(VARIANTS.sales, { ...VARIANTS.sales.rowTemplate(), itemId: "s1", itemCode: "ITM1", description: "Basmati 5kg", qty: "10", rate: "20", vatPercent: "0", taxCodeId: "tc-zero" }), lineId: "line-1" };
+    const editForm = {
+      transactionNo: "SO-2026-0001", partyId: "c1", partyType: "Customer", date: "2026-10-06", deliveryDate: "2026-10-07", status: "APPROVED",
+      refNo: "", docNo: "", notes: "", discount: "0", charges: [], items: [savedRow],
+    };
+    await show(<Harness variant={VARIANTS.sales} initial={editForm} selected={{ id: "so1" }} />);
+    await waitFor(() => expect(axiosInstance.get).toHaveBeenCalledWith("/accounting/tax-codes"));
+    expect(screen.getByLabelText("Tax code, row 1")).toHaveValue("tc-zero");
+  });
+});

@@ -110,7 +110,7 @@ export function positionDocument(data, { detail = false } = {}) {
 }
 
 export const POSITION_FOOTNOTE =
-  "Classification: an asset or liability is non-current when its account group, or any group above it, is named as fixed, non-current, property, plant, equipment, intangible or long-term; everything else is current. An account on the other side of its own group is shown where it belongs, not as a negative: a bank account in credit as a bank overdraft, a customer in credit as a liability, a supplier in debit as an asset (IAS 1.32). Profit is shown inside equity: profit before the start of the period as accumulated profit brought forward, and profit since as profit for the period.";
+  "Classification: an asset or liability is non-current when its account group, or any group above it, is named as fixed, non-current, property, plant, equipment, intangible or long-term; everything else is current. An account on the other side of its own group is shown where it belongs, not as a negative: a bank account in credit as a bank overdraft, a cash account in credit as a cash shortfall, a customer in credit as a liability, a supplier in debit as an asset (IAS 1.32). Profit is shown inside equity: profit before the start of the period as accumulated profit brought forward, and profit since as profit for the period.";
 export const PROFIT_FOOTNOTE =
   "Expenses are shown by function. Revenue, cost of sales and gross profit follow the sales and direct cost groups of the posting configuration. Of the other expenses, accounts named like depreciation or amortisation, interest, finance or bank charges, and income or corporate tax are shown on their own lines.";
 export const CASH_FOOTNOTE =

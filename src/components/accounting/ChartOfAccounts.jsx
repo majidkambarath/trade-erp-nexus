@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, FolderPlus, Link2, Lock, Pencil, Plus, RotateCcw, Search } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, FolderPlus, History, Link2, Lock, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { amountsIn, CURRENCY, drCr, formatNumber, formatDateGB, todayInput } from "../../utils/format";
 import { banking } from "../../lib/bankingApi";
@@ -15,6 +15,9 @@ import { emptyParty, fieldForServerError, firstSectionWithErrors, formToPayload,
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, errorMessage, useAsync, useToasts, DateInput } from "./kit";
 import { useMediaQuery } from "./DataTable";
 import DocumentAuditTrail, { VoucherAuditTrail } from "../audit/AuditTrail";
+import { VoucherView } from "../finance/shared";
+import { recentLink } from "../Dashborad/helpers";
+import { Link } from "react-router-dom";
 
 const SM = "(min-width: 640px)";
 
@@ -267,7 +270,10 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
     accountName: account?.accountName || "",
     description: account?.description || "",
     openingBalance: "",
-    openingSide: "debit",
+    // F11 (finance QA review, 1 Nov 2026): defaulting to "debit" meant the server's own "say
+    // whether it is a debit or a credit" check could never fire from this form - nothing forced
+    // the person to choose. Starts unset; required only once an amount is actually entered.
+    openingSide: "",
     openingDate: todayInput(),
     allowDirectPosting: account?.allowDirectPosting ?? true,
     isActive: account?.isActive ?? true,
@@ -319,6 +325,7 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
     if (!party && !form.accountName.trim()) e.accountName = "Give the account a name";
     const ob = Number(form.openingBalance || 0);
     if (!editing && form.openingBalance !== "" && (!Number.isFinite(ob) || ob < 0)) e.openingBalance = "Enter an amount of zero or more";
+    if (!editing && ob > 0 && !["debit", "credit"].includes(form.openingSide)) e.openingSide = "Say whether the opening balance is a debit or a credit";
     if (isBank && form.iban.trim() && !isValidIban(form.iban)) e.iban = "That IBAN is not valid. Check it for a typing mistake.";
     return e;
   }
@@ -363,7 +370,7 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
         onSaved(failed.length ? `${created.accountCode} created, but ${failed.length} file(s) could not be attached` : `${created.accountCode} ${created.accountName} created`);
       }
     } catch (err) {
-      const field = { DUPLICATE_ACCOUNT: "accountName", OPENING_SIDE_REQUIRED: "openingBalance", GROUP_REQUIRED: "groupId", PARTY_GROUP_REQUIRED: "groupId", INVALID_IBAN: "iban", INVALID_ACCOUNT_NUMBER: "accountNumber" }[err.code];
+      const field = { DUPLICATE_ACCOUNT: "accountName", OPENING_SIDE_REQUIRED: "openingSide", GROUP_REQUIRED: "groupId", PARTY_GROUP_REQUIRED: "groupId", INVALID_IBAN: "iban", INVALID_ACCOUNT_NUMBER: "accountNumber" }[err.code];
       const partyField = party ? fieldForServerError(err) : null;
       if (partyField) {
         setServerErrors({ [partyField]: errorMessage(err) });
@@ -371,6 +378,10 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
       } else if (field) setErrors({ [field]: errorMessage(err) });
       else onError?.(errorMessage(err));
       setBusy(false);
+      // F11 (finance QA review, 1 Nov 2026): the refusal showed only as text under the field, which
+      // can be scrolled out of view below Description, Opening balance and Documents - nothing told
+      // the person where to look. Move focus there; focusing scrolls it into view.
+      requestAnimationFrame(() => document.querySelector('#account-form [aria-invalid="true"]')?.focus());
     }
   }
 
@@ -436,8 +447,9 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
             <Field label={`Amount (${CURRENCY})`} error={errors.openingBalance}>
               <TextInput inputMode="decimal" type="number" min="0" step="0.01" value={form.openingBalance} onChange={set("openingBalance")} placeholder="0.00" />
             </Field>
-            <Field label="Side">
+            <Field label="Side" error={errors.openingSide}>
               <Select value={form.openingSide} onChange={set("openingSide")}>
+                <option value="">Choose…</option>
                 <option value="debit">Debit (Dr)</option>
                 <option value="credit">Credit (Cr)</option>
               </Select>
@@ -540,10 +552,19 @@ export function GroupModal({ group, groups, onClose, onSaved }) {
 
 // The ledger of one account: opening balance, every posting with its running balance and side,
 // closing balance. Used in the chart's pop-up and on the Ledger page.
+// A finance voucher's own number opens VoucherView, not the audit trail (F18, finance QA review 1
+// Nov 2026): it is the richer screen, and is already what the Finance tabs open on their own lists.
+const VOUCHER_TYPE_TITLE = {
+  receipt: "Receipt voucher", payment: "Payment voucher", journal: "Journal voucher", contra: "Contra voucher",
+  expense: "Expense voucher", debit_note: "Debit note", credit_note: "Credit note",
+};
+
 export function LedgerBody({ account }) {
   const [range, setRange] = useState({ from: "", to: "" });
   // the posting whose source document's audit trail is open, or null
   const [audit, setAudit] = useState(null);
+  // a finance voucher opened from its number: { id, title }
+  const [viewing, setViewing] = useState(null);
   const { data, loading, error, reload } = useAsync(
     () => accounting.accountLedger(account._id, { from: range.from || undefined, to: range.to || undefined }),
     [account._id, range.from, range.to]
@@ -570,11 +591,37 @@ export function LedgerBody({ account }) {
                 <tr key={r._id} className="border-t border-border">
                   <td className="whitespace-nowrap px-3 py-2">{formatDateGB(r.date)}</td>
                   <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
-                    {r.voucherId ? (
+                    {!r.voucherId ? (
+                      r.voucherNo
+                    ) : VOUCHER_TYPE_TITLE[r.voucherType] ? (
+                      // a finance voucher opens the voucher itself; the icon still reaches its audit trail
+                      <span className="inline-flex items-center gap-1.5">
+                        <button type="button" onClick={() => setViewing({ id: r.voucherId, title: VOUCHER_TYPE_TITLE[r.voucherType] })} title={`Open ${r.voucherNo}`} className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {r.voucherNo}
+                        </button>
+                        <button type="button" onClick={() => setAudit(r)} title={`Audit trail of ${r.voucherNo}`} className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <History className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </span>
+                    ) : DOCUMENT_TYPES.includes(r.voucherType) ? (
+                      // an ordinary invoice or return opens the document itself; the icon still reaches its audit trail.
+                      // An opening invoice (voucherType "opening", caught below) has no document screen of its own.
+                      <span className="inline-flex items-center gap-1.5">
+                        <Link to={`${recentLink(r.voucherType)}?search=${encodeURIComponent(r.voucherNo)}`} title={`Open ${r.voucherNo}`} className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {r.voucherNo}
+                        </Link>
+                        <button type="button" onClick={() => setAudit(r)} title={`Audit trail of ${r.voucherNo}`} className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <History className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </span>
+                    ) : (
+                      // opening balances, opening invoices, opening stock and year-end entries have no voucher or
+                      // document screen of their own: the number stays the one way in, to the audit trail
+                      // (F18, finance QA review 1 Nov 2026)
                       <button type="button" onClick={() => setAudit(r)} title={`Audit trail of ${r.voucherNo}`} className="rounded underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {r.voucherNo}
                       </button>
-                    ) : r.voucherNo}
+                    )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{r.narration}</td>
                   <td className="px-3 py-2 text-end tabular-nums">{r.debit ? money(r.debit) : ""}</td>
@@ -593,6 +640,7 @@ export function LedgerBody({ account }) {
         </div>
       )}
       {audit && <SourceAuditTrail row={audit} onClose={() => setAudit(null)} />}
+      {viewing && <VoucherView id={viewing.id} title={viewing.title} onClose={() => setViewing(null)} />}
     </>
   );
 }

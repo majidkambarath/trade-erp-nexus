@@ -12,6 +12,27 @@ vi.mock("../../../lib/partyAccountApi", () => ({
 vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 vi.mock("../../../utils/format", async (orig) => ({ ...(await orig()), downloadCSV: vi.fn() }));
 
+// F07: Print and Download PDF no longer call window.print() on the live page - they build the
+// statement's own body (lib/statement.js statementDocument) and hand it to the hidden-frame print
+// / PDF engine (PurchaseOrder/shared/documentPdf.jsx), the same one every invoice already uses.
+// jsdom does not lay the offscreen frame out, so what was drawn is read from its own markup.
+const drawn = [];
+vi.mock("html2canvas", () => ({
+  default: vi.fn(async () => {
+    const frames = document.querySelectorAll("iframe");
+    drawn.push(frames[frames.length - 1]?.srcdoc || "");
+    return { width: 800, height: 1200, toDataURL: vi.fn(() => "data:image/png;base64,FAKE") };
+  }),
+}));
+const pdfInstances = [];
+vi.mock("jspdf", () => ({
+  jsPDF: vi.fn().mockImplementation(() => {
+    const doc = { addImage: vi.fn(), addPage: vi.fn(), save: vi.fn(), output: vi.fn(() => new Blob(["%PDF-1.4"], { type: "application/pdf" })), getNumberOfPages: vi.fn(() => 1) };
+    pdfInstances.push(doc);
+    return doc;
+  }),
+}));
+
 import CustomerDetailsPage from "../Sales/CustomerDetailsPage";
 import VendorDetailsPage from "../Purchase/VendorDetailsPage";
 import SaleAccountsManagement from "../Sales/SaleAccountsManagement";
@@ -89,7 +110,11 @@ beforeEach(() => {
   m.statement.mockImplementation(({ kind }) => Promise.resolve(kind === "vendor" ? VENDOR_STATEMENT : STATEMENT));
   m.ageing.mockResolvedValue(AGEING);
   downloadCSV.mockClear();
-  window.print = vi.fn();
+  drawn.length = 0;
+  pdfInstances.length = 0;
+  // jsdom has no 2D canvas; the PDF slicing only needs a context and a data URL.
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ drawImage: vi.fn() }));
+  HTMLCanvasElement.prototype.toDataURL = vi.fn(() => "data:image/png;base64,AA");
 });
 
 // ---------- customer account ----------
@@ -267,13 +292,15 @@ describe("statement tab", () => {
     await waitFor(() => statementTable("Al Noor Trading"));
     fireEvent.click(screen.getByRole("button", { name: /Export CSV/ }));
     expect(downloadCSV).toHaveBeenCalledTimes(1);
-    const [name, heads, rows] = downloadCSV.mock.calls[0];
+    const [name, heads, rows, opts] = downloadCSV.mock.calls[0];
     expect(name).toBe("statement-al-noor-trading-start-latest.csv");
     expect(heads).toEqual(["Date", "Voucher no", "Type", "Narration", "Debit", "Credit", "Balance"]);
     expect(rows[0]).toEqual(["", "Opening balance", "", "", "", "", "1,000.00 Dr"]);
     expect(rows[1]).toEqual(["05/09/2026", "SO-2026-0001", "Sales invoice", "Sales invoice", 2000, "", "3,000.00 Dr"]);
     expect(rows[2]).toEqual(["20/09/2026", "RV-2026-0001", "Receipt", "Receipt (cash)", "", 500, "2,500.00 Dr"]);
     expect(rows.at(-1)).toEqual(["", "Closing balance", "", "", 2000, 500, "2,500.00 Dr"]);
+    // F07: the report's own title, naming the party, ahead of the rows.
+    expect(opts.preamble[0]).toEqual(["Statement of account - Al Noor Trading"]);
   });
 
   it("exports a vendor statement with Cr balances", async () => {
@@ -285,11 +312,22 @@ describe("statement tab", () => {
     expect(rows.at(-1)[6]).toBe("4,000.00 Cr");
   });
 
-  it("prints", async () => {
+  it("prints through a hidden frame, not the live page (F07)", async () => {
     showCustomer();
     await waitFor(() => statementTable("Al Noor Trading"));
-    fireEvent.click(screen.getByRole("button", { name: /Print/ }));
-    expect(window.print).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    expect(document.querySelector("iframe")).not.toBeNull();
+  });
+
+  it("downloads the statement shown as a PDF, with the same table the CSV export has (F07)", async () => {
+    const { jsPDF } = await import("jspdf");
+    showCustomer();
+    await waitFor(() => statementTable("Al Noor Trading"));
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith("statement-al-noor-trading-start-latest.pdf"));
+    expect(drawn[0]).toContain("SO-2026-0001");
+    expect(drawn[0]).toContain("Statement of account - Al Noor Trading");
   });
 
   it("says plainly when there are no transactions in the period", async () => {

@@ -49,7 +49,7 @@ describe("the Approvals group", () => {
     expect(screen.queryByText(/but not change them/)).toBeNull();
     fireEvent.change(screen.getByLabelText(/Ask for a second approver on documents above/), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save approval rules" }));
-    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: null } }));
+    await waitFor(() => expect(m.saveSettings).toHaveBeenCalledWith({ approvals: { separateApprover: true, secondApprovalAbove: null, notesNeedApproval: false } }));
   });
 
   it("tells the shell to read the organisation again after a save, so the order screens follow the new rule at once", async () => {

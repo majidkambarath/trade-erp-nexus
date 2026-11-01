@@ -87,3 +87,32 @@ export function accountOptions(accounts = []) {
 
 // The account behind an id, for the heading and the CSV name, without flattening the groups twice.
 export const findAccount = (accounts = [], id) => accounts.find((a) => String(a._id) === String(id)) || null;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// F07: `window.print()` printed the whole app page (the shell hidden by `print:` classes, easy to
+// miss on a new screen) and there was no way to save the statement as a file to attach or keep.
+// This builds the same table the CSV export and the screen show - headers and rows already in
+// the shape `toCSV` takes, so the three can never disagree - into the printable / PDF body. It is
+// BODY-ONLY markup (no <html>/<head>): both readers of it, `printMarkup` and `downloadSheetsPdf`
+// (PurchaseOrder/shared/documentPdf.jsx), load it into their own frame and wrap it themselves, so
+// doing that here too would nest a second document inside the first. The <table> below is the
+// same printed-document pattern as printVoucher (shared.jsx) and documentHtml (ifrsStatements.js),
+// which write it with document.write into a popup window; this one is handed to a hidden
+// iframe's srcdoc instead (documentPdf.jsx's loadFrame, no document.write, no printWindow), which
+// is why it needs saying here rather than being caught by audit-mobile's own printed-document rule.
+export function statementDocument({ company, trn, title, period, currency, headers, rows }) {
+  const money = headers.length - 3; // Debit, Credit, Balance are the last three columns on every statement
+  const head = `<tr>${headers.map((h, i) => `<th${i >= money ? ' class="n"' : ""}>${esc(h)}</th>`).join("")}</tr>`;
+  const body = rows
+    .map((r) => `<tr>${r.map((c, i) => `<td${i >= money ? ' class="n"' : ""}>${esc(c ?? "")}</td>`).join("")}</tr>`)
+    .join("");
+  return `<style>
+    body{font:13px system-ui,sans-serif;margin:32px;color:#111} h1{font-size:18px;margin:0 0 2px} h2{font-size:15px;margin:0;font-weight:600}
+    .meta{margin:2px 0 14px;color:#555} table{width:100%;border-collapse:collapse;margin-top:8px} th,td{padding:5px 8px;text-align:left;vertical-align:top;border-bottom:1px solid #eee}
+    thead th{border-bottom:1px solid #111;font-weight:600} .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  </style>
+    <h1>${esc(company)}</h1>${trn ? `<div class="meta">${esc(trn)}</div>` : ""}
+    <h2>${esc(title)}</h2><div class="meta">${esc(period)}${currency ? ` &middot; Amounts in ${esc(currency)}` : ""}</div>
+    <table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}

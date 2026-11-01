@@ -39,7 +39,7 @@ export default function ContraVouchers() {
               { key: "transfer", header: "Transfer", card: "title", cell: (v) => leg(v, "creditAmount") ? <span className="inline-flex flex-wrap items-center gap-1.5">{leg(v, "creditAmount")}<ArrowRight className="h-3.5 w-3.5 text-muted-foreground" aria-label="to" />{leg(v, "debitAmount")}</span> : <span className="text-muted-foreground">{v.narration}</span> },
               { key: "amount", header: "Amount", money: true, align: "end", card: "amount", className: "font-medium tabular-nums", cell: (v) => money(toCents(v.totalAmount)) },
               { key: "status", header: "Status", card: "badge", cell: (v) => <StatusPill status={v.status} doc={v} /> },
-              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{v.ledgerBased && ["approved", "pending"].includes(v.status) && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}{v.ledgerBased && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
+              { key: "actions", header: <span className="sr-only">Actions</span>, align: "end", card: "actions", className: "whitespace-nowrap", cell: (v) => (<><button type="button" aria-label={`View ${v.voucherNo}`} onClick={() => setViewing(v._id)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Eye className="h-4 w-4" aria-hidden="true" /></button>{/* the full editor is for a PENDING voucher only (F04, finance QA review 1 Nov 2026): an approved one offers "Edit narration" from View instead */}{v.ledgerBased && v.status === "pending" && <Can permission="finance.edit"><button type="button" aria-label={`Edit ${v.voucherNo}`} onClick={() => setForm(v)} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Pencil className="h-4 w-4" aria-hidden="true" /></button></Can>}{v.ledgerBased && <Can permission="finance.create"><button type="button" aria-label={`Copy ${v.voucherNo} into a new voucher`} title="Copy into a new voucher" onClick={() => setForm({ copy: v })} className="inline-grid h-10 w-10 place-items-center lg:h-8 lg:w-8 rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"><Copy className="h-4 w-4" aria-hidden="true" /></button></Can>}</>) },
             ]}
           />
         </ListBody>
@@ -111,7 +111,20 @@ export function ContraForm({ voucher, copyOf, onClose, onSaved }) {
           <SearchSelect value={f.toAccountId} onChange={(v) => set({ toAccountId: v })} options={options.filter((o) => o.value !== f.fromAccountId)} placeholder="Search cash or bank…" invalid={Boolean(errors.toAccountId)} />
         </Field>
         <Field label={`Amount (${CURRENCY})`} required error={errors.amount}>
-          <TextInput inputMode="decimal" className="text-end tabular-nums" value={f.amount} onChange={(e) => /^\d*(\.\d{0,2})?$/.test(e.target.value.replace(/,/g, "")) && set({ amount: e.target.value.replace(/,/g, "") })} placeholder="0.00" />
+          <TextInput
+            inputMode="decimal" className="text-end tabular-nums" value={f.amount}
+            onChange={(e) => {
+              const raw = e.target.value;
+              // A minus is refused with a message, not silently dropped character by character
+              // (which left "-100" reading as "100" - F03, finance QA review 1 Nov 2026).
+              if (raw.includes("-")) { setErrors((er) => ({ ...er, amount: "Amounts cannot be negative" })); return; }
+              const v = raw.replace(/,/g, "");
+              if (!/^\d*(\.\d{0,2})?$/.test(v)) return;
+              setErrors((er) => (er.amount ? { ...er, amount: undefined } : er));
+              set({ amount: v });
+            }}
+            placeholder="0.00"
+          />
         </Field>
         <Field label="Date" required><DateInput value={f.date} onChange={(e) => set({ date: e.target.value })} /></Field>
         <Field label="Narration" className="sm:col-span-2"><TextInput value={f.narration} onChange={(e) => set({ narration: e.target.value })} maxLength={200} placeholder="e.g. Cash deposited at Emirates NBD" /></Field>

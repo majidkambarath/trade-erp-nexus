@@ -131,8 +131,17 @@ axiosInstance.interceptors.response.use(
       original.headers.Authorization = `Bearer ${getAccessToken()}`;
       return axiosInstance(original);
     } catch (refreshError) {
-      clearSession();
-      sendToSignIn();
+      // A refresh fails two different ways, and only one of them means the session is gone.
+      // The server answering 401/403 is "no" - the cookie is missing, expired, reused, or the
+      // session was revoked - and that is when the person is sent back to sign in. A network
+      // error (no response at all: offline, or Render's free plan still waking up, 10-30s) or a
+      // 5xx while the backend is still starting is not the session's fault; treating it the same
+      // as a real refusal signed people out, and lost the page they were on, on every cold start.
+      const refreshStatus = refreshError?.response?.status;
+      if (refreshStatus === 401 || refreshStatus === 403) {
+        clearSession();
+        sendToSignIn();
+      }
       return Promise.reject(refreshError);
     }
   }

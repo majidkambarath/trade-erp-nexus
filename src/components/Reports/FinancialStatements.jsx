@@ -8,7 +8,7 @@ import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, ViewBar, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, yearStart } from "./reportKit";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { pageSession } from "../../lib/pageSession";
 import * as TB from "../../lib/trialBalance";
@@ -51,6 +51,7 @@ function TrialBalance({ range, onLedger }) {
   // set of filters ("Payables only") that reopens later. The hook is storage and state, nothing
   // list-shaped, which is why a report can sit on it (lib/useListView.js).
   const list = useListView("trial-balance", { filters: DEFAULT_TB_FILTERS });
+  const preambleFor = useExportPreamble("Trial balance");
   const session = pageSession("trial-balance");
   const [open, setOpen] = useState(() => session.get("open", {}));
   // The layout is not a filter - it hides no row - so it is remembered beside the open groups
@@ -82,7 +83,7 @@ function TrialBalance({ range, onLedger }) {
         const { isBalanced, difference } = narrowed ? TB.balanceOf(totals) : TB.balanceOf(d.summary);
         const exportCsv = () => {
           const { headers, lines } = TB.trialBalanceCsv(view, groups, rows, totals);
-          downloadCSV(`trial-balance-${range.to}${narrowed ? "-filtered" : ""}.csv`, headers, lines);
+          downloadCSV(`trial-balance-${range.to}${narrowed ? "-filtered" : ""}.csv`, headers, lines, { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
         };
         const cell = (n) => (Math.abs(n || 0) < 0.005 ? "" : money(n));
 
@@ -237,6 +238,7 @@ function ResultRow({ label, amount, note, tone }) {
 
 function ProfitLoss({ range, onLedger }) {
   const state = useAsync(() => accounting.profitLossDetail({ from: range.from, to: range.to }), [range.from, range.to]);
+  const preambleFor = useExportPreamble("Profit and loss");
   return (
     <Frame state={state}>
       {(d) => {
@@ -246,7 +248,7 @@ function ProfitLoss({ range, onLedger }) {
           const block = (title, s) => { lines.push([title, "", ""]); s.groups.forEach((g) => { if (g.synthetic) lines.push(["", g.name, ""]); g.accounts.forEach((a) => lines.push([a.accountCode, a.accountName, a.amount])); }); lines.push(["", `Total ${title.toLowerCase()}`, s.total]); };
           block("Revenue", d.revenue); block("Cost of sales", d.directCosts); lines.push(["", "Gross profit", d.grossProfit]);
           block("Other income", d.otherIncome); block("Operating expenses", d.operatingExpenses); lines.push(["", "Net profit", d.netProfit]);
-          downloadCSV(`profit-and-loss-${range.from}-${range.to}.csv`, ["Code", "Account", "Amount"], lines);
+          downloadCSV(`profit-and-loss-${range.from}-${range.to}.csv`, ["Code", "Account", "Amount"], lines, { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
         };
         return (
           <div className="space-y-4">
@@ -282,11 +284,13 @@ function ProfitLoss({ range, onLedger }) {
 
 function CashFlow({ range }) {
   const state = useAsync(() => accounting.cashFlow({ from: range.from, to: range.to }), [range.from, range.to]);
+  const preambleFor = useExportPreamble("Cash flow");
   return (
     <Frame state={state}>
       {(d) => {
         const exportCsv = () => downloadCSV(`cash-flow-${range.from}-${range.to}.csv`, ["Source", "Money in", "Money out", "Net", "Vouchers"],
-          [["Opening cash and bank", "", "", d.opening, ""], ...d.lines.map((l) => [l.label, l.inflow, l.outflow, l.net, l.count]), ["Closing cash and bank", d.totalIn, d.totalOut, d.closing, ""]]);
+          [["Opening cash and bank", "", "", d.opening, ""], ...d.lines.map((l) => [l.label, l.inflow, l.outflow, l.net, l.count]), ["Closing cash and bank", d.totalIn, d.totalOut, d.closing, ""]],
+          { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -352,6 +356,7 @@ function StatementRow({ row, columns, onLedger }) {
 }
 
 function BalanceSheet({ asOf, onLedger }) {
+  const preambleFor = useExportPreamble("Balance sheet");
   const session = pageSession("balance-sheet");
   const [compare, setCompare] = useState(() => session.get("compare", "none"));
   const [detail, setDetail] = useState(() => session.get("detail", false));
@@ -375,7 +380,7 @@ function BalanceSheet({ asOf, onLedger }) {
           const rows = BSL.statementRows(d, { detail });
           const exportCsv = () => {
             const { headers, lines } = BSL.balanceSheetCsv(rows, columns);
-            downloadCSV(`balance-sheet-${asOf}.csv`, headers, lines);
+            downloadCSV(`balance-sheet-${asOf}.csv`, headers, lines, { preamble: preambleFor(`As at ${formatDate(asOf)}`) });
           };
           return (
             <div className="space-y-4">

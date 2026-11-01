@@ -218,7 +218,18 @@ export default function SettingsModule() {
                   <TextInput value={company.city} onChange={input(setCompany, "city")} />
                 </Field>
                 <Field label="State / emirate" required error={errors.state}>
-                  <TextInput value={company.state} onChange={input(setCompany, "state")} list={company.country === "United Arab Emirates" ? "emirates" : undefined} />
+                  {company.country === "United Arab Emirates" ? (
+                    // F05: a free-text box with a datalist of suggestions still let anything through (a typo, an
+                    // abbreviation, a trailing space), which is exactly what the VAT return's own emirate field
+                    // (Settings > Business rules > Tax identity) reads when this one is left to stand for it.
+                    // A hard choice of the seven here too means the letterhead and the return can never disagree.
+                    <Select value={company.state} onChange={input(setCompany, "state")}>
+                      <option value="">Choose an emirate</option>
+                      {EMIRATES.map((e) => <option key={e} value={e}>{e}</option>)}
+                    </Select>
+                  ) : (
+                    <TextInput value={company.state} onChange={input(setCompany, "state")} />
+                  )}
                 </Field>
                 <Field label="Country" required>
                   <SearchSelect value={company.country} onChange={setField(setCompany, "country")} options={COUNTRY_OPTIONS} placeholder="Choose a country" />
@@ -233,7 +244,6 @@ export default function SettingsModule() {
                   <TextInput type="url" value={company.website} onChange={input(setCompany, "website")} placeholder="https://www.company.com" />
                 </Field>
               </div>
-              <datalist id="emirates">{EMIRATES.map((e) => <option key={e} value={e} />)}</datalist>
             </Panel>
 
             <Panel title="Logo" description="Printed at the top of invoices. PNG or JPG, up to 5 MB.">

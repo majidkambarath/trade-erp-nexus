@@ -110,10 +110,14 @@ describe("statement of financial position", () => {
     at();
     await screen.findByRole("table");
     fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
-    const rows = downloadCSV.mock.calls[0][2];
+    const [, , rows, opts] = downloadCSV.mock.calls[0];
     expect(rows).toContainEqual(["    Bank overdrafts", 150, 0]);
     expect(rows).toContainEqual(["    Customer credit balances", 80, 0]);
     expect(rows).toContainEqual(["    Supplier debit balances and advances", 230, 0]);
+    // F07: the entity's own name, the report's title and the "as at" date it covers, ahead of the rows.
+    expect(opts.preamble[0]).toEqual(["Harbour Trading Co LLC"]);
+    expect(opts.preamble[1]).toEqual(["Statement of financial position"]);
+    expect(opts.preamble[2][0]).toMatch(/^Period: As at /);
   });
 });
 

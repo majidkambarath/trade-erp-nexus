@@ -256,13 +256,16 @@ const csvCell = (value) => {
   return /["',\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-export const toCSV = (headers, rows) =>
-  [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+// `preamble` is extra rows ahead of the column headings - whose figures these are and as of when
+// (reportPreamble, below). Optional and ragged (a preamble row need not have as many cells as a
+// data row): every existing caller that passes none keeps exactly the file it made before.
+export const toCSV = (headers, rows, { preamble } = {}) =>
+  [...(preamble || []), headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 
 // The BOM makes Excel read the file as UTF-8 — without it, non-ASCII party names
 // (common here) are mangled on open.
-export const downloadCSV = (filename, headers, rows) => {
-  const blob = new Blob([`\uFEFF${toCSV(headers, rows)}`], {
+export const downloadCSV = (filename, headers, rows, { preamble } = {}) => {
+  const blob = new Blob([`\uFEFF${toCSV(headers, rows, { preamble })}`], {
     type: 'text/csv;charset=utf-8;',
   });
   const url = URL.createObjectURL(blob);
@@ -271,6 +274,23 @@ export const downloadCSV = (filename, headers, rows) => {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+};
+
+// F07: an exported report used to open as a bare grid, with no way to tell whose figures they
+// were or as of when once it had been saved, renamed or forwarded on. The same four lines a
+// printed report's own letterhead carries, as `downloadCSV`'s `preamble`: the company, the
+// report's title, the period it covers (when there is one - a point-in-time report has none),
+// and when it was made. A blank row separates them from the column headings. Goes through the
+// same cell quoting and formula-injection guard as every other cell (a company name is still
+// user-entered text).
+export const reportPreamble = ({ company, title, period, printedOn } = {}) => {
+  const rows = [];
+  if (company) rows.push([company]);
+  if (title) rows.push([title]);
+  if (period) rows.push([`Period: ${period}`]);
+  rows.push([`Printed on: ${printedOn || formatDateTime(new Date())}`]);
+  rows.push([]);
+  return rows;
 };
 
 // Decimal-safe helpers: add and sum using integer minor units (cents)

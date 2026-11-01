@@ -123,6 +123,8 @@ function Approvals({ settings, notify, onSaved }) {
         <Field label={`Ask for a second approver on documents above (${orgCurrency()})`} hint="Two different people must approve a document above this amount. Leave empty to ask for one approval always." error={fieldError} className="max-w-xl">
           <TextInput inputMode="decimal" autoComplete="off" placeholder="No second approver" value={form.secondApprovalAbove} onChange={(e) => setForm((f) => ({ ...f, secondApprovalAbove: e.target.value }))} />
         </Field>
+        <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={form.notesNeedApproval} onChange={(e) => setForm((f) => ({ ...f, notesNeedApproval: e.target.checked }))} className="mt-0.5 h-4 w-4 accent-[var(--color-primary)]" />
+          <span><span className="font-medium">Credit and debit notes wait for approval</span><span className="block text-xs text-muted-foreground">Off by default, a note posts the moment it is saved. Switched on, every note is held - whatever its amount - until someone who may approve it does.</span></span></label>
         {s.error && !fieldError && <ErrorNote error={s.error} />}
         <div><Button type="submit" disabled={s.busy}>{s.busy ? "Saving…" : "Save approval rules"}</Button></div>
       </form>

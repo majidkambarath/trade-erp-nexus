@@ -44,6 +44,27 @@ describe("the cheque register's period", () => {
     expect(last().to).toBeUndefined();
   });
 
+  // F18 (finance QA review, 1 Nov 2026): a worklist tab has no period of its own, but can still be
+  // narrowed to what is due soon or overdue - the server already filters any status by chequeDate.
+  it("offers a Due filter on Pending, sending from/to for 'Next 7 days' and 'Overdue'", async () => {
+    render(<ChequeRegister />);
+    await screen.findByText("CHQ1");
+    const due = screen.getByRole("combobox", { name: "Due" });
+    expect(due).toHaveValue("any");
+
+    fireEvent.change(due, { target: { value: "next7" } });
+    await waitFor(() => expect(last().from).toBe(todayInput()));
+    expect(last().to).toMatch(/T23:59:59\.999Z$/);
+
+    fireEvent.change(due, { target: { value: "overdue" } });
+    await waitFor(() => expect(last()).toMatchObject({ to: `${todayInput()}T23:59:59.999Z` }));
+    expect(last().from).toBeUndefined();
+
+    // Cleared (a dated tab) has its own period instead: no Due filter is offered
+    fireEvent.click(screen.getByRole("tab", { name: "Cleared" }));
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Due" })).toBeNull());
+  });
+
   it("says which cheques are shown out of how many, and reaches the next page", async () => {
     render(<ChequeRegister />);
     await screen.findByText("CHQ1");

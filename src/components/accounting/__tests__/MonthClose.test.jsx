@@ -61,7 +61,7 @@ const openMonthDialog = async (name) => {
 };
 
 describe("the list of months", () => {
-  it("opens on the year being worked on, says where each month stands, and offers only the next close and the latest reopen", async () => {
+  it("opens on the year being worked on, says where each month stands, offers only the next close and the latest reopen, and a Checklist on every other open month", async () => {
     await at();
     const table = await monthsTable();
     expect(within(table).getByText("January 2026")).toBeInTheDocument();
@@ -72,8 +72,22 @@ describe("the list of months", () => {
     expect(within(within(table).getByText("February 2026").closest("tr")).getByRole("button", { name: "Reopen month" })).toBeInTheDocument();
     expect(within(table).getAllByRole("button", { name: "Close month" })).toHaveLength(1);
     expect(within(table).getAllByRole("button", { name: "Reopen month" })).toHaveLength(1);
+    // January is closed: nothing to check or do here at all
     expect(within(within(table).getByText("January 2026").closest("tr")).queryByRole("button")).toBeNull();
-    expect(within(within(table).getByText("April 2026").closest("tr")).queryByRole("button")).toBeNull();
+    // April is open, but not next in line to close: it still offers its own checklist (F14, finance QA review 1 Nov 2026)
+    expect(within(within(table).getByText("April 2026").closest("tr")).getByRole("button", { name: "Checklist" })).toBeInTheDocument();
+  });
+
+  it("the Checklist on a later open month shows the checks and changes nothing", async () => {
+    m.monthEnd.mockResolvedValue(preview({ month: MONTHS_2026[3] }));
+    await openMonthDialog("Checklist");
+    const dialog = await screen.findByRole("dialog", { name: "April 2026 checklist" });
+    expect(within(dialog).getByText("What closing April 2026 would check. Nothing here closes or changes anything.")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Every branch is included")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Close month" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Cancel" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(m.closeMonth).not.toHaveBeenCalled();
   });
 
   it("says in the year's own row how far its months are closed", async () => {

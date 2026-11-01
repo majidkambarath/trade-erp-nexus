@@ -1,16 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Download, Printer } from "lucide-react";
+import { Download, FileText, Printer } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { accounting } from "../../lib/accountingApi";
-import { accountOptions, findAccount, groupByMonth, netOf } from "../../lib/statement";
-import { downloadCSV, drCr, formatDateGB, formatNumber, toInputDate } from "../../utils/format";
+import { accountOptions, findAccount, groupByMonth, netOf, statementDocument } from "../../lib/statement";
+import { CURRENCY, downloadCSV, drCr, formatDateGB, formatNumber, toInputDate } from "../../utils/format";
+import { taxIdWord } from "../../lib/taxTerms";
+import { printMarkup, downloadSheetsPdf } from "../PurchaseOrder/shared/documentPdf";
+import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Balance, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, SearchSelect, Spinner, useAsync, DateInput } from "../accounting/kit";
 import { useOrganisation } from "../shell/OrganisationContext";
 import FilterBar from "../lists/FilterBar";
 import { pageSession } from "../../lib/pageSession";
+import { useExportPreamble } from "./reportKit";
+
+const STATEMENT_HEADERS = ["Date", "Document", "Type", "Details", "Debit", "Credit", "Balance"];
 
 const TYPES = {
   Customer: { noun: "customer", path: "/customers/customers", name: "customerName", code: "customerId", owes: "owes you" },
@@ -91,17 +97,39 @@ export default function StatementOfAccount() {
   const grouped = byMonth && months.length > 0;
   const subject = data?.subject?.name || data?.party?.name || data?.account?.accountName || "";
   const chosen = isAccount ? findAccount(parties.rows, accountId) : null;
+  const statementTitle = `Statement of account${subject ? ` - ${subject}` : ""}`;
+  const preambleFor = useExportPreamble(statementTitle);
+  const profile = useCompanyProfile();
+  const period = range.from || range.to ? `${range.from ? formatDateGB(range.from) : "the start"} to ${range.to ? formatDateGB(range.to) : "now"}` : "All time";
 
-  // What is exported is what is on the screen, month subtotals and all - the rule the CRM's list exports
-  // follow - so a figure questioned in the spreadsheet can be found again on the page it came from.
-  function exportCsv() {
+  // The same rows go to the CSV, the print and the PDF: one figure, never a second copy that could drift.
+  function statementRows() {
     const row = (r) => [formatDateGB(r.date), r.voucherNo, LABEL[r.voucherType] || r.voucherType, r.narration || "", r.debit || "", r.credit || "", sideText(net(r))];
     const body = grouped
       ? months.flatMap((m) => [[m.label, "", "", "", "", "", ""], ...m.rows.map(row), ["", `${m.label} total`, "", "", m.debit, m.credit, sideText(m.closingNet)]])
       : data.rows.map(row);
-    downloadCSV(`statement-${subject || "account"}.csv`,
-      ["Date", "Document", "Type", "Details", "Debit", "Credit", "Balance"],
-      [["", "Opening balance", "", "", "", "", sideText(openingNet)], ...body, ["", "Closing balance", "", "", data.totals.debit, data.totals.credit, sideText(closingNet)]]);
+    return [["", "Opening balance", "", "", "", "", sideText(openingNet)], ...body, ["", "Closing balance", "", "", data.totals.debit, data.totals.credit, sideText(closingNet)]];
+  }
+
+  // What is exported is what is on the screen, month subtotals and all - the rule the CRM's list exports
+  // follow - so a figure questioned in the spreadsheet can be found again on the page it came from.
+  function exportCsv() {
+    downloadCSV(`statement-${subject || "account"}.csv`, STATEMENT_HEADERS, statementRows(), { preamble: preambleFor(period) });
+  }
+
+  function documentMarkup() {
+    return statementDocument({
+      company: profile.companyName, trn: profile.vatNumber ? `${taxIdWord()} ${profile.vatNumber}` : "",
+      title: statementTitle, period, currency: CURRENCY, headers: STATEMENT_HEADERS, rows: statementRows(),
+    });
+  }
+  // F07: the frame-based printMarkup (not window.print()) prints only the statement's own table, never
+  // the app shell around it, and cannot be stopped by a pop-up blocker.
+  function printStatement() {
+    printMarkup(documentMarkup());
+  }
+  function downloadPdf() {
+    downloadSheetsPdf([documentMarkup()], `statement-${subject || "account"}`);
   }
 
   // Two different questions, two different figures. Dr / Cr is `net` (debit minus credit), the same for
@@ -118,7 +146,8 @@ export default function StatementOfAccount() {
       <PageHeader title="Statement of account" description="Every posting against one customer, vendor or ledger account, in date order, with a running balance."
         actions={data && (
           <>
-            <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" aria-hidden="true" />Print</Button>
+            <Button variant="outline" onClick={printStatement}><Printer className="h-4 w-4" aria-hidden="true" />Print</Button>
+            <Button variant="outline" onClick={downloadPdf}><FileText className="h-4 w-4" aria-hidden="true" />Download PDF</Button>
             <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4" aria-hidden="true" />Export CSV</Button>
           </>
         )} />

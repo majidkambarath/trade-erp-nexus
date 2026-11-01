@@ -10,4 +10,4 @@ vi.mock("../../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn
 import Page from "../PurchaseOrderPage.jsx";
 import { approvalCases } from "../../shared/__tests__/approvalCases";
 
-approvalCases({ module: "purchase", open: "PENDING", Page, api, setStatus: (s) => { orgStatus = s; } });
+approvalCases({ module: "purchase", open: "DRAFT", Page, api, setStatus: (s) => { orgStatus = s; } });

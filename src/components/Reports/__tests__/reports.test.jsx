@@ -14,6 +14,26 @@ vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 // Only the statement reads it, and only to decide whether a statement of ANY account is offered.
 vi.mock("../../shell/OrganisationContext", () => ({ useOrganisation: () => ({ canAny: m.canAny }) }));
 vi.mock("../../../utils/format", async (orig) => ({ ...(await orig()), downloadCSV: vi.fn() }));
+// F07: Print and Download PDF on the statement no longer call window.print() on the live page -
+// they build the statement's own body and hand it to the hidden-frame print / PDF engine every
+// invoice already uses. jsdom does not lay the offscreen frame out, so what was drawn is read
+// from its own markup.
+const drawn = [];
+vi.mock("html2canvas", () => ({
+  default: vi.fn(async () => {
+    const frames = document.querySelectorAll("iframe");
+    drawn.push(frames[frames.length - 1]?.srcdoc || "");
+    return { width: 800, height: 1200, toDataURL: vi.fn(() => "data:image/png;base64,FAKE") };
+  }),
+}));
+const pdfInstances = [];
+vi.mock("jspdf", () => ({
+  jsPDF: vi.fn().mockImplementation(() => {
+    const doc = { addImage: vi.fn(), addPage: vi.fn(), save: vi.fn(), output: vi.fn(() => new Blob(["%PDF-1.4"], { type: "application/pdf" })), getNumberOfPages: vi.fn(() => 1) };
+    pdfInstances.push(doc);
+    return doc;
+  }),
+}));
 
 import AgeingReport from "../AgeingReport";
 import StatementOfAccount from "../StatementOfAccount";
@@ -27,6 +47,11 @@ beforeEach(() => {
   // the screens remember their filters between visits (lib/pageSession), which is a tab-wide
   // module Map: without this, one test leaves the next one looking at a filtered report.
   clearPageSessions();
+  drawn.length = 0;
+  pdfInstances.length = 0;
+  // jsdom has no 2D canvas; the PDF slicing only needs a context and a data URL.
+  HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ drawImage: vi.fn() }));
+  HTMLCanvasElement.prototype.toDataURL = vi.fn(() => "data:image/png;base64,AA");
 });
 
 const BUCKETS = [{ key: "current", label: "Not yet due" }, { key: "d1_30", label: "1-30 days" }, { key: "d31_60", label: "31-60 days" }, { key: "d61_90", label: "61-90 days" }, { key: "d90plus", label: "Over 90 days" }];
@@ -74,10 +99,16 @@ describe("ageing", () => {
     at(<AgeingReport />);
     await screen.findByText("Aged Mart");
     fireEvent.click(screen.getByRole("button", { name: /Export CSV/ }));
-    const [name, heads, rows] = downloadCSV.mock.calls[0];
+    const [name, heads, rows, opts] = downloadCSV.mock.calls[0];
     expect(name).toMatch(/^ageing-receivable-/);
     expect(heads).toEqual(["Party", "Terms", "Not yet due", "1-30 days", "31-60 days", "61-90 days", "Over 90 days", "Total"]);
     expect(rows.at(-1)).toEqual(["Total", "", 100, 200, 300, 0, 400, 1000]);
+    // F07: the export says which report it is and as of when, so a spreadsheet opened later still
+    // says whose figures these are (a point-in-time report: "As at", not a from/to range).
+    expect(opts.preamble[0]).toEqual(["Receivables"]);
+    expect(opts.preamble[1][0]).toMatch(/^Period: As at /);
+    expect(opts.preamble[2][0]).toMatch(/^Printed on: /);
+    expect(opts.preamble[3]).toEqual([]);
 
     m.ageing.mockResolvedValue({ ...AGEING, rows: [], overdue: 0, totals: { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 0 } });
     fireEvent.click(screen.getByRole("tab", { name: "Payables" }));
@@ -195,6 +226,21 @@ describe("statement of account", () => {
     expect(screen.getByText("owes you this amount")).toBeInTheDocument();
   });
 
+  it("prints through a hidden frame and downloads the same table as a PDF (F07)", async () => {
+    const { jsPDF } = await import("jspdf");
+    m.statement.mockResolvedValue(STATEMENT);
+    at(<StatementOfAccount />, "/statement?partyType=Customer&partyId=c1");
+    await screen.findByText("SO-2026-0002");
+
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    expect(document.querySelector("iframe")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalled());
+    expect(drawn[0]).toContain("SO-2026-0002");
+  });
+
   it("uses the vendor wording and endpoint for a vendor", async () => {
     m.axiosGet.mockResolvedValue({ data: { data: [{ _id: "v1", vendorName: "Mill" }] } });
     m.statement.mockResolvedValue({ ...STATEMENT, party: { _id: "v1", name: "Mill", type: "Vendor" } });
@@ -291,6 +337,16 @@ describe("financial statements", () => {
     fireEvent.click(screen.getByRole("button", { name: /Current Assets > Bank/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Bank$/ }));
     expect(await screen.findByRole("dialog", { name: /BANK0001/ })).toBeInTheDocument();
+  });
+
+  it("trial balance: the export names the report and the period it covers (F07)", async () => {
+    m.trialBalance.mockResolvedValue(TB);
+    at(<FinancialStatements />);
+    await screen.findByText("Debits equal credits");
+    fireEvent.click(screen.getByRole("button", { name: /CSV/ }));
+    const [, , , opts] = downloadCSV.mock.calls.at(-1);
+    expect(opts.preamble[0]).toEqual(["Trial balance"]);
+    expect(opts.preamble[1][0]).toMatch(/^Period: /);
   });
 
   it("trial balance: leaves the closing entry out unless asked", async () => {

@@ -10,11 +10,17 @@ vi.mock("../../../lib/bankingApi", () => ({
 vi.mock("../../../lib/accountingApi", () => ({ accounting: {}, ApiError: class extends Error {} }));
 vi.mock("../../../axios/axios", () => ({ default: { get: m.axiosGet } }));
 vi.mock("../../../lib/currencyApi", () => ({ currencies: { list: m.curList, rate: m.curRate } }));
+// F06: the printed voucher carries the organisation's own letterhead (useCompanyProfile), not a
+// blank header - the real hook makes no network call with nobody signed in, so it is mocked here.
+vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({
+  useCompanyProfile: () => ({ companyName: "Harbour Trading", companyNameArabic: "", addressLine1: "Deira", addressLine2: "Dubai", vatNumber: "100123456700003", logo: null }),
+}));
 
 import { PartyVoucherForm, ReceiptVouchers } from "../PartyVouchers";
 import ChequeRegister from "../../banking/ChequeRegister";
 import { convertToBaseCents } from "../../../lib/currencyForms";
 import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
+import { clearPageSessions } from "../../../lib/pageSession";
 
 const box = (name) => screen.getByRole("combobox", { name });
 const choose = async (name, text) => {
@@ -49,6 +55,7 @@ beforeEach(() => {
   m.curList.mockResolvedValue(CURRENCIES);
   m.curRate.mockImplementation(rateFor);
   m.axiosGet.mockImplementation((url) => Promise.resolve({ data: { data: url === "/customers/customers" ? [{ _id: "c1", customerName: "Al Noor", customerId: "CUST001" }] : INVOICES } }));
+  clearPageSessions(); // useVoucherList now remembers its period and filters between visits (F12)
 });
 
 afterEach(() => resetOrgLocale());
@@ -328,7 +335,51 @@ describe("foreign vouchers in the list and in the view", () => {
     expect(within(dialog).getByText("Rate of 01/10/2026 (Central Bank of the UAE)")).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
-    expect(written.join("")).toContain("USD 1,000.00 @ 3.6725 = AED 3,672.50");
+    const printed = written.join("");
+    expect(printed).toContain("USD 1,000.00 @ 3.6725 = AED 3,672.50");
+    // F06: the organisation's own letterhead, who the money came from (a receipt), and the amount
+    // in words - a voucher used to print with none of these (finance QA review 1 Nov 2026).
+    expect(printed).toContain("Harbour Trading");
+    expect(printed).toContain("100123456700003");
+    expect(printed).toContain("Received from");
+    expect(printed).toContain("Al Noor");
+    expect(printed).toContain("Dirhams");
+    expect(printed).toContain("Only");
+  });
+
+  it("shows the invoices a receipt settled and what is left on account, on screen and on the printout", async () => {
+    const withInvoices = {
+      ...ROWS[0], voucherType: "receipt", ledgerBased: true, onAccountAmount: 25,
+      entries: [{ accountName: "Cash in Hand", debitAmount: 100, creditAmount: 0 }, { accountName: "Customer - Al Noor", debitAmount: 0, creditAmount: 100 }],
+      linkedInvoices: [{ invoiceId: { _id: "inv1", transactionNo: "SO-2026-0042", date: "2026-09-20T00:00:00Z" }, amount: 75, balance: 0 }],
+    };
+    m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
+    m.get.mockResolvedValue(withInvoices);
+    const written = [];
+    window.open = vi.fn(() => ({ document: { write: (html) => written.push(html), close: vi.fn() } }));
+    render(<ReceiptVouchers />);
+    fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("SO-2026-0042")).toBeInTheDocument();
+    expect(within(dialog).getByText(/25\.00/)).toBeInTheDocument(); // the on-account line
+    expect(within(dialog).getByText(/not yet set against an invoice/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
+    const printed = written.join("");
+    expect(printed).toContain("Against invoice");
+    expect(printed).toContain("SO-2026-0042");
+    expect(printed).toContain("On account");
+  });
+
+  it("says to allow pop-ups when the browser blocked the print window, instead of doing nothing", async () => {
+    m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
+    m.get.mockResolvedValue({ ...ROWS[0], voucherType: "receipt", ledgerBased: true, entries: [] });
+    window.open = vi.fn(() => null); // the browser's own pop-up blocker
+    render(<ReceiptVouchers />);
+    fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
+    expect(await within(dialog).findByText(/Allow pop-ups for this site to print/)).toBeInTheDocument();
   });
 });
 
