@@ -269,6 +269,7 @@ const PurchaseOrderManagement = () => {
           vendorId: t.partyId,
           vendorName,  // FIX: Use enriched vendorName
           vendorReference: t.vendorReference || "",
+          serialNo: t.serialNo ?? "",
           refNo: t.vendorReference || t.refNo || "",
           date: t.date ? toInputDate(t.date) : "",
           deliveryDate: t.deliveryDate

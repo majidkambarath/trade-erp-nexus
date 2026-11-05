@@ -9,10 +9,12 @@ import {
   bankRows,
   companyBlock,
   invoiceLines,
+  localityOf,
   rowsWithValue,
   vatBreakdown,
   withChargesVat,
 } from "./invoiceModel";
+import { dueDateOf } from "../../../lib/paymentStatus";
 
 // Approved orders are the invoices; a draft or pending order is only an order.
 const INVOICED = ["APPROVED", "INVOICED"];
@@ -58,7 +60,7 @@ export const reverseChargeNote = (lines, totals, side, currency) => {
 };
 
 // The sheet fields every document shares: what is printed, from which saved document.
-export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, reverseChargeSide }) => {
+export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, terms, reverseChargeSide }) => {
   const lines = invoiceLines(doc.items);
   const totals = documentTotals(doc);
   return {
@@ -73,6 +75,10 @@ export const sheetFor = (doc, { title, numberLabel, number, party, meta, company
     bank: bankRows(company),
     currency,
     notice,
+    // The sheet has always rendered a Terms block (InvoiceSheet.jsx) and no invoice ever fed it, so a
+    // document's stored `terms` was captured, editable and invisible. The quotation and the trade order
+    // already passed it; these four now do too.
+    terms,
     receipt,
     reverseCharge: reverseChargeNote(lines, totals, reverseChargeSide, currency),
   };
@@ -114,19 +120,29 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         contact: contactLines(customer),
         trn: customerTrn,
         vatStatus,
+        locality: localityOf(customer),
       },
       meta: [
         ["Date", dateOf(so.date)],
+        // Not the stored `dueDate` on its own: only an opening invoice carries one, so nearly every
+        // invoice would print nothing. `dueDateOf` is the rule the lists, the registers and the ageing
+        // report already share - stored date, else the party's terms - so the four cannot disagree.
+        ["Due date", dateOf(dueDateOf({ ...so, paymentTerms: customer.paymentTerms }))],
         ["Delivery date", dateOf(so.deliveryDate)],
         ["LPO / reference", so.refNo ?? so.lpono ?? ""],
         ["Doc no.", so.docNo ?? so.docno ?? ""],
+        ["Serial no.", so.serialNo ?? ""],
         ["Payment terms", customer.paymentTerms || ""],
         // Present only on an invoice raised from a garage job card (jobCardService.createInvoice).
+        // Plate and chassis are separate rows: a car may be on file with only one of the two, and
+        // `rowsWithValue` then drops the other instead of printing a half-empty combined string.
         ...(so.jobCardRef?.jobNo ? [["Job card no.", so.jobCardRef.jobNo]] : []),
         ...(so.jobCardRef?.plateNumber ? [["Vehicle", so.jobCardRef.plateNumber]] : []),
+        ...(so.jobCardRef?.chassisNo ? [["Chassis (VIN)", so.jobCardRef.chassisNo]] : []),
       ],
       company,
       currency,
+      terms: so.terms || "",
       notice: invoiced
         ? `This is a computer-generated ${noun}. No signature is required.`
         : `This is a draft ${noun}. Nothing is posted and no stock moves until it is approved.`,
@@ -165,12 +181,15 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
     },
     meta: [
       ["Date", dateOf(po.date)],
+      ["Due date", dateOf(dueDateOf({ ...po, paymentTerms: vendor.paymentTerms }))],
       ["Delivery date", dateOf(po.deliveryDate)],
       ["Vendor reference", po.vendorReference ?? po.refNo ?? ""],
+      ["Serial no.", po.serialNo ?? ""],
       ["Payment terms", vendor.paymentTerms || ""],
     ],
     company,
     currency,
+    terms: po.terms || "",
     notice: `${invoiced ? "This is a computer-generated" : "This is a draft"} ${kind}, recorded from the supplier's invoice.${
       registered ? "" : ` The supplier is not ${taxWord()}-registered, so no input ${taxWord()} can be recovered on it.`
     }${invoiced ? " No signature is required." : " Nothing is posted and no stock comes in until it is approved."}`,
@@ -206,14 +225,17 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
         contact: contactLines(customer),
         trn,
         vatStatus,
+        locality: localityOf(customer),
       },
       meta: [
         ["Date", dateOf(so.date)],
         ["Return date", dateOf(so.deliveryDate)],
         ["Original invoice", original],
+        ["Serial no.", so.serialNo ?? ""],
       ],
       company,
       currency,
+      terms: so.terms || "",
       notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "tax credit note" : "credit note"}. It credits the goods returned${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
       receipt: true,
       reverseChargeSide: "supplier",
@@ -251,9 +273,11 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
         ["Return date", dateOf(po.deliveryDate)],
         ["Original invoice", original],
         ["Vendor reference", po.vendorReference ?? ""],
+        ["Serial no.", po.serialNo ?? ""],
       ],
       company,
       currency,
+      terms: po.terms || "",
       notice: `${issued ? "This is a computer-generated" : "This is a draft"} debit note. It records the goods sent back to the vendor${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
       receipt: true,
       reverseChargeSide: "recipient",

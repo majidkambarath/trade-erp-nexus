@@ -819,6 +819,16 @@ export default function OrderForm({
                 </Field>
               ) : null}
 
+              {/* The organisation's OWN reference for this document, printed beside the number it was
+                  given. It does not replace that number: a person who wants to type the number itself
+                  turns on "Automatic, can be typed over" for the type in Accounting setup > Numbering,
+                  which is a different setting and a different field (manualNumber). */}
+              {V.labels.serial && (
+                <Field id={fid("serialNo")} label={V.labels.serial} hint="Your own reference. The document number is still given automatically.">
+                  <input id={fid("serialNo")} name="serialNo" type="text" maxLength={50} value={formData.serialNo || ""} onChange={(e) => setHeader("serialNo", e.target.value)} placeholder="Optional" className={fieldCls(false)} />
+                </Field>
+              )}
+
               {/* a quotation or delivery note has no status to pick: it moves through its own actions */}
               {V.statusOptions && (
                 <Field id={fid("status")} label="Status">

@@ -122,6 +122,11 @@ export default function InvoiceSheet({
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>{party.name}</div>
           {party.code && <div style={{ color: MUTED, fontSize: 10.5 }}>{party.code}</div>}
           {party.address && <div style={{ marginTop: 4, whiteSpace: "pre-line" }}>{party.address}</div>}
+          {/* Where the customer is - the city and country a tax invoice is expected to carry for the
+              buyer, and the two fields `utils/eInvoice.js` already demands of a registered one. Only a
+              customer has them (Customer.eInvoice); a vendor record has no structured locality, so a
+              purchase document passes none and nothing is drawn. */}
+          {party.locality && <div style={{ color: MUTED, fontSize: 10.5, marginTop: 2 }}>{party.locality}</div>}
           {party.contact.length > 0 && <div style={{ color: MUTED, fontSize: 10.5, marginTop: 2 }}>{party.contact.join("   ·   ")}</div>}
           {party.trn && (
             <div style={{ fontSize: 10.5, marginTop: 2 }}>

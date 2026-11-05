@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildSalesDocument,
   buildPurchaseDocument,
   buildPurchaseReturnDocument,
   buildSalesReturnDocument,
@@ -165,5 +166,115 @@ describe("returns: a credit note and a debit note, with the invoice returned nam
     expect(doc.sheet.title).toBe("Debit note");
     expect(doc.sheet.party.vatStatus).toBe("Unregistered");
     expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
+  });
+});
+
+// --- what a document carries beside its number -------------------------------------------------
+// These guard the three things added on 5 Nov 2026: the organisation's own typed reference, the
+// vehicle a garage invoice was for, and the fields the product's OWN e-invoice validator
+// (utils/eInvoice.js REQUIRED_INVOICE / REQUIRED_BUYER) has always demanded while the printed sheet
+// had nowhere to put them.
+
+const row = (meta, label) => meta.find(([k]) => k === label);
+
+describe("the serial number a person types", () => {
+  const cust = { customerId: "C1", customerName: "Spinneys", paymentTerms: "Net 30" };
+  const vend = { vendorId: "V1", vendorName: "Gulf Supply" };
+  const base = { transactionNo: "X-1", status: "APPROVED", date: "2026-11-05", items };
+
+  it("prints on all four documents, under its own label", () => {
+    const docs = [
+      buildSalesDocument({ ...base, serialNo: "GRG-114" }, cust, company, "AED"),
+      buildPurchaseDocument({ ...base, serialNo: "GRG-114" }, vend, company, "AED"),
+      buildSalesReturnDocument({ ...base, serialNo: "GRG-114" }, cust, company, "AED"),
+      buildPurchaseReturnDocument({ ...base, serialNo: "GRG-114" }, vend, company, "AED"),
+    ];
+    for (const d of docs) expect(d.sheet.meta).toContainEqual(["Serial no.", "GRG-114"]);
+  });
+
+  // It is optional, and `rowsWithValue` is what keeps an unused reference off the paper rather than
+  // printing an empty row under a heading.
+  it("leaves no row at all when nobody typed one", () => {
+    const d = buildSalesDocument(base, cust, company, "AED");
+    expect(row(d.sheet.meta, "Serial no.")).toBeUndefined();
+  });
+
+  // The automatic number is untouched: the serial sits beside it, it does not replace it.
+  it("does not become the document's number", () => {
+    const d = buildSalesDocument({ ...base, transactionNo: "SO-2026-0010", serialNo: "GRG-114" }, cust, company, "AED");
+    expect(d.sheet.number.value).toBe("SO-2026-0010");
+  });
+});
+
+describe("the vehicle a garage invoice was for", () => {
+  const cust = { customerId: "C1", customerName: "Ali Hassan" };
+  const base = { transactionNo: "SO-1", status: "APPROVED", date: "2026-11-05", items };
+
+  it("names it by plate and by chassis, as two rows", () => {
+    const d = buildSalesDocument(
+      { ...base, jobCardRef: { jobNo: "JC-2026-0017", plateNumber: "A 11111", chassisNo: "JTEBU29J100123456" } },
+      cust, company, "AED",
+    );
+    expect(d.sheet.meta).toContainEqual(["Job card no.", "JC-2026-0017"]);
+    expect(d.sheet.meta).toContainEqual(["Vehicle", "A 11111"]);
+    expect(d.sheet.meta).toContainEqual(["Chassis (VIN)", "JTEBU29J100123456"]);
+  });
+
+  // A car may be on file with one identifier and not the other - vehicleModel.js indexes both
+  // partially for exactly that reason - so each row has to stand on its own.
+  it("prints whichever of the two the vehicle actually has", () => {
+    const plateOnly = buildSalesDocument({ ...base, jobCardRef: { jobNo: "JC-1", plateNumber: "A 11111" } }, cust, company, "AED");
+    expect(plateOnly.sheet.meta).toContainEqual(["Vehicle", "A 11111"]);
+    expect(row(plateOnly.sheet.meta, "Chassis (VIN)")).toBeUndefined();
+
+    const vinOnly = buildSalesDocument({ ...base, jobCardRef: { jobNo: "JC-1", chassisNo: "VIN-ONLY-1" } }, cust, company, "AED");
+    expect(vinOnly.sheet.meta).toContainEqual(["Chassis (VIN)", "VIN-ONLY-1"]);
+    expect(row(vinOnly.sheet.meta, "Vehicle")).toBeUndefined();
+  });
+
+  // Every invoice that is not a garage one - which is nearly all of them - reads exactly as before.
+  it("says nothing about a vehicle on an ordinary invoice", () => {
+    const d = buildSalesDocument(base, cust, company, "AED");
+    for (const label of ["Job card no.", "Vehicle", "Chassis (VIN)"]) expect(row(d.sheet.meta, label)).toBeUndefined();
+  });
+});
+
+describe("the due date, and where the customer is", () => {
+  const base = { transactionNo: "SO-1", status: "APPROVED", date: "2026-11-05T00:00:00.000Z", items };
+
+  // Only an opening invoice stores a dueDate, so printing the stored field alone would leave the row
+  // blank on nearly every invoice. This is `dueDateOf` - the rule the lists and the ageing report use.
+  it("works the due date out from the party's terms when none is stored", () => {
+    const d = buildSalesDocument(base, { customerId: "C1", customerName: "Spinneys", paymentTerms: "Net 30" }, company, "AED");
+    expect(row(d.sheet.meta, "Due date")[1]).toBe("05/12/2026");
+  });
+
+  it("prefers a stored due date to the terms", () => {
+    const d = buildSalesDocument({ ...base, dueDate: "2026-11-20T00:00:00.000Z" }, { customerId: "C1", customerName: "S", paymentTerms: "Net 30" }, company, "AED");
+    expect(row(d.sheet.meta, "Due date")[1]).toBe("20/11/2026");
+  });
+
+  // A credit note is not owed on a date; it has none and must not invent one.
+  it("gives a credit note no due date", () => {
+    const d = buildSalesReturnDocument(base, { customerId: "C1", customerName: "S", paymentTerms: "Net 30" }, company, "AED");
+    expect(row(d.sheet.meta, "Due date")).toBeUndefined();
+  });
+
+  it("prints the customer's city and country when the record has them", () => {
+    const d = buildSalesDocument(base, { customerId: "C1", customerName: "S", eInvoice: { city: "Dubai", countryCode: "AE" } }, company, "AED");
+    expect(d.sheet.party.locality).toBe("Dubai, AE");
+  });
+
+  // A vendor record has no structured locality at all, so the purchase side must pass none rather
+  // than reach for a field that does not exist.
+  it("claims no locality for a vendor, or for a customer whose address is one blob", () => {
+    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf" }, company, "AED").sheet.party.locality).toBeUndefined();
+    expect(buildSalesDocument(base, { customerId: "C1", customerName: "S" }, company, "AED").sheet.party.locality).toBe("");
+  });
+
+  // The sheet has always drawn a Terms block and no invoice ever fed it.
+  it("passes the document's own terms to the sheet", () => {
+    const d = buildSalesDocument({ ...base, terms: "Payment within 30 days." }, { customerId: "C1", customerName: "S" }, company, "AED");
+    expect(d.sheet.terms).toBe("Payment within 30 days.");
   });
 });
