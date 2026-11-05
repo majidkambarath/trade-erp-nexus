@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.1.0.1 — 5 November 2026
+
+Finance vouchers (receipt, payment, journal, contra, expense, notes) print on the same designed A4
+sheet the tax invoice does, and each opens its own document page like a sales or purchase invoice.
+Frontend 2.1.0.1.
+
+### Fixed
+
+- **A voucher printed a bare system-ui table in a pop-up window**, under an `about:blank` page
+  header, that the browser's pop-up blocker could stop outright - and had no way to save a PDF.
+  Every voucher kind now prints through the same hidden-frame engine the invoices use, on a sheet
+  that is the tax invoice's visual twin (letterhead, gold title band, totals panel, three
+  signatures), and a Download PDF button sits beside Print.
+- **A voucher now opens its own document page** (`/receipt-voucher/:id` and the same path shape for
+  every other kind), reusing the screen a sales or purchase invoice opens on - the A4 preview, a
+  copy switch, Print, Download PDF - rather than growing a second one. The dialog gained a View
+  document button leading there; a voucher kind with no finance screen keeps printing from the
+  dialog itself. Download PDF moved off the dialog onto the page, where the sheet is visible before
+  it is saved.
+- An approved voucher could have printed a "Not posted" stamp: `STAMP[status] ?? fallback` reads an
+  approved voucher's own `null` entry as the fallback, since `??` only looks past `null`/`undefined`.
+- The two tables inside the voucher dialog (against-invoice, debit/credit) used table-pin-first,
+  which has nowhere to scroll to inside a dialog; both now stack below md, like the audit trail's
+  own tables (the house rule for a dialog's figures), found by a receipt with both a foreign-currency
+  rate and a settled invoice overflowing the dialog by 14px at 390px wide.
+
 ## 2.1.0.0 — 1 November 2026
 
 Frontend half of the Finance QA fixes (see trade ERP node and foodERP/CLAUDE.md "Finance test report
