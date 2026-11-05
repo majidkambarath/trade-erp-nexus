@@ -1,16 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { History, Printer, Search, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { FileText, History, Printer, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ConfirmDialog, EmptyState, ErrorNote, Field, Modal, Pill, Spinner, TextInput, Textarea, errorMessage, inputClass, useAsync, DateInput } from "../accounting/kit";
 import { accounting } from "../../lib/accountingApi";
 import { banking, vouchers } from "../../lib/bankingApi";
 import { accountOption, describePayment, money, toCents } from "../../lib/voucherForms";
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
-import { VoucherAuditTrail } from "../audit/AuditTrail";
+import { Table, VoucherAuditTrail } from "../audit/AuditTrail";
 import { CURRENCY, formatDateGB, moneyHeading } from "../../utils/format";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
-import { totalInWords } from "../PurchaseOrder/shared/invoiceModel";
-import { taxIdWord } from "../../lib/taxTerms";
+import { readAccent } from "../PurchaseOrder/shared/invoiceModel";
+import { printMarkup, sheetMarkup } from "../PurchaseOrder/shared/documentPdf";
+import { VOUCHER_STATUS as STATUS, settledInvoiceRows, voucherPagePath, voucherSheet } from "./voucherModel";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { ApprovalBanner, useApproval } from "../shell/Approval";
 import { awaitingLabel, firstApproverName, FIRST_APPROVAL_MESSAGE, wasFirstApproval } from "../../lib/approvals";
@@ -29,14 +31,6 @@ import ListEmpty from "../lists/ListEmpty";
 // also have picked yesterday's exchange rate for a foreign-currency voucher).
 export { todayInput } from "../../utils/format";
 
-const STATUS = {
-  approved: ["success", "Posted"],
-  pending: ["warning", "Pending"],
-  draft: ["warning", "Draft"],
-  rejected: ["danger", "Rejected"],
-  bounced: ["danger", "Bounced"],
-  cancelled: ["neutral", "Cancelled"],
-};
 // `doc` (the voucher) is optional: given it, a voucher that has had its first approval and waits for a second person says so
 // instead of "Pending".
 export function StatusPill({ status, doc }) {
@@ -198,71 +192,18 @@ export function ListBody({ list, emptyTitle, emptyText, children }) {
 
 // --- view ------------------------------------------------------------------------------------
 
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-// "Received from" for money coming in, "Paid to" for money going out; anything else (journal,
-// contra, expense, a note) keeps the plain "Party" it always had - none of them is one side of a
-// cash movement in the same way.
-export const partyLabelFor = (voucherType) => (voucherType === "receipt" ? "Received from" : voucherType === "payment" ? "Paid to" : "Party");
-
-// The invoices a receipt or payment settled, in the shape both the printout and the screen read:
-// number, date, what this voucher put against it, and the balance left after. `invoiceId` is
-// POPULATED by the server (financialService.getVoucherById); a deleted invoice still shows its id.
-export function settledInvoiceRows(v) {
-  return (v?.linkedInvoices || []).map((li) => {
-    const inv = li.invoiceId && typeof li.invoiceId === "object" ? li.invoiceId : null;
-    return { no: inv?.transactionNo || (li.invoiceId ? String(li.invoiceId) : "—"), date: inv?.date || null, amount: li.amount ?? li.allocatedAmount, balance: li.balance ?? li.newBalance };
-  });
-}
-
-// A plain printable page in its own window (so none of the app around it is printed). `profile`
-// is the organisation's one letterhead (useCompanyProfile): logo, English and Arabic name,
-// address and TRN, exactly as a tax invoice carries them - a voucher used to print with no
-// company identity on it at all (F06, finance QA review 1 Nov 2026). Returns "blocked" when the
-// browser's pop-up blocker stopped it, so the caller can say why nothing happened.
-export function printVoucher(v, title, profile = {}) {
-  const rows = (v.entries || [])
-    .map((e) => `<tr><td>${esc(e.accountName)}<br><small>${esc(e.description)}</small></td><td class="n">${e.debitAmount ? money(toCents(e.debitAmount)) : ""}</td><td class="n">${e.creditAmount ? money(toCents(e.creditAmount)) : ""}</td></tr>`)
-    .join("");
-  const debit = (v.entries || []).reduce((t, e) => t + toCents(e.debitAmount), 0);
-  const credit = (v.entries || []).reduce((t, e) => t + toCents(e.creditAmount), 0);
-  const invoices = settledInvoiceRows(v);
-  const invoiceRows = invoices
-    .map((r) => `<tr><td>${esc(r.no)}</td><td>${r.date ? esc(formatDateGB(r.date)) : ""}</td><td class="n">${money(toCents(r.amount))}</td><td class="n">${money(toCents(r.balance))}</td></tr>`)
-    .join("");
-  const onAccount = toCents(v.onAccountAmount);
-  const w = window.open("", "_blank", "width=900,height=700");
-  if (!w) return "blocked";
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(v.voucherNo)}</title><style>
-    body{font:13px system-ui,sans-serif;margin:32px;color:#111} h1{font-size:18px;margin:0} h2{font-size:14px;margin:12px 0 16px;color:#555;font-weight:500}
-    .company img{max-height:48px;margin-bottom:6px} .company h1+h1{margin-top:2px} .addr{margin:4px 0 0;font-size:12px;color:#555}
-    table{width:100%;border-collapse:collapse;margin-top:16px} th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top} th{background:#f5f5f5}
-    .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap} small{color:#666} .meta td{border:0;padding:2px 8px 2px 0} tfoot td{font-weight:700;border-top:2px solid #111}
-    .words{margin-top:10px;font-weight:600} .sign{display:flex;justify-content:space-between;margin-top:64px} .sign div{border-top:1px solid #111;padding-top:6px;width:30%;text-align:center}
-  </style></head><body>
-    <div class="company">
-      ${profile.logo ? `<img src="${esc(profile.logo)}" alt="">` : ""}
-      <h1>${esc(profile.companyName)}</h1>
-      ${profile.companyNameArabic ? `<h1 dir="rtl">${esc(profile.companyNameArabic)}</h1>` : ""}
-      ${[profile.addressLine1, profile.addressLine2].filter(Boolean).length ? `<p class="addr">${[profile.addressLine1, profile.addressLine2].filter(Boolean).map(esc).join(", ")}</p>` : ""}
-      ${profile.vatNumber ? `<p class="addr">${esc(taxIdWord())}: ${esc(profile.vatNumber)}</p>` : ""}
-    </div>
-    <h2>${esc(title)}</h2>
-    <table class="meta"><tr><td><b>Voucher</b></td><td>${esc(v.voucherNo)}</td><td><b>Date</b></td><td>${esc(formatDateGB(v.date))}</td></tr>
-    ${v.partyName ? `<tr><td><b>${esc(partyLabelFor(v.voucherType))}</b></td><td colspan="3">${esc(v.partyName)}</td></tr>` : ""}
-    ${isForeign(v) ? `<tr><td><b>Foreign currency</b></td><td colspan="3">${esc(fxLine(v))}<br><small>${esc(fxProvenance(v))}</small></td></tr>` : ""}
-    ${v.paymentMode ? `<tr><td><b>Paid by</b></td><td colspan="3">${esc(describePayment(v))}</td></tr>` : ""}
-    ${v.narration ? `<tr><td><b>Narration</b></td><td colspan="3">${esc(v.narration)}</td></tr>` : ""}</table>
-    <table><thead><tr><th>Account</th><th class="n">${esc(moneyHeading("Debit"))}</th><th class="n">${esc(moneyHeading("Credit"))}</th></tr></thead><tbody>${rows}</tbody>
-    <tfoot><tr><td>Total</td><td class="n">${money(debit)}</td><td class="n">${money(credit)}</td></tr></tfoot></table>
-    <p class="words">Amount in words: ${esc(totalInWords(Number(v.totalAmount) || 0))}</p>
-    ${invoiceRows ? `<h2>Against invoice</h2><table><thead><tr><th>Invoice</th><th>Date</th><th class="n">Amount</th><th class="n">Balance after</th></tr></thead><tbody>${invoiceRows}</tbody></table>` : ""}
-    ${onAccount ? `<p>On account (not yet set against an invoice): ${money(onAccount)}</p>` : ""}
-    <div class="sign"><div>Prepared by</div><div>Checked by</div><div>Approved by</div></div>
-    <script>window.onload=function(){window.print()}</script></body></html>`);
-  w.document.close();
-  return "ok";
-}
+// The voucher as one page of markup for the hidden-frame print engine, through `sheetMarkup` - the
+// same call the invoice screen's own Print makes. The sheet is registered as `layout: "voucher"`
+// (voucherModel.js, documentPdf.jsx), so this dialog, the document page's preview and the PDF all
+// go through one registry and cannot draw the voucher three different ways.
+//
+// This replaced a `window.open` + `document.write` popup that printed a bare system-ui table with
+// no accent and no sheet margins, under an `about:blank` page header, and that the browser's
+// popup blocker could stop outright. There is no popup left to be blocked.
+const voucherMarkup = (v, title, profile) => {
+  const sheet = voucherSheet(v, { title, profile, currency: CURRENCY });
+  return sheetMarkup(sheet, { copy: sheet.copy, accent: readAccent() });
+};
 
 // Read-only view of any voucher: header, who and how, the ledger entries it posted, and what
 // can be done to it.
@@ -272,6 +213,7 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
   // it is the posted key; unless a caller says otherwise.
   const { can } = useOrganisation();
   const { stateOf } = useApproval();
+  const navigate = useNavigate();
   const canDelete = canDeleteProp ?? can(deleteKey("finance", true));
   const { data: v, loading, error, reload } = useAsync(() => vouchers.get(id), [id]);
   const profile = useCompanyProfile();
@@ -344,11 +286,12 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
   const entries = v?.entries || [];
   const totals = entries.reduce((t, e) => ({ d: t.d + toCents(e.debitAmount), c: t.c + toCents(e.creditAmount) }), { d: 0, c: 0 });
   const settledInvoices = v ? settledInvoiceRows(v) : [];
+  const docPath = v ? voucherPagePath(v) : null;
+  // Through the hidden frame, never a popup: there is nothing left for a blocker to stop, and the
+  // voucher comes out on the same A4 sheet as the tax invoice.
   function printNow() {
     setProblem(null);
-    if (printVoucher(v, title, profile) === "blocked") {
-      setProblem(new Error("Allow pop-ups for this site to print, then try again."));
-    }
+    printMarkup(voucherMarkup(v, title, profile));
   }
   return (
     <>
@@ -364,6 +307,11 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
           ) : (
             <>
               <Button variant="outline" onClick={() => setAudit(true)}><History className="h-4 w-4" aria-hidden="true" />Audit trail</Button>
+              {/* The document itself: the A4 sheet on screen with the copy switch, Print and Download PDF,
+                  on the same page a sales or purchase invoice opens on. A real link, so it can be opened in
+                  a new tab. A voucher kind with no finance screen (an opening or closing entry) has no page
+                  and is simply not offered one - it still prints from here. */}
+              {docPath && <Button variant="outline" onClick={() => navigate(docPath)}><FileText className="h-4 w-4" aria-hidden="true" />View document</Button>}
               <Button variant="outline" onClick={printNow}><Printer className="h-4 w-4" aria-hidden="true" />Print</Button>
               {mayEditNarration && <Button variant="outline" onClick={startEditingNarration}>Edit narration</Button>}
               {canDelete && v.status === "approved" && <Button variant="outline" onClick={() => setConfirm(true)}><Trash2 className="h-4 w-4" aria-hidden="true" />Delete (reverse)</Button>}
@@ -390,25 +338,27 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
               {!editingNarration && v.narration && <div className="sm:col-span-2"><dt className="text-muted-foreground">Narration</dt><dd>{v.narration}</dd></div>}
               {!editingNarration && v.notes && <div className="sm:col-span-2"><dt className="text-muted-foreground">Notes</dt><dd>{v.notes}</dd></div>}
             </dl>
+            {/* Two columns of money and a narrow dialog: this used to be table-pin-first, which has
+                nowhere to scroll TO inside a dialog - the figures it exists to show slid out of view,
+                caught by check:mobile's receipt-voucher>document step the day a receipt with both a
+                foreign-currency rate and an invoice it settled was first swept at 390px. `Table`
+                (audit/AuditTrail.jsx) is the house fix: the same rows, stacked below md. */}
             {settledInvoices.length > 0 && (
-              <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">Against invoice</caption>
-                  <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr><th className="px-4 py-2 text-start">Invoice</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Amount</th><th className="px-4 py-2 text-end">Balance after</th></tr>
-                  </thead>
-                  <tbody>
-                    {settledInvoices.map((r, i) => (
-                      <tr key={i} className="border-t border-border">
-                        <td className="px-4 py-2 font-mono text-xs">{r.no}</td>
-                        <td className="px-3 py-2">{r.date ? formatDateGB(r.date) : ""}</td>
-                        <td className="px-3 py-2 text-end tabular-nums">{money(toCents(r.amount))}</td>
-                        <td className="px-4 py-2 text-end tabular-nums">{money(toCents(r.balance))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table
+                head={<><th className="px-4 py-2 text-start">Invoice</th><th className="px-3 py-2 text-start">Date</th><th className="px-3 py-2 text-end">Amount</th><th className="px-4 py-2 text-end">Balance after</th></>}
+              >
+                <caption className="sr-only">Against invoice</caption>
+                <tbody>
+                  {settledInvoices.map((r, i) => (
+                    <tr key={i} className="border-t border-border">
+                      <td className="px-4 py-2 font-mono text-xs">{r.no}</td>
+                      <td className="px-3 py-2">{r.date ? formatDateGB(r.date) : ""}</td>
+                      <td className="px-3 py-2 text-end tabular-nums">{money(toCents(r.amount))}</td>
+                      <td className="px-4 py-2 text-end tabular-nums">{money(toCents(r.balance))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
             )}
             {editingNarration && (
               <div className="space-y-3 rounded-xl border border-border bg-secondary/30 p-4">
@@ -421,27 +371,24 @@ export function VoucherView({ id, title, onClose, onDeleted, onChanged, canDelet
               </div>
             )}
             {extra}
-            <div className="erp-scroll table-pin-first overflow-x-auto rounded-xl border border-border">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr><th className="px-4 py-2 text-start">Account</th><th className="px-3 py-2 text-end">{moneyHeading("Debit")}</th><th className="px-4 py-2 text-end">{moneyHeading("Credit")}</th></tr>
-                </thead>
-                <tbody>
-                  {entries.map((e, i) => (
-                    <tr key={i} className="border-t border-border">
-                      <td className="px-4 py-2"><span className="font-medium">{e.accountName}</span>{e.description && <span className="block text-xs text-muted-foreground">{e.description}</span>}</td>
-                      <td className="px-3 py-2 text-end tabular-nums">{e.debitAmount ? money(toCents(e.debitAmount)) : ""}</td>
-                      <td className="px-4 py-2 text-end tabular-nums">{e.creditAmount ? money(toCents(e.creditAmount)) : ""}</td>
-                    </tr>
-                  ))}
-                  <tr className="border-t-2 border-border bg-secondary/40 font-semibold">
-                    <td className="px-4 py-2">Total</td>
-                    <td className="px-3 py-2 text-end tabular-nums">{money(totals.d)}</td>
-                    <td className="px-4 py-2 text-end tabular-nums">{money(totals.c)}</td>
+            <Table
+              head={<><th className="px-4 py-2 text-start">Account</th><th className="px-3 py-2 text-end">{moneyHeading("Debit")}</th><th className="px-4 py-2 text-end">{moneyHeading("Credit")}</th></>}
+            >
+              <tbody>
+                {entries.map((e, i) => (
+                  <tr key={i} className="border-t border-border">
+                    <td className="px-4 py-2"><span className="font-medium">{e.accountName}</span>{e.description && <span className="block text-xs text-muted-foreground">{e.description}</span>}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{e.debitAmount ? money(toCents(e.debitAmount)) : ""}</td>
+                    <td className="px-4 py-2 text-end tabular-nums">{e.creditAmount ? money(toCents(e.creditAmount)) : ""}</td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
+                ))}
+                <tr className="border-t-2 border-border bg-secondary/40 font-semibold">
+                  <td className="px-4 py-2">Total</td>
+                  <td className="px-3 py-2 text-end tabular-nums">{money(totals.d)}</td>
+                  <td className="px-4 py-2 text-end tabular-nums">{money(totals.c)}</td>
+                </tr>
+              </tbody>
+            </Table>
             {v.ledgerBased === false && ["journal", "contra", "expense"].includes(v.voucherType) && (
               <p className="text-xs text-muted-foreground">This voucher was posted in the older format, to the cash &amp; bank accounts list, so it is view-only here.</p>
             )}

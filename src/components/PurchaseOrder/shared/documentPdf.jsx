@@ -7,6 +7,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import InvoiceSheet from "./InvoiceSheet";
 import DeliverySheet from "./DeliverySheet";
+import VoucherSheet from "../../finance/VoucherSheet";
 
 const A4_MM = { w: 210, h: 297 };
 // 210mm at 96dpi: the width the sheet is laid out at.
@@ -19,8 +20,12 @@ const SHEET_PX = 794;
 const RASTER = { download: { scale: 2, quality: 0.92 }, email: { scale: 1.5, quality: 0.82 } };
 
 // Which page a document is drawn on. Invoices, orders, returns and quotations share the priced sheet;
-// a delivery note and a pick list have their own (quantities, signatures), named by `layout`.
-export const sheetComponent = (sheet) => (sheet?.layout === "delivery" ? DeliverySheet : InvoiceSheet);
+// a delivery note and a pick list have their own (quantities, signatures), and a finance voucher has
+// the debit/credit one, each named by `layout`. This is the registry every reader goes through -
+// `sheetMarkup` for print and PDF, and `InvoiceScreen` for the preview - so a document cannot be
+// drawn one way on screen and another on paper.
+const LAYOUTS = { delivery: DeliverySheet, voucher: VoucherSheet };
+export const sheetComponent = (sheet) => LAYOUTS[sheet?.layout] || InvoiceSheet;
 
 // The page markup for one copy of a document.
 export const sheetMarkup = (sheet, { copy, accent }) => {

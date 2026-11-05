@@ -35,6 +35,7 @@ const ChartOfAccounts = lazy(() => import("../components/accounting/ChartOfAccou
 const LedgerBook = lazy(() => import("../components/accounting/LedgerBook.jsx"));
 const JournalVouchers = lazy(() => import("../components/finance/JournalVouchers.jsx"));
 const ContraVouchers = lazy(() => import("../components/finance/ContraVouchers.jsx"));
+const VoucherDocument = lazy(() => import("../components/finance/VoucherDocument.jsx"));
 const ExpenseVouchers = lazy(() => import("../components/finance/ExpenseVouchers.jsx"));
 const DebitCreditNotes = lazy(() => import("../components/finance/DebitCreditNotes.jsx"));
 const BankMaster = lazy(() => import("../components/banking/BankMaster.jsx"));
@@ -134,6 +135,16 @@ export default function AdminRouter() {
         <Route path="/contra-voucher" element={<ContraVouchers />} />
         <Route path="/expense-voucher" element={<ExpenseVouchers />} />
         <Route path="/debit-credit-notes" element={<DebitCreditNotes />} />
+        {/* A voucher read as a document (the A4 sheet, Print, Download PDF), on the same screen a
+            sales or purchase invoice opens on. One component serves all six: the type is read from the
+            voucher itself. Each path is its own list's path with the id after it, so it belongs to that
+            screen's navigation tab by prefix and needs no entry in config/navigation.js. */}
+        <Route path="/receipt-voucher/:id" element={<VoucherDocument />} />
+        <Route path="/payment-voucher/:id" element={<VoucherDocument />} />
+        <Route path="/journal-voucher/:id" element={<VoucherDocument />} />
+        <Route path="/contra-voucher/:id" element={<VoucherDocument />} />
+        <Route path="/expense-voucher/:id" element={<VoucherDocument />} />
+        <Route path="/debit-credit-notes/:id" element={<VoucherDocument />} />
         <Route path="/cheques" element={<ChequesPage />} />
         <Route path="/cash-and-bank" element={<CashAndBank />} />
         <Route path="/bank-reconciliation" element={<BankReconciliation />} />

@@ -106,7 +106,9 @@ const labelCells = (section, labels) =>
 // Four or five columns of figures do not fit a phone, and a dialog cannot scroll sideways
 // without hiding the very numbers it is there to show. Below md each row becomes a labelled
 // block (see .table-stack in index.css); from md up it is the table it has always been.
-function Table({ head, children }) {
+// Exported for `finance/shared.jsx`'s VoucherView, which has the same shape of problem - two
+// tables of figures inside a dialog - rather than growing a second copy of the same mechanism.
+export function Table({ head, children }) {
   const labels = React.Children.toArray(
     React.isValidElement(head) && head.type === React.Fragment ? head.props.children : head
   ).map(headingText);

@@ -193,6 +193,10 @@ const DEEP = {
   // The approvals list: a voucher opens on the page, with its own Approve and Reject (the tables and cards are the page itself).
   "home-approvals": [
     { name: "voucher", clicks: ["^Open JV-2026-0012"], settle: 1200 },
+    // The dialog's own link to the voucher's document page - the A4 sheet, Print, Download PDF, on
+    // the same screen a sales or purchase invoice opens on. `page: true` because this step ends in a
+    // real navigation away from the dialog, not one more layer of it.
+    { name: "voucher-document", page: true, clicks: ["^Open JV-2026-0012", "^View document"], settle: 1200 },
     // The bell's feed. It is in the top bar of every page, so one step is enough: it is a panel hanging off
     // the bell from md up and the bottom sheet below, and this sweep measures both widths.
     { name: "notifications", clicks: ["^Notifications"], settle: 900 },
@@ -204,6 +208,18 @@ const DEEP = {
   // copied from JV-2026-0012") and a two-sentence description: at 390px those are what can overflow.
   "journal-voucher": [{ name: "copy", clicks: ["^Copy "], settle: 900 }],
   "expense-voucher": [{ name: "copy", clicks: ["^Copy "], settle: 900 }],
+  // Straight from a list row, through the dialog, to its document page - every list uses the same
+  // generic stub rows, so "View RV-2026-0001" (the first one, id v1 above) opens the densest sheet
+  // the document draws: a party, a foreign-currency rate line, an invoice it settled, a balance left
+  // on account, and a receipt is also the one kind drawn as two copies (the page's copy switch).
+  // Checked once is enough for every list - they share the same list and document components - so
+  // only receipts carries this step. The first click (the dialog) is also its own check: that is
+  // where the against-invoice and debit/credit tables (table-stack, not table-pin-first - there is
+  // nowhere inside a dialog to scroll to) were found bleeding 14px at 390px wide.
+  "receipt-voucher": [
+    { name: "dialog", clicks: ["^View RV-2026-0001"], settle: 1200 },
+    { name: "document", page: true, clicks: ["^View RV-2026-0001", "^View document"], settle: 1200 },
+  ],
   // A quotation and a delivery note are each a printed document with a row of actions above it, and
   // dialogs behind those. `page: true` means the step lands on a page, not a dialog.
   // The Sending tab with "your own mail server" chosen: five more fields and a warning, on a phone.
@@ -795,8 +811,27 @@ function stubFor(pathname, search = "") {
       capped: false,
     };
   }
-  // One voucher as its own screen reads it ({ voucher, ledgerEntries }): the journal the approvals list opens, waiting for approval.
+  // One voucher as its own screen reads it ({ voucher, ledgerEntries }). Keyed on id so two different
+  // deep steps can reach two different sheets: "v1" (the first row of the generic voucher(i) list every
+  // list page falls through to below) is the densest one the voucher document draws - a party, a
+  // foreign-currency rate line, an invoice it settled and a balance left on account - and every other
+  // id is the journal the approvals list opens, waiting for approval, as before.
   if (p.includes("/vouchers/vouchers/") && !p.slice(p.indexOf("/vouchers/vouchers/") + 19).includes("/")) {
+    const id = p.slice(p.lastIndexOf("/") + 1);
+    if (id === "v1") {
+      return {
+        voucher: {
+          _id: "v1", voucherNo: "RV-2026-0001", voucherType: "receipt", status: "approved",
+          date: "2026-10-08T00:00:00.000Z", partyName: "Al Noor Trading 1", paymentMode: "bank",
+          paymentDetails: { accountName: "Emirates NBD Current" }, totalAmount: 3672.5,
+          currency: "USD", foreignAmount: 1000, exchangeRate: 3.6725, rateDate: "2026-10-08T00:00:00.000Z", rateSource: "cbuae",
+          ledgerBased: true, onAccountAmount: 172.5, createdBy: "u8", approvals: [],
+          entries: [{ accountName: "Emirates NBD Current", debitAmount: 3672.5, creditAmount: 0 }, { accountName: "Customer - Al Noor Trading 1", debitAmount: 0, creditAmount: 3672.5 }],
+          linkedInvoices: [{ invoiceId: { _id: "i1", transactionNo: "SO-2026-0042", date: "2026-09-20T00:00:00.000Z" }, amount: 3500, balance: 0 }],
+        },
+        ledgerEntries: [],
+      };
+    }
     return {
       voucher: {
         _id: "v3", voucherNo: "JV-2026-0012", voucherType: "journal", status: "pending", date: "2026-10-08T00:00:00.000Z", totalAmount: 1500, ledgerBased: true, createdBy: "u8", approvals: [],

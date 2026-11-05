@@ -19,6 +19,7 @@ vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(()
 
 import { StatusPill, VoucherView } from "../shared";
 import { AsRole, roleLoaded, statusFor } from "../../shell/__tests__/asRole";
+import { MemoryRouter } from "react-router-dom";
 import { FIRST_APPROVAL_MESSAGE } from "../../../lib/approvals";
 
 const voucher = (over = {}) => ({
@@ -37,7 +38,7 @@ const person = ({ grants = GRANTS, limit = null, policy = {} } = {}) => {
 const show = async (status, v = voucher(), props = {}) => {
   orgStatus = status;
   m.get.mockResolvedValue(v);
-  render(<AsRole><VoucherView id="v1" title="Journal voucher" onClose={vi.fn()} {...props} /></AsRole>);
+  render(<MemoryRouter><AsRole><VoucherView id="v1" title="Journal voucher" onClose={vi.fn()} {...props} /></AsRole></MemoryRouter>);
   await roleLoaded();
   expect(await screen.findByRole("heading", { name: /JV-2026-0001/ })).toBeInTheDocument();
   expect(await screen.findByRole("button", { name: /audit trail/i })).toBeInTheDocument();
