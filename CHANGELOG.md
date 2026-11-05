@@ -1,5 +1,45 @@
 # Changelog
 
+## 2.2.0.0 — 5 November 2026
+
+The printed invoice gained the identifiers and references it was missing: the vehicle's plate and
+chassis on a garage invoice, a reference number somebody types, a due date, the Terms block the
+sheet has always drawn but nothing ever filled, and a letterhead that finally includes the city and
+country. Needs backend 2.2.0.0. Frontend 2.2.0.0.
+
+### Added
+
+- **Vehicle and Chassis (VIN) rows** on a garage invoice, each appearing on its own (a car can be on
+  file with a plate and no chassis, or the reverse), labelled as the vehicle form labels them so the
+  form and the paper agree. "Vehicle" on a DELIVERY note is a different thing entirely - the
+  delivering truck - and does not collide.
+- **A "Serial no." box** on all four order forms and on the garage's Create invoice dialog, printed
+  on all four invoice documents. It sits BESIDE the automatic number; typing the document number
+  itself is the separate, already-built `auto_override` voucher-type setting.
+- **Due date and Delivery date** rows on the sales and purchase invoices (`Transaction.dueDate` was
+  stored and never printed; the due date falls back to the party's payment terms, as ageing does).
+- **Terms** reach the sheet. `InvoiceSheet` has always drawn a Terms block that `sheetFor` never
+  fed, so a document's `terms` was captured, stored, editable - and invisible.
+
+### Fixed
+
+- **The letterhead dropped the city, emirate and country on every printed sheet in the product.**
+  `GET /company/profile` returns all three and `CompanySettings.profile` stores them, but
+  `useCompanyProfile` discarded them and `companyBlock` built its address from the two address lines
+  alone - while `utils/eInvoice.js` `REQUIRED_INVOICE` has always demanded `sellerCity` and
+  `sellerCountryCode`. The one new `addressLines()` helper fixes invoices, delivery notes,
+  quotations, orders, goods received, every garage sheet, the job-work challan and the finance
+  vouchers at once, since all three sheet layouts render the same `companyBlock`. It drops a blank
+  line and a case-insensitive repeat, so a profile that names its city in `addressLine2` does not
+  print it twice.
+- **A bare "AE" would have appeared under every customer on every invoice.**
+  `Customer.eInvoice.countryCode` defaults to `"AE"` on every record, so printing the buyer's
+  country on its own meant noise dressed as information. `localityOf` requires the city to be
+  present and only then adds the country. Found by LOOKING at the rendered sheet, which no test
+  would have caught.
+- The purchase-return list row carried no `vendorReference`, so that document printed without the
+  reference the form had captured - the long-standing form of the "a list row PRINTS" trap.
+
 ## 2.1.0.1 — 5 November 2026
 
 Finance vouchers (receipt, payment, journal, contra, expense, notes) print on the same designed A4
