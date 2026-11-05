@@ -275,7 +275,9 @@ describe("chart of accounts", () => {
       rows: [{ _id: "e1", date: "2026-10-01T08:00:00Z", narration: "x", debit: 5000, credit: 0, balance: 5000, net: 5000, ...row }],
     });
     const openLedger = async () => {
-      render(<ChartOfAccounts />);
+      // A ledger row for a finance voucher opens VoucherView, which links through to the voucher's
+      // own document page - so this screen needs a router, as it has in the app all along.
+      render(<MemoryRouter><ChartOfAccounts /></MemoryRouter>);
       await screen.findByText("Emirates NBD");
       fireEvent.click(screen.getByRole("button", { name: "Ledger of Emirates NBD" }));
       return screen.findByRole("dialog", { name: /BANK0001/ });

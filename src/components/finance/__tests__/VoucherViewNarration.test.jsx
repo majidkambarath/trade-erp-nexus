@@ -15,6 +15,7 @@ vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(()
 
 import { VoucherView } from "../shared";
 import { AsRole, roleLoaded, statusFor } from "../../shell/__tests__/asRole";
+import { MemoryRouter } from "react-router-dom";
 
 const voucher = (status, over = {}) => ({
   _id: "v1", voucherNo: "JV-2026-0001", voucherType: "journal", status, date: "2026-10-02T00:00:00.000Z", totalAmount: 600, ledgerBased: true,
@@ -29,7 +30,7 @@ const VIEW_ONLY = ["finance.view"];
 const show = async (grants, status = "approved") => {
   orgStatus = statusFor(grants);
   m.get.mockResolvedValue(voucher(status));
-  render(<AsRole><VoucherView id="v1" title="Journal voucher" onClose={vi.fn()} onChanged={vi.fn()} /></AsRole>);
+  render(<MemoryRouter><AsRole><VoucherView id="v1" title="Journal voucher" onClose={vi.fn()} onChanged={vi.fn()} /></AsRole></MemoryRouter>);
   await roleLoaded();
   expect(await screen.findByRole("heading", { name: /JV-2026-0001/ })).toBeInTheDocument();
   expect(await screen.findByRole("button", { name: /audit trail/i })).toBeInTheDocument();

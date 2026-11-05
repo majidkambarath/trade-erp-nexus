@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const m = vi.hoisted(() => ({ create: vi.fn(), list: vi.fn(), get: vi.fn(), options: vi.fn(), cheques: vi.fn(), axiosGet: vi.fn(), curList: vi.fn(), curRate: vi.fn() }));
 vi.mock("../../../lib/bankingApi", () => ({
@@ -14,6 +15,18 @@ vi.mock("../../../lib/currencyApi", () => ({ currencies: { list: m.curList, rate
 // blank header - the real hook makes no network call with nobody signed in, so it is mocked here.
 vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({
   useCompanyProfile: () => ({ companyName: "Harbour Trading", companyNameArabic: "", addressLine1: "Deira", addressLine2: "Dubai", vatNumber: "100123456700003", logo: null }),
+}));
+
+// The voucher prints through the hidden-frame engine (PurchaseOrder/shared/documentPdf.jsx), the
+// same one every invoice uses - so there is no popup window left to stub. `printMarkup` stays REAL
+// here, because the frame it appends is how these tests read what reached the paper; only
+// `downloadSheetsPdf` is replaced. Rasterising cannot run under jsdom at all (html2canvas needs a
+// real canvas, and `addCopyPages` calls getContext on one), and it is documentPdf's own business
+// in any case: what this screen owns is the markup it hands over and the name of the file.
+const pdf = vi.hoisted(() => ({ download: vi.fn() }));
+vi.mock("../../PurchaseOrder/shared/documentPdf", async (orig) => ({
+  ...(await orig()),
+  downloadSheetsPdf: pdf.download,
 }));
 
 import { PartyVoucherForm, ReceiptVouchers } from "../PartyVouchers";
@@ -58,7 +71,21 @@ beforeEach(() => {
   clearPageSessions(); // useVoucherList now remembers its period and filters between visits (F12)
 });
 
-afterEach(() => resetOrgLocale());
+afterEach(() => {
+  resetOrgLocale();
+  // documentPdf appends its frames to document.body itself, so Testing Library's cleanup leaves
+  // them behind and the next test would read the previous one's sheet.
+  document.querySelectorAll("iframe").forEach((f) => f.remove());
+  pdf.download.mockClear();
+});
+
+// What actually reached the paper. `loadFrame` sets srcdoc and appends the frame inside its
+// Promise executor, which runs synchronously, so the markup is readable the instant Print is
+// clicked - no await. (jsdom never lays the offscreen frame out, so srcdoc is the only way in.)
+const printedSheet = () => {
+  const frames = document.querySelectorAll("iframe");
+  return frames[frames.length - 1]?.srcdoc || "";
+};
 
 const form = async ({ party = true } = {}) => {
   const onSaved = vi.fn();
@@ -310,7 +337,7 @@ describe("foreign vouchers in the list and in the view", () => {
 
   it("marks a foreign voucher with its currency and shows the foreign amount under the AED one", async () => {
     m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
-    render(<ReceiptVouchers />);
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
     const usd = within(await screen.findByRole("row", { name: /RV-2026-0002/ }));
     expect(usd.getByTitle("Foreign currency")).toHaveTextContent("USD");
     expect(usd.getByText("USD 1,000.00 @ 3.6725")).toBeInTheDocument();
@@ -326,17 +353,21 @@ describe("foreign vouchers in the list and in the view", () => {
       ...ROWS[1], voucherType: "receipt", rateDate: "2026-10-01T00:00:00Z", rateSource: "cbuae", ledgerBased: false,
       entries: [{ accountName: "Cash in Hand", debitAmount: 3672.5, creditAmount: 0 }, { accountName: "Customer Advance - Al Noor", debitAmount: 0, creditAmount: 3672.5 }],
     });
-    const written = [];
-    window.open = vi.fn(() => ({ document: { write: (html) => written.push(html), close: vi.fn() } }));
-    render(<ReceiptVouchers />);
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0002" }));
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText("USD 1,000.00 @ 3.6725 = AED 3,672.50")).toBeInTheDocument();
     expect(within(dialog).getByText("Rate of 01/10/2026 (Central Bank of the UAE)")).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
-    const printed = written.join("");
+    const printed = printedSheet();
+    // The A4 sheet, not the bare system-ui table it used to be: this one assertion is what makes
+    // "the voucher prints as the tax invoice's twin" a tested claim rather than a hope.
+    expect(printed).toContain("210mm");
+    expect(printed).toContain("Voucher no.");
+    expect(printed).toContain("RV-2026-0002");
     expect(printed).toContain("USD 1,000.00 @ 3.6725 = AED 3,672.50");
+    expect(printed).toContain("Rate of 01/10/2026 (Central Bank of the UAE)");
     // F06: the organisation's own letterhead, who the money came from (a receipt), and the amount
     // in words - a voucher used to print with none of these (finance QA review 1 Nov 2026).
     expect(printed).toContain("Harbour Trading");
@@ -355,9 +386,7 @@ describe("foreign vouchers in the list and in the view", () => {
     };
     m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
     m.get.mockResolvedValue(withInvoices);
-    const written = [];
-    window.open = vi.fn(() => ({ document: { write: (html) => written.push(html), close: vi.fn() } }));
-    render(<ReceiptVouchers />);
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("SO-2026-0042")).toBeInTheDocument();
@@ -365,21 +394,84 @@ describe("foreign vouchers in the list and in the view", () => {
     expect(within(dialog).getByText(/not yet set against an invoice/)).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
-    const printed = written.join("");
+    const printed = printedSheet();
     expect(printed).toContain("Against invoice");
     expect(printed).toContain("SO-2026-0042");
+    expect(printed).toContain("Balance after");
+    expect(printed).toContain("20/09/2026");
     expect(printed).toContain("On account");
   });
 
-  it("says to allow pop-ups when the browser blocked the print window, instead of doing nothing", async () => {
+  // Replaces "says to allow pop-ups when the browser blocked the print window": the voucher no
+  // longer opens one, so that failure mode cannot happen. This guards the reason it cannot.
+  it("prints through a hidden frame, never a pop-up window", async () => {
     m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
     m.get.mockResolvedValue({ ...ROWS[0], voucherType: "receipt", ledgerBased: true, entries: [] });
-    window.open = vi.fn(() => null); // the browser's own pop-up blocker
-    render(<ReceiptVouchers />);
+    window.open = vi.fn();
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
     fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
-    expect(await within(dialog).findByText(/Allow pop-ups for this site to print/)).toBeInTheDocument();
+    expect(window.open).not.toHaveBeenCalled();
+    expect(document.querySelector("iframe")).not.toBeNull();
+  });
+
+  // Download PDF lives on the voucher's own document page, beside the sheet you are about to save,
+  // rather than in this dialog where you cannot see what you would get. The dialog's job is to lead
+  // there; `VoucherDocument.test.jsx` covers the page itself.
+  it("goes to the voucher's own document page", async () => {
+    m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
+    m.get.mockResolvedValue({ ...ROWS[0], voucherType: "receipt", ledgerBased: true, entries: [] });
+    // A real Route, not a bare MemoryRouter: the plain wrapper used everywhere else in this file has
+    // nothing to react to a location change, so a click that only moves the URL would look like
+    // nothing happened. This is the one assertion in the file where the destination matters, not
+    // only the button.
+    render(
+      <MemoryRouter initialEntries={["/receipt-voucher"]}>
+        <Routes>
+          <Route path="/receipt-voucher" element={<ReceiptVouchers />} />
+          <Route path="/receipt-voucher/:id" element={<span>the voucher's document page</span>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
+    const dialog = await screen.findByRole("dialog");
+    // A plain navigation, not a real <a>: the Modal footer's own CSS (accounting/kit.jsx) is a
+    // `[&>button]:flex-1` direct-child rule, which an <a> rendered through Button's `asChild` falls
+    // outside of - that overflowed the dialog by 14px at 390px wide (check:mobile caught it) because
+    // the link kept its own natural width while every other footer button shrank to share the row.
+    expect(within(dialog).queryByRole("link", { name: /View document/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Download PDF" })).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: /View document/ }));
+    // its own list's path with the id after it, which is what keeps it on the Receipts tab
+    expect(await screen.findByText("the voucher's document page")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // A kind of voucher with no finance screen (an opening or closing entry writes one) has no page
+  // to send anybody to, so it is not offered the button - and must still be printable from here.
+  it("offers no document link for a voucher kind that has no screen", async () => {
+    m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
+    m.get.mockResolvedValue({ ...ROWS[0], voucherType: "opening", ledgerBased: true, entries: [] });
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByRole("button", { name: /View document/ })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: /Print/ })).toBeInTheDocument();
+  });
+
+  // A pending voucher is printed on purpose - that is how it goes round for signature - so the
+  // paper has to say it is not in the books, and say it where nobody can miss it.
+  it("stamps a voucher that is not posted on the paper", async () => {
+    m.list.mockResolvedValue({ rows: ROWS, pagination: { current: 1, pages: 1, total: 2 } });
+    m.get.mockResolvedValue({ ...ROWS[0], status: "pending", voucherType: "receipt", ledgerBased: true, entries: [] });
+    render(<MemoryRouter><ReceiptVouchers /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "View RV-2026-0001" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
+    const printed = printedSheet();
+    expect(printed).toContain("Pending approval");
+    expect(printed).toContain("has NOT been posted");
   });
 });
 

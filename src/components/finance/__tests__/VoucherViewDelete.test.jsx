@@ -18,6 +18,7 @@ vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(()
 
 import { VoucherView } from "../shared";
 import { AsRole, roleLoaded, statusFor } from "../../shell/__tests__/asRole";
+import { MemoryRouter } from "react-router-dom";
 
 const voucher = (status) => ({
   _id: "v1", voucherNo: "RV-2026-0001", voucherType: "receipt", status, date: "2026-10-02T00:00:00.000Z", totalAmount: 105, ledgerBased: true,
@@ -32,7 +33,7 @@ const show = async (grants, status = "approved", props = {}) => {
   orgStatus = statusFor(grants);
   m.get.mockResolvedValue(voucher(status));
   const onDeleted = vi.fn();
-  render(<AsRole><VoucherView id="v1" title="Receipt voucher" onClose={vi.fn()} onDeleted={onDeleted} {...props} /></AsRole>);
+  render(<MemoryRouter><AsRole><VoucherView id="v1" title="Receipt voucher" onClose={vi.fn()} onDeleted={onDeleted} {...props} /></AsRole></MemoryRouter>);
   await roleLoaded();
   // the voucher is loaded: its number is in the heading and its footer (Audit trail is the control) is drawn
   expect(await screen.findByRole("heading", { name: /RV-2026-0001/ })).toBeInTheDocument();
