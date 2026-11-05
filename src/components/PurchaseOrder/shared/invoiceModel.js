@@ -90,11 +90,46 @@ export const withChargesVat = (rows, totalVat) => {
 export const rowsWithValue = (rows) =>
   rows.filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "");
 
+// The whole of an address, in the order it is read aloud, with the blanks dropped - and a repeat
+// dropped with them. A Dubai company has city "Dubai" and emirate "Dubai", and a letterhead that
+// says "Dubai, Dubai, United Arab Emirates" reads like a fault; the comparison ignores case and
+// surrounding space, so "dubai " and "Dubai" are the one place.
+//
+// This is what puts the seller's city and country on the paper. They were stored
+// (CompanySettings.profile) and served (GET /company/profile) all along, and simply dropped in
+// transit - while `utils/eInvoice.js` REQUIRED_INVOICE has always demanded both of an e-invoice.
+export const addressLines = (p = {}) => {
+  const seen = new Set();
+  return [p.addressLine1, p.addressLine2, p.city, p.state, p.country].filter((part) => {
+    const text = String(part ?? "").trim();
+    if (!text) return false;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+// Where a party is, for the line under their address. Only a customer has this: it is
+// `Customer.eInvoice.city` / `.countryCode` (customerModel.js), the very two fields the e-invoice
+// validator reads. A vendor record has no structured locality at all, so a purchase document prints
+// the free-text address it always did and this stays empty.
+//
+// The CITY is what makes the line worth printing. `countryCode` carries a schema default of "AE", so
+// every customer has one whether anybody filled it in or not - printing the country on its own would
+// put a bare "AE" under every customer on every invoice, which is noise dressed as information.
+export const localityOf = (party = {}) => {
+  const city = String(party?.eInvoice?.city ?? "").trim();
+  if (!city) return "";
+  const country = String(party?.eInvoice?.countryCode ?? "").trim();
+  return country ? `${city}, ${country}` : city;
+};
+
 // The company block from the Settings profile. Nothing is filled in as a placeholder.
 export const companyBlock = (p = {}) => ({
   nameEn: p.companyName || "",
   nameAr: p.companyNameArabic || "",
-  address: [p.addressLine1, p.addressLine2].filter(Boolean),
+  address: addressLines(p),
   contact: [
     p.phoneNumber && `Tel: ${p.phoneNumber}`,
     p.email && `Email: ${p.email}`,

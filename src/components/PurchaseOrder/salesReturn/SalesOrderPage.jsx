@@ -211,6 +211,8 @@ const SalesReturnOrderManagement = () => {
           return {
             id: transaction._id,
             transactionNo: transaction.transactionNo,
+            // The lists PRINT: a reference left out here is missing from the paper.
+            serialNo: transaction.serialNo ?? "",
             customerId: transaction.partyId?._id || transaction.partyId,
             customerName: transaction.partyName || "Unknown Customer",
             date: transaction.date,

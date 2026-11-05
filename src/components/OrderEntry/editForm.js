@@ -27,6 +27,7 @@ export function formFromSaved(V, raw) {
     // the sales order stores its two reference numbers under short backend keys
     refNo: raw.lpono || "",
     docNo: raw.docno || "",
+    serialNo: raw.serialNo || "",
     discount: String(raw.discount ?? 0),
     charges: (raw.charges || []).map((c) => ({
       code: c.code,

@@ -315,7 +315,7 @@ const purchaseLike = (docType, extra) => ({
   docType,
   partyType: "Vendor",
   party: { idKey: "vendorId", nameKey: "vendorName", idInDoc: "vendorId", nameInDoc: "vendorName" },
-  labels: { partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" },
+  labels: { partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" , serial: "Serial no." },
   fields: purchaseFields,
   columns: PURCHASE_COLUMNS,
   rowTemplate: () => ({
@@ -339,13 +339,13 @@ export const VARIANTS = {
     key: "purchase",
     noun: "Purchase order",
     title: { create: "Create purchase invoice", edit: "Edit purchase invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Purchase items" },
-    labels: { doc: "Invoice no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" },
+    labels: { doc: "Invoice no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" , serial: "Serial no." },
     referenceRequired: false,
     hasSecondDate: true,
     priority: false,
     sourceDocument: null,
     discount: false,
-      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", serialNo: f.serialNo || "", terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   }),
 
@@ -354,7 +354,7 @@ export const VARIANTS = {
     key: "purchaseReturn",
     noun: "Purchase return",
     title: { create: "Create purchase return", edit: "Edit purchase return", save: "Save return", saveEdit: "Update return", items: "Returned items" },
-    labels: { doc: "Return number", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Return date", reference: "Vendor reference" },
+    labels: { doc: "Return number", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Return date", reference: "Vendor reference" , serial: "Serial no." },
     columns: PURCHASE_RETURN_COLUMNS,
     referenceRequired: true,
     hasSecondDate: true,
@@ -365,7 +365,7 @@ export const VARIANTS = {
     // price and VAT for a line prefilled from the original
     fromReturnLine: (l) => ({ currentPurchasePrice: String(l.price ?? 0), vatPercent: String(l.vatPercent ?? 5), purchasePrice: l.price ?? 0, ...reverseChargeOf(l) }),
     discount: false,
-      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ vendorReference: f.vendorReference || "", serialNo: f.serialNo || "", terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   }),
 
@@ -376,7 +376,7 @@ export const VARIANTS = {
     docType: "sales_order",
     partyType: "Customer",
     party: { idKey: "customerId", nameKey: "customerName", idInDoc: "customerId", nameInDoc: "customerName" },
-    labels: { doc: "Invoice no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Delivery date", reference: "LPO no." },
+    labels: { doc: "Invoice no.", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Delivery date", reference: "LPO no." , serial: "Serial no." },
     title: { create: "Create sales invoice", edit: "Edit sales invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Sales items" },
     fields: { unitPrice: "rate", lineValue: "subtotal", vat: "vatAmount", gross: "lineTotal", vatPercent: "vatPercent" },
     columns: SALES_COLUMNS,
@@ -397,7 +397,7 @@ export const VARIANTS = {
     sourceDocument: null,
     discount: true,
     // The sales page has always sent these two reference numbers under short backend keys.
-    payloadHeader: (f) => ({ lpono: f.refNo || "", docno: f.docNo || "", discount: num(f.discount) }),
+    payloadHeader: (f) => ({ lpono: f.refNo || "", docno: f.docNo || "", serialNo: f.serialNo || "", discount: num(f.discount) }),
     totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
   },
 
@@ -408,7 +408,7 @@ export const VARIANTS = {
     docType: "sales_return",
     partyType: "Customer",
     party: { idKey: "customerId", nameKey: "customerName", idInDoc: "customerId", nameInDoc: "customerName" },
-    labels: { doc: "Return number", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Return date", reference: null },
+    labels: { doc: "Return number", partyNoun: "Customer", selectParty: "Select customer", secondDate: "Return date", reference: null , serial: "Serial no." },
     title: { create: "Create sales return", edit: "Edit sales return", save: "Save return", saveEdit: "Update return", items: "Returned items" },
     fields: { unitPrice: "salesPrice", lineValue: "rate", vat: "vatAmount", gross: "lineTotal", vatPercent: "taxPercent" },
     columns: SALES_RETURN_COLUMNS,
@@ -429,7 +429,7 @@ export const VARIANTS = {
     sourceDocument: { label: "Return against sales invoice", fetchStatus: "APPROVED", docType: "sales_order" },
     fromReturnLine: (l) => ({ salesPrice: String(l.price ?? 0), taxPercent: String(l.vatPercent ?? 5), ...reverseChargeOf(l) }),
     discount: false,
-      payloadHeader: (f) => ({ terms: f.terms || "", priority: f.priority || "Medium" }),
+      payloadHeader: (f) => ({ serialNo: f.serialNo || "", terms: f.terms || "", priority: f.priority || "Medium" }),
     totalAmount: (t) => t.total,
   },
 };

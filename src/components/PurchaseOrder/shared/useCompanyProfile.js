@@ -7,6 +7,9 @@ const EMPTY = {
   companyNameArabic: "",
   addressLine1: "",
   addressLine2: "",
+  city: "",
+  state: "",
+  country: "",
   phoneNumber: "",
   email: "",
   website: "",
@@ -43,6 +46,12 @@ export const useCompanyProfile = () => {
           companyNameArabic: c.companyNameArabic || "",
           addressLine1: c.addressLine1 || "",
           addressLine2: c.addressLine2 || "",
+          // The rest of the address. The server has always sent these (companyProfileService.toApi maps
+          // profile.city / .emirate / .country) and this hook used to drop all three on the floor, which is
+          // why no printed document has ever carried the city or the country.
+          city: c.city || "",
+          state: c.state || "",
+          country: c.country || "",
           phoneNumber: c.phoneNumber || "",
           email: c.emailAddress || "",
           website: c.website || "",

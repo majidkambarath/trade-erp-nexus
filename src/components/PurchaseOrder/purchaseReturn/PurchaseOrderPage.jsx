@@ -210,6 +210,12 @@ const PurchaseReturnOrderManagement = () => {
         fetched.map((transaction) => ({
           id: transaction._id,
           transactionNo: transaction.transactionNo,
+          // The lists PRINT: Download, the Send attachment and the invoice opened from a row all build the
+          // sheet from this row, so a reference left out here is simply missing from the paper.
+          serialNo: transaction.serialNo ?? "",
+          // Pre-existing: this row never carried vendorReference, so the debit note's own
+          // "Vendor reference" row was blank whenever the sheet was built from a list row.
+          vendorReference: transaction.vendorReference || "",
           vendorId: transaction.partyId?._id || transaction.partyId, // Ensure vendorId is a string
           vendorName: transaction.partyName,
           date: transaction.date,

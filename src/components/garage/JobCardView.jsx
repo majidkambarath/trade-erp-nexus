@@ -163,6 +163,10 @@ function ReviseEstimateDialog({ card, masters, onClose, onDone }) {
 function CreateInvoiceDialog({ card, onClose, onDone }) {
   const approved = card.lines.filter((l) => l.approved !== false && !l.invoiced);
   const [picked, setPicked] = useState(() => new Set(approved.map((l) => String(l._id))));
+  // The workshop's own reference for this bill. It has to be captured HERE: an approved invoice can
+  // never be edited (updateTransaction refuses a processed document) and the garage may approve it in
+  // the same breath, so this dialog is the only moment it can be typed.
+  const [serialNo, setSerialNo] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
   const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -172,7 +176,11 @@ function CreateInvoiceDialog({ card, onClose, onDone }) {
     setBusy(true);
     setFailure(null);
     try {
-      const r = await jobCards.createInvoice(card._id, { billTo: "customer", lineIds: [...picked] });
+      const r = await jobCards.createInvoice(card._id, {
+        billTo: "customer",
+        lineIds: [...picked],
+        ...(serialNo.trim() ? { serialNo: serialNo.trim() } : {}),
+      });
       onDone(r.jobCard, `Invoice ${r.invoice.transactionNo} raised.`);
     } catch (err) {
       setFailure(err);
@@ -190,6 +198,9 @@ function CreateInvoiceDialog({ card, onClose, onDone }) {
     >
       <div className="grid gap-3">
         {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
+        <Field label="Serial no." hint="Optional. Your own reference, printed on the invoice. The invoice number is still given automatically.">
+          <TextInput value={serialNo} maxLength={50} onChange={(e) => setSerialNo(e.target.value)} placeholder="e.g. GRG-2026-114" />
+        </Field>
         <ul className="grid gap-2 rounded-lg border p-2">
           {approved.map((l) => (
             <li key={l._id} className="flex items-center gap-2 text-sm">

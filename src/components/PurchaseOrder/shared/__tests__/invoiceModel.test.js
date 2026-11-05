@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect } from "vitest";
 import {
   bankRows,
   companyBlock,
+  localityOf,
   invoiceLines,
   rowsWithValue,
   tint,
@@ -125,5 +126,52 @@ describe("totalInWords", () => {
       setOrgLocale({ currency: "JPY" });
       expect(totalInWords(3)).toContain("JPY");
     });
+  });
+});
+
+// The letterhead every printed document in the product shares. `companyBlock` feeds InvoiceSheet,
+// DeliverySheet and VoucherSheet alike, so these cases guard the invoices, the delivery notes, the
+// quotations, the orders, the garage sheets, the job-work challan and the finance vouchers at once.
+describe("the whole address on the letterhead", () => {
+  it("carries the city and the country, which the sheet never used to show", () => {
+    const c = companyBlock({
+      companyName: "Al Manara Auto Garage LLC",
+      addressLine1: "Warehouse 7",
+      city: "Dubai",
+      country: "United Arab Emirates",
+    });
+    expect(c.address).toEqual(["Warehouse 7", "Dubai", "United Arab Emirates"]);
+  });
+
+  // A Dubai company has city "Dubai" AND emirate "Dubai". Printing both reads like a fault.
+  it("says a repeated place once, whatever its case or spacing", () => {
+    const c = companyBlock({ addressLine1: "Warehouse 7", city: "Dubai", state: " dubai ", country: "United Arab Emirates" });
+    expect(c.address).toEqual(["Warehouse 7", "Dubai", "United Arab Emirates"]);
+  });
+
+  it("keeps a city and an emirate that really are different places", () => {
+    const c = companyBlock({ city: "Jebel Ali", state: "Dubai", country: "United Arab Emirates" });
+    expect(c.address).toEqual(["Jebel Ali", "Dubai", "United Arab Emirates"]);
+  });
+
+  // An organisation that has filled none of it in prints exactly what it printed before.
+  it("invents nothing for a profile nobody has completed", () => {
+    expect(companyBlock({ companyName: "X", addressLine1: "Deira" }).address).toEqual(["Deira"]);
+    expect(companyBlock({}).address).toEqual([]);
+  });
+});
+
+describe("where a party is", () => {
+  // `Customer.eInvoice.countryCode` defaults to "AE" on every record, so a country with no city
+  // beside it would print a bare "AE" under every customer the product has.
+  it("says nothing for a country code with no city, which every customer has by default", () => {
+    expect(localityOf({ eInvoice: { countryCode: "AE" } })).toBe("");
+  });
+
+  it("joins a customer's city and country, and is empty without them", () => {
+    expect(localityOf({ eInvoice: { city: "Dubai", countryCode: "AE" } })).toBe("Dubai, AE");
+    expect(localityOf({ eInvoice: { city: "Dubai" } })).toBe("Dubai");
+    expect(localityOf({ customerName: "No e-invoice block" })).toBe("");
+    expect(localityOf(undefined)).toBe("");
   });
 });

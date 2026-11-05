@@ -279,6 +279,7 @@ const SalesOrderManagement = () => {
       // Map backend fields for LPO, Doc No, and Discount to UI fields
       refNo: t.lpono ?? t.refNo ?? "",
       docNo: t.docno ?? t.docNo ?? "",
+      serialNo: t.serialNo ?? "",
       discount: typeof t.discount === "number" ? t.discount : 0,
       // Set only when this invoice was raised from a garage job card; absent on every other invoice.
       jobCardRef: t.jobCardRef || null,
