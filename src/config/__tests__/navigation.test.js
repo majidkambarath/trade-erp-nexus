@@ -295,7 +295,12 @@ describe("what the plan includes", () => {
 describe("which workspaces a person is offered", () => {
   // `crm` is what the server says the organisation bought (status.modules.crm.on); `keys` is what the role holds AFTER
   // the server has capped it to that (status.me.grants), exactly as the real status arrives.
-  const as = (keys, crm = true) => ({ me: { grants: keys }, modules: { crm: { on: crm } } });
+  //
+  // `hr` defaults OFF: this block's whole point is the ERP/CRM switch, so its fixtures model an organisation that
+  // bought those two and nothing else - `allKeys` picks up hr.view from the HRMS workspace's own tabs (it scans
+  // every tab, not just these two workspaces), and without an explicit `hr: { on: false }` that stray grant would
+  // make OWNER look as if the organisation had bought HR too, which none of these tests are about.
+  const as = (keys, crm = true, hr = false) => ({ me: { grants: keys }, modules: { crm: { on: crm }, hr: { on: hr } } });
   const offered = (status) => offeredWorkspaces(getVisibleModules(status), status).map((w) => w.id);
 
   const CRM_KEYS = ["crm.view", "crm.create", "crm.edit", "crm.manage"];
@@ -356,7 +361,10 @@ describe("which workspaces a person is offered", () => {
   });
 
   it("judges the modules alone when the caller gives no status", () => {
-    expect(offeredWorkspaces(getVisibleModules(OWNER)).map((w) => w.id)).toEqual(["erp", "crm"]);
+    // no status at all is a different path from `hr: { on: false }` above: offeredWorkspaces(modules) with no
+    // second argument judges purely by which modules the list holds, and OWNER's grants (allKeys) genuinely
+    // include hr.view from the HRMS workspace's own tabs - so hr is correctly visible here.
+    expect(offeredWorkspaces(getVisibleModules(OWNER)).map((w) => w.id)).toEqual(["erp", "crm", "hr"]);
   });
 
   it("an organisation without the CRM module leaves every CRM page out of what its people can open", () => {

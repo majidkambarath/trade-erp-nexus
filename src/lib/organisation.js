@@ -110,6 +110,7 @@ export const MODULE_LABELS = {
   reports: "Reports",
   users: "Users and roles",
   staff: "Staff records",
+  hr: "HRMS",
   settings: "Settings",
   audit: "Activity trail",
   lookups: "Pick lists",

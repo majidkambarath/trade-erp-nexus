@@ -66,6 +66,9 @@ const GarageVehicles = lazy(() => import("../components/garage/VehiclesPage.jsx"
 const GarageClaims = lazy(() => import("../components/garage/ClaimsPage.jsx"));
 const GarageReports = lazy(() => import("../components/garage/GarageReports.jsx"));
 const GarageSetup = lazy(() => import("../components/garage/GarageSetupPage.jsx"));
+const HrOverview = lazy(() => import("../components/hr/OverviewPage.jsx"));
+const HrEmployees = lazy(() => import("../components/hr/EmployeesPage.jsx"));
+const HrEmployeeView = lazy(() => import("../components/hr/EmployeeView.jsx"));
 const CrmDashboard = lazy(() => import("../components/crm/CrmDashboard.jsx"));
 const CrmContacts = lazy(() => import("../components/crm/ContactsPage.jsx"));
 const CrmCommunications = lazy(() => import("../components/crm/CommunicationsPage.jsx"));
@@ -189,6 +192,9 @@ export default function AdminRouter() {
         <Route path="/garage/claims" element={<GarageClaims />} />
         <Route path="/garage/reports" element={<GarageReports />} />
         <Route path="/garage/setup" element={<GarageSetup />} />
+        <Route path="/hr/overview" element={<HrOverview />} />
+        <Route path="/hr/people" element={<HrEmployees />} />
+        <Route path="/hr/people/:id" element={<HrEmployeeView />} />
         <Route path="/crm/dashboard" element={<CrmDashboard />} />
         <Route path="/crm/contacts" element={<CrmContacts />} />
         <Route path="/crm/communications" element={<CrmCommunications />} />

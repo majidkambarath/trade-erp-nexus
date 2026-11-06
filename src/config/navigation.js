@@ -13,6 +13,7 @@ import {
   Contact,
   Gauge,
   Handshake,
+  IdCard,
   MessagesSquare,
   SlidersHorizontal,
   Target,
@@ -138,6 +139,37 @@ export const MODULES = [
       // addresses for one screen, each belonging to one tab (the route-coverage test requires exactly one), so the rail the
       // person is working in stays the rail they are working in.
       { label: "Team", to: "/crm/team", permission: "users.view", requires: "crm.view", keywords: ["users", "people", "add user", "roles", "permissions", "colleagues", "invite", "who can"] },
+    ],
+  },
+  // ---- the HRMS workspace -------------------------------------------------------------------------------------
+  //
+  // Started the same way CRM did: fewer screens than the plan names, and growing wave by wave rather than all at
+  // once with placeholders standing in for what is not built. Attendance, Leave, Payroll, Documents and Setup are
+  // not here yet because there is nothing real behind any of them (no attendance record, no leave type, no
+  // payroll run, no employee-document register, nothing to configure) - CLAUDE.md's rule against a form that
+  // saves nothing applies to a whole TAB exactly as it does to one control inside a page. They are added here,
+  // one at a time, as each wave's service layer lands - the same order CRM's own five wave-1 tabs grew into eight.
+  //
+  // Single-tab modules on purpose, as CRM's are: ModuleTabs draws no strip below two tabs, so each reads as its
+  // own rail item rather than a tab among ten. No `/hr` route, for the same reason CRM has none: a tab's path
+  // prefix-matches its children, so it would own every page below it, and navigation.test.js requires each route
+  // to belong to exactly one tab - hence /hr/overview, /hr/people.
+  {
+    id: "hr-overview",
+    workspace: "hr",
+    label: "Overview",
+    icon: Gauge,
+    tabs: [
+      { label: "Overview", to: "/hr/overview", permission: "hr.view", keywords: ["headcount", "dashboard", "employees", "cost rate", "coverage"] },
+    ],
+  },
+  {
+    id: "hr-people",
+    workspace: "hr",
+    label: "People",
+    icon: Users,
+    tabs: [
+      { label: "People", to: "/hr/people", permission: "hr.view", keywords: ["employees", "staff", "contract", "cost rate", "designation", "department"] },
     ],
   },
   {
@@ -315,6 +347,7 @@ export const WORKSPACES = [
   // `module` is the permission module that SELLS the workspace (utils/plans.js): an organisation that has not bought it
   // is never offered it, whatever its people's roles say. The ERP names none - it is the product itself.
   { id: "crm", label: "CRM", icon: Handshake, module: "crm", hint: "Enquiries, people and the deals in front of the paperwork" },
+  { id: "hr", label: "HRMS", icon: IdCard, module: "hr", hint: "Employee records, what an hour of work costs, and the labour behind a product or job" },
 ];
 
 export const workspaceOf = (module) => module?.workspace || ERP;
