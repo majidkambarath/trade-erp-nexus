@@ -172,6 +172,27 @@ export const MODULES = [
       { label: "People", to: "/hr/people", permission: "hr.view", keywords: ["employees", "staff", "contract", "cost rate", "designation", "department"] },
     ],
   },
+  // W3 (6 Nov 2026): the muster and leave requests. Attendance is hr.attendance (a muster clerk need not
+  // redesign shifts); Leave is hr.leave, with deciding a request reached from the organisation's own
+  // Approvals page too (D13: a leave request is a third kind in that SAME queue, not a parallel screen).
+  {
+    id: "hr-attendance",
+    workspace: "hr",
+    label: "Attendance",
+    icon: CalendarClock,
+    tabs: [
+      { label: "Attendance", to: "/hr/attendance", permission: "hr.attendance", keywords: ["muster", "punch", "shift", "overtime", "holiday"] },
+    ],
+  },
+  {
+    id: "hr-leave",
+    workspace: "hr",
+    label: "Leave",
+    icon: CalendarDays,
+    tabs: [
+      { label: "Leave", to: "/hr/leave", permission: "hr.leave", keywords: ["vacation", "balance", "request", "approve", "annual leave"] },
+    ],
+  },
   // W2 (6 Nov 2026): the compliance pack. Gratuity and Emiratisation are PillTabs on one Reports route, not
   // two more rail items - the same call CRM made for its own seven reports (the 88px rail cannot hold the
   // growth, and the sweep opens role="tab" panels by itself). Setup is where the dated-rule engine every

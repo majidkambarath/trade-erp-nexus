@@ -43,3 +43,43 @@ export const statutoryRules = {
   create: (body) => api.post("/hr/statutory-rules", body),
   remove: (id) => api.del(`/hr/statutory-rules/${id}`),
 };
+
+// W3: shifts, the holiday calendar, leave types - organisation-wide setup masters.
+export const shifts = {
+  list: () => api.get("/hr/shifts"),
+  create: (body) => api.post("/hr/shifts", body),
+  update: (id, body) => api.put(`/hr/shifts/${id}`, body),
+  remove: (id) => api.del(`/hr/shifts/${id}`),
+};
+
+export const holidays = {
+  list: (params) => api.get("/hr/holidays", params),
+  create: (body) => api.post("/hr/holidays", body),
+  remove: (id) => api.del(`/hr/holidays/${id}`),
+};
+
+export const leaveTypes = {
+  list: () => api.get("/hr/leave-types"),
+  create: (body) => api.post("/hr/leave-types", body),
+  update: (id, body) => api.put(`/hr/leave-types/${id}`, body),
+  remove: (id) => api.del(`/hr/leave-types/${id}`),
+};
+
+// The muster. Marking a day is its own permission (hr.attendance), separate from hr.manage.
+export const attendance = {
+  muster: (params) => api.get("/hr/attendance", params),
+  forDay: (day) => api.get(`/hr/attendance/${day}`),
+  markDay: (body) => api.post("/hr/attendance", body),
+};
+
+// Leave requests: a third kind in the SAME approvals queue a trade document or a voucher already uses
+// (D13) - deciding one is reached from the Approvals page, not a separate "approve" button here, except
+// that this screen offers the shortcut too since it is the natural place to act on one's own team's request.
+export const leaveRequests = {
+  list: (params) => api.get("/hr/leave-requests", params),
+  get: (id) => api.get(`/hr/leave-requests/${id}`),
+  balance: (staffId, leaveTypeId, day) => api.get("/hr/leave-requests/balance", { staffId, leaveTypeId, day }),
+  submit: (body) => api.post("/hr/leave-requests", body),
+  decide: (id, body) => api.post(`/hr/leave-requests/${id}/decide`, body),
+  cancel: (id) => api.post(`/hr/leave-requests/${id}/cancel`),
+};

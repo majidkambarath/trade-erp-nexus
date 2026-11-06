@@ -69,6 +69,8 @@ const GarageSetup = lazy(() => import("../components/garage/GarageSetupPage.jsx"
 const HrOverview = lazy(() => import("../components/hr/OverviewPage.jsx"));
 const HrEmployees = lazy(() => import("../components/hr/EmployeesPage.jsx"));
 const HrEmployeeView = lazy(() => import("../components/hr/EmployeeView.jsx"));
+const HrAttendance = lazy(() => import("../components/hr/AttendancePage.jsx"));
+const HrLeave = lazy(() => import("../components/hr/LeavePage.jsx"));
 const HrReports = lazy(() => import("../components/hr/ReportsPage.jsx"));
 const HrSetup = lazy(() => import("../components/hr/SetupPage.jsx"));
 const CrmDashboard = lazy(() => import("../components/crm/CrmDashboard.jsx"));
@@ -197,6 +199,8 @@ export default function AdminRouter() {
         <Route path="/hr/overview" element={<HrOverview />} />
         <Route path="/hr/people" element={<HrEmployees />} />
         <Route path="/hr/people/:id" element={<HrEmployeeView />} />
+        <Route path="/hr/attendance" element={<HrAttendance />} />
+        <Route path="/hr/leave" element={<HrLeave />} />
         <Route path="/hr/reports" element={<HrReports />} />
         <Route path="/hr/setup" element={<HrSetup />} />
         <Route path="/crm/dashboard" element={<CrmDashboard />} />

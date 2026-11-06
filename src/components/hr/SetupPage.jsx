@@ -6,8 +6,9 @@ import React, { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { PillTabs } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
-import { statutoryRules } from "../../lib/hrApi";
+import { statutoryRules, shifts as shiftsApi, holidays as holidaysApi, leaveTypes as leaveTypesApi } from "../../lib/hrApi";
 import { formatDate } from "../../utils/format";
 
 const COUNTRIES = [{ value: "AE", label: "United Arab Emirates" }, { value: "IN", label: "India" }];
@@ -65,7 +66,7 @@ function RuleForm({ onClose, onSaved }) {
   );
 }
 
-export default function SetupPage() {
+function StatutoryRulesPanel() {
   const { notify, toastNode } = useToasts();
   const [country, setCountry] = useState("AE");
   const rules = useAsync(() => statutoryRules.list(country), [country]);
@@ -82,15 +83,12 @@ export default function SetupPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6">
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Setup</h1>
-          <p className="text-sm text-muted-foreground">
-            Every figure here was seeded from the sources with the widest agreement, not a claim that it is
-            correct today - confirm each one with your own accountant before relying on it.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Every figure here was seeded from the sources with the widest agreement, not a claim that it is
+          correct today - confirm each one with your own accountant before relying on it.
+        </p>
         <Can permission="hr.manage">
           <Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New rule</Button>
         </Can>
@@ -134,6 +132,244 @@ export default function SetupPage() {
         />
       )}
       {toastNode}
+    </div>
+  );
+}
+
+function ShiftForm({ onClose, onSaved }) {
+  const [form, setForm] = useState({ name: "", startTime: "09:00", endTime: "18:00", hours: "9", halfDayBelowHours: "" });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await shiftsApi.create({ ...form, hours: Number(form.hours), halfDayBelowHours: form.halfDayBelowHours === "" ? "" : Number(form.halfDayBelowHours) });
+      onSaved(saved, "Shift saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="New shift"
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Name"><TextInput value={form.name} onChange={setField("name")} placeholder="Day shift" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Start"><input type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm lg:h-10" /></Field>
+          <Field label="End"><input type="time" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} className="h-11 w-full rounded-lg border border-input bg-background px-3 text-sm lg:h-10" /></Field>
+        </div>
+        <Field label="Shift length (hours)"><AmountInput value={form.hours} onChange={setField("hours")} /></Field>
+        <Field label="Half day below (hours)" hint="Optional - a day with fewer worked hours than this is a half day"><AmountInput value={form.halfDayBelowHours} onChange={setField("halfDayBelowHours")} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function ShiftsPanel() {
+  const { notify, toastNode } = useToasts();
+  const list = useAsync(() => shiftsApi.list(), []);
+  const [adding, setAdding] = useState(false);
+
+  async function remove(id) {
+    try { await shiftsApi.remove(id); notify("Shift removed."); list.reload(); }
+    catch (err) { notify(err.message || "Could not remove that shift.", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Can permission="hr.manage"><Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New shift</Button></Can>
+      </div>
+      {list.loading && <Spinner />}
+      {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+      {!list.loading && !list.error && (
+        <div className="grid gap-2">
+          {(list.data || []).map((s) => (
+            <div key={s._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">{s.name}</p>
+                <p className="text-xs text-muted-foreground">{s.startTime}–{s.endTime} · {s.hours}h{s.halfDayBelowHours ? ` · half day below ${s.halfDayBelowHours}h` : ""}</p>
+              </div>
+              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(s._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+            </div>
+          ))}
+          {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No shifts yet.</p>}
+        </div>
+      )}
+      {adding && <ShiftForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {toastNode}
+    </div>
+  );
+}
+
+function HolidayForm({ onClose, onSaved }) {
+  const [form, setForm] = useState({ day: "", name: "" });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await holidaysApi.create(form);
+      onSaved(saved, "Holiday saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="New holiday"
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Day" required><DateInput value={form.day} onChange={setField("day")} /></Field>
+        <Field label="Name" required><TextInput value={form.name} onChange={setField("name")} placeholder="National Day" /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function HolidaysPanel() {
+  const { notify, toastNode } = useToasts();
+  const list = useAsync(() => holidaysApi.list(), []);
+  const [adding, setAdding] = useState(false);
+
+  async function remove(id) {
+    try { await holidaysApi.remove(id); notify("Holiday removed."); list.reload(); }
+    catch (err) { notify(err.message || "Could not remove that holiday.", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Can permission="hr.manage"><Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New holiday</Button></Can>
+      </div>
+      {list.loading && <Spinner />}
+      {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+      {!list.loading && !list.error && (
+        <div className="grid gap-2">
+          {(list.data || []).map((h) => (
+            <div key={h._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">{h.name}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(h.day)}</p>
+              </div>
+              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(h._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+            </div>
+          ))}
+          {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No holidays yet.</p>}
+        </div>
+      )}
+      {adding && <HolidayForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {toastNode}
+    </div>
+  );
+}
+
+function LeaveTypeForm({ onClose, onSaved }) {
+  const [form, setForm] = useState({ name: "", accrualPerMonth: "1.5", maxCarryForward: "", isPaid: true });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await leaveTypesApi.create({ ...form, accrualPerMonth: Number(form.accrualPerMonth), maxCarryForward: form.maxCarryForward === "" ? "" : Number(form.maxCarryForward) });
+      onSaved(saved, "Leave type saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="New leave type"
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Name" required><TextInput value={form.name} onChange={setField("name")} placeholder="Annual" /></Field>
+        <Field label="Accrues per month (days)" required><AmountInput value={form.accrualPerMonth} onChange={setField("accrualPerMonth")} /></Field>
+        <Field label="Max carried forward" hint="Optional"><AmountInput value={form.maxCarryForward} onChange={setField("maxCarryForward")} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function LeaveTypesPanel() {
+  const { notify, toastNode } = useToasts();
+  const list = useAsync(() => leaveTypesApi.list(), []);
+  const [adding, setAdding] = useState(false);
+
+  async function remove(id) {
+    try { await leaveTypesApi.remove(id); notify("Leave type removed."); list.reload(); }
+    catch (err) { notify(err.message || "Could not remove that leave type.", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Can permission="hr.manage"><Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New leave type</Button></Can>
+      </div>
+      {list.loading && <Spinner />}
+      {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+      {!list.loading && !list.error && (
+        <div className="grid gap-2">
+          {(list.data || []).map((t) => (
+            <div key={t._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">{t.name}</p>
+                <p className="text-xs text-muted-foreground">{t.accrualPerMonth} days/month{t.maxCarryForward != null ? ` · up to ${t.maxCarryForward} carried forward` : ""}{t.isPaid === false ? " · unpaid" : ""}</p>
+              </div>
+              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(t._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+            </div>
+          ))}
+          {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No leave types yet.</p>}
+        </div>
+      )}
+      {adding && <LeaveTypeForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {toastNode}
+    </div>
+  );
+}
+
+const SETUP_TABS = [["statutory", "Statutory rules"], ["shifts", "Shifts"], ["holidays", "Holidays"], ["leaveTypes", "Leave types"]];
+
+export default function SetupPage() {
+  const [tab, setTab] = useState("statutory");
+  return (
+    <div className="p-4 sm:p-6">
+      <h1 className="mb-1 text-2xl font-semibold text-foreground">Setup</h1>
+      <p className="mb-4 text-sm text-muted-foreground">Statutory figures, shifts, the holiday calendar and leave types - the configuration the rest of the module reads.</p>
+      <PillTabs tabs={SETUP_TABS} value={tab} onChange={setTab} label="HR setup" />
+      <div className="mt-4">
+        {tab === "statutory" && <StatutoryRulesPanel />}
+        {tab === "shifts" && <ShiftsPanel />}
+        {tab === "holidays" && <HolidaysPanel />}
+        {tab === "leaveTypes" && <LeaveTypesPanel />}
+      </div>
     </div>
   );
 }
