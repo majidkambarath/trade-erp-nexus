@@ -20,6 +20,7 @@ import {
   Target,
   LayoutDashboard,
   Landmark,
+  Package,
   Settings,
   ShoppingBag,
   Truck,
@@ -214,6 +215,18 @@ export const MODULES = [
     icon: FileText,
     tabs: [
       { label: "Documents", to: "/hr/documents", permission: "hr.view", keywords: ["labour card", "visa", "passport", "expiry", "kyc"] },
+    ],
+  },
+  // Organization and Assets (6 Nov 2026): found comparing the module against a standard HRMS menu list -
+  // departments/reporting line folded into Setup and the employee's own page (no new rail item needed for
+  // a reporting line alone), Assets is a genuine new register (issue/return is its own small workflow).
+  {
+    id: "hr-assets",
+    workspace: "hr",
+    label: "Assets",
+    icon: Package,
+    tabs: [
+      { label: "Assets", to: "/hr/assets", permission: "hr.view", keywords: ["laptop", "equipment", "issued", "returned", "allocation"] },
     ],
   },
   // W2 (6 Nov 2026): the compliance pack. Gratuity and Emiratisation are PillTabs on one Reports route, not

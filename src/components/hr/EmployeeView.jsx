@@ -12,7 +12,7 @@ import { ArrowLeft, Mail, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DateInput, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
-import { employees, contracts, employeeDocuments, payroll } from "../../lib/hrApi";
+import { employees, contracts, employeeDocuments, payroll, assets as assetsApi } from "../../lib/hrApi";
 import { contractSummary } from "../../lib/hr";
 import { formatDate, CURRENCY, formatNumber } from "../../utils/format";
 import Can from "../shell/Can.jsx";
@@ -91,6 +91,42 @@ function DocumentForm({ staffId, onClose, onSaved }) {
   );
 }
 
+function AssetForm({ staffId, onClose, onSaved }) {
+  const [form, setForm] = useState({ assetName: "", assetTag: "", issuedDate: new Date().toISOString().slice(0, 10), condition: "" });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await assetsApi.issue({ ...form, staffId });
+      onSaved(saved, "Asset issued.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="Issue an asset"
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Asset" required><TextInput value={form.assetName} onChange={setField("assetName")} placeholder="Dell Laptop" /></Field>
+        <Field label="Tag / serial" hint="Optional"><TextInput value={form.assetTag} onChange={setField("assetTag")} /></Field>
+        <Field label="Issued on" required><DateInput value={form.issuedDate} onChange={setField("issuedDate")} /></Field>
+        <Field label="Condition" hint="Optional"><TextInput value={form.condition} onChange={setField("condition")} placeholder="New" /></Field>
+      </div>
+    </Modal>
+  );
+}
+
 export default function EmployeeView() {
   const { id } = useParams();
   const { notify, toastNode } = useToasts();
@@ -103,9 +139,11 @@ export default function EmployeeView() {
   const history = useAsync(() => contracts.list(id), [id]);
   const documents = useAsync(() => employeeDocuments.forStaff(id), [id]);
   const payslips = useAsync(() => (seesPay ? payroll.payslipsForStaff(id) : Promise.resolve([])), [id, seesPay]);
+  const assetList = useAsync(() => assetsApi.forStaff(id), [id]);
   const [editing, setEditing] = useState(false);
   const [addingContract, setAddingContract] = useState(false);
   const [addingDocument, setAddingDocument] = useState(false);
+  const [issuingAsset, setIssuingAsset] = useState(false);
 
   async function removeDocument(docId) {
     try {
@@ -114,6 +152,16 @@ export default function EmployeeView() {
       documents.reload();
     } catch (err) {
       notify(err.message || "Could not remove that document.", "error");
+    }
+  }
+
+  async function returnAsset(assetId) {
+    try {
+      await assetsApi.markReturned(assetId, {});
+      notify("Marked returned.");
+      assetList.reload();
+    } catch (err) {
+      notify(err.message || "Could not mark that returned.", "error");
     }
   }
 
@@ -144,12 +192,14 @@ export default function EmployeeView() {
           <TabsTrigger value="contract">Contract &amp; cost rate</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="payslips">Payslips</TabsTrigger>
+          <TabsTrigger value="assets">Assets</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-border p-4 sm:grid-cols-3">
             <Fact label="Designation">{e.designation}</Fact>
             <Fact label="Department">{e.department}</Fact>
+            <Fact label="Reports to">{e.managerName}</Fact>
             <Fact label="Nationality">{e.nationality}</Fact>
             <Fact icon={Phone} label="Contact">{e.contactNo}</Fact>
             <Fact icon={Mail} label="Email">{e.email}</Fact>
@@ -240,8 +290,49 @@ export default function EmployeeView() {
             </>
           )}
         </TabsContent>
+
+        <TabsContent value="assets">
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <p className="text-sm text-muted-foreground">What has been issued to this person, and when it came back.</p>
+            <Can permission="hr.manage">
+              <Button variant="outline" onClick={() => setIssuingAsset(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Issue an asset</Button>
+            </Can>
+          </div>
+          {assetList.loading && <Spinner />}
+          {assetList.error && <ErrorNote error={assetList.error} onRetry={assetList.reload} />}
+          {!assetList.loading && !assetList.error && (
+            (assetList.data || []).length ? (
+              <div className="grid gap-2">
+                {assetList.data.map((a) => (
+                  <div key={a._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+                    <div>
+                      <p className="font-medium text-foreground">{a.assetName}{a.assetTag ? ` · ${a.assetTag}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">Issued {formatDate(a.issuedDate)}{a.returnedDate ? ` · returned ${formatDate(a.returnedDate)}` : ""}</p>
+                    </div>
+                    {a.returnedDate ? (
+                      <Pill tone="neutral">Returned</Pill>
+                    ) : (
+                      <Can permission="hr.manage">
+                        <Button variant="outline" size="sm" onClick={() => returnAsset(a._id)}>Mark returned</Button>
+                      </Can>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Nothing issued to this person yet.</p>
+            )
+          )}
+        </TabsContent>
       </Tabs>
 
+      {issuingAsset && (
+        <AssetForm
+          staffId={id}
+          onClose={() => setIssuingAsset(false)}
+          onSaved={(_, message) => { setIssuingAsset(false); notify(message); assetList.reload(); }}
+        />
+      )}
       {addingDocument && (
         <DocumentForm
           staffId={id}

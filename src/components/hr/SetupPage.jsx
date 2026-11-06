@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
-import { statutoryRules, shifts as shiftsApi, holidays as holidaysApi, leaveTypes as leaveTypesApi, salaryComponents } from "../../lib/hrApi";
+import { statutoryRules, shifts as shiftsApi, holidays as holidaysApi, leaveTypes as leaveTypesApi, salaryComponents, departments as departmentsApi } from "../../lib/hrApi";
 import { formatDate } from "../../utils/format";
 
 const COUNTRIES = [{ value: "AE", label: "United Arab Emirates" }, { value: "IN", label: "India" }];
@@ -460,7 +460,73 @@ function ComponentsPanel() {
   );
 }
 
-const SETUP_TABS = [["statutory", "Statutory rules"], ["shifts", "Shifts"], ["holidays", "Holidays"], ["leaveTypes", "Leave types"], ["components", "Salary components"]];
+function DepartmentForm({ onClose, onSaved }) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await departmentsApi.create({ name });
+      onSaved(saved, "Department saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="New department"
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Name" required><TextInput value={name} onChange={(e) => setName(e?.target ? e.target.value : e)} placeholder="Fabrication" /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function DepartmentsPanel() {
+  const { notify, toastNode } = useToasts();
+  const list = useAsync(() => departmentsApi.list(), []);
+  const [adding, setAdding] = useState(false);
+
+  async function remove(id) {
+    try { await departmentsApi.remove(id); notify("Department removed."); list.reload(); }
+    catch (err) { notify(err.message || "Could not remove that department.", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Can permission="hr.manage"><Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New department</Button></Can>
+      </div>
+      {list.loading && <Spinner />}
+      {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+      {!list.loading && !list.error && (
+        <div className="grid gap-2">
+          {(list.data || []).map((d) => (
+            <div key={d._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <p className="font-medium text-foreground">{d.name}</p>
+              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(d._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+            </div>
+          ))}
+          {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No departments yet - People shows the free-text field until one is added.</p>}
+        </div>
+      )}
+      {adding && <DepartmentForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {toastNode}
+    </div>
+  );
+}
+
+const SETUP_TABS = [["statutory", "Statutory rules"], ["shifts", "Shifts"], ["holidays", "Holidays"], ["leaveTypes", "Leave types"], ["components", "Salary components"], ["departments", "Departments"]];
 
 export default function SetupPage() {
   const [tab, setTab] = useState("statutory");
@@ -475,6 +541,7 @@ export default function SetupPage() {
         {tab === "holidays" && <HolidaysPanel />}
         {tab === "leaveTypes" && <LeaveTypesPanel />}
         {tab === "components" && <ComponentsPanel />}
+        {tab === "departments" && <DepartmentsPanel />}
       </div>
     </div>
   );

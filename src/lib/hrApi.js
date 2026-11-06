@@ -111,3 +111,20 @@ export const payroll = {
   payslips: (runId) => api.get(`/hr/payroll/runs/${runId}/payslips`),
   payslipsForStaff: (staffId) => api.get(`/hr/employees/${staffId}/payslips`),
 };
+
+// Departments: the one structured grouping (designations stay free text).
+export const departments = {
+  list: () => api.get("/hr/departments"),
+  create: (body) => api.post("/hr/departments", body),
+  update: (id, body) => api.put(`/hr/departments/${id}`, body),
+  remove: (id) => api.del(`/hr/departments/${id}`),
+};
+
+// Assets: what was issued to whom, and when it came back - never a stock movement.
+export const assets = {
+  list: (params) => api.get("/hr/assets", params),
+  forStaff: (staffId) => api.get(`/hr/employees/${staffId}/assets`),
+  issue: (body) => api.post("/hr/assets", body),
+  markReturned: (id, body) => api.post(`/hr/assets/${id}/return`, body),
+  remove: (id) => api.del(`/hr/assets/${id}`),
+};

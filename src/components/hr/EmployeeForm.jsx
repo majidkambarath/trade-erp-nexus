@@ -4,18 +4,22 @@
 // event it has to be (trade ERP node/utils/hr.js rule 2: the rate is stamped, never recomputed).
 import React, { useState } from "react";
 import { Button } from "../ui/button";
-import { employees } from "../../lib/hrApi";
+import { employees, departments as departmentsApi } from "../../lib/hrApi";
 import { validateEmployeeForm, employeeFormData } from "../../lib/hr";
-import { ErrorNote, DateInput, Field, Modal, Select, TextInput } from "../accounting/kit";
+import { ErrorNote, DateInput, Field, Modal, Select, SearchSelect, TextInput, useAsync } from "../accounting/kit";
 
 const STATUS_OPTIONS = [{ value: "Active", label: "Active" }, { value: "Inactive", label: "Inactive" }];
 
 export default function EmployeeForm({ employee, onClose, onSaved }) {
   const editing = Boolean(employee?._id);
+  const departmentList = useAsync(() => departmentsApi.list(), []);
+  const colleagues = useAsync(() => employees.list({ status: "Active", limit: 500 }), []);
   const [form, setForm] = useState({
     name: employee?.name || "",
     designation: employee?.designation || "",
     department: employee?.department || "",
+    departmentId: employee?.departmentId || "",
+    managerId: employee?.managerId || "",
     email: employee?.email || "",
     contactNo: employee?.contactNo || "",
     idNo: employee?.idNo || "",
@@ -66,8 +70,26 @@ export default function EmployeeForm({ employee, onClose, onSaved }) {
           <Field label="Designation" required error={errors.designation}>
             <TextInput value={form.designation} onChange={setField("designation")} placeholder="e.g. Fabricator" />
           </Field>
-          <Field label="Department" hint="Optional, free text">
+          <Field label="Department" hint="Optional, free text - or pick one below to also link the master">
             <TextInput value={form.department} onChange={setField("department")} />
+          </Field>
+          <Field label="Structured department" hint="Optional - fills the field above too">
+            <SearchSelect
+              value={form.departmentId}
+              onChange={(v) => setForm((f) => ({ ...f, departmentId: v }))}
+              options={(departmentList.data || []).map((d) => ({ value: d._id, label: d.name }))}
+              placeholder="None"
+              clearable
+            />
+          </Field>
+          <Field label="Reports to" hint="Optional">
+            <SearchSelect
+              value={form.managerId}
+              onChange={(v) => setForm((f) => ({ ...f, managerId: v }))}
+              options={(colleagues.data || []).filter((c) => c._id !== employee?._id).map((c) => ({ value: c._id, label: c.name }))}
+              placeholder="Nobody"
+              clearable
+            />
           </Field>
           <Field label="Nationality" hint="Optional - used for the Emiratisation tracker">
             <TextInput value={form.nationality} onChange={(e) => set("nationality")(e.target.value.toUpperCase().slice(0, 2))} placeholder="e.g. IN, AE" maxLength={2} />

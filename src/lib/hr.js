@@ -30,6 +30,10 @@ export function employeeFormData(data) {
   if (data?.joiningDate) fd.append("joiningDate", data.joiningDate);
   if (data?.exitDate !== undefined) fd.append("exitDate", data.exitDate || "");
   if (data?.nationality) fd.append("nationality", str(data.nationality).trim().toUpperCase());
+  // "" clears the link on an edit - sent explicitly rather than omitted, so choosing "None" again
+  // actually reaches the server (an omitted field on update means "leave it as it was").
+  if (data?.departmentId !== undefined) fd.append("departmentId", data.departmentId || "");
+  if (data?.managerId !== undefined) fd.append("managerId", data.managerId || "");
   if (data?.idProof instanceof File) fd.append("idProof", data.idProof);
   if (data?.addressProof instanceof File) fd.append("addressProof", data.addressProof);
   return fd;
