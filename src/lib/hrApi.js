@@ -26,3 +26,20 @@ export const contracts = {
 
 // Who, right now, cannot be costed - the Overview screen's one real figure.
 export const coverage = (params) => api.get("/hr/coverage", params);
+
+// W2: gratuity and Emiratisation. The server strips the per-employee breakdown from a gratuity preview
+// unless the caller holds hr.confidential - there is nothing to ask for here, it just comes back narrower.
+export const gratuity = {
+  preview: (month) => api.get("/hr/compliance/gratuity/preview", { month }),
+  accruals: () => api.get("/hr/compliance/gratuity/accruals"),
+  accrue: (month) => api.post("/hr/compliance/gratuity/accrue", { month }),
+  reverse: (id, reason) => api.post(`/hr/compliance/gratuity/${id}/reverse`, { reason }),
+};
+
+export const emiratisation = () => api.get("/hr/compliance/emiratisation");
+
+export const statutoryRules = {
+  list: (country) => api.get("/hr/statutory-rules", country ? { country } : undefined),
+  create: (body) => api.post("/hr/statutory-rules", body),
+  remove: (id) => api.del(`/hr/statutory-rules/${id}`),
+};

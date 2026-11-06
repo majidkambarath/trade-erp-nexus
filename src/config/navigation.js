@@ -172,6 +172,29 @@ export const MODULES = [
       { label: "People", to: "/hr/people", permission: "hr.view", keywords: ["employees", "staff", "contract", "cost rate", "designation", "department"] },
     ],
   },
+  // W2 (6 Nov 2026): the compliance pack. Gratuity and Emiratisation are PillTabs on one Reports route, not
+  // two more rail items - the same call CRM made for its own seven reports (the 88px rail cannot hold the
+  // growth, and the sweep opens role="tab" panels by itself). Setup is where the dated-rule engine every
+  // later wave reads (StatutoryRule) is edited - sections are added to it per wave, the way Accounting
+  // setup already has five tabs behind one module.
+  {
+    id: "hr-reports",
+    workspace: "hr",
+    label: "Reports",
+    icon: BarChart3,
+    tabs: [
+      { label: "Reports", to: "/hr/reports", permission: "hr.view", keywords: ["gratuity", "emiratisation", "compliance", "end of service", "quota"] },
+    ],
+  },
+  {
+    id: "hr-setup",
+    workspace: "hr",
+    label: "Setup",
+    icon: SlidersHorizontal,
+    tabs: [
+      { label: "Setup", to: "/hr/setup", permission: "hr.manage", keywords: ["statutory", "rules", "gratuity rate", "emiratisation quota", "country pack"] },
+    ],
+  },
   {
     id: "sales",
     mobilePrimary: true,
