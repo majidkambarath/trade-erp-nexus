@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, Pill, Select, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
-import { statutoryRules, shifts as shiftsApi, holidays as holidaysApi, leaveTypes as leaveTypesApi } from "../../lib/hrApi";
+import { statutoryRules, shifts as shiftsApi, holidays as holidaysApi, leaveTypes as leaveTypesApi, salaryComponents } from "../../lib/hrApi";
 import { formatDate } from "../../utils/format";
 
 const COUNTRIES = [{ value: "AE", label: "United Arab Emirates" }, { value: "IN", label: "India" }];
@@ -355,20 +355,126 @@ function LeaveTypesPanel() {
   );
 }
 
-const SETUP_TABS = [["statutory", "Statutory rules"], ["shifts", "Shifts"], ["holidays", "Holidays"], ["leaveTypes", "Leave types"]];
+const COMPUTATIONS = [["fixed", "A flat amount"], ["percentOfBasic", "% of basic pay"], ["percentOfGross", "% of gross pay"]];
+
+function ComponentForm({ onClose, onSaved }) {
+  const [form, setForm] = useState({ name: "", kind: "deduction", computation: "percentOfBasic", rate: "", capBase: "", eligibleUpTo: "" });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await salaryComponents.create({
+        ...form, rate: Number(form.rate),
+        capBase: form.capBase === "" ? "" : Number(form.capBase),
+        eligibleUpTo: form.eligibleUpTo === "" ? "" : Number(form.eligibleUpTo),
+      });
+      onSaved(saved, "Component saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title="New salary component"
+      description="Applied to every employee paid in a run. PF and ESI are the cap/eligibility shape - see the research note in the module's own docs before relying on either figure."
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Name" required><TextInput value={form.name} onChange={setField("name")} placeholder="PF, ESI, Overtime…" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Kind">
+            <Select value={form.kind} onChange={setField("kind")}>
+              <option value="earning">Earning</option>
+              <option value="deduction">Deduction</option>
+            </Select>
+          </Field>
+          <Field label="Computed as">
+            <Select value={form.computation} onChange={setField("computation")}>
+              {COMPUTATIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <Field label={form.computation === "fixed" ? "Amount" : "Rate %"} required><AmountInput value={form.rate} onChange={setField("rate")} /></Field>
+        {form.computation !== "fixed" && (
+          <>
+            <Field label="Cap the base at" hint="Optional - a PF-shaped wage ceiling before the % applies"><AmountInput value={form.capBase} onChange={setField("capBase")} /></Field>
+            <Field label="Does not apply above" hint="Optional - an ESI-shaped eligibility ceiling"><AmountInput value={form.eligibleUpTo} onChange={setField("eligibleUpTo")} /></Field>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function ComponentsPanel() {
+  const { notify, toastNode } = useToasts();
+  const list = useAsync(() => salaryComponents.list(), []);
+  const [adding, setAdding] = useState(false);
+
+  async function remove(id) {
+    try { await salaryComponents.remove(id); notify("Component removed."); list.reload(); }
+    catch (err) { notify(err.message || "Could not remove that component.", "error"); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex justify-end">
+        <Can permission="hr.payroll"><Button onClick={() => setAdding(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New component</Button></Can>
+      </div>
+      {list.loading && <Spinner />}
+      {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
+      {!list.loading && !list.error && (
+        <div className="grid gap-2">
+          {(list.data || []).map((c) => (
+            <div key={c._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+              <div>
+                <p className="font-medium text-foreground">{c.name} <span className="text-xs font-normal text-muted-foreground">({c.kind})</span></p>
+                <p className="text-xs text-muted-foreground">
+                  {c.computation === "fixed" ? c.rate : `${c.rate}% of ${c.computation === "percentOfBasic" ? "basic" : "gross"}`}
+                  {c.capBase ? ` · capped at ${c.capBase}` : ""}{c.eligibleUpTo ? ` · not above ${c.eligibleUpTo}` : ""}
+                  {c.country ? ` · ${c.country} only` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {c.isSystem && <Pill tone="neutral">Our default - confirm it</Pill>}
+                {c.isActive === false && <Pill tone="warning">Inactive</Pill>}
+                <Can permission="hr.payroll"><Button variant="ghost" size="sm" onClick={() => remove(c._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+              </div>
+            </div>
+          ))}
+          {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No components yet - payroll pays basic and allowances only.</p>}
+        </div>
+      )}
+      {adding && <ComponentForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {toastNode}
+    </div>
+  );
+}
+
+const SETUP_TABS = [["statutory", "Statutory rules"], ["shifts", "Shifts"], ["holidays", "Holidays"], ["leaveTypes", "Leave types"], ["components", "Salary components"]];
 
 export default function SetupPage() {
   const [tab, setTab] = useState("statutory");
   return (
     <div className="p-4 sm:p-6">
       <h1 className="mb-1 text-2xl font-semibold text-foreground">Setup</h1>
-      <p className="mb-4 text-sm text-muted-foreground">Statutory figures, shifts, the holiday calendar and leave types - the configuration the rest of the module reads.</p>
+      <p className="mb-4 text-sm text-muted-foreground">Statutory figures, shifts, the holiday calendar, leave types and salary components - the configuration the rest of the module reads.</p>
       <PillTabs tabs={SETUP_TABS} value={tab} onChange={setTab} label="HR setup" />
       <div className="mt-4">
         {tab === "statutory" && <StatutoryRulesPanel />}
         {tab === "shifts" && <ShiftsPanel />}
         {tab === "holidays" && <HolidaysPanel />}
         {tab === "leaveTypes" && <LeaveTypesPanel />}
+        {tab === "components" && <ComponentsPanel />}
       </div>
     </div>
   );

@@ -83,3 +83,31 @@ export const leaveRequests = {
   decide: (id, body) => api.post(`/hr/leave-requests/${id}/decide`, body),
   cancel: (id) => api.post(`/hr/leave-requests/${id}/cancel`),
 };
+
+// W4: an employee's own KYC register - the labour costing's own expiry-blocks-assignment check reads the
+// same records.
+export const employeeDocuments = {
+  forStaff: (staffId) => api.get(`/hr/employees/${staffId}/documents`),
+  create: (body) => api.post("/hr/employee-documents", body),
+  update: (id, body) => api.put(`/hr/employee-documents/${id}`, body),
+  remove: (id) => api.del(`/hr/employee-documents/${id}`),
+  expiring: (params) => api.get("/hr/employee-documents/expiring", params),
+};
+
+// Salary components: read hr.view (they are rules, not anyone's pay); write hr.payroll.
+export const salaryComponents = {
+  list: () => api.get("/hr/salary-components"),
+  create: (body) => api.post("/hr/salary-components", body),
+  update: (id, body) => api.put(`/hr/salary-components/${id}`, body),
+  remove: (id) => api.del(`/hr/salary-components/${id}`),
+};
+
+// A run - planning strips every figure unless the caller holds hr.confidential, same split contracts has.
+export const payroll = {
+  plan: (period) => api.get("/hr/payroll/plan", { period }),
+  post: (period, acknowledge) => api.post("/hr/payroll/post", { period, acknowledge }),
+  reverse: (runId, reason) => api.post(`/hr/payroll/runs/${runId}/reverse`, { reason }),
+  runs: () => api.get("/hr/payroll/runs"),
+  payslips: (runId) => api.get(`/hr/payroll/runs/${runId}/payslips`),
+  payslipsForStaff: (staffId) => api.get(`/hr/employees/${staffId}/payslips`),
+};

@@ -11,6 +11,7 @@ import {
   CalendarClock,
   CalendarDays,
   Contact,
+  FileText,
   Gauge,
   Handshake,
   IdCard,
@@ -23,6 +24,7 @@ import {
   ShoppingBag,
   Truck,
   Users,
+  Wallet,
   Warehouse,
   Wrench,
 } from "lucide-react";
@@ -191,6 +193,27 @@ export const MODULES = [
     icon: CalendarDays,
     tabs: [
       { label: "Leave", to: "/hr/leave", permission: "hr.leave", keywords: ["vacation", "balance", "request", "approve", "annual leave"] },
+    ],
+  },
+  // W4 (6 Nov 2026): payroll and an employee's own KYC register. Planning a run needs hr.payroll (the
+  // confidential figures are stripped server-side without it, the same split contracts.list already has);
+  // the documents register is hr.view to read, hr.manage to write (the same split employees itself has).
+  {
+    id: "hr-payroll",
+    workspace: "hr",
+    label: "Payroll",
+    icon: Wallet,
+    tabs: [
+      { label: "Payroll", to: "/hr/payroll", permission: "hr.payroll", keywords: ["salary", "payslip", "pf", "esi", "deduction", "pay run"] },
+    ],
+  },
+  {
+    id: "hr-documents",
+    workspace: "hr",
+    label: "Documents",
+    icon: FileText,
+    tabs: [
+      { label: "Documents", to: "/hr/documents", permission: "hr.view", keywords: ["labour card", "visa", "passport", "expiry", "kyc"] },
     ],
   },
   // W2 (6 Nov 2026): the compliance pack. Gratuity and Emiratisation are PillTabs on one Reports route, not
