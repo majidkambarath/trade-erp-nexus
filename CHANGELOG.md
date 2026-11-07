@@ -2,6 +2,9 @@
 
 ## 2.5.0.1 — 8 November 2026
 
+A follow-up to 2.5.0.0: the copy handed to the customer said the same thing three times. Frontend
+only; backend stays at 2.5.0.0.
+
 ### Fixed
 
 - **The copy handed to the customer listed every settled invoice twice.** The description table and
