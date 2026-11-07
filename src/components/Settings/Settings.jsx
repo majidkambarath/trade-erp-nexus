@@ -9,6 +9,7 @@ import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { buildState, supportLine } from "../../lib/version";
 import { hasErpModules } from "../../lib/organisation";
 import GoogleConnect from "../crm/GoogleConnect.jsx";
 import { orgCurrency, orgTimezone } from "../../utils/orgLocale";
@@ -343,8 +344,49 @@ export default function SettingsModule() {
           )}
         </Tabs>
       )}
+      {/* Outside the tabs on purpose: "open Settings and read the version" has to work whichever tab was
+          last open, and it is the first thing anybody is asked for when reporting a problem. */}
+      <BuildVersion api={status?.build?.api} />
       {toastNode}
     </div>
+  );
+}
+
+/**
+ * Which version is running. BOTH of them: the app and the API ship as separate Render services, so a
+ * release is only really live once both have, and a mismatch that lasts means one did not finish.
+ */
+function BuildVersion({ api }) {
+  const build = buildState(api);
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(supportLine(api));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // A browser that refuses the clipboard is not worth an error here - the figures are on screen to read.
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">
+            Version <span className="tabular-nums">{build.app}</span>
+            {build.state === "mismatched" && <span className="text-muted-foreground"> · server <span className="tabular-nums">{build.api}</span></span>}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{build.note}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {build.state === "mismatched" && <Pill tone="warning">Versions differ</Pill>}
+          {build.state === "matched" && <Pill tone="success">Up to date</Pill>}
+          <Button variant="outline" size="sm" onClick={copy}>{copied ? "Copied" : "Copy for support"}</Button>
+        </div>
+      </div>
+    </section>
   );
 }
 
