@@ -44,6 +44,11 @@ const ALL_GRANTS = [...new Set([
     inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete"], banking: ["view", "manage", "reconcile"],
     accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
     audit: ["view"], lookups: ["view"],
+    // hr.confidential and hr.payroll are not on any tab, so without naming them here the sweep would
+    // measure every HR screen as a reader who may not see pay - and the dashboard draws dashes instead of
+    // figures for that person, which is not the layout worth checking.
+    hr: ["view", "manage", "attendance", "leave", "payroll", "approve", "confidential"],
+    staff: ["view", "manage"], garage: ["view", "create", "edit", "approve", "invoice", "manage"],
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
 // Files a step can choose in a dialog's file input (`upload: "leads"`), written once to a throwaway folder. The lead sheet has
@@ -1138,6 +1143,49 @@ function stubFor(pathname, search = "") {
     if (p.endsWith("/activity")) return { rows: activityRows(), total: 3, page: 1, pages: 1 };
     if (/\/trade-orders\/[^/]+$/.test(p)) return tradeOrderDoc(kind);
     return n(tradeOrder(kind), 6);
+  }
+
+  // HRMS > Overview. Without this the dashboard was swept EMPTY, which is how its layout shipped wrong:
+  // a five-across tile row that filtered its own cards, and nine panels of equal weight, none of which
+  // shows up in a screenshot of a page with no data in it.
+  if (p.endsWith("/hr/dashboard")) {
+    const months = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"];
+    return {
+      currency: "AED",
+      period: { month: "2026-10", from: "2026-10-01", to: "2026-10-19", months, previousMonth: "2026-09" },
+      generatedAt: "2026-10-19T06:00:00.000Z",
+      confidential: true,
+      headcount: {
+        active: 13, total: 15, inactive: 2, costed: 12, missingCostRate: 1,
+        missing: [{ _id: "s9", name: "Bikash Tamang", staffId: "EMP-0009", designation: "Helper" }],
+        byDepartment: [
+          { key: "d1", name: "Fabrication", value: 6, people: 6 },
+          { key: "d2", name: "Coating", value: 4, people: 4 },
+          { key: "d3", name: "Administration", value: 3, people: 3 },
+        ],
+        flow: months.map((month, i) => ({ month, joiners: [1, 0, 2, 0, 1, 1][i], leavers: [0, 1, 0, 0, 1, 0][i], net: [1, -1, 2, 0, 0, 1][i], headcount: [10, 9, 11, 11, 11, 13][i] })),
+      },
+      attendance: { counts: { present: 198, half_day: 5, absent: 11, on_leave: 7, holiday: 4, weekly_off: 32 }, worked: 203, expected: 221, rate: 91.86, hours: 1612, overtime: 24 },
+      leave: { onLeaveToday: 2, pending: 3 },
+      cost: {
+        // One month in the middle with no run, so the trend proves it keeps its place on the axis.
+        byMonth: months.map((month, i) => {
+          const gross = [96000, 98500, null, 104000, 107500, 112000][i];
+          return { month, ran: gross !== null, gross: gross || 0, net: gross ? Math.round(gross * 0.92) : 0, deductions: gross ? Math.round(gross * 0.08) : 0, employees: gross ? [11, 11, 0, 12, 12, 13][i] : 0 };
+        }),
+        thisMonth: 112000, previousMonth: 107500, changePct: 4.19, ran: true, employees: 13, perEmployee: 8615.38,
+        byDepartment: [
+          { key: "d1", name: "Fabrication", value: 52000, people: 6 },
+          { key: "d2", name: "Coating", value: 34000, people: 4 },
+          { key: "d3", name: "Administration", value: 26000, people: 3 },
+        ],
+      },
+      labour: { hasWork: true, orders: 5, bookedCost: 14800, idleCost: 2600, bookedHours: 740, idleHours: 130, total: 17400, idleShare: 14.94, steps: [] },
+      gratuity: { liability: 88340.73, month: "2026-10", employeeCount: 13, missingCount: 0 },
+      emiratisation: { day: "2026-10-19", configured: true, requiredPercent: 2, finePerPosition: 9000, headcount: 13, nationals: 1, required: 1, shortfall: 0, compliant: true, monthlyExposure: 0 },
+      documents: { expired: 1, expiringSoon: 3, total: 4 },
+      checklists: { onboarding: { open: 4, late: 1 }, exit: { open: 2, late: 0 } },
+    };
   }
 
   // CRM (Pipeline / Leads / Follow-ups / Analysis / Setup): one deal a quotation has already moved, one enquiry nobody

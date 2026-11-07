@@ -12,13 +12,46 @@
 // isAnimationActive={false} everywhere because recharts draws a bar's labels only after its entrance
 // animation - the figures would be missing from a screenshot or a print.
 import React, { useState } from "react";
-import { Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ink, tip } from "../Dashborad/helpers";
 import { formatNumber } from "../../utils/format";
 
 // The hole is about 130px across, so the figure inside it steps down with its length rather than printing
 // over the coloured band.
 const figureSize = (text) => (text.length <= 4 ? "text-2xl" : text.length <= 6 ? "text-xl" : "text-lg");
+
+/**
+ * Payroll cost month by month, with the months along the X axis in time order.
+ *
+ * It replaces a RankedBars panel, which was the wrong grammar: that component's own contract is "one
+ * measure per name, largest first" - a CATEGORY chart, with the names down the side and truncated at 17
+ * characters. Months are not names, and a trend read top-to-bottom by magnitude is not a trend.
+ *
+ * A month nothing was run in keeps its place on the axis and simply has no bar, so the spacing never
+ * lies - the rule the rest of the product states as "a month with nothing is a point on the line, not a
+ * gap in it". The bar for the month in progress is drawn in the accent, so the eye lands on now.
+ */
+export function MonthlyCost({ rows = [], height = 260, money = (n) => formatNumber(n, 0), axis = (n) => formatNumber(n, 0) }) {
+  if (!rows.length) return null;
+  const last = rows[rows.length - 1]?.month;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} />
+        <YAxis tickLine={false} axisLine={false} tickFormatter={axis} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} />
+        <Tooltip
+          cursor={{ fill: "var(--secondary)", opacity: 0.5 }}
+          contentStyle={tip}
+          formatter={(v, _n, p) => [v === null ? "Not run" : money(v), p?.payload?.employees ? `Paid ${formatNumber(p.payload.employees, 0)}` : "Payroll"]}
+        />
+        <Bar dataKey="gross" name="Payroll" radius={[6, 6, 0, 0]} maxBarSize={38} isAnimationActive={false}>
+          {rows.map((r) => <Cell key={r.month} fill={r.month === last ? "var(--chart-2)" : ink} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
 
 /**
  * What a month's attendance was made of. The centre becomes whatever is hovered, so there is no floating
@@ -121,15 +154,3 @@ export function MonthlyFlow({ rows = [], height = 240, label = (m) => m }) {
   );
 }
 
-/** A plain horizontal meter for a share, where a whole chart would be too much furniture for one number. */
-export function ShareBar({ value, tone = ink, label }) {
-  const pct = Math.max(0, Math.min(100, Number(value) || 0));
-  return (
-    <div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: tone }} />
-      </div>
-      {label && <p className="mt-1 text-xs text-muted-foreground">{label}</p>}
-    </div>
-  );
-}

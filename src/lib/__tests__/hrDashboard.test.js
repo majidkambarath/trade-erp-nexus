@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  shown, money, seesMoney, headlineCards, costTrendRows, costDepartmentRows,
+  shown, money, seesMoney, headlineCards, costTrendRows, costTrendHasAny, costDepartmentRows,
   headcountDepartmentRows, headcountFlowRows, attendanceRows, attendanceTotal,
   changeNote, isEmpty, dashboardCsv,
 } from "../hrDashboard";
@@ -40,18 +40,38 @@ describe("seesMoney", () => {
 });
 
 describe("headlineCards", () => {
-  it("leads with cost for a reader who may see it", () => {
-    const keys = headlineCards(full()).map((c) => c.key);
-    expect(keys[0]).toBe("cost");
-    expect(keys).toContain("perEmployee");
-    expect(keys).toEqual(["cost", "perEmployee", "headcount", "attendance", "documents"]);
+  // These four ARE the tile row, and its shape is why the screen was rebuilt: it used to be five cards
+  // that got FILTERED, so a reader without hr.confidential saw three of them in a five-column grid with
+  // two dead tracks. A row with holes in it is what made the page look unfinished.
+  it("is always the same four, in the same order, led by cost", () => {
+    expect(headlineCards(full()).map((c) => c.key)).toEqual(["cost", "perEmployee", "headcount", "attendance"]);
   });
 
-  it("drops the cards whose figures were withheld, rather than drawing them empty", () => {
-    const keys = headlineCards(stripped()).map((c) => c.key);
-    expect(keys).not.toContain("perEmployee");
-    expect(keys).toContain("cost");       // the org-wide total survives the strip
-    expect(keys).toContain("headcount");  // and a count was never money
+  it("KEEPS every card for a reader who may not see money, carrying null rather than vanishing", () => {
+    const cards = headlineCards(stripped());
+    expect(cards.map((c) => c.key)).toEqual(["cost", "perEmployee", "headcount", "attendance"]);
+    const perHead = cards.find((c) => c.key === "perEmployee");
+    expect(perHead.value).toBeNull(); // the screen draws a dash: "not for you", not "none"
+    expect(perHead.value).not.toBe(0);
+    // An organisation-wide total is an aggregate, so it survives the strip and still carries a figure.
+    expect(cards.find((c) => c.key === "cost").value).toBe(120000);
+    expect(cards.find((c) => c.key === "headcount").value).toBe(12);
+  });
+
+  it("every tile leads somewhere - a figure and the screen behind it are the same thing", () => {
+    for (const card of headlineCards(full())) expect(card.to).toMatch(/^.hr./);
+  });
+
+  it("carries the change against last month on the cost tile, and only when there is a run to compare", () => {
+    // A number, so the tile can print it in a few characters; the sentence form wrapped to three lines.
+    expect(headlineCards(full()).find((c) => c.key === "cost").trendPct).toBeCloseTo(9.09, 2);
+    const d = full();
+    d.cost = { ran: false, thisMonth: 0, changePct: null, perEmployee: null, byMonth: [] };
+    expect(headlineCards(d).find((c) => c.key === "cost").trendPct).toBeNull();
+  });
+
+  it("no card carries a tone, because an unknown tone throws inside StatCard", () => {
+    for (const card of headlineCards(full())) expect(card.tone).toBeUndefined();
   });
 
   it("says a month was not run instead of showing it as costing nothing", () => {
@@ -62,45 +82,57 @@ describe("headlineCards", () => {
     expect(card.subText).toBe("Not run yet");
   });
 
-  it("warns about documents only when there is something to warn about", () => {
-    const danger = headlineCards(full()).find((c) => c.key === "documents");
-    expect(danger.tone).toBe("danger");
-    expect(danger.subText).toMatch(/already expired/);
-
-    const d = full();
-    d.documents = { expired: 0, expiringSoon: 2, total: 5 };
-    expect(headlineCards(d).find((c) => c.key === "documents").tone).toBe("warning");
-
-    d.documents = { expired: 0, expiringSoon: 0, total: 5 };
-    // undefined, never a tone StatCard does not know - an unknown tone throws in that component.
-    expect(headlineCards(d).find((c) => c.key === "documents").tone).toBeUndefined();
+  // There is deliberately no "documents expiring" tile any more: the Needs attention panel already
+  // carried that exact figure as its "Renew documents" row, so the fifth tile was duplication - and it
+  // was the one that made the row ragged.
+  it("has no documents tile, because the Needs attention panel already owns that figure", () => {
+    expect(headlineCards(full()).map((c) => c.key)).not.toContain("documents");
   });
 
-  it("says nothing is marked rather than claiming nought per cent attendance", () => {
+  it("keeps the attendance tile when nothing is marked - an unknown rate is a dash, not nought per cent", () => {
     const d = full();
     d.attendance = { counts: {}, worked: 0, expected: 0, rate: null };
-    const cards = headlineCards(d);
-    expect(cards.find((c) => c.key === "attendance")).toBeUndefined();
+    const card = headlineCards(d).find((c) => c.key === "attendance");
+    expect(card).toBeDefined();
+    expect(card.value).toBeNull();
+    // Terse on the tile, and distinct from the panel's own empty state - the same words twice reads as a bug.
+    expect(card.subText).toBe("No days marked yet");
   });
 
-  it("survives an older server that answers without a field", () => {
-    expect(headlineCards({})).toHaveLength(1); // only the "not run yet" cost card
-    expect(headlineCards(undefined)).toEqual([]);
+  it("survives an older server, and an answer of nothing at all, with the row still intact", () => {
+    expect(headlineCards({}).map((c) => c.key)).toEqual(["cost", "perEmployee", "headcount", "attendance"]);
+    expect(headlineCards(undefined)).toHaveLength(4);
+    expect(headlineCards(undefined).every((c) => c.value === null)).toBe(true);
   });
 });
 
 describe("costTrendRows", () => {
-  it("skips a month nothing was run, which is not a month that cost nothing", () => {
+  // It used to DROP the months nothing was run in, which made the spacing lie - March beside June
+  // reading as consecutive months. A month with nothing is a point on the line, not a gap in it.
+  it("keeps every month of the period, in order, with null for the ones nothing was run in", () => {
     const d = full();
-    d.cost.byMonth = [{ month: "2026-01", ran: false, gross: 0 }, { month: "2026-02", ran: true, gross: 110000 }];
-    expect(costTrendRows(d).map((r) => r.key)).toEqual(["2026-02"]);
+    d.cost.byMonth = [{ month: "2026-01", ran: false, gross: 0 }, { month: "2026-02", ran: true, gross: 110000, employees: 11 }];
+    const rows = costTrendRows(d);
+    expect(rows.map((r) => r.month)).toEqual(["2026-01", "2026-02"]);
+    expect(rows[0].gross).toBeNull(); // no bar, but it keeps its place on the axis
+    expect(rows[0].gross).not.toBe(0); // and it is NOT a month that cost nothing
+    expect(rows[0].ran).toBe(false);
+    expect(rows[1].gross).toBe(110000);
+    expect(rows[1].employees).toBe(11);
   });
 
-  it("is empty when no month has a run, so the panel can say so", () => {
+  it("tells the panel whether anything ran at all, so an all-null trend says so instead of drawing a floor", () => {
     const d = full();
-    d.cost.byMonth = [{ month: "2026-01", ran: false, gross: 0 }];
-    expect(costTrendRows(d)).toEqual([]);
+    d.cost.byMonth = [{ month: "2026-01", ran: false, gross: 0 }, { month: "2026-02", ran: false, gross: 0 }];
+    const rows = costTrendRows(d);
+    expect(rows).toHaveLength(2);
+    expect(costTrendHasAny(rows)).toBe(false);
+    expect(costTrendHasAny(costTrendRows(full()))).toBe(true);
+  });
+
+  it("is empty only when the server sent no months at all", () => {
     expect(costTrendRows({})).toEqual([]);
+    expect(costTrendHasAny(costTrendRows({}))).toBe(false);
   });
 
   it("labels through the formatter it is given", () => {

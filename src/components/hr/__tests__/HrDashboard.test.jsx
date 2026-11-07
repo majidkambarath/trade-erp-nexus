@@ -18,7 +18,6 @@ import { ThemeProvider } from "../../theme-provider";
 const show = () => render(<ThemeProvider><MemoryRouter><OverviewPage /></MemoryRouter></ThemeProvider>);
 // Intl puts a no-break space between the currency and the figure. Written as an escape rather than as
 // the character itself, which the lint rule rightly refuses: it is invisible in a diff.
-const plain = (t) => t.replace(/\u00a0/g, " ");
 
 // What the server sends a reader who holds hr.confidential.
 const full = () => ({
@@ -77,25 +76,59 @@ describe("the HR dashboard", () => {
     expect(screen.getByText("Cost by department")).toBeInTheDocument();
   });
 
-  it("says how this month compares with the last", async () => {
+  it("says how this month compares with the last, compactly enough for a tile", async () => {
     api.hrDashboard.mockResolvedValue(full());
     show();
-    await waitFor(() => expect(screen.getByText(/9.1% more than last month/)).toBeInTheDocument());
+    // Compact on purpose: the sentence form wrapped to three lines in the tile footer and made that card
+    // taller than the one beside it - which is only visible in a screenshot, not in a test like this one.
+    await waitFor(() => expect(screen.getByText("+9.1%")).toBeInTheDocument());
   });
 
-  it("hides every divisible figure from a reader without the permission, and never shows a zero in its place", async () => {
+  it("gives a reader without the permission the SAME four tiles, with a dash where the money was", async () => {
     api.hrDashboard.mockResolvedValue(stripped());
     show();
     await waitFor(() => expect(screen.getByText("Payroll this month")).toBeInTheDocument());
 
-    // The organisation-wide total is an aggregate and stays.
+    // The row never has a hole in it: four titles, always. Dropping cards is what left a five-column
+    // grid holding three of them, and that ragged row is what made the screen look unfinished.
+    for (const title of ["Payroll this month", "Cost per employee", "Active employees", "Attendance"]) {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    }
+    // The organisation-wide total is an aggregate and stays...
     expect(screen.getAllByText(/AED 120,000/).length).toBeGreaterThan(0);
-    // The average and the per-department split do not.
-    expect(screen.queryByText("Cost per employee")).not.toBeInTheDocument();
+    // ...the average and the per-department split do not, and come back as a dash rather than a zero.
     expect(screen.queryByText(/AED 10,000/)).not.toBeInTheDocument();
     expect(screen.queryByText(/AED 80,000/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     // And the panel explains itself rather than drawing an empty chart.
     expect(screen.getByText(/do not hold the permission|needs the confidential permission/i)).toBeInTheDocument();
+  });
+
+  it("is a four-across row, the house shape - never the five that left dead grid tracks", async () => {
+    api.hrDashboard.mockResolvedValue(full());
+    show();
+    await waitFor(() => expect(screen.getByText("Payroll this month")).toBeInTheDocument());
+    const row = screen.getByText("Payroll this month").closest(".grid");
+    expect(row.className).toMatch(/xl:grid-cols-4/);
+    expect(row.className).not.toMatch(/grid-cols-5/);
+  });
+
+  it("every tile is a way in, not only a figure", async () => {
+    api.hrDashboard.mockResolvedValue(full());
+    show();
+    await waitFor(() => expect(screen.getByText("Active employees")).toBeInTheDocument());
+    // StatCard becomes a button once it is given an onClick.
+    expect(screen.getByText("Active employees").closest("button")).toBeInTheDocument();
+  });
+
+  it("sends compliance to Reports rather than carrying it twice", async () => {
+    api.hrDashboard.mockResolvedValue(full());
+    show();
+    await waitFor(() => expect(screen.getByText("Payroll by month")).toBeInTheDocument());
+    // HR Reports owns both of these in full; two panels of weight here bought nothing new.
+    expect(screen.queryByText("Gratuity liability")).not.toBeInTheDocument();
+    expect(screen.queryByText("Emiratisation")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/hr/reports");
   });
 
   it("counts are shown to everyone, because a headcount is nobody's pay", async () => {
@@ -142,30 +175,9 @@ describe("the HR dashboard", () => {
     expect(screen.getByText(/1 past their day/)).toBeInTheDocument();
   });
 
-  it("says what Emiratisation costs per month if nothing changes", async () => {
-    api.hrDashboard.mockResolvedValue(full());
-    show();
-    await waitFor(() => expect(screen.getByText("Emiratisation")).toBeInTheDocument());
-    expect(screen.getByText(/1 more Emirati employee needed/)).toBeInTheDocument();
-    expect(plain(screen.getByText(/a month in fines/).textContent)).toMatch(/9,000.00 a month in fines/);
-  });
-
-  it("sends somebody to Setup when the Emiratisation rules were never set", async () => {
-    const d = full();
-    d.emiratisation = { day: "2026-03-11", configured: false };
-    api.hrDashboard.mockResolvedValue(d);
-    show();
-    await waitFor(() => expect(screen.getByText(/Set the rate and the fine under Setup/)).toBeInTheDocument());
-  });
-
-  it("leaves Emiratisation out entirely where it does not apply", async () => {
-    const d = full();
-    d.emiratisation = null;
-    api.hrDashboard.mockResolvedValue(d);
-    show();
-    await waitFor(() => expect(screen.getByText("Gratuity liability")).toBeInTheDocument());
-    expect(screen.queryByText("Emiratisation")).not.toBeInTheDocument();
-  });
+  // The three Emiratisation cases that used to live here have MOVED to HrReports.test.jsx, which is the
+  // screen that owns those figures. They are not deleted - this page simply no longer draws them, and
+  // "sends compliance to Reports rather than carrying it twice" above is what pins that.
 
   it("gives an organisation with nobody on the books one honest empty state, not nine", async () => {
     api.hrDashboard.mockResolvedValue({ headcount: { total: 0, active: 0 }, period: { month: "2026-03" } });
@@ -179,6 +191,8 @@ describe("the HR dashboard", () => {
     show();
     // No crash, no blank screen: the panels say what is missing.
     await waitFor(() => expect(screen.getByText("Active employees")).toBeInTheDocument());
+    // The four tiles are there whatever the server sent - that is the point of not filtering them.
+    expect(screen.getByText("Cost per employee")).toBeInTheDocument();
     // With no cost object at all the screen cannot tell "withheld from you" from "this server is older",
     // so it says the safer of the two rather than claiming there is no payroll.
     expect(screen.getByText("Payroll figures are hidden")).toBeInTheDocument();

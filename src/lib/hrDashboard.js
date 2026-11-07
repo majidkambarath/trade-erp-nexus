@@ -15,26 +15,35 @@ export const money = (v) => (shown(v) && Number.isFinite(Number(v)) ? Number(v) 
 export const seesMoney = (data) => shown(data?.cost?.perEmployee) || shown(data?.cost?.byDepartment);
 
 /**
- * The headline cards, in cost-led order, already filtered to the ones this reader can actually see.
- * Each is `{ key, title, value, kind, subText, tone }`; `kind` tells the screen how to format it, so the
- * formatting stays in the component where the currency and locale live.
+ * The headline cards, in cost-led order. ALWAYS the same four, in the same places.
+ *
+ * They are never filtered. A figure the server withheld, or has not computed yet, keeps its card and
+ * carries a null for the screen to draw as a dash - which is what the rest of the product does and what
+ * the cost card here always did. Filtering was worse than useless: it left a reader without
+ * hr.confidential with three cards in a four-column grid, and a row with holes in it is what made this
+ * screen look unfinished. A card that says "—" says "not for you" or "not yet"; a missing card says
+ * nothing at all.
+ *
+ * `kind` tells the screen how to format the figure, so currency and locale stay in the component.
+ * `to` is where the figure lives in full - a tile is a way in, not only a number.
  */
 export function headlineCards(data) {
-  if (!data) return [];
-  const cost = data.cost || {};
-  const cards = [
-    cost.ran
-      ? { key: "cost", title: "Payroll this month", value: money(cost.thisMonth), kind: "money", subText: cost.employees ? `${cost.employees} paid` : null }
-      // A month nobody has run is not a cost of nothing: say so instead of drawing a confident zero.
-      : { key: "cost", title: "Payroll this month", value: null, kind: "money", subText: "Not run yet" },
-    { key: "perEmployee", title: "Cost per employee", value: money(cost.perEmployee), kind: "money", subText: "Average of this month's run" },
-    { key: "headcount", title: "Active employees", value: money(data.headcount?.active), kind: "count", subText: headcountSub(data) },
-    { key: "attendance", title: "Attendance", value: money(data.attendance?.rate), kind: "percent", subText: attendanceSub(data) },
-    { key: "documents", title: "Documents expiring", value: money(data.documents?.expiringSoon), kind: "count", subText: documentsSub(data), tone: toneFor(data.documents) },
+  const cost = data?.cost || {};
+  return [
+    {
+      key: "cost", title: "Payroll this month", kind: "money", to: "/hr/payroll",
+      value: cost.ran ? money(cost.thisMonth) : null,
+      // A month nobody has run is not a cost of nothing.
+      subText: cost.ran ? (cost.employees ? `${plural(cost.employees, "person", "people")} paid` : null) : "Not run yet",
+      // A NUMBER, not the sentence: a tile footer is a few characters wide, and
+      // "4.2% more than last month" wrapped to three lines and made this card taller than the one
+      // beside it. The screen formats it compactly; changeNote stays for where there is room.
+      trendPct: cost.ran && shown(cost.changePct) ? cost.changePct : null,
+    },
+    { key: "perEmployee", title: "Cost per employee", kind: "money", to: "/hr/payroll", value: money(cost.perEmployee), subText: cost.ran ? "Average of this month's run" : "Waiting on a run" },
+    { key: "headcount", title: "Active employees", kind: "count", to: "/hr/people", value: money(data?.headcount?.active), subText: headcountSub(data) },
+    { key: "attendance", title: "Attendance", kind: "percent", to: "/hr/attendance", value: money(data?.attendance?.rate), subText: attendanceSub(data) },
   ];
-  // A card whose figure the server withheld is dropped, not drawn empty - an empty card standing in for
-  // something is exactly what this screen's own history refuses.
-  return cards.filter((c) => c.key === "cost" || shown(c.value));
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -47,33 +56,39 @@ function headcountSub(data) {
 
 function attendanceSub(data) {
   const a = data?.attendance;
-  if (!shown(a?.rate)) return "Nothing marked this month";
+  // Terse, and deliberately NOT the panel's own "Nothing marked this month": the same sentence twice on
+  // one screen reads as a mistake. A tile is short; the panel below it is where the explaining happens.
+  if (!shown(a?.rate)) return "No days marked yet";
   return `${a.worked} of ${a.expected} days worked`;
 }
 
-function documentsSub(data) {
-  const d = data?.documents;
-  if (!d) return null;
-  return d.expired > 0 ? `${plural(d.expired, "is", "are")} already expired` : "Within the next 30 days";
-}
-
-/** Warning only when there is something to warn about, and never a tone StatCard does not know. */
-function toneFor(documents) {
-  if (documents?.expired > 0) return "danger";
-  if (documents?.expiringSoon > 0) return "warning";
-  return undefined;
-}
-
-/** Payroll cost per month as RankedBars rows - skipping months nothing was run, which would otherwise
- * read as a month that cost nothing. Returns [] when no month has a run, so the panel shows its empty
- * state rather than a flat line along the floor. */
+/**
+ * Payroll cost per month, for a chart with months along the X axis - EVERY month in the period, in
+ * order, including the ones nothing was run in.
+ *
+ * It used to drop the unrun months. That was wrong twice over: it made the spacing lie (March next to
+ * June, looking like consecutive months), and it is the opposite of the rule the rest of the product
+ * states - "a month with nothing is a point on the line, not a gap in it". An unrun month carries
+ * `gross: null` and `ran: false`, so the chart can leave a gap in the BAR while keeping the month on
+ * the axis, and nobody reads it as a month that cost nothing.
+ *
+ * `hasAny` is for the panel: no month with a run at all means draw the empty state, not a flat floor.
+ */
 export function costTrendRows(data, { label = (m) => m } = {}) {
   const months = data?.cost?.byMonth;
   if (!Array.isArray(months)) return [];
-  return months
-    .filter((m) => m?.ran && Number.isFinite(Number(m.gross)))
-    .map((m) => ({ key: m.month, name: label(m.month), value: Number(m.gross), employees: m.employees }));
+  return months.map((m) => ({
+    key: m?.month,
+    month: m?.month,
+    name: label(m?.month),
+    ran: Boolean(m?.ran),
+    gross: m?.ran && Number.isFinite(Number(m.gross)) ? Number(m.gross) : null,
+    employees: m?.ran ? m.employees : null,
+  }));
 }
+
+/** Was any month in the trend actually run? */
+export const costTrendHasAny = (rows) => rows.some((r) => r.gross !== null);
 
 /** Cost by department, largest first, as RankedBars rows. Empty for a reader without hr.confidential,
  * which is why the panel asks `seesMoney` before deciding what to say about an empty list. */
