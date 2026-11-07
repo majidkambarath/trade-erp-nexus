@@ -240,7 +240,7 @@ export const MODULES = [
     label: "Reports",
     icon: BarChart3,
     tabs: [
-      { label: "Reports", to: "/hr/reports", permission: "hr.view", keywords: ["gratuity", "emiratisation", "compliance", "end of service", "quota"] },
+      { label: "Reports", to: "/hr/reports", permission: "hr.view", keywords: ["gratuity", "emiratisation", "compliance", "end of service", "quota", "payroll register", "payslip", "attendance", "muster", "overtime", "leave balance", "document expiry"] },
     ],
   },
   {

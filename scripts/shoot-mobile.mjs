@@ -41,7 +41,7 @@ const ALL_GRANTS = [...new Set([
   ...Object.entries({
     crm: ["view", "create", "edit", "delete", "assign", "manage"],
     sales: ["view", "create", "edit", "approve", "delete", "send", "creditOverride"], purchase: ["view", "create", "edit", "approve", "delete"],
-    inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete"], banking: ["view", "manage", "reconcile"],
+    inventory: ["view", "create", "edit", "delete", "adjust"], finance: ["view", "create", "edit", "approve", "delete", "deletePosted"], banking: ["view", "manage", "reconcile"],
     accounts: ["view", "manage", "close"], reports: ["view", "financial", "vat"], users: ["view", "manage"], settings: ["view", "manage"],
     audit: ["view"], lookups: ["view"],
     // hr.confidential and hr.payroll are not on any tab, so without naming them here the sweep would
@@ -1185,6 +1185,95 @@ function stubFor(pathname, search = "") {
       emiratisation: { day: "2026-10-19", configured: true, requiredPercent: 2, finePerPosition: 9000, headcount: 13, nationals: 1, required: 1, shortfall: 0, compliant: true, monthlyExposure: 0 },
       documents: { expired: 1, expiringSoon: 3, total: 4 },
       checklists: { onboarding: { open: 4, late: 1 }, exit: { open: 2, late: 0 } },
+    };
+  }
+
+  // HRMS > Reports. The lesson above, applied to the screen next door: this page had NO stub at all, so
+  // check:mobile rendered six error states and reported them clean - which is how it shipped with a bare
+  // p-4 shell, a hand-rolled h1 and an Emiratisation tab drawn for an Indian organisation. The sweep opens
+  // role="tab" panels by itself, so these stubs alone screenshot all six reports.
+  if (p.includes("/hr/compliance/gratuity/preview")) {
+    return {
+      month: "2026-10", day: "2026-10-31", cumulativeLiability: 88340.73, previousCumulative: 80000, amount: 8340.73,
+      employeeCount: 3, missingCount: 1,
+      employees: [
+        { _id: "s1", name: "Ravi Kumar", staffId: "EMP-0001", serviceDays: 640, basicPay: 3000, owed: 52602.74 },
+        { _id: "s2", name: "Asha Nair", staffId: "EMP-0002", serviceDays: 400, basicPay: 2600, owed: 28493.15 },
+        { _id: "s4", name: "Mohammed Al Mansoori", staffId: "EMP-0004", serviceDays: 95, basicPay: 4200, owed: 7244.84 },
+      ],
+      missing: [{ _id: "s9", name: "Bikash Tamang", staffId: "EMP-0009", reason: "NO_BASIC_PAY" }],
+    };
+  }
+  if (p.includes("/hr/compliance/gratuity/accruals")) {
+    return [
+      { _id: "a3", month: "2026-09", amount: 7120.4, cumulativeLiability: 80000, voucherNo: "GRT-2026-0003", reversedAt: null },
+      { _id: "a2", month: "2026-08", amount: 0, cumulativeLiability: 72879.6, voucherNo: null, reversedAt: null },
+      { _id: "a1", month: "2026-07", amount: 6903.15, cumulativeLiability: 72879.6, voucherNo: "GRT-2026-0001", reversedAt: "2026-08-02T06:00:00.000Z" },
+    ];
+  }
+  if (p.includes("/hr/compliance/emiratisation")) {
+    return { day: "2026-10-19", configured: true, requiredPercent: 2, finePerPosition: 9000, headcount: 13, nationals: 0, required: 1, shortfall: 1, compliant: false, monthlyExposure: 9000 };
+  }
+  // The payslips path must be tested BEFORE the runs list, or the list answers both.
+  if (p.includes("/hr/payroll/runs/") && p.endsWith("/payslips")) {
+    const slip = (id, name, basic, earn, ded, factor) => ({ _id: id, staffName: name, basicPay: basic, totalEarnings: earn, totalDeductions: ded, grossPay: earn, netPay: earn - ded, proratedFactor: factor });
+    return [
+      slip("p1", "Ravi Kumar", 3000, 3400, 200, 1),
+      slip("p2", "Asha Nair", 2600, 2950, 150, 1),
+      slip("p3", "Mohammed Al Mansoori", 4200, 4700, 300, 1),
+      slip("p4", "Bikash Tamang", 1800, 900, 0, 0.5),
+    ];
+  }
+  if (p.includes("/hr/payroll/runs")) {
+    return [
+      { _id: "r2", period: "2026-10", voucherNo: "PAY-2026-0010", status: "POSTED", employeeCount: 13, totalGross: 112000, totalEarnings: 112000, totalDeductions: 8960, totalNet: 103040 },
+      { _id: "r1", period: "2026-09", voucherNo: "PAY-2026-0009", status: "REVERSED", employeeCount: 12, totalGross: 107500, totalEarnings: 107500, totalDeductions: 8600, totalNet: 98900 },
+    ];
+  }
+  if (p.includes("/hr/reports/attendance")) {
+    // One person nobody marked, so the "Not marked" pill is in the screenshot rather than a 0%.
+    const e = (id, name, code, dept, present, absent, leave, hours, ot, rate) => ({
+      _id: id, name, staffId: code, department: dept, designation: null,
+      present, half_day: 0, absent, on_leave: leave, holiday: 1, weekly_off: 8,
+      marked: present + absent + leave + 9, unmarked: 31 - (present + absent + leave + 9),
+      worked: present, expected: present + absent + leave, rate, hours, overtime: ot,
+    });
+    return {
+      from: "2026-10-01", to: "2026-10-31", days: 31,
+      employees: [
+        e("s1", "Ravi Kumar", "EMP-0001", "Fabrication", 20, 1, 1, 164, 6, 90.909090909),
+        e("s2", "Asha Nair", "EMP-0002", "Coating", 21, 0, 1, 168, 2, 95.4545454545),
+        e("s4", "Mohammed Al Mansoori", "EMP-0004", "Administration", 18, 3, 1, 144, 0, 81.8181818181),
+        { _id: "s9", name: "Bikash Tamang", staffId: "EMP-0009", department: null, designation: null, present: 0, half_day: 0, absent: 0, on_leave: 0, holiday: 0, weekly_off: 0, marked: 0, unmarked: 31, worked: 0, expected: 0, rate: null, hours: 0, overtime: 0 },
+      ],
+      totals: { present: 59, half_day: 0, absent: 4, on_leave: 3, holiday: 3, weekly_off: 24, employees: 4, marked: 93, worked: 59, expected: 66, rate: 89.3939393939, hours: 476, overtime: 8 },
+      orphanRows: 0,
+      neverMarked: [{ _id: "s9", name: "Bikash Tamang", staffId: "EMP-0009" }],
+    };
+  }
+  if (p.includes("/hr/reports/leave-balances")) {
+    const row = (sid, name, code, tid, type, accrued, consumed) => ({ _id: `${sid}-${tid}`, staffId: sid, name, staffCode: code, leaveTypeId: tid, leaveTypeName: type, isPaid: true, accrued, consumed, available: Math.round((accrued - consumed) * 100) / 100 });
+    return {
+      day: "2026-10-19",
+      rows: [
+        row("s1", "Ravi Kumar", "EMP-0001", "t1", "Annual", 52.5, 5),
+        row("s1", "Ravi Kumar", "EMP-0001", "t2", "Sick", 21, 2),
+        row("s2", "Asha Nair", "EMP-0002", "t1", "Annual", 32.5, 12),
+        row("s2", "Asha Nair", "EMP-0002", "t2", "Sick", 13, 0),
+      ],
+      missing: [{ _id: "s9", name: "Bikash Tamang", staffId: "EMP-0009", reason: "NO_JOINING_DATE" }],
+      totals: { accrued: 119, consumed: 19, available: 100, employees: 2 },
+    };
+  }
+  if (p.includes("/hr/employee-documents/expiring")) {
+    return {
+      asOf: "2026-10-19", withinDays: 60,
+      rows: [
+        { partyType: "Staff", partyId: "s1", partyName: "Ravi Kumar", partyCode: "EMP-0001", documentId: "d1", documentType: "Passport", number: "P1234567", expiryDate: "2026-10-12", status: "EXPIRED", daysLeft: -7, hasFile: true },
+        { partyType: "Staff", partyId: "s2", partyName: "Asha Nair", partyCode: "EMP-0002", documentId: "d2", documentType: "Residence visa", number: "784-1990-1234567-1", expiryDate: "2026-11-08", status: "EXPIRING_SOON", daysLeft: 20, hasFile: false },
+        { partyType: "Staff", partyId: "s4", partyName: "Mohammed Al Mansoori", partyCode: "EMP-0004", documentId: "d3", documentType: "Labour card", number: "LC-99812", expiryDate: "2026-12-01", status: "EXPIRING_SOON", daysLeft: 43, hasFile: true },
+      ],
+      summary: { expired: 1, expiringSoon: 2, total: 3 },
     };
   }
 
