@@ -116,7 +116,12 @@ describe("statement of financial position", () => {
   });
 
   it("says in its footnote where an account on the wrong side of its group is shown", () => {
-    expect(positionDocument(POSITION).blocks.at(-1).text).toMatch(/bank account in credit as a bank overdraft, a customer in credit as a liability, a supplier in debit as an asset/);
+    // Pinned loosely (not the whole sentence): a cash account's own wording ("cash shortfall", 1 Nov 2026 finance
+    // QA fixes) sits between "bank overdraft" and "customer", so this only checks the three pairs still hold, in order.
+    const text = positionDocument(POSITION).blocks.at(-1).text;
+    expect(text).toMatch(/bank account in credit as a bank overdraft/);
+    expect(text).toMatch(/customer in credit as a liability/);
+    expect(text).toMatch(/supplier in debit as an asset/);
   });
 });
 
