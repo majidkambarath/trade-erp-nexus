@@ -16,6 +16,7 @@
 import { companyBlock, rowsWithValue, totalInWords } from "../PurchaseOrder/shared/invoiceModel";
 import { describePayment } from "../../lib/voucherForms";
 import { fxLine, fxProvenance, isForeign } from "../../lib/currencyForms";
+import { termDays } from "../../lib/paymentStatus";
 import { formatDateGB } from "../../utils/format";
 import { orgCurrency } from "../../utils/orgLocale";
 
@@ -43,6 +44,92 @@ export function settledInvoiceRows(v) {
     };
   });
 }
+
+// The party as the paper names them. `partyId` is POPULATED by the server (getVoucherById) with
+// the handful of fields a printed voucher shows; on a LIST row it is a bare id string, so every
+// field but the name is read defensively and simply goes missing rather than throwing.
+//
+// The NAME is the voucher's own `partyName` - the snapshot taken when it was written. The address
+// and tax number are not snapshotted anywhere, so they are read live and a reprint shows today's
+// address. Customer keeps them in `billingAddress` / `trnNumber`, Vendor in `address` / `trnNO`;
+// both also carry `vat.trn`, which is the one kept in step by the party master service.
+export function partyBlock(v = {}) {
+  if (!v.partyName) return null;
+  const p = v.partyId && typeof v.partyId === "object" ? v.partyId : {};
+  const text = (s) => String(s ?? "").trim();
+  return {
+    heading: partyLabelFor(v.voucherType),
+    name: v.partyName,
+    address: text(p.billingAddress || p.address),
+    taxId: text(p.vat?.trn || p.trnNumber || p.trnNO),
+    email: text(p.email),
+  };
+}
+
+// How long this party has to pay. `credit.days` is the number the master keeps, but it is derived
+// from the `paymentTerms` label by the model's toJSON transform, and that transform does NOT run
+// on the voucher read (the query is .lean()) - so a customer who only ever had terms set comes
+// back with no `credit` at all and the label is parsed here instead. "Prepaid" and "Cash on
+// Delivery" carry no number and give 0, which the meta row then drops rather than printing "0".
+export function creditDaysOf(v = {}) {
+  const p = v.partyId && typeof v.partyId === "object" ? v.partyId : {};
+  const stored = Number(p.credit?.days);
+  const days = Number.isFinite(stored) ? stored : termDays(p.paymentTerms);
+  return days > 0 ? String(days) : "";
+}
+
+// The invoice numbers this voucher settled, as the one line a customer looks for first. Three at
+// most: past that it stops being a reference and becomes a paragraph, and the "Against invoice"
+// table further down carries every one of them with its own figures.
+export function invoiceRefOf(v = {}) {
+  const nos = settledInvoiceRows(v).map((r) => r.no).filter((no) => no && no !== "—");
+  if (nos.length === 0) return "";
+  return nos.length <= 3 ? nos.join(", ") : `${nos.slice(0, 3).join(", ")} +${nos.length - 3} more`;
+}
+
+// The body of the copy that leaves the building: what the money was for, one line each, and never
+// the double-entry postings. A customer holding a receipt has no business reading "Dr Cheques in
+// Hand / Cr Customer - Al Khaleej"; that is the bookkeeper's view and it stays on the office copy.
+export function descriptionRows(v = {}, amount = 0) {
+  const paying = v.voucherType === "payment";
+  const against = paying ? "Being payment against" : "Being receipt against";
+  const rows = settledInvoiceRows(v)
+    .filter((r) => r.no && r.no !== "—")
+    .map((r) => ({ text: `${against} ${r.no}`, amount: r.amount }));
+
+  const onAccount = num(v.onAccountAmount);
+  if (onAccount > 0) {
+    rows.push({ text: paying ? "Being payment on account" : "Being receipt on account", amount: onAccount });
+  }
+  // Nothing allocated and nothing on account - an expense, a journal, or a receipt entered before
+  // it was set against anything. The sheet still needs a line, so it carries the voucher's own
+  // words and its whole total rather than printing an empty table.
+  if (rows.length === 0) {
+    const fallback = paying ? "Being amount paid" : "Being amount received";
+    rows.push({ text: String(v.narration || v.description || "").trim() || fallback, amount: num(amount) });
+  }
+  return rows.map((r, i) => ({ no: i + 1, ...r }));
+}
+
+// Narration and notes, under one heading. `notes` has been editable (the "Edit narration" dialog
+// writes it) and invisible on paper ever since it existed; "Remarks" is both the plainer word and
+// the one the printed voucher the owner compared this with uses, so both go under it.
+export const remarksOf = (v = {}) =>
+  [v.narration, v.notes].map((s) => String(s ?? "").trim()).filter(Boolean).join("\n");
+
+// Which copies go OUT of the building. The builder cannot decide this for itself: `sheetMarkup`
+// (PurchaseOrder/shared/documentPdf.jsx) spreads the sheet and overrides `copy` for each copy it
+// draws, so the branch has to happen in the component - this keeps the one string comparison in a
+// single tested place rather than loose in the JSX.
+export const isPartyCopy = (copy) => copy === "Customer copy" || copy === "Payee copy";
+
+// Who signs. The office copy carries the internal control it always did; the copy handed to the
+// customer carries the two things that copy is FOR - their signature for the money, and room for
+// our stamp. Asking a customer to witness "Approved by" on their own receipt is nonsense.
+export const signaturesFor = (copy) =>
+  (isPartyCopy(copy)
+    ? ["Received by", "Company stamp"]
+    : ["Prepared by", "Checked by", "Approved by"]);
 
 // A voucher that is not posted must say so where nobody can miss it. A pending one is printed on
 // purpose - that is how it goes round for signature - so the sheet physically travels while it is
@@ -116,24 +203,29 @@ export function voucherSheet(v = {}, { title = "Voucher", profile = {}, currency
     copies,
     company: companyBlock(profile),
     number: { label: "Voucher no.", value: v.voucherNo || "" },
-    party: v.partyName ? { heading: partyLabelFor(v.voucherType), name: v.partyName } : null,
+    party: partyBlock(v),
     // Only what this voucher actually has: an empty row is left off rather than printed blank,
-    // through the same helper the invoice's own meta block uses. "Paid by" whatever the type,
-    // because that is the word the dialog uses and `describePayment` names the ACCOUNT the money
-    // moved through ("Cash - Cash in Hand"), never a person - "Received by" would read as a name.
+    // through the same helper the invoice's own meta block uses. "Payment method" names the
+    // ACCOUNT and instrument the money moved through ("Cheque 455120 · Emirates NBD"), never a
+    // person - which is why it is not "Received by", a label that would read as a name.
     meta: rowsWithValue([
       ["Date", v.date ? formatDateGB(v.date) : ""],
-      ["Paid by", v.paymentMode ? describePayment(v) : ""],
+      ["Payment method", v.paymentMode ? describePayment(v) : ""],
+      ["Invoice ref", invoiceRefOf(v)],
+      ["Credit days", creditDaysOf(v)],
       ["Reference", v.referenceNo || ""],
     ]),
     // The rate stamped on the voucher and where it came from: its own block above the figures,
     // because on a foreign-currency voucher it is the one thing that explains every one of them.
     fx: isForeign(v) ? { line: fxLine(v), provenance: fxProvenance(v) } : null,
     entries,
+    // What the party's copy shows in place of the postings. Both bodies ride on the sheet and the
+    // component picks one from its `copy` prop, because that prop is only settled at markup time.
+    description: descriptionRows(v, amount),
     totals,
     amount,
     words: totalInWords(amount, currency),
-    narration: v.narration || "",
+    remarks: remarksOf(v),
     invoices: settledInvoiceRows(v),
     onAccount: num(v.onAccountAmount),
     currency,
