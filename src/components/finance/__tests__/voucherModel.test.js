@@ -171,32 +171,36 @@ describe("the document's own details", () => {
 // The copy that leaves the building says what the money was FOR. The postings - "Dr Cheques in
 // Hand / Cr Customer - Al Noor" - are the bookkeeper's view and stay on the copy we file.
 describe("what the customer's copy says the money was for", () => {
-  const linked = (no, amount) => ({ invoiceId: { transactionNo: no }, amount, balance: 0 });
+  const linked = (no, amount, balance = 0) => ({ invoiceId: { transactionNo: no }, amount, balance });
 
-  it("writes a line per invoice settled, in the voucher's own direction", () => {
-    expect(sheet({ linkedInvoices: [linked("SO-1", 60), linked("SO-2", 40)] }).description).toEqual([
-      { no: 1, text: "Being receipt against SO-1", amount: 60 },
-      { no: 2, text: "Being receipt against SO-2", amount: 40 },
+  // Each row carries the balance left on its invoice, so this one table says everything the
+  // separate "Against invoice" table says and the party's copy prints the figures once.
+  it("writes a line per invoice settled, with what is left on it, in the voucher's own direction", () => {
+    expect(sheet({ linkedInvoices: [linked("SO-1", 60, 714), linked("SO-2", 40, 476)] }).description).toEqual([
+      { no: 1, text: "Being receipt against SO-1", amount: 60, balance: 714 },
+      { no: 2, text: "Being receipt against SO-2", amount: 40, balance: 476 },
     ]);
     expect(sheet({ voucherType: "payment", linkedInvoices: [linked("PO-9", 100)] }).description)
-      .toEqual([{ no: 1, text: "Being payment against PO-9", amount: 100 }]);
+      .toEqual([{ no: 1, text: "Being payment against PO-9", amount: 100, balance: 0 }]);
   });
 
-  it("adds what was taken on account", () => {
-    expect(sheet({ linkedInvoices: [linked("SO-1", 60)], onAccountAmount: 40 }).description).toEqual([
-      { no: 1, text: "Being receipt against SO-1", amount: 60 },
-      { no: 2, text: "Being receipt on account", amount: 40 },
+  // null, not 0: nothing was set against an invoice, so there is no balance left behind, and
+  // "0.00" in that column would read as "that invoice is now settled".
+  it("adds what was taken on account, with no balance against it", () => {
+    expect(sheet({ linkedInvoices: [linked("SO-1", 60, 714)], onAccountAmount: 40 }).description).toEqual([
+      { no: 1, text: "Being receipt against SO-1", amount: 60, balance: 714 },
+      { no: 2, text: "Being receipt on account", amount: 40, balance: null },
     ]);
   });
 
   // An expense, a journal, or a receipt entered before it was set against anything: the table
   // still needs a line, or the customer is handed a sheet with a total and no explanation.
   it("never leaves the table empty", () => {
-    expect(sheet().description).toEqual([{ no: 1, text: "Being amount received", amount: 100 }]);
+    expect(sheet().description).toEqual([{ no: 1, text: "Being amount received", amount: 100, balance: null }]);
     expect(sheet({ voucherType: "payment" }).description)
-      .toEqual([{ no: 1, text: "Being amount paid", amount: 100 }]);
+      .toEqual([{ no: 1, text: "Being amount paid", amount: 100, balance: null }]);
     expect(sheet({ narration: "Advance for October" }).description)
-      .toEqual([{ no: 1, text: "Advance for October", amount: 100 }]);
+      .toEqual([{ no: 1, text: "Advance for October", amount: 100, balance: null }]);
   });
 });
 
