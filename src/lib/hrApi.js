@@ -156,3 +156,15 @@ export const assets = {
   markReturned: (id, body) => api.post(`/hr/assets/${id}/return`, body),
   remove: (id) => api.del(`/hr/assets/${id}`),
 };
+
+// HRMS > Reports' own two derived reports (trade ERP node/routes/hr/hrReportRoutes.js). Each is gated on
+// its own key - attendance on hr.attendance, balances on hr.leave - because a muster and a leave register
+// are not the directory: see lib/hrReports.js reportTabs, which is what decides whether a tab is drawn.
+//
+// The attendance summary is counted by a $group in the database, NOT assembled here out of attendance.list
+// rows: that read is capped and drops the earliest days of a long range, which would render as "not
+// marked" for people who were marked.
+export const hrReports = {
+  attendance: (from, to) => api.get("/hr/reports/attendance", { from, to }),
+  leaveBalances: (day) => api.get("/hr/reports/leave-balances", day ? { day } : undefined),
+};
