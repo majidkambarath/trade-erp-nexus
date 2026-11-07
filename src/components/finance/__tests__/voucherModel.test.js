@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { partyLabelFor, settledInvoiceRows, voucherFileName, voucherSheet } from "../voucherModel";
+import {
+  isPartyCopy, partyLabelFor, settledInvoiceRows, signaturesFor, voucherFileName, voucherSheet,
+} from "../voucherModel";
 import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
 
 // The printed voucher's rules, with nothing rendered: what reaches the paper is decided here, and
@@ -40,8 +42,44 @@ describe("who the voucher names", () => {
   });
 
   it("leaves the party block off a voucher that has no party", () => {
-    expect(sheet().party).toEqual({ heading: "Received from", name: "Al Noor Trading" });
+    expect(sheet().party).toEqual({
+      heading: "Received from", name: "Al Noor Trading", address: "", taxId: "", email: "",
+    });
     expect(sheet({ partyName: "" }).party).toBeNull();
+  });
+
+  // The server populates `partyId` with the few fields a printed voucher shows. The NAME still
+  // comes from the voucher's own snapshot; the rest is read live off the master.
+  it("prints the party's address, tax number and email from the populated master", () => {
+    const p = sheet({
+      partyId: {
+        billingAddress: "M 5, West\nMusaffah, Abu Dhabi",
+        trnNumber: "104144306800003",
+        email: "sulaiman@alkhaleej.example",
+        customerName: "A name the voucher was NOT written against",
+      },
+    }).party;
+    expect(p.name).toBe("Al Noor Trading");
+    expect(p.address).toBe("M 5, West\nMusaffah, Abu Dhabi");
+    expect(p.taxId).toBe("104144306800003");
+    expect(p.email).toBe("sulaiman@alkhaleej.example");
+  });
+
+  it("takes the tax number from vat.trn first, then the flat field either master spells it with", () => {
+    expect(sheet({ partyId: { vat: { trn: "111" }, trnNumber: "222" } }).party.taxId).toBe("111");
+    expect(sheet({ partyId: { trnNumber: "222" } }).party.taxId).toBe("222");
+    expect(sheet({ partyId: { trnNO: "333" } }).party.taxId).toBe("333"); // a vendor
+  });
+
+  it("reads a vendor's address, which the master spells differently from a customer's", () => {
+    expect(sheet({ voucherType: "payment", partyId: { address: "Al Quoz, Dubai" } }).party)
+      .toMatchObject({ heading: "Paid to", address: "Al Quoz, Dubai" });
+  });
+
+  // On a list row `partyId` is a bare id string, not the populated record.
+  it("does not fall over when the party was never populated", () => {
+    expect(sheet({ partyId: "68f0c1a2b3c4d5e6f7a8b9c0" }).party)
+      .toEqual({ heading: "Received from", name: "Al Noor Trading", address: "", taxId: "", email: "" });
   });
 });
 
@@ -88,17 +126,106 @@ describe("the document's own details", () => {
     expect(sheet().meta).toEqual([["Date", "08/10/2026"]]);
   });
 
-  it("says 'Paid by' whatever the type, because it names the account and not a person", () => {
+  it("says 'Payment method', because it names the account and not a person", () => {
     const s = sheet({ paymentMode: "cash", cashAccountName: "Cash in Hand", referenceNo: "QA-7587" });
-    expect(s.meta.find(([k]) => k === "Paid by")).toBeTruthy();
+    expect(s.meta.find(([k]) => k === "Payment method")).toBeTruthy();
     expect(s.meta.find(([k]) => k === "Received by")).toBeUndefined();
     expect(s.meta).toContainEqual(["Reference", "QA-7587"]);
+  });
+
+  it("names the invoices it settled, and stops listing them after three", () => {
+    const linked = (n) => ({ invoiceId: { transactionNo: n }, amount: 10, balance: 0 });
+    expect(sheet({ linkedInvoices: [linked("SO-1")] }).meta).toContainEqual(["Invoice ref", "SO-1"]);
+    expect(sheet({ linkedInvoices: ["SO-1", "SO-2", "SO-3"].map(linked) }).meta)
+      .toContainEqual(["Invoice ref", "SO-1, SO-2, SO-3"]);
+    expect(sheet({ linkedInvoices: ["SO-1", "SO-2", "SO-3", "SO-4", "SO-5"].map(linked) }).meta)
+      .toContainEqual(["Invoice ref", "SO-1, SO-2, SO-3 +2 more"]);
+    // nothing allocated: no row at all, rather than an empty one
+    expect(sheet().meta.find(([k]) => k === "Invoice ref")).toBeUndefined();
+  });
+
+  // The voucher read is .lean(), so the master's toJSON transform that fills `credit.days` from
+  // the terms label never runs - the label has to be parsed here or the row is always missing.
+  it("works the credit days out from the stored number, or from the terms label", () => {
+    expect(sheet({ partyId: { credit: { days: 15 } } }).meta).toContainEqual(["Credit days", "15"]);
+    expect(sheet({ partyId: { paymentTerms: "Net 30" } }).meta).toContainEqual(["Credit days", "30"]);
+    expect(sheet({ partyId: { credit: { days: 15 }, paymentTerms: "Net 60" } }).meta)
+      .toContainEqual(["Credit days", "15"]); // the stored figure wins over the label
+  });
+
+  it("prints no credit days for a party that pays at once", () => {
+    for (const paymentTerms of ["Prepaid", "Cash on Delivery"]) {
+      expect(sheet({ partyId: { paymentTerms } }).meta.find(([k]) => k === "Credit days")).toBeUndefined();
+    }
+    expect(sheet({ partyId: { credit: { days: 0 } } }).meta.find(([k]) => k === "Credit days")).toBeUndefined();
+    expect(sheet().meta.find(([k]) => k === "Credit days")).toBeUndefined();
   });
 
   it("carries the exchange rate only when there is one", () => {
     expect(sheet().fx).toBeNull();
     const foreign = sheet({ currency: "USD", foreignAmount: 1000, exchangeRate: 3.6725, totalAmount: 3672.5 });
     expect(foreign.fx.line).toContain("USD 1,000.00 @ 3.6725");
+  });
+});
+
+// The copy that leaves the building says what the money was FOR. The postings - "Dr Cheques in
+// Hand / Cr Customer - Al Noor" - are the bookkeeper's view and stay on the copy we file.
+describe("what the customer's copy says the money was for", () => {
+  const linked = (no, amount) => ({ invoiceId: { transactionNo: no }, amount, balance: 0 });
+
+  it("writes a line per invoice settled, in the voucher's own direction", () => {
+    expect(sheet({ linkedInvoices: [linked("SO-1", 60), linked("SO-2", 40)] }).description).toEqual([
+      { no: 1, text: "Being receipt against SO-1", amount: 60 },
+      { no: 2, text: "Being receipt against SO-2", amount: 40 },
+    ]);
+    expect(sheet({ voucherType: "payment", linkedInvoices: [linked("PO-9", 100)] }).description)
+      .toEqual([{ no: 1, text: "Being payment against PO-9", amount: 100 }]);
+  });
+
+  it("adds what was taken on account", () => {
+    expect(sheet({ linkedInvoices: [linked("SO-1", 60)], onAccountAmount: 40 }).description).toEqual([
+      { no: 1, text: "Being receipt against SO-1", amount: 60 },
+      { no: 2, text: "Being receipt on account", amount: 40 },
+    ]);
+  });
+
+  // An expense, a journal, or a receipt entered before it was set against anything: the table
+  // still needs a line, or the customer is handed a sheet with a total and no explanation.
+  it("never leaves the table empty", () => {
+    expect(sheet().description).toEqual([{ no: 1, text: "Being amount received", amount: 100 }]);
+    expect(sheet({ voucherType: "payment" }).description)
+      .toEqual([{ no: 1, text: "Being amount paid", amount: 100 }]);
+    expect(sheet({ narration: "Advance for October" }).description)
+      .toEqual([{ no: 1, text: "Advance for October", amount: 100 }]);
+  });
+});
+
+describe("remarks, and which copy signs what", () => {
+  // `notes` has been editable through the narration dialog and invisible on paper ever since it
+  // existed. Both go under one heading, because a customer does not read "narration".
+  it("prints narration and notes together", () => {
+    expect(sheet({ narration: "RCVD CHEQUE DATED 09/11/2026" }).remarks).toBe("RCVD CHEQUE DATED 09/11/2026");
+    expect(sheet({ narration: "Cheque received", notes: "Bank to confirm" }).remarks)
+      .toBe("Cheque received\nBank to confirm");
+    expect(sheet({ notes: "Bank to confirm" }).remarks).toBe("Bank to confirm");
+    expect(sheet().remarks).toBe("");
+    expect(sheet({ narration: "   " }).remarks).toBe("");
+  });
+
+  it("knows which copies leave the building", () => {
+    expect(isPartyCopy("Customer copy")).toBe(true);
+    expect(isPartyCopy("Payee copy")).toBe(true);
+    expect(isPartyCopy("Office copy")).toBe(false);
+    expect(isPartyCopy(undefined)).toBe(false);
+  });
+
+  // Asking a customer to witness "Approved by" on their own receipt is nonsense; what that copy
+  // is FOR is their signature for the money and room for our stamp.
+  it("signs the office copy for control and the party's copy for the money", () => {
+    expect(signaturesFor("Office copy")).toEqual(["Prepared by", "Checked by", "Approved by"]);
+    expect(signaturesFor(undefined)).toEqual(["Prepared by", "Checked by", "Approved by"]);
+    expect(signaturesFor("Customer copy")).toEqual(["Received by", "Company stamp"]);
+    expect(signaturesFor("Payee copy")).toEqual(["Received by", "Company stamp"]);
   });
 });
 

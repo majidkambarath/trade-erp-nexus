@@ -2,6 +2,7 @@ import React from "react";
 import { formatDateGB, formatNumber } from "../../utils/format";
 import { taxIdWord } from "../../lib/taxTerms";
 import { tint } from "../PurchaseOrder/shared/invoiceModel";
+import { isPartyCopy, signaturesFor } from "./voucherModel";
 
 // The printed finance voucher: an A4 sheet laid out with inline styles only, so the same markup
 // prints from the browser and renders to PDF. It is deliberately the tax invoice's twin - the ink,
@@ -58,6 +59,9 @@ const SignBox = ({ title }) => (
   </div>
 );
 
+// Fallback only. Which boxes a copy carries is `signaturesFor(copy)` in voucherModel.js - the
+// office copy signs the internal control, the customer's copy signs for the money and leaves room
+// for the stamp. A caller that passes nothing gets what this sheet always printed.
 const SIGNATURES = ["Prepared by", "Checked by", "Approved by"];
 
 const Table = ({ children, style }) => (
@@ -73,18 +77,25 @@ export default function VoucherSheet({
   meta,
   fx,
   entries,
+  description,
   totals,
   amount,
   words,
-  narration,
+  remarks,
   invoices,
   onAccount,
   currency,
   stamp,
   notice,
   accent,
+  signatures,
 }) {
   const soft = tint(accent, 0.1);
+  // Which copy this is decides what the body shows, and `copy` is only settled at markup time -
+  // `sheetMarkup` (PurchaseOrder/shared/documentPdf.jsx) spreads the sheet and overrides it for
+  // each copy it draws - so the builder cannot make this choice and the component must.
+  const forParty = isPartyCopy(copy);
+  const signBoxes = signatures || signaturesFor(copy);
 
   return (
     <div
@@ -169,6 +180,22 @@ export default function VoucherSheet({
             <>
               <div style={label}>{party.heading}</div>
               <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>{party.name}</div>
+              {/* Who they are, as the tax invoice prints a buyer (InvoiceSheet.jsx). The address is
+                  one free-text field on the master, so it keeps its own line breaks. Each line is
+                  drawn only when the master holds it - a voucher never prints an empty label. */}
+              {party.address && (
+                <div style={{ color: MUTED, marginTop: 3, fontSize: 10.5, whiteSpace: "pre-line" }}>
+                  {party.address}
+                </div>
+              )}
+              {party.taxId && (
+                <div style={{ fontSize: 10.5, marginTop: 2 }}>
+                  <span style={{ fontWeight: 600 }}>{taxIdWord()}</span> {party.taxId}
+                </div>
+              )}
+              {party.email && (
+                <div style={{ color: MUTED, fontSize: 10.5 }}>{party.email}</div>
+              )}
             </>
           )}
           {fx && (
@@ -191,6 +218,41 @@ export default function VoucherSheet({
       </div>
 
       {/* what it posted */}
+      {/* The copy that goes to the customer says what the money was FOR; the copy we file says
+          which accounts moved. Same sheet, same figures, two readers - see descriptionRows and
+          isPartyCopy in voucherModel.js. */}
+      {forParty ? (
+        <Table style={{ marginTop: 20 }}>
+          <colgroup>
+            <col style={{ width: "5%" }} />
+            <col />
+            <col style={{ width: "24%" }} />
+          </colgroup>
+          <thead>
+            <tr style={{ background: soft, borderBottom: `1px solid ${accent}` }}>
+              <th style={{ ...head, textAlign: "center" }}>#</th>
+              <th style={{ ...head, textAlign: "left" }}>Description</th>
+              <th style={head}>Amount ({currency})</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(description || []).map((d) => (
+              <tr key={d.no}>
+                <td style={{ ...cell, textAlign: "center" }}>{d.no}</td>
+                <td style={cell}>{d.text}</td>
+                <td style={{ ...cell, textAlign: "right" }}>{formatNumber(d.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ fontWeight: 700, borderTop: `2px solid ${accent}` }}>
+              <td style={{ ...cell, borderBottom: "none" }} />
+              <td style={{ ...cell, borderBottom: "none" }}>Total</td>
+              <td style={{ ...cell, borderBottom: "none", textAlign: "right" }}>{formatNumber(amount)}</td>
+            </tr>
+          </tfoot>
+        </Table>
+      ) : (
       <Table style={{ marginTop: 20 }}>
         <colgroup>
           <col style={{ width: "5%" }} />
@@ -233,6 +295,7 @@ export default function VoucherSheet({
           </tr>
         </tfoot>
       </Table>
+      )}
 
       {/* words and what it settled on the left; the figures on the right */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 28, marginTop: 16, alignItems: "flex-start" }}>
@@ -266,17 +329,27 @@ export default function VoucherSheet({
             </div>
           )}
 
-          {narration && (
+          {/* Narration and notes together: see remarksOf. "Remarks" rather than "Narration"
+              because the person reading a receipt is not an accountant. */}
+          {remarks && (
             <div style={{ marginTop: 16 }}>
-              <div style={label}>Narration</div>
-              <div style={{ marginTop: 3, whiteSpace: "pre-line", fontSize: 10.5 }}>{narration}</div>
+              <div style={label}>Remarks</div>
+              <div style={{ marginTop: 3, whiteSpace: "pre-line", fontSize: 10.5 }}>{remarks}</div>
             </div>
           )}
         </div>
 
         <div style={{ flex: "1 1 45%", minWidth: 0 }}>
-          <TotalRow value={formatNumber(totals.debit)}>Total debit</TotalRow>
-          <TotalRow value={formatNumber(totals.credit)}>Total credit</TotalRow>
+          {/* The two sides of the posting are the same bookkeeping the party copy's body leaves
+              out - printing them here would hand the customer back through the side door exactly
+              what the description table exists to spare them. Their copy gets the one figure that
+              concerns them: what was received. */}
+          {!forParty && (
+            <>
+              <TotalRow value={formatNumber(totals.debit)}>Total debit</TotalRow>
+              <TotalRow value={formatNumber(totals.credit)}>Total credit</TotalRow>
+            </>
+          )}
           {onAccount > 0 && <TotalRow value={formatNumber(onAccount)}>On account (not set against an invoice)</TotalRow>}
           <TotalRow strong border accent={accent} value={formatNumber(amount)}>
             Amount ({currency})
@@ -287,7 +360,7 @@ export default function VoucherSheet({
       {/* footer: a voucher is signed, which an invoice is not */}
       <div style={{ marginTop: "auto", paddingTop: 28 }}>
         <div style={{ display: "flex", gap: 20, marginBottom: 18 }}>
-          {SIGNATURES.map((name) => <SignBox key={name} title={name} />)}
+          {(signBoxes || SIGNATURES).map((name) => <SignBox key={name} title={name} />)}
         </div>
         <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 8, fontSize: 9.5, color: MUTED }}>{notice}</div>
       </div>

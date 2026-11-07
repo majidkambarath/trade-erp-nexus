@@ -91,7 +91,10 @@ describe("the voucher on its own page", () => {
     expect(within(preview).getByText("Harbour Trading")).toBeInTheDocument();
     expect(within(preview).getByText("RV-2026-0001")).toBeInTheDocument();
     expect(within(preview).getByText("Received from")).toBeInTheDocument();
-    expect(within(preview).getByText("SO-2026-0042")).toBeInTheDocument();
+    // Twice on purpose: the "Invoice ref" row names it at a glance, the "Against invoice" table
+    // below carries what was put against it and the balance left after.
+    expect(within(preview).getAllByText("SO-2026-0042")).toHaveLength(2);
+    expect(within(preview).getByText("Invoice ref")).toBeInTheDocument();
   });
 
   it("names the document from the voucher itself, not from the address it was opened at", async () => {
@@ -133,6 +136,72 @@ describe("the voucher on its own page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Customer copy" }));
     fireEvent.click(screen.getByRole("button", { name: /Print/ }));
     await waitFor(() => expect(printedSheet()).toContain("Customer copy"));
+  });
+
+  // The two copies are not the same sheet with a different word at the top. The customer is told
+  // what the money was for; the postings behind it are ours, and stay on the copy we file.
+  it("tells the customer what the money was for, and keeps the postings on the office copy", async () => {
+    await openAt("/receipt-voucher/v1");
+    await waitFor(() => expect(sheetOnScreen()).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /Print/ })); // Office copy is the default
+    await waitFor(() => expect(printedSheet()).toContain("Office copy"));
+    const office = printedSheet();
+    expect(office).toContain("Debit (AED)");
+    expect(office).toContain("Customer - Al Noor");
+    expect(office).not.toContain("Being receipt against");
+    expect(office).toContain("Approved by");
+
+    fireEvent.click(screen.getByRole("button", { name: "Customer copy" }));
+    fireEvent.click(screen.getByRole("button", { name: /Print/ }));
+    await waitFor(() => expect(printedSheet()).toContain("Customer copy"));
+    const customer = printedSheet();
+    expect(customer).toContain("Being receipt against SO-2026-0042");
+    expect(customer).not.toContain("Debit (AED)");
+    expect(customer).not.toContain("Customer - Al Noor"); // the ledger account, not the party
+    expect(customer).toContain("Received by");
+    expect(customer).toContain("Company stamp");
+    expect(customer).not.toContain("Approved by");
+    // and not through the side door either: the totals panel's two sides are the same posting
+    expect(office).toContain("Total debit");
+    expect(customer).not.toContain("Total debit");
+    expect(customer).not.toContain("Total credit");
+    expect(customer).toContain("Amount (AED)"); // the one figure that concerns them
+  });
+
+  // Everything the reference voucher the owner printed carries, on the copy they hand over.
+  it("prints the payer's own details, the invoice, the terms and the remarks", async () => {
+    m.get.mockResolvedValue({
+      ...RECEIPT,
+      paymentMode: "cheque",
+      paymentDetails: { chequeDetails: { chequeNumber: "455120" }, drawnOnBankName: "Emirates NBD" },
+      narration: "RCVD CHEQUE DATED 09/11/2026 FOR THE INVOICE AMOUNT",
+      partyId: {
+        billingAddress: "M 5, West, Musaffah, Abu Dhabi, UAE",
+        trnNumber: "104144306800003",
+        email: "sulaiman@alkhaleej.example",
+        paymentTerms: "Net 15",
+      },
+    });
+    await openAt("/receipt-voucher/v1");
+    await waitFor(() => expect(sheetOnScreen()).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Customer copy" }));
+    fireEvent.click(screen.getByRole("button", { name: /Print/ }));
+    await waitFor(() => expect(printedSheet()).toContain("Customer copy"));
+
+    const paper = printedSheet();
+    expect(paper).toContain("M 5, West, Musaffah, Abu Dhabi, UAE");
+    expect(paper).toContain("104144306800003");
+    expect(paper).toContain("sulaiman@alkhaleej.example");
+    expect(paper).toContain("Payment method");
+    expect(paper).toContain("Cheque 455120");
+    expect(paper).toContain("Emirates NBD");
+    expect(paper).toContain("Invoice ref");
+    expect(paper).toContain("Credit days");
+    expect(paper).toContain("15");
+    expect(paper).toContain("Remarks");
+    expect(paper).toContain("RCVD CHEQUE DATED 09/11/2026 FOR THE INVOICE AMOUNT");
+    expect(paper).toContain("Dirhams"); // the words line keeps the unit, not the code
   });
 
   it("goes back to the screen the voucher belongs to", async () => {

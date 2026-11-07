@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+The copy of a receipt or payment voucher that is handed to the customer now reads like a receipt
+rather than a page of bookkeeping. Needs backend 2.5.0.0 for the party's details.
+
+### Added
+
+- **The customer's copy says what the money was for** - "Being receipt against SO-2026-00026", one
+  line per invoice settled plus an on-account line - where it used to print the double-entry
+  postings. The office copy keeps the `# / Account / Debit / Credit` table, and its totals panel
+  keeps Total debit / Total credit; the customer's shows only the amount received.
+- **The payer's own details on the sheet**: address, tax number and email under their name, and
+  `Payment method` (which cheque, which bank), `Invoice ref` and `Credit days` in the meta column.
+- **`Remarks`** replaces `Narration` and now prints `notes` as well, which has been editable through
+  the "Edit narration" dialog and invisible on paper ever since it existed.
+- The copy that leaves the building signs **Received by** beside a **Company stamp** box, instead of
+  the internal Prepared / Checked / Approved, which stay on the office copy.
+
+### Fixed
+
+- The invoice number a voucher settled was only readable inside the "Against invoice" table; it is
+  now also a meta row at the top, where anybody looking for it looks first.
+
 ## 2.4.0.0 — 7 November 2026
 
 HRMS > Reports was two compliance tabs and a note promising the rest "in a later wave". It is six
