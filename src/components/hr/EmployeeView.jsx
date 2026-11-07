@@ -12,7 +12,7 @@ import { ArrowLeft, Mail, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DateInput, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
-import { employees, contracts, employeeDocuments, payroll, assets as assetsApi } from "../../lib/hrApi";
+import { employees, contracts, employeeDocuments, payroll, assets as assetsApi, employeePortal } from "../../lib/hrApi";
 import { contractSummary } from "../../lib/hr";
 import { formatDate, CURRENCY, formatNumber } from "../../utils/format";
 import Can from "../shell/Can.jsx";
@@ -50,6 +50,93 @@ function ContractRow({ row }) {
         )}
       </div>
       {s.current && <Pill tone="success">Current</Pill>}
+    </div>
+  );
+}
+
+function PortalAccessForm({ staffId, current, onClose, onSaved }) {
+  const [phone, setPhone] = useState(current?.phone || "");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      await employeePortal.set(staffId, { phone, password });
+      onSaved(current?.hasAccount ? "Portal access reset. Give them the new password directly - it is not shown again." : "Portal access set up. Give them the password directly - it is not shown again.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="sm"
+      onClose={onClose}
+      title={current?.hasAccount ? "Reset portal access" : "Set up portal access"}
+      description="They sign in with this phone number and password at /portal. They will be asked to choose their own password the first time."
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy || !phone || !password}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <Field label="Phone number" required><TextInput value={phone} onChange={(e) => setPhone(e?.target ? e.target.value : e)} placeholder="+971501234567" /></Field>
+        <Field label="Temporary password" required hint="At least 8 characters - tell them this directly, it is never shown again"><TextInput value={password} onChange={(e) => setPassword(e?.target ? e.target.value : e)} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+function PortalAccessPanel({ staffId }) {
+  const { notify, toastNode } = useToasts();
+  const status = useAsync(() => employeePortal.status(staffId), [staffId]);
+  const [editing, setEditing] = useState(false);
+
+  async function disable() {
+    try {
+      await employeePortal.disable(staffId);
+      notify("Portal access disabled.");
+      status.reload();
+    } catch (err) {
+      notify(err.message || "Could not disable portal access.", "error");
+    }
+  }
+
+  if (status.loading) return null;
+  const s = status.data;
+
+  return (
+    <div className="mt-4 rounded-xl border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Self-service portal</h2>
+          {s?.hasAccount ? (
+            <p className="text-xs text-muted-foreground">
+              {s.phone} · <Pill tone={s.status === "active" ? "success" : "neutral"}>{s.status === "active" ? "Active" : "Disabled"}</Pill>
+              {s.mustChangePassword && <span> · has not chosen their own password yet</span>}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">No portal access set up - they cannot sign in to check their own attendance, leave or payslips.</p>
+          )}
+        </div>
+        <Can permission="hr.manage">
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{s?.hasAccount ? "Reset" : "Set up"}</Button>
+            {s?.hasAccount && s.status === "active" && <Button variant="ghost" size="sm" onClick={disable}>Disable</Button>}
+          </div>
+        </Can>
+      </div>
+      {editing && (
+        <PortalAccessForm
+          staffId={staffId}
+          current={s}
+          onClose={() => setEditing(false)}
+          onSaved={(message) => { setEditing(false); notify(message); status.reload(); }}
+        />
+      )}
+      {toastNode}
     </div>
   );
 }
@@ -207,6 +294,7 @@ export default function EmployeeView() {
             <Fact label="Joined">{e.joiningDate ? formatDate(e.joiningDate) : null}</Fact>
             <Fact label="Left">{e.exitDate ? formatDate(e.exitDate) : null}</Fact>
           </div>
+          <PortalAccessPanel staffId={id} />
         </TabsContent>
 
         <TabsContent value="contract">
