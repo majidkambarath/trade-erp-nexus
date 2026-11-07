@@ -15,6 +15,13 @@ export const employees = {
   remove: (id) => api.del(`/hr/employees/${id}`),
 };
 
+// D15: an employee's own self-service portal account, set up or reset by HR.
+export const employeePortal = {
+  status: (staffId) => api.get(`/hr/employees/${staffId}/portal`),
+  set: (staffId, body) => api.post(`/hr/employees/${staffId}/portal`, body),
+  disable: (staffId) => api.del(`/hr/employees/${staffId}/portal`),
+};
+
 export const contracts = {
   // Pay figures are stripped out of every row unless the caller holds hr.confidential - the server decides
   // this, not the screen, so there is nothing to ask for here.

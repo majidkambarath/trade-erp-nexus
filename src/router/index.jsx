@@ -103,7 +103,11 @@ const ResetPassword = lazy(() => import("../components/Login/ResetPassword.jsx")
 // The developer console: its own sign-in and frame, outside the product's session guard and shell, loaded only by the
 // people who open it.
 const PlatformApp = lazy(() => import("../platform/PlatformApp.jsx"));
+// The employee self-service portal (D15, W5): its own identity and its own frame, outside the product's
+// session guard and shell entirely - the same reasoning PlatformApp already sits outside them.
+const EmployeePortalApp = lazy(() => import("../employeePortal/EmployeePortalApp.jsx"));
 const ConsoleLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the console…</div>;
+const PortalLoading = () => <div role="status" className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Loading…</div>;
 const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
 const AuthLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
 export default function AdminRouter() {
@@ -114,6 +118,7 @@ export default function AdminRouter() {
       <Route path="/forgot-password" element={<Suspense fallback={<AuthLoading />}><ForgotPassword /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<AuthLoading />}><ResetPassword /></Suspense>} />
       <Route path="/platform/*" element={<Suspense fallback={<ConsoleLoading />}><PlatformApp /></Suspense>} />
+      <Route path="/portal/*" element={<Suspense fallback={<PortalLoading />}><EmployeePortalApp /></Suspense>} />
       <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
