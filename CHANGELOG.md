@@ -1,5 +1,60 @@
 # Changelog
 
+## 2.4.0.0 — 7 November 2026
+
+HRMS > Reports was two compliance tabs and a note promising the rest "in a later wave". It is six
+reports now, and the four defects that made the screen state untrue things are fixed. Needs backend
+2.4.0.0. Frontend 2.4.0.0.
+
+### Added
+
+- **Payroll register**: who was paid what on a run, with the part-month factor that explains a net
+  which looks wrong against the contract. Reads payslips that were already stored and that no screen
+  in the product had ever shown. Needs `hr.payroll` AND `hr.confidential`, which is what the server
+  already asserted.
+- **Attendance**: a month per employee - present, half day, leave, absent, hours and **overtime**,
+  which has been computed since the attendance wave and displayed nowhere. Counted by a `$group` in
+  the database, deliberately not assembled from the raw muster: that read is capped and drops the
+  EARLIEST days of a range, which would render as "not marked" for people who were marked.
+- **Leave balances**: every active employee in every active leave type, from three reads rather than
+  one request per employee per type. Each figure goes through the same pure rule the employee's own
+  screen uses, so the two cannot disagree.
+- **Documents expiring**: what expires and when, from a read that already existed.
+- **An export on every tab**, through the same `reportPreamble` every other report in the product
+  uses, so a saved file says whose figures they are and as of when. A withheld or unknown figure
+  exports as an EMPTY CELL, never 0 - a zero in a spreadsheet is a claim somebody acts on.
+- Which tabs exist is now a function of the reader's grants (`lib/hrReports.js` `reportTabs`): the
+  six reports do not share one gate, and a tab the server would refuse is not drawn.
+
+### Fixed
+
+- **The gratuity month opened in the UTC month, not the organisation's.** Dubai is UTC+4, so for the
+  first four hours of every month it previewed the month that had just ended. The Payroll screen
+  next door already used `today()` from `utils/orgLocale`; this did not. The third instance of this
+  exact class of bug in the codebase.
+- **A failed accrual-history read rendered as "No accrual run yet."** The error was never drawn, so
+  an undefined answer fell through to the empty state and told the reader nothing had ever been
+  accrued - a server error reading as a reassurance, on a compliance report.
+- **Accrue and Reverse were shown to people the server refuses.** Both were gated on
+  `hr.confidential` alone while the controller also asserts `finance.create` /
+  `finance.deletePosted`. `Can` resolves a list through `canAny`, so an AND is two nested `Can`.
+- **The Emiratisation tab was drawn outside the UAE**, where its only content was a sentence saying
+  the report did not apply. The service already returned null and its own comment said this should
+  be hidden, as the VAT return screen is.
+- **No page shell and a hand-rolled heading** - the same two the Overview had, so three figures
+  stretched the width of a monitor.
+- **Three more that only a screenshot could find.** This page had no stub in `shoot-mobile.mjs`, so
+  `check:mobile` rendered six error states and reported them clean. With stubs added the sweep
+  failed at once on a six-tab strip 833px wide in an 820px pane (the labels are short now), and
+  reading the shots showed "Employees costed 3.00" - two decimals on a headcount - and phone cards
+  reading "20 / 1 / 1 / 6" with no headings, because a `card: "meta"` cell is drawn bare while an
+  untagged column becomes a labelled line.
+
+### Known
+
+- The frontend changelog has **no 2.3.0.0 entry**: that release (the HRMS) was cut and versioned but
+  its entry was never written here. The backend's own `CHANGELOG.md` describes it in full.
+
 ## 2.2.0.0 — 5 November 2026
 
 The printed invoice gained the identifiers and references it was missing: the vehicle's plate and
