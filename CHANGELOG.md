@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.5.0.0 — 7 November 2026
 
 The copy of a receipt or payment voucher that is handed to the customer now reads like a receipt
 rather than a page of bookkeeping. Needs backend 2.5.0.0 for the party's details.
