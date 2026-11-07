@@ -11,17 +11,21 @@ import {
   CalendarClock,
   CalendarDays,
   Contact,
+  FileText,
   Gauge,
   Handshake,
+  IdCard,
   MessagesSquare,
   SlidersHorizontal,
   Target,
   LayoutDashboard,
   Landmark,
+  Package,
   Settings,
   ShoppingBag,
   Truck,
   Users,
+  Wallet,
   Warehouse,
   Wrench,
 } from "lucide-react";
@@ -138,6 +142,114 @@ export const MODULES = [
       // addresses for one screen, each belonging to one tab (the route-coverage test requires exactly one), so the rail the
       // person is working in stays the rail they are working in.
       { label: "Team", to: "/crm/team", permission: "users.view", requires: "crm.view", keywords: ["users", "people", "add user", "roles", "permissions", "colleagues", "invite", "who can"] },
+    ],
+  },
+  // ---- the HRMS workspace -------------------------------------------------------------------------------------
+  //
+  // Started the same way CRM did: fewer screens than the plan names, and growing wave by wave rather than all at
+  // once with placeholders standing in for what is not built. Attendance, Leave, Payroll, Documents and Setup are
+  // not here yet because there is nothing real behind any of them (no attendance record, no leave type, no
+  // payroll run, no employee-document register, nothing to configure) - CLAUDE.md's rule against a form that
+  // saves nothing applies to a whole TAB exactly as it does to one control inside a page. They are added here,
+  // one at a time, as each wave's service layer lands - the same order CRM's own five wave-1 tabs grew into eight.
+  //
+  // Single-tab modules on purpose, as CRM's are: ModuleTabs draws no strip below two tabs, so each reads as its
+  // own rail item rather than a tab among ten. No `/hr` route, for the same reason CRM has none: a tab's path
+  // prefix-matches its children, so it would own every page below it, and navigation.test.js requires each route
+  // to belong to exactly one tab - hence /hr/overview, /hr/people.
+  {
+    id: "hr-overview",
+    workspace: "hr",
+    label: "Overview",
+    icon: Gauge,
+    tabs: [
+      { label: "Overview", to: "/hr/overview", permission: "hr.view", keywords: ["headcount", "dashboard", "employees", "cost rate", "coverage"] },
+    ],
+  },
+  {
+    id: "hr-people",
+    workspace: "hr",
+    label: "People",
+    icon: Users,
+    tabs: [
+      { label: "People", to: "/hr/people", permission: "hr.view", keywords: ["employees", "staff", "contract", "cost rate", "designation", "department"] },
+    ],
+  },
+  // W3 (6 Nov 2026): the muster and leave requests. Attendance is hr.attendance (a muster clerk need not
+  // redesign shifts); Leave is hr.leave, with deciding a request reached from the organisation's own
+  // Approvals page too (D13: a leave request is a third kind in that SAME queue, not a parallel screen).
+  {
+    id: "hr-attendance",
+    workspace: "hr",
+    label: "Attendance",
+    icon: CalendarClock,
+    tabs: [
+      { label: "Attendance", to: "/hr/attendance", permission: "hr.attendance", keywords: ["muster", "punch", "shift", "overtime", "holiday"] },
+    ],
+  },
+  {
+    id: "hr-leave",
+    workspace: "hr",
+    label: "Leave",
+    icon: CalendarDays,
+    tabs: [
+      { label: "Leave", to: "/hr/leave", permission: "hr.leave", keywords: ["vacation", "balance", "request", "approve", "annual leave"] },
+    ],
+  },
+  // W4 (6 Nov 2026): payroll and an employee's own KYC register. Planning a run needs hr.payroll (the
+  // confidential figures are stripped server-side without it, the same split contracts.list already has);
+  // the documents register is hr.view to read, hr.manage to write (the same split employees itself has).
+  {
+    id: "hr-payroll",
+    workspace: "hr",
+    label: "Payroll",
+    icon: Wallet,
+    tabs: [
+      { label: "Payroll", to: "/hr/payroll", permission: "hr.payroll", keywords: ["salary", "payslip", "pf", "esi", "deduction", "pay run"] },
+    ],
+  },
+  {
+    id: "hr-documents",
+    workspace: "hr",
+    label: "Documents",
+    icon: FileText,
+    tabs: [
+      { label: "Documents", to: "/hr/documents", permission: "hr.view", keywords: ["labour card", "visa", "passport", "expiry", "kyc"] },
+    ],
+  },
+  // Organization and Assets (6 Nov 2026): found comparing the module against a standard HRMS menu list -
+  // departments/reporting line folded into Setup and the employee's own page (no new rail item needed for
+  // a reporting line alone), Assets is a genuine new register (issue/return is its own small workflow).
+  {
+    id: "hr-assets",
+    workspace: "hr",
+    label: "Assets",
+    icon: Package,
+    tabs: [
+      { label: "Assets", to: "/hr/assets", permission: "hr.view", keywords: ["laptop", "equipment", "issued", "returned", "allocation"] },
+    ],
+  },
+  // W2 (6 Nov 2026): the compliance pack. Gratuity and Emiratisation are PillTabs on one Reports route, not
+  // two more rail items - the same call CRM made for its own seven reports (the 88px rail cannot hold the
+  // growth, and the sweep opens role="tab" panels by itself). Setup is where the dated-rule engine every
+  // later wave reads (StatutoryRule) is edited - sections are added to it per wave, the way Accounting
+  // setup already has five tabs behind one module.
+  {
+    id: "hr-reports",
+    workspace: "hr",
+    label: "Reports",
+    icon: BarChart3,
+    tabs: [
+      { label: "Reports", to: "/hr/reports", permission: "hr.view", keywords: ["gratuity", "emiratisation", "compliance", "end of service", "quota"] },
+    ],
+  },
+  {
+    id: "hr-setup",
+    workspace: "hr",
+    label: "Setup",
+    icon: SlidersHorizontal,
+    tabs: [
+      { label: "Setup", to: "/hr/setup", permission: "hr.manage", keywords: ["statutory", "rules", "gratuity rate", "emiratisation quota", "country pack"] },
     ],
   },
   {
@@ -315,6 +427,7 @@ export const WORKSPACES = [
   // `module` is the permission module that SELLS the workspace (utils/plans.js): an organisation that has not bought it
   // is never offered it, whatever its people's roles say. The ERP names none - it is the product itself.
   { id: "crm", label: "CRM", icon: Handshake, module: "crm", hint: "Enquiries, people and the deals in front of the paperwork" },
+  { id: "hr", label: "HRMS", icon: IdCard, module: "hr", hint: "Employee records, what an hour of work costs, and the labour behind a product or job" },
 ];
 
 export const workspaceOf = (module) => module?.workspace || ERP;

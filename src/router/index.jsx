@@ -66,6 +66,16 @@ const GarageVehicles = lazy(() => import("../components/garage/VehiclesPage.jsx"
 const GarageClaims = lazy(() => import("../components/garage/ClaimsPage.jsx"));
 const GarageReports = lazy(() => import("../components/garage/GarageReports.jsx"));
 const GarageSetup = lazy(() => import("../components/garage/GarageSetupPage.jsx"));
+const HrOverview = lazy(() => import("../components/hr/OverviewPage.jsx"));
+const HrEmployees = lazy(() => import("../components/hr/EmployeesPage.jsx"));
+const HrEmployeeView = lazy(() => import("../components/hr/EmployeeView.jsx"));
+const HrAttendance = lazy(() => import("../components/hr/AttendancePage.jsx"));
+const HrLeave = lazy(() => import("../components/hr/LeavePage.jsx"));
+const HrPayroll = lazy(() => import("../components/hr/PayrollPage.jsx"));
+const HrDocuments = lazy(() => import("../components/hr/DocumentsPage.jsx"));
+const HrAssets = lazy(() => import("../components/hr/AssetsPage.jsx"));
+const HrReports = lazy(() => import("../components/hr/ReportsPage.jsx"));
+const HrSetup = lazy(() => import("../components/hr/SetupPage.jsx"));
 const CrmDashboard = lazy(() => import("../components/crm/CrmDashboard.jsx"));
 const CrmContacts = lazy(() => import("../components/crm/ContactsPage.jsx"));
 const CrmCommunications = lazy(() => import("../components/crm/CommunicationsPage.jsx"));
@@ -93,7 +103,11 @@ const ResetPassword = lazy(() => import("../components/Login/ResetPassword.jsx")
 // The developer console: its own sign-in and frame, outside the product's session guard and shell, loaded only by the
 // people who open it.
 const PlatformApp = lazy(() => import("../platform/PlatformApp.jsx"));
+// The employee self-service portal (D15, W5): its own identity and its own frame, outside the product's
+// session guard and shell entirely - the same reasoning PlatformApp already sits outside them.
+const EmployeePortalApp = lazy(() => import("../employeePortal/EmployeePortalApp.jsx"));
 const ConsoleLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the console…</div>;
+const PortalLoading = () => <div role="status" className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Loading…</div>;
 const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
 const AuthLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
 export default function AdminRouter() {
@@ -104,6 +118,7 @@ export default function AdminRouter() {
       <Route path="/forgot-password" element={<Suspense fallback={<AuthLoading />}><ForgotPassword /></Suspense>} />
       <Route path="/reset-password" element={<Suspense fallback={<AuthLoading />}><ResetPassword /></Suspense>} />
       <Route path="/platform/*" element={<Suspense fallback={<ConsoleLoading />}><PlatformApp /></Suspense>} />
+      <Route path="/portal/*" element={<Suspense fallback={<PortalLoading />}><EmployeePortalApp /></Suspense>} />
       <Route element={<RequireSession />}>
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
@@ -189,6 +204,16 @@ export default function AdminRouter() {
         <Route path="/garage/claims" element={<GarageClaims />} />
         <Route path="/garage/reports" element={<GarageReports />} />
         <Route path="/garage/setup" element={<GarageSetup />} />
+        <Route path="/hr/overview" element={<HrOverview />} />
+        <Route path="/hr/people" element={<HrEmployees />} />
+        <Route path="/hr/people/:id" element={<HrEmployeeView />} />
+        <Route path="/hr/attendance" element={<HrAttendance />} />
+        <Route path="/hr/leave" element={<HrLeave />} />
+        <Route path="/hr/payroll" element={<HrPayroll />} />
+        <Route path="/hr/documents" element={<HrDocuments />} />
+        <Route path="/hr/assets" element={<HrAssets />} />
+        <Route path="/hr/reports" element={<HrReports />} />
+        <Route path="/hr/setup" element={<HrSetup />} />
         <Route path="/crm/dashboard" element={<CrmDashboard />} />
         <Route path="/crm/contacts" element={<CrmContacts />} />
         <Route path="/crm/communications" element={<CrmCommunications />} />

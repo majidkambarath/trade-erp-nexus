@@ -26,8 +26,9 @@ const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8")
 // app shell and the session guard) and the developer console (/platform, its own sign-in and frame) have
 // no navigation. Neither have the two pages reached while signed out: "forgot my password" and the emailed reset link.
 // ...and the address Google returns the browser to after a person connects their calendar, which is a machine
-// redirect rather than a page anybody opens.
-const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/forgot-password", "/reset-password", "/crm/google/callback"]);
+// redirect rather than a page anybody opens. The employee self-service portal (D15, W5) is its own identity
+// and its own frame outside the product's shell too, like /platform - it has no entry in MODULES.
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/portal/*", "/forgot-password", "/reset-password", "/crm/google/callback"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));
@@ -295,7 +296,12 @@ describe("what the plan includes", () => {
 describe("which workspaces a person is offered", () => {
   // `crm` is what the server says the organisation bought (status.modules.crm.on); `keys` is what the role holds AFTER
   // the server has capped it to that (status.me.grants), exactly as the real status arrives.
-  const as = (keys, crm = true) => ({ me: { grants: keys }, modules: { crm: { on: crm } } });
+  //
+  // `hr` defaults OFF: this block's whole point is the ERP/CRM switch, so its fixtures model an organisation that
+  // bought those two and nothing else - `allKeys` picks up hr.view from the HRMS workspace's own tabs (it scans
+  // every tab, not just these two workspaces), and without an explicit `hr: { on: false }` that stray grant would
+  // make OWNER look as if the organisation had bought HR too, which none of these tests are about.
+  const as = (keys, crm = true, hr = false) => ({ me: { grants: keys }, modules: { crm: { on: crm }, hr: { on: hr } } });
   const offered = (status) => offeredWorkspaces(getVisibleModules(status), status).map((w) => w.id);
 
   const CRM_KEYS = ["crm.view", "crm.create", "crm.edit", "crm.manage"];
@@ -356,7 +362,10 @@ describe("which workspaces a person is offered", () => {
   });
 
   it("judges the modules alone when the caller gives no status", () => {
-    expect(offeredWorkspaces(getVisibleModules(OWNER)).map((w) => w.id)).toEqual(["erp", "crm"]);
+    // no status at all is a different path from `hr: { on: false }` above: offeredWorkspaces(modules) with no
+    // second argument judges purely by which modules the list holds, and OWNER's grants (allKeys) genuinely
+    // include hr.view from the HRMS workspace's own tabs - so hr is correctly visible here.
+    expect(offeredWorkspaces(getVisibleModules(OWNER)).map((w) => w.id)).toEqual(["erp", "crm", "hr"]);
   });
 
   it("an organisation without the CRM module leaves every CRM page out of what its people can open", () => {

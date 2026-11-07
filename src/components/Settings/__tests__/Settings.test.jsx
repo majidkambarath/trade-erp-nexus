@@ -13,6 +13,7 @@ import Settings from "../Settings";
 import { OrganisationProvider } from "../../shell/OrganisationContext";
 import { ThemeProvider } from "../../theme-provider";
 import { formatDate, getDateFormat, setDateFormat, setTimeFormat } from "../../../utils/format";
+import { APP_VERSION } from "../../../lib/version";
 
 // The organisation's letterhead (GET /company/profile): one copy for everyone, in the shape the screens read.
 const PROFILE = {
@@ -314,5 +315,49 @@ describe("an organisation that bought the CRM alone", () => {
     await screen.findByRole("tab", { name: "Company", selected: true });
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
     expect(screen.getByRole("link", { name: "Tax codes and numbering" })).toBeInTheDocument();
+  });
+});
+
+// Which version is running. Outside the tabs, because "open Settings and read the version" has to work
+// whichever tab was last open - and it is the first thing anybody is asked when reporting a problem.
+describe("the version strip", () => {
+  const withApi = (api) => {
+    orgStatus = {
+      organisation: { legalName: "Harbour Trading" }, subscription: { state: "active", blocked: false }, features: {},
+      me: { id: "u1", name: "Someone", role: { key: "r", name: "A role", rank: 40 }, grants: ["settings.view", "settings.manage"] },
+      ...(api === undefined ? {} : { build: { api } }),
+    };
+    return render(
+      <ThemeProvider><MemoryRouter initialEntries={["/settings"]}><OrganisationProvider><Settings /></OrganisationProvider></MemoryRouter></ThemeProvider>
+    );
+  };
+
+  it("shows the app's own version, the one that was built", async () => {
+    withApi(APP_VERSION);
+    await waitFor(() => expect(screen.getByText(/^Version/)).toBeInTheDocument());
+    // The figure is in its own span (tabular-nums), so its text is exactly the version.
+    expect(screen.getByText(APP_VERSION)).toBeInTheDocument();
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
+  });
+
+  it("flags a server on a different version, and names both", async () => {
+    withApi("2.1.0.0");
+    await waitFor(() => expect(screen.getByText("Versions differ")).toBeInTheDocument());
+    expect(screen.getByText(/2\.1\.0\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/not finished deploying/)).toBeInTheDocument();
+  });
+
+  it("does not cry mismatch while the status is still on its way", async () => {
+    withApi(undefined);
+    await waitFor(() => expect(screen.getByText(/^Version/)).toBeInTheDocument());
+    expect(screen.queryByText("Versions differ")).not.toBeInTheDocument();
+    expect(screen.getByText(/Checking the server/)).toBeInTheDocument();
+  });
+
+  it("is on the page whichever tab is open, since it sits outside them", async () => {
+    withApi(APP_VERSION);
+    await waitFor(() => expect(screen.getByText(/^Version/)).toBeInTheDocument());
+    openTab("Security");
+    await waitFor(() => expect(screen.getByText(/^Version/)).toBeInTheDocument());
   });
 });
