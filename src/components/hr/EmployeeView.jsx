@@ -12,7 +12,7 @@ import { ArrowLeft, Mail, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { DateInput, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
-import { employees, contracts, employeeDocuments, payroll, assets as assetsApi, employeePortal } from "../../lib/hrApi";
+import { employees, contracts, employeeDocuments, payroll, assets as assetsApi, employeePortal, checklists, appraisals } from "../../lib/hrApi";
 import { contractSummary } from "../../lib/hr";
 import { formatDate, CURRENCY, formatNumber } from "../../utils/format";
 import Can from "../shell/Can.jsx";
@@ -214,6 +214,110 @@ function AssetForm({ staffId, onClose, onSaved }) {
   );
 }
 
+function AppraisalForm({ staffId, onClose, onSaved }) {
+  const [form, setForm] = useState({ periodLabel: "", reviewDate: new Date().toISOString().slice(0, 10), rating: "", strengths: "", improvements: "", goals: "" });
+  const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState(null);
+
+  async function submit() {
+    setBusy(true);
+    setFailure(null);
+    try {
+      const saved = await appraisals.create(staffId, form);
+      onSaved(saved, "Appraisal saved.");
+    } catch (err) {
+      setFailure(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      size="md"
+      onClose={onClose}
+      title="New appraisal"
+      description="A plain record - no score, no fixed scale. Write what actually matters for this review."
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
+    >
+      <div className="grid gap-4">
+        {failure && <ErrorNote error={failure} />}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Period" required hint="e.g. 2026 annual review"><TextInput value={form.periodLabel} onChange={setField("periodLabel")} /></Field>
+          <Field label="Review date" required><DateInput value={form.reviewDate} onChange={setField("reviewDate")} /></Field>
+        </div>
+        <Field label="Rating" hint="Free text - e.g. Exceeds expectations"><TextInput value={form.rating} onChange={setField("rating")} /></Field>
+        <Field label="Strengths"><TextInput value={form.strengths} onChange={setField("strengths")} /></Field>
+        <Field label="Areas to improve"><TextInput value={form.improvements} onChange={setField("improvements")} /></Field>
+        <Field label="Goals for next period"><TextInput value={form.goals} onChange={setField("goals")} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+// W6: one column per checklist (onboarding/exit). A list type with no items yet offers "Start checklist"
+// (ChecklistService.start seeds the standard items); once started, a person may add their own on top and
+// mark items done - one-way, like the server enforces (NOT_OPEN on a second attempt).
+function ChecklistColumn({ title, listType, items, loading, error, onRetry, onStart, onAddItem, onMarkDone, onRemove, canManage }) {
+  const [newItem, setNewItem] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function addNow() {
+    const subject = newItem.trim();
+    if (!subject) return;
+    setBusy(true);
+    try {
+      await onAddItem(subject);
+      setNewItem("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {canManage && !loading && items.length === 0 && (
+          <Button variant="outline" size="sm" onClick={onStart}>Start checklist</Button>
+        )}
+      </div>
+      {loading && <Spinner />}
+      {error && <ErrorNote error={error} onRetry={onRetry} />}
+      {!loading && !error && (
+        items.length ? (
+          <div className="grid gap-2">
+            {items.map((item) => (
+              <div key={item._id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5 text-sm">
+                <div className="min-w-0">
+                  <p className={item.status === "DONE" ? "truncate text-muted-foreground line-through" : "truncate text-foreground"}>{item.subject}</p>
+                  {item.status === "DONE" && item.completedAt && (
+                    <p className="text-xs text-muted-foreground">Done {formatDate(item.completedAt)}</p>
+                  )}
+                </div>
+                {canManage && item.status === "OPEN" && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => onMarkDone(item._id)}>Done</Button>
+                    <Button variant="ghost" size="sm" onClick={() => onRemove(item._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No {listType} checklist started yet.</p>
+        )
+      )}
+      {canManage && items.length > 0 && (
+        <div className="mt-3 flex items-center gap-2">
+          <TextInput value={newItem} onChange={(e) => setNewItem(e?.target ? e.target.value : e)} placeholder="Add an item" />
+          <Button variant="outline" size="sm" onClick={addNow} disabled={busy || !newItem.trim()}>Add</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EmployeeView() {
   const { id } = useParams();
   const { notify, toastNode } = useToasts();
@@ -227,10 +331,14 @@ export default function EmployeeView() {
   const documents = useAsync(() => employeeDocuments.forStaff(id), [id]);
   const payslips = useAsync(() => (seesPay ? payroll.payslipsForStaff(id) : Promise.resolve([])), [id, seesPay]);
   const assetList = useAsync(() => assetsApi.forStaff(id), [id]);
+  const checklist = useAsync(() => checklists.forStaff(id), [id]);
+  const appraisalList = useAsync(() => appraisals.forStaff(id), [id]);
   const [editing, setEditing] = useState(false);
   const [addingContract, setAddingContract] = useState(false);
   const [addingDocument, setAddingDocument] = useState(false);
   const [issuingAsset, setIssuingAsset] = useState(false);
+  const [addingAppraisal, setAddingAppraisal] = useState(false);
+  const canManageChecklists = canAny("hr.manage");
 
   async function removeDocument(docId) {
     try {
@@ -249,6 +357,43 @@ export default function EmployeeView() {
       assetList.reload();
     } catch (err) {
       notify(err.message || "Could not mark that returned.", "error");
+    }
+  }
+
+  async function startChecklist(listType) {
+    try {
+      await checklists.start({ staffId: id, listType });
+      notify(`${listType === "onboarding" ? "Onboarding" : "Exit"} checklist started.`);
+      checklist.reload();
+    } catch (err) {
+      notify(err.message || "Could not start that checklist.", "error");
+    }
+  }
+
+  async function addChecklistItem(listType, subject) {
+    try {
+      await checklists.addItem({ staffId: id, listType, subject });
+      checklist.reload();
+    } catch (err) {
+      notify(err.message || "Could not add that item.", "error");
+    }
+  }
+
+  async function markChecklistItemDone(itemId) {
+    try {
+      await checklists.markDone(itemId);
+      checklist.reload();
+    } catch (err) {
+      notify(err.message || "Could not mark that done.", "error");
+    }
+  }
+
+  async function removeChecklistItem(itemId) {
+    try {
+      await checklists.remove(itemId);
+      checklist.reload();
+    } catch (err) {
+      notify(err.message || "Could not remove that item.", "error");
     }
   }
 
@@ -280,6 +425,8 @@ export default function EmployeeView() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="payslips">Payslips</TabsTrigger>
           <TabsTrigger value="assets">Assets</TabsTrigger>
+          <TabsTrigger value="checklists">Checklists</TabsTrigger>
+          <TabsTrigger value="appraisals">Appraisals</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -412,6 +559,73 @@ export default function EmployeeView() {
             )
           )}
         </TabsContent>
+
+        <TabsContent value="checklists">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ChecklistColumn
+              title="Onboarding"
+              listType="onboarding"
+              items={(checklist.data || []).filter((r) => r.listType === "onboarding")}
+              loading={checklist.loading}
+              error={checklist.error}
+              onRetry={checklist.reload}
+              onStart={() => startChecklist("onboarding")}
+              onAddItem={(subject) => addChecklistItem("onboarding", subject)}
+              onMarkDone={markChecklistItemDone}
+              onRemove={removeChecklistItem}
+              canManage={canManageChecklists}
+            />
+            <ChecklistColumn
+              title="Exit"
+              listType="exit"
+              items={(checklist.data || []).filter((r) => r.listType === "exit")}
+              loading={checklist.loading}
+              error={checklist.error}
+              onRetry={checklist.reload}
+              onStart={() => startChecklist("exit")}
+              onAddItem={(subject) => addChecklistItem("exit", subject)}
+              onMarkDone={markChecklistItemDone}
+              onRemove={removeChecklistItem}
+              canManage={canManageChecklists}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="appraisals">
+          <div className="flex items-center justify-between gap-3 pb-3">
+            <p className="text-sm text-muted-foreground">A plain periodic review - no score, no fixed scale.</p>
+            <Can permission="hr.manage">
+              <Button variant="outline" onClick={() => setAddingAppraisal(true)}><Plus className="mr-1.5 h-4 w-4" aria-hidden="true" /> New appraisal</Button>
+            </Can>
+          </div>
+          {appraisalList.loading && <Spinner />}
+          {appraisalList.error && <ErrorNote error={appraisalList.error} onRetry={appraisalList.reload} />}
+          {!appraisalList.loading && !appraisalList.error && (
+            (appraisalList.data || []).length ? (
+              <div className="grid gap-3">
+                {appraisalList.data.map((a) => (
+                  <div key={a._id} className="rounded-lg border border-border p-3 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium text-foreground">{a.periodLabel}</p>
+                      <span className="text-xs text-muted-foreground">{formatDate(a.reviewDate)}</span>
+                    </div>
+                    {a.rating && <p className="mt-1 text-foreground">{a.rating}</p>}
+                    {a.strengths && <p className="mt-1 text-xs text-muted-foreground">Strengths: {a.strengths}</p>}
+                    {a.improvements && <p className="mt-1 text-xs text-muted-foreground">To improve: {a.improvements}</p>}
+                    {a.goals && <p className="mt-1 text-xs text-muted-foreground">Goals: {a.goals}</p>}
+                    {a.payAtReview && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Pay at review: {CURRENCY} {formatNumber(a.payAtReview.basicPay)}/month
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No appraisal recorded yet.</p>
+            )
+          )}
+        </TabsContent>
       </Tabs>
 
       {issuingAsset && (
@@ -440,6 +654,13 @@ export default function EmployeeView() {
           staffId={id}
           onClose={() => setAddingContract(false)}
           onSaved={(_, message) => { setAddingContract(false); notify(message); history.reload(); }}
+        />
+      )}
+      {addingAppraisal && (
+        <AppraisalForm
+          staffId={id}
+          onClose={() => setAddingAppraisal(false)}
+          onSaved={(_, message) => { setAddingAppraisal(false); notify(message); appraisalList.reload(); }}
         />
       )}
       {toastNode}

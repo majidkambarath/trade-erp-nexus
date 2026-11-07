@@ -127,6 +127,20 @@ export const departments = {
   remove: (id) => api.del(`/hr/departments/${id}`),
 };
 
+// W6: onboarding/exit checklists and a plain appraisal - no new permission key, hr.view/hr.manage cover it.
+export const checklists = {
+  forStaff: (staffId) => api.get(`/hr/employees/${staffId}/checklists`),
+  start: (body) => api.post("/hr/checklists", body),
+  addItem: (body) => api.post("/hr/checklist-items", body),
+  markDone: (id) => api.post(`/hr/checklist-items/${id}/done`),
+  remove: (id) => api.del(`/hr/checklist-items/${id}`),
+};
+
+export const appraisals = {
+  forStaff: (staffId) => api.get(`/hr/employees/${staffId}/appraisals`),
+  create: (staffId, body) => api.post(`/hr/employees/${staffId}/appraisals`, body),
+};
+
 // Assets: what was issued to whom, and when it came back - never a stock movement.
 export const assets = {
   list: (params) => api.get("/hr/assets", params),
