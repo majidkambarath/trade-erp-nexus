@@ -71,3 +71,63 @@ export function contractSummary(row) {
     monthlyCost: hasPay ? row.monthlyCost : null,
   };
 }
+
+// Calendar day/month arithmetic for the Attendance month matrix and the Leave calendar. Days are the
+// organisation's own calendar days as "YYYY-MM-DD" text, so this is done on the text and never on a local
+// clock - the same reasoning src/lib/dayReports.js and src/lib/crm.js each keep their own small copy of,
+// rather than one module importing another's (HR has no business depending on the CRM module being present).
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_KEY = /^\d{4}-\d{2}$/;
+
+/** The day `n` days from `day`; the same text back when it is not a day. */
+export function shiftDay(day, n) {
+  if (!DAY.test(str(day))) return day;
+  return new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+}
+
+/** "2026-03-14" -> "2026-03". */
+export const monthKeyOf = (day) => str(day).slice(0, 7);
+
+/** The month `n` months from `key` ("2026-01", -1 -> "2025-12"); the same text back when it is not a month. */
+export function shiftMonth(key, n) {
+  if (!MONTH_KEY.test(str(key))) return key;
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Every day of the month, in order, as "YYYY-MM-DD" - the Attendance matrix's own column list. */
+export function daysOfMonth(key) {
+  if (!MONTH_KEY.test(str(key))) return [];
+  const [y, m] = key.split("-").map(Number);
+  const total = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Array.from({ length: total }, (_, i) => `${key}-${String(i + 1).padStart(2, "0")}`);
+}
+
+/** The month as a 7-wide grid of weeks, each cell `{ day, inMonth }`, Monday first - the Leave calendar's
+ * own layout (leading/trailing days from the months either side fill the first and last week). */
+export function monthWeeks(key) {
+  const first = `${key}-01`;
+  if (!MONTH_KEY.test(str(key))) return [];
+  const [y, m] = key.split("-").map(Number);
+  const lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7; // Monday = 0
+  const total = Math.ceil((lead + new Date(Date.UTC(y, m, 0)).getUTCDate()) / 7) * 7;
+  const weeks = [];
+  for (let i = 0; i < total; i += 7) {
+    weeks.push(Array.from({ length: 7 }, (_, j) => {
+      const day = shiftDay(first, i + j - lead);
+      return { day, inMonth: monthKeyOf(day) === key };
+    }));
+  }
+  return weeks;
+}
+
+/** "2026-11" -> "November 2026". */
+export function monthLabel(key) {
+  if (!MONTH_KEY.test(str(key))) return str(key);
+  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${key}-01T00:00:00Z`));
+}
+
+/** Whether a leave request's [fromDay, toDay] range covers `day` - plain string comparison, like every other
+ * calendar-day comparison in the codebase (ISO text sorts the same as the date it names). */
+export const coversDay = (request, day) => Boolean(request?.fromDay) && request.fromDay <= day && day <= (request.toDay || request.fromDay);
