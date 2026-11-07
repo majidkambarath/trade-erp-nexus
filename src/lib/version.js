@@ -5,12 +5,14 @@
 // in Settings: somebody checking whether a fix is live, or reporting a problem, can read both figures off
 // one screen instead of guessing.
 //
-// The version is imported from package.json rather than injected through a build-time global, so the same
-// value is read by the bundler, by a test and by a developer reading the file - and a named import means
-// only the version string survives into the bundle, not the whole manifest.
-import { version } from "../../package.json";
+// The version comes from config/product.js, which is where this product already keeps it: the sign-in page
+// prints it and the service worker names its cache after it. There is deliberately NO second source - a
+// figure with two origins is a figure that will disagree with itself, and src/config/__tests__/product.test.js
+// already pins PRODUCT_VERSION to package.json's own (it sat at 1.6.0.1 through three releases before that
+// test existed, because nothing compared the two).
+import { PRODUCT_VERSION } from "../config/product";
 
-export const APP_VERSION = String(version || "unknown");
+export const APP_VERSION = String(PRODUCT_VERSION || "unknown");
 
 /**
  * How the two versions stand. `api` is what /organisation/status reported; undefined while the status is

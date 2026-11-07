@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { APP_VERSION, buildState, supportLine } from "../version";
 import { version as pkgVersion } from "../../../package.json";
+import { PRODUCT_VERSION } from "../../config/product";
 
 describe("APP_VERSION", () => {
-  it("is the version in package.json, so the figure on screen is the one that was built", () => {
+  it("is the product's own version - one source, not a second one beside it", () => {
+    expect(APP_VERSION).toBe(PRODUCT_VERSION);
+    // And config/product.js is itself pinned to what the package is released as, by product.test.js.
     expect(APP_VERSION).toBe(pkgVersion);
     expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+/);
   });
