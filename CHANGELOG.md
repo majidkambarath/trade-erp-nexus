@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.5.0.1 — 8 November 2026
+
+### Fixed
+
+- **The copy handed to the customer listed every settled invoice twice.** The description table and
+  the "Against invoice" table underneath carried the same invoice numbers and the same figures, one
+  above the other. They are one table now: each description line carries the balance left on its
+  invoice, so nothing is lost and nothing is said twice. The separate allocations table stays on the
+  office copy, where it sits beside a table of ACCOUNTS and therefore says something different.
+  A line set against no invoice (money taken on account) leaves that column blank rather than
+  printing "0.00", which would read as "settled", and the column is dropped entirely when no line
+  has a balance.
+
 ## 2.5.0.0 — 7 November 2026
 
 The copy of a receipt or payment voucher that is handed to the customer now reads like a receipt

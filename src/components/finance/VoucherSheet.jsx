@@ -96,6 +96,11 @@ export default function VoucherSheet({
   // each copy it draws - so the builder cannot make this choice and the component must.
   const forParty = isPartyCopy(copy);
   const signBoxes = signatures || signaturesFor(copy);
+  // The party copy's one table carries the balance left on each invoice, which is what the
+  // separate "Against invoice" table exists for - so that table is drawn on the office copy only
+  // and the customer is not handed the same invoice numbers and figures twice. The column is
+  // dropped entirely when nothing was set against an invoice, rather than printed empty.
+  const showsBalance = forParty && (description || []).some((d) => d.balance !== null && d.balance !== undefined);
 
   return (
     <div
@@ -226,13 +231,15 @@ export default function VoucherSheet({
           <colgroup>
             <col style={{ width: "5%" }} />
             <col />
-            <col style={{ width: "24%" }} />
+            <col style={{ width: "20%" }} />
+            {showsBalance && <col style={{ width: "20%" }} />}
           </colgroup>
           <thead>
             <tr style={{ background: soft, borderBottom: `1px solid ${accent}` }}>
               <th style={{ ...head, textAlign: "center" }}>#</th>
               <th style={{ ...head, textAlign: "left" }}>Description</th>
               <th style={head}>Amount ({currency})</th>
+              {showsBalance && <th style={head}>Balance after</th>}
             </tr>
           </thead>
           <tbody>
@@ -241,6 +248,12 @@ export default function VoucherSheet({
                 <td style={{ ...cell, textAlign: "center" }}>{d.no}</td>
                 <td style={cell}>{d.text}</td>
                 <td style={{ ...cell, textAlign: "right" }}>{formatNumber(d.amount)}</td>
+                {/* blank, never 0.00: a line set against no invoice leaves no balance behind */}
+                {showsBalance && (
+                  <td style={{ ...cell, textAlign: "right" }}>
+                    {d.balance === null || d.balance === undefined ? "" : formatNumber(d.balance)}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -249,6 +262,7 @@ export default function VoucherSheet({
               <td style={{ ...cell, borderBottom: "none" }} />
               <td style={{ ...cell, borderBottom: "none" }}>Total</td>
               <td style={{ ...cell, borderBottom: "none", textAlign: "right" }}>{formatNumber(amount)}</td>
+              {showsBalance && <td style={{ ...cell, borderBottom: "none" }} />}
             </tr>
           </tfoot>
         </Table>
@@ -303,7 +317,10 @@ export default function VoucherSheet({
           <div style={label}>Amount in words</div>
           <div style={{ fontWeight: 600, marginTop: 3 }}>{words}</div>
 
-          {invoices.length > 0 && (
+          {/* Office copy only: on the party's copy the body table above already names every
+              invoice, what went against it and the balance left, so this would be the same
+              figures a second time. */}
+          {!forParty && invoices.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div style={label}>Against invoice</div>
               <Table style={{ marginTop: 4 }}>

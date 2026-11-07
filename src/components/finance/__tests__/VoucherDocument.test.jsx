@@ -167,6 +167,14 @@ describe("the voucher on its own page", () => {
     expect(customer).not.toContain("Total debit");
     expect(customer).not.toContain("Total credit");
     expect(customer).toContain("Amount (AED)"); // the one figure that concerns them
+
+    // The invoice and its figures are named ONCE on the copy that goes out. The office copy keeps
+    // the separate allocations table, which there sits beside a ledger table and says something
+    // different; on the customer's it would be the same numbers twice.
+    expect(office).toContain("Against invoice");
+    expect(customer).not.toContain("Against invoice");
+    expect(customer).toContain("Balance after"); // carried by the one table instead
+    expect(customer.match(/SO-2026-0042/g)).toHaveLength(2); // the meta row, and the description
   });
 
   // Everything the reference voucher the owner printed carries, on the copy they hand over.

@@ -93,20 +93,34 @@ export function invoiceRefOf(v = {}) {
 export function descriptionRows(v = {}, amount = 0) {
   const paying = v.voucherType === "payment";
   const against = paying ? "Being payment against" : "Being receipt against";
+  // Each row carries the balance left on that invoice, so this ONE table can say everything the
+  // separate "Against invoice" table says and the party's copy need not print the same invoice
+  // numbers and figures twice. The office copy still gets both, where they differ: a ledger table
+  // of accounts beside a table of allocations.
   const rows = settledInvoiceRows(v)
     .filter((r) => r.no && r.no !== "—")
-    .map((r) => ({ text: `${against} ${r.no}`, amount: r.amount }));
+    .map((r) => ({ text: `${against} ${r.no}`, amount: r.amount, balance: r.balance }));
 
   const onAccount = num(v.onAccountAmount);
   if (onAccount > 0) {
-    rows.push({ text: paying ? "Being payment on account" : "Being receipt on account", amount: onAccount });
+    // Nothing is set against an invoice, so there is no balance to leave behind: null, not 0,
+    // which would read as "this invoice is now settled".
+    rows.push({
+      text: paying ? "Being payment on account" : "Being receipt on account",
+      amount: onAccount,
+      balance: null,
+    });
   }
   // Nothing allocated and nothing on account - an expense, a journal, or a receipt entered before
   // it was set against anything. The sheet still needs a line, so it carries the voucher's own
   // words and its whole total rather than printing an empty table.
   if (rows.length === 0) {
     const fallback = paying ? "Being amount paid" : "Being amount received";
-    rows.push({ text: String(v.narration || v.description || "").trim() || fallback, amount: num(amount) });
+    rows.push({
+      text: String(v.narration || v.description || "").trim() || fallback,
+      amount: num(amount),
+      balance: null,
+    });
   }
   return rows.map((r, i) => ({ no: i + 1, ...r }));
 }
