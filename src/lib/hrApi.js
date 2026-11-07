@@ -36,6 +36,11 @@ export const contracts = {
 // Who, right now, cannot be costed - the Overview screen's one real figure.
 export const coverage = (params) => api.get("/hr/coverage", params);
 
+// The MIS dashboard behind HRMS > Overview: one read for the whole screen. Money figures are absent for a
+// reader without hr.confidential - the SERVER decides that, so there is nothing to ask for here; the
+// fields simply arrive undefined, which is how the screen tells "hidden from you" from "none".
+export const hrDashboard = (params) => api.get("/hr/dashboard", params);
+
 // W2: gratuity and Emiratisation. The server strips the per-employee breakdown from a gratuity preview
 // unless the caller holds hr.confidential - there is nothing to ask for here, it just comes back narrower.
 export const gratuity = {
