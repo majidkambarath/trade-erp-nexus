@@ -18,6 +18,12 @@ const STATUS_TONE = { present: "success", half_day: "warning", absent: "danger",
 const STATUS_LABEL = { present: "Present", half_day: "Half day", absent: "Absent", on_leave: "On leave", holiday: "Holiday", weekly_off: "Weekly off" };
 // A cell must never carry only colour (the CRM calendar's own rule): a letter goes inside the tone too.
 const STATUS_LETTER = { present: "P", half_day: "D", absent: "A", on_leave: "L", holiday: "H", weekly_off: "W" };
+// What the matrix asks the server for: a whole month of every employee. It mirrors
+// AttendanceService.MAX_MUSTER_ROWS (the server clamps to that, so asking for more would be refused down to
+// it anyway) and is what the truncation note below is measured against - at ~645 employees a 31-day month
+// fills it, and the screen then says the month is only partly shown rather than drawing the missing days as
+// "Not marked", which is what the old flat 2000-row cap did silently from about 65 employees upwards.
+const MONTH_ROW_LIMIT = 20000;
 const CELL_TONE = {
   present: "bg-status-success-soft text-status-success",
   half_day: "bg-status-warning-soft text-status-warning",
@@ -159,9 +165,14 @@ export default function AttendancePage() {
   const staffList = useAsync(() => employeesApi.list({ status: "Active", limit: 500 }), []);
   const monthDays = useMemo(() => daysOfMonth(month), [month]);
   const muster = useAsync(
-    () => (wide ? attendance.muster({ from: monthDays[0], to: monthDays[monthDays.length - 1] }) : attendance.forDay(day)),
+    () => (wide
+      ? attendance.muster({ from: monthDays[0], to: monthDays[monthDays.length - 1], limit: MONTH_ROW_LIMIT })
+      : attendance.forDay(day)),
     [wide, day, month]
   );
+  // The read came back full, so there may be days of this month the server did not send. Say so - a matrix
+  // that quietly draws a marked day as "Not marked" is worse than one that admits it is incomplete.
+  const truncated = wide && (muster.data || []).length >= MONTH_ROW_LIMIT;
   const [marking, setMarking] = useState(null); // the employee being marked, or null
 
   const byStaff = useMemo(() => {
@@ -203,15 +214,23 @@ export default function AttendancePage() {
 
       {!staffList.loading && !muster.loading && !staffList.error && !muster.error && (
         wide ? (
-          <MonthMatrix
-            month={month}
-            onPrevMonth={() => setDay(`${shiftMonth(month, -1)}-01`)}
-            onNextMonth={() => setDay(`${shiftMonth(month, 1)}-01`)}
-            staff={staffList.data || []}
-            byKey={byKey}
-            canMark={canMark}
-            onCellClick={openCell}
-          />
+          <>
+            {truncated && (
+              <p className="mb-3 rounded-lg border border-status-warning/25 bg-status-warning-soft p-3 text-sm text-status-warning">
+                This month has more attendance than one read returns, so the earliest days may be missing from
+                the grid below. Open a single day on a narrower screen, or ask for a shorter period, to see them.
+              </p>
+            )}
+            <MonthMatrix
+              month={month}
+              onPrevMonth={() => setDay(`${shiftMonth(month, -1)}-01`)}
+              onNextMonth={() => setDay(`${shiftMonth(month, 1)}-01`)}
+              staff={staffList.data || []}
+              byKey={byKey}
+              canMark={canMark}
+              onCellClick={openCell}
+            />
+          </>
         ) : (
           <div className="grid gap-2">
             {rows.map(({ staff, row }) => (

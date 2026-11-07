@@ -3,9 +3,11 @@ import { api, unwrap } from "./accountingApi";
 
 // /api/v1/hr (trade ERP node/routes/hr/hrRoutes.js): employees and their contracts/cost rates. Each call
 // returns `data`, or throws an ApiError carrying the server's message, code and details.
+// No `stats` here on purpose: GET /hr/employees/stats exists and serves the older staff module, but the
+// Overview screen already reads its active-employee figure from coverage() - a second source behind a number
+// the page already shows is worse than no second source at all.
 export const employees = {
   list: (params) => api.get("/hr/employees", params),
-  stats: () => api.get("/hr/employees/stats"),
   get: (id) => api.get(`/hr/employees/${id}`),
   // Uploads (idProof, addressProof): a FormData body. The shared axios instance defaults to a JSON content
   // type and flattens a FormData otherwise, so the multipart header has to be set here explicitly - the

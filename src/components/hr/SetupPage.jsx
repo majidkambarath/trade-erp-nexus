@@ -136,8 +136,17 @@ function StatutoryRulesPanel() {
   );
 }
 
-function ShiftForm({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", startTime: "09:00", endTime: "18:00", hours: "9", halfDayBelowHours: "" });
+// `row` present means edit: the same fields, sent to update instead of create. The create/edit duality
+// EmployeeForm already has - a master whose server-side `update` exists should be reachable from the
+// screen, or the only way to fix a typo is delete-and-recreate.
+function ShiftForm({ row, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: row?.name || "",
+    startTime: row?.startTime || "09:00",
+    endTime: row?.endTime || "18:00",
+    hours: row?.hours ?? "9",
+    halfDayBelowHours: row?.halfDayBelowHours ?? "",
+  });
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
@@ -146,7 +155,8 @@ function ShiftForm({ onClose, onSaved }) {
     setBusy(true);
     setFailure(null);
     try {
-      const saved = await shiftsApi.create({ ...form, hours: Number(form.hours), halfDayBelowHours: form.halfDayBelowHours === "" ? "" : Number(form.halfDayBelowHours) });
+      const body = { ...form, hours: Number(form.hours), halfDayBelowHours: form.halfDayBelowHours === "" ? "" : Number(form.halfDayBelowHours) };
+      const saved = row ? await shiftsApi.update(row._id, body) : await shiftsApi.create(body);
       onSaved(saved, "Shift saved.");
     } catch (err) {
       setFailure(err);
@@ -158,7 +168,7 @@ function ShiftForm({ onClose, onSaved }) {
     <Modal
       size="sm"
       onClose={onClose}
-      title="New shift"
+      title={row ? "Edit shift" : "New shift"}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
     >
       <div className="grid gap-4">
@@ -179,6 +189,7 @@ function ShiftsPanel() {
   const { notify, toastNode } = useToasts();
   const list = useAsync(() => shiftsApi.list(), []);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function remove(id) {
     try { await shiftsApi.remove(id); notify("Shift removed."); list.reload(); }
@@ -200,13 +211,19 @@ function ShiftsPanel() {
                 <p className="font-medium text-foreground">{s.name}</p>
                 <p className="text-xs text-muted-foreground">{s.startTime}–{s.endTime} · {s.hours}h{s.halfDayBelowHours ? ` · half day below ${s.halfDayBelowHours}h` : ""}</p>
               </div>
-              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(s._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+              <Can permission="hr.manage">
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(s)}>Edit</Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(s._id)} aria-label={`Remove ${s.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                </div>
+              </Can>
             </div>
           ))}
           {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No shifts yet.</p>}
         </div>
       )}
       {adding && <ShiftForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {editing && <ShiftForm row={editing} onClose={() => setEditing(null)} onSaved={(_, m) => { setEditing(null); notify(m); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -283,8 +300,13 @@ function HolidaysPanel() {
   );
 }
 
-function LeaveTypeForm({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", accrualPerMonth: "1.5", maxCarryForward: "", isPaid: true });
+function LeaveTypeForm({ row, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: row?.name || "",
+    accrualPerMonth: row?.accrualPerMonth ?? "1.5",
+    maxCarryForward: row?.maxCarryForward ?? "",
+    isPaid: row ? row.isPaid !== false : true,
+  });
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
@@ -293,7 +315,8 @@ function LeaveTypeForm({ onClose, onSaved }) {
     setBusy(true);
     setFailure(null);
     try {
-      const saved = await leaveTypesApi.create({ ...form, accrualPerMonth: Number(form.accrualPerMonth), maxCarryForward: form.maxCarryForward === "" ? "" : Number(form.maxCarryForward) });
+      const body = { ...form, accrualPerMonth: Number(form.accrualPerMonth), maxCarryForward: form.maxCarryForward === "" ? "" : Number(form.maxCarryForward) };
+      const saved = row ? await leaveTypesApi.update(row._id, body) : await leaveTypesApi.create(body);
       onSaved(saved, "Leave type saved.");
     } catch (err) {
       setFailure(err);
@@ -305,7 +328,7 @@ function LeaveTypeForm({ onClose, onSaved }) {
     <Modal
       size="sm"
       onClose={onClose}
-      title="New leave type"
+      title={row ? "Edit leave type" : "New leave type"}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
     >
       <div className="grid gap-4">
@@ -322,6 +345,7 @@ function LeaveTypesPanel() {
   const { notify, toastNode } = useToasts();
   const list = useAsync(() => leaveTypesApi.list(), []);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function remove(id) {
     try { await leaveTypesApi.remove(id); notify("Leave type removed."); list.reload(); }
@@ -343,13 +367,19 @@ function LeaveTypesPanel() {
                 <p className="font-medium text-foreground">{t.name}</p>
                 <p className="text-xs text-muted-foreground">{t.accrualPerMonth} days/month{t.maxCarryForward != null ? ` · up to ${t.maxCarryForward} carried forward` : ""}{t.isPaid === false ? " · unpaid" : ""}</p>
               </div>
-              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(t._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+              <Can permission="hr.manage">
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(t)}>Edit</Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(t._id)} aria-label={`Remove ${t.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                </div>
+              </Can>
             </div>
           ))}
           {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No leave types yet.</p>}
         </div>
       )}
       {adding && <LeaveTypeForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {editing && <LeaveTypeForm row={editing} onClose={() => setEditing(null)} onSaved={(_, m) => { setEditing(null); notify(m); list.reload(); }} />}
       {toastNode}
     </div>
   );
@@ -357,8 +387,15 @@ function LeaveTypesPanel() {
 
 const COMPUTATIONS = [["fixed", "A flat amount"], ["percentOfBasic", "% of basic pay"], ["percentOfGross", "% of gross pay"]];
 
-function ComponentForm({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", kind: "deduction", computation: "percentOfBasic", rate: "", capBase: "", eligibleUpTo: "" });
+function ComponentForm({ row, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: row?.name || "",
+    kind: row?.kind || "deduction",
+    computation: row?.computation || "percentOfBasic",
+    rate: row?.rate ?? "",
+    capBase: row?.capBase ?? "",
+    eligibleUpTo: row?.eligibleUpTo ?? "",
+  });
   const setField = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }));
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
@@ -367,11 +404,12 @@ function ComponentForm({ onClose, onSaved }) {
     setBusy(true);
     setFailure(null);
     try {
-      const saved = await salaryComponents.create({
+      const body = {
         ...form, rate: Number(form.rate),
         capBase: form.capBase === "" ? "" : Number(form.capBase),
         eligibleUpTo: form.eligibleUpTo === "" ? "" : Number(form.eligibleUpTo),
-      });
+      };
+      const saved = row ? await salaryComponents.update(row._id, body) : await salaryComponents.create(body);
       onSaved(saved, "Component saved.");
     } catch (err) {
       setFailure(err);
@@ -383,7 +421,7 @@ function ComponentForm({ onClose, onSaved }) {
     <Modal
       size="sm"
       onClose={onClose}
-      title="New salary component"
+      title={row ? "Edit salary component" : "New salary component"}
       description="Applied to every employee paid in a run. PF and ESI are the cap/eligibility shape - see the research note in the module's own docs before relying on either figure."
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
     >
@@ -419,6 +457,7 @@ function ComponentsPanel() {
   const { notify, toastNode } = useToasts();
   const list = useAsync(() => salaryComponents.list(), []);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function remove(id) {
     try { await salaryComponents.remove(id); notify("Component removed."); list.reload(); }
@@ -447,7 +486,10 @@ function ComponentsPanel() {
               <div className="flex items-center gap-2">
                 {c.isSystem && <Pill tone="neutral">Our default - confirm it</Pill>}
                 {c.isActive === false && <Pill tone="warning">Inactive</Pill>}
-                <Can permission="hr.payroll"><Button variant="ghost" size="sm" onClick={() => remove(c._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+                <Can permission="hr.payroll">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(c)}>Edit</Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(c._id)} aria-label={`Remove ${c.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                </Can>
               </div>
             </div>
           ))}
@@ -455,13 +497,16 @@ function ComponentsPanel() {
         </div>
       )}
       {adding && <ComponentForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {editing && <ComponentForm row={editing} onClose={() => setEditing(null)} onSaved={(_, m) => { setEditing(null); notify(m); list.reload(); }} />}
       {toastNode}
     </div>
   );
 }
 
-function DepartmentForm({ onClose, onSaved }) {
-  const [name, setName] = useState("");
+// Renaming matters most here: deleting a department and making a new one orphans every employee already
+// assigned to the old one, so without this the only way to fix a typo was destructive.
+function DepartmentForm({ row, onClose, onSaved }) {
+  const [name, setName] = useState(row?.name || "");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
 
@@ -469,7 +514,7 @@ function DepartmentForm({ onClose, onSaved }) {
     setBusy(true);
     setFailure(null);
     try {
-      const saved = await departmentsApi.create({ name });
+      const saved = row ? await departmentsApi.update(row._id, { name }) : await departmentsApi.create({ name });
       onSaved(saved, "Department saved.");
     } catch (err) {
       setFailure(err);
@@ -481,7 +526,7 @@ function DepartmentForm({ onClose, onSaved }) {
     <Modal
       size="sm"
       onClose={onClose}
-      title="New department"
+      title={row ? "Rename department" : "New department"}
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}
     >
       <div className="grid gap-4">
@@ -496,6 +541,7 @@ function DepartmentsPanel() {
   const { notify, toastNode } = useToasts();
   const list = useAsync(() => departmentsApi.list(), []);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function remove(id) {
     try { await departmentsApi.remove(id); notify("Department removed."); list.reload(); }
@@ -514,13 +560,19 @@ function DepartmentsPanel() {
           {(list.data || []).map((d) => (
             <div key={d._id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
               <p className="font-medium text-foreground">{d.name}</p>
-              <Can permission="hr.manage"><Button variant="ghost" size="sm" onClick={() => remove(d._id)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button></Can>
+              <Can permission="hr.manage">
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setEditing(d)}>Rename</Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(d._id)} aria-label={`Remove ${d.name}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                </div>
+              </Can>
             </div>
           ))}
           {(list.data || []).length === 0 && <p className="text-sm text-muted-foreground">No departments yet - People shows the free-text field until one is added.</p>}
         </div>
       )}
       {adding && <DepartmentForm onClose={() => setAdding(false)} onSaved={(_, m) => { setAdding(false); notify(m); list.reload(); }} />}
+      {editing && <DepartmentForm row={editing} onClose={() => setEditing(null)} onSaved={(_, m) => { setEditing(null); notify(m); list.reload(); }} />}
       {toastNode}
     </div>
   );

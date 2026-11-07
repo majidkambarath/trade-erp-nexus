@@ -11,7 +11,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Mail, Phone, Plus, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { DateInput, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { ConfirmDialog, DateInput, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { employees, contracts, employeeDocuments, payroll, assets as assetsApi, employeePortal, checklists, appraisals } from "../../lib/hrApi";
 import { contractSummary } from "../../lib/hr";
 import { formatDate, CURRENCY, formatNumber } from "../../utils/format";
@@ -33,7 +33,7 @@ function Fact({ icon, label, children }) {
   );
 }
 
-function ContractRow({ row }) {
+function ContractRow({ row, onRemove }) {
   const s = contractSummary(row);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-3">
@@ -49,7 +49,16 @@ function ContractRow({ row }) {
           <p className="text-xs text-muted-foreground">Pay hidden - you do not hold the permission to see it</p>
         )}
       </div>
-      {s.current && <Pill tone="success">Current</Pill>}
+      <div className="flex items-center gap-2">
+        {s.current && <Pill tone="success">Current</Pill>}
+        {/* A contract is pay HISTORY, so this is for correcting a row entered wrongly, not for ending one
+            (that is a new row with its own effectiveFrom). Same permission the server asks of the route. */}
+        <Can permission="hr.confidential">
+          <Button variant="ghost" size="sm" onClick={() => onRemove(row)} aria-label="Remove this contract row">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </Can>
+      </div>
     </div>
   );
 }
@@ -338,6 +347,8 @@ export default function EmployeeView() {
   const [addingDocument, setAddingDocument] = useState(false);
   const [issuingAsset, setIssuingAsset] = useState(false);
   const [addingAppraisal, setAddingAppraisal] = useState(false);
+  const [removingContract, setRemovingContract] = useState(null);
+  const [removingBusy, setRemovingBusy] = useState(false);
   const canManageChecklists = canAny("hr.manage");
 
   async function removeDocument(docId) {
@@ -385,6 +396,20 @@ export default function EmployeeView() {
       checklist.reload();
     } catch (err) {
       notify(err.message || "Could not mark that done.", "error");
+    }
+  }
+
+  async function removeContract() {
+    setRemovingBusy(true);
+    try {
+      await contracts.remove(removingContract._id);
+      notify("Contract row removed.");
+      setRemovingContract(null);
+      history.reload();
+    } catch (err) {
+      notify(err.message || "Could not remove that contract.", "error");
+    } finally {
+      setRemovingBusy(false);
     }
   }
 
@@ -461,7 +486,7 @@ export default function EmployeeView() {
           {!history.loading && !history.error && (
             (history.data || []).length ? (
               <div className="grid gap-2">
-                {history.data.map((row) => <ContractRow key={row._id} row={row} />)}
+                {history.data.map((row) => <ContractRow key={row._id} row={row} onRemove={setRemovingContract} />)}
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
@@ -654,6 +679,17 @@ export default function EmployeeView() {
           staffId={id}
           onClose={() => setAddingContract(false)}
           onSaved={(_, message) => { setAddingContract(false); notify(message); history.reload(); }}
+        />
+      )}
+      {removingContract && (
+        <ConfirmDialog
+          danger
+          title="Remove this contract row?"
+          text={`The rate in force from ${formatDate(removingContract.effectiveFrom)} will no longer exist. Work already costed at it keeps the figure it was costed with, but anything recosted afterwards will read a different rate - so remove a row only if it was entered by mistake. To end a rate, add a new one instead.`}
+          confirmLabel="Remove"
+          busy={removingBusy}
+          onConfirm={removeContract}
+          onClose={() => setRemovingContract(null)}
         />
       )}
       {addingAppraisal && (
