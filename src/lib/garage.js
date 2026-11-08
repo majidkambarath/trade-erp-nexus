@@ -66,6 +66,94 @@ export function jobCardLabel(card) {
   return TASK_STATUS[card.taskStatus] || { label: card.taskStatus || "", tone: "neutral" };
 }
 
+// A line's own state on the estimate (D21): `approved === false` means two different things - declined
+// at the first decision, or a later supplementary line nobody has decided on yet - and the two are told
+// apart ONLY where it is unambiguous: a line from the ORIGINAL estimate (addedInVersion 1) once the card
+// has moved past AWAITING_APPROVAL can only be declined, because the first decision settles every
+// version-1 line, true or false, with nothing left pending from it. A later-version line that is still
+// false stays "Pending" - it may yet be decided in the next round. One function, so the estimate tab and
+// the primary-action rule below can never disagree about which line is still waiting.
+export function lineDecisionLabel(line, status) {
+  if (line.invoiced) return { label: "Invoiced", tone: "info", declined: false, pending: false };
+  const declined = line.approved === false && (line.addedInVersion || 1) <= 1 && !["DRAFT", "AWAITING_APPROVAL"].includes(status);
+  const pending = line.approved === false && !declined;
+  if (declined) return { label: "Declined", tone: "neutral", declined: true, pending: false };
+  if (pending) return { label: "Pending", tone: "warning", declined: false, pending: true };
+  return { label: "Approved", tone: "success", declined: false, pending: false };
+}
+
+// The job-card detail's four tabs, and which one opens first for a given status - so a technician lands
+// on tasks, an advisor on the estimate, and the counter on money, without a click to get there.
+export const JOB_TABS = [
+  ["job", "The job"],
+  ["estimate", "The estimate"],
+  ["work", "The work"],
+  ["money", "Money"],
+];
+export function defaultJobTab(status) {
+  if (status === "DRAFT" || status === "AWAITING_APPROVAL") return "estimate";
+  if (status === "IN_PROGRESS") return "work";
+  if (status === "READY" || status === "DELIVERED" || status === "CLOSED") return "money";
+  return "job";
+}
+
+// One label and one permission per job-card action, read by both the primary button and the overflow
+// menu - so the two can never show different words for the same action.
+export const JOB_ACTION_LABEL = {
+  edit: "Edit", delete: "Delete", checkIn: "Check-in", cancel: "Cancel job",
+  sendEstimate: "Send estimate", recordApproval: "Record decision",
+  reviseEstimate: "Supplementary estimate", createInvoice: "Raise invoice", release: "Release vehicle",
+};
+export const JOB_ACTION_PERMISSION = {
+  edit: "garage.edit", delete: "garage.delete", checkIn: "garage.edit", cancel: "garage.edit",
+  sendEstimate: "garage.edit", recordApproval: "garage.approve",
+  reviseEstimate: "garage.edit", createInvoice: "garage.invoice", release: "garage.approve",
+};
+
+// The one loud button for the card's current status, from the same `card.actions` flags the old nine-
+// button footer read - this only decides which ONE to lead with; every flag still gates its own button
+// exactly as before (jobOverflowActions below draws the rest). Never a check on any one line's approval
+// state for RELEASE or INVOICE - a card with a declined line still releases and bills correctly; what
+// decides the primary here is only whether anything is left for a human to DECIDE right now.
+export function jobPrimaryAction(card) {
+  const a = card.actions || {};
+  const act = (key) => ({ key, label: JOB_ACTION_LABEL[key], permission: JOB_ACTION_PERMISSION[key] });
+  if (card.status === "DRAFT") {
+    if (!(card.lines || []).length) return a.edit ? act("edit") : null;
+    if (a.sendEstimate) return act("sendEstimate");
+    return a.edit ? act("edit") : null;
+  }
+  if (card.status === "AWAITING_APPROVAL") return a.recordApproval ? act("recordApproval") : null;
+  if (card.status === "IN_PROGRESS") {
+    // A supplementary line nobody has decided on yet outranks billing what has already been approved.
+    const undecided = (card.lines || []).some((l) => lineDecisionLabel(l, card.status).pending);
+    if (undecided && a.recordApproval) return act("recordApproval");
+    const settled = (card.tasks || []).length > 0 && card.tasks.every((t) => t.status === "DONE" || t.status === "SKIPPED");
+    if (settled && a.createInvoice) return act("createInvoice");
+    return null; // work is still open; advancing it happens on the task rows, not up here
+  }
+  if (card.status === "READY") {
+    // Invoice before release: both are true at READY, and the board's own danger tile is "Delivered,
+    // not invoiced" - making Release the loud button here is the product manufacturing its own red tile.
+    if (a.createInvoice) return act("createInvoice");
+    if (a.release) return act("release");
+    return null;
+  }
+  if (card.status === "DELIVERED") return a.createInvoice ? act("createInvoice") : null;
+  return null; // CLOSED and CANCELLED: every action flag is false
+}
+
+// Every other action the card's status allows, in one steady order, Delete last and marked danger -
+// whatever jobPrimaryAction chose is left out so the two can never show the same action twice.
+const OVERFLOW_ORDER = ["sendEstimate", "edit", "recordApproval", "reviseEstimate", "createInvoice", "release", "checkIn", "cancel", "delete"];
+export function jobOverflowActions(card) {
+  const a = card.actions || {};
+  const primary = jobPrimaryAction(card);
+  return OVERFLOW_ORDER.filter((key) => a[key] && key !== primary?.key).map((key) => ({
+    key, label: JOB_ACTION_LABEL[key], permission: JOB_ACTION_PERMISSION[key], danger: key === "delete",
+  }));
+}
+
 // A refusal the server did not already word plainly. Everything else falls back to err.message, which the
 // server writes for a person to read (CLAUDE.md: "the message IS the UI text" for garage's own codes).
 const WORDS = {

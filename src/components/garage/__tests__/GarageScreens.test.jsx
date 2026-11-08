@@ -5,7 +5,7 @@ import { render, screen, within, fireEvent, waitFor, act } from "@testing-librar
 const wait = (ms) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
 const m = vi.hoisted(() => ({
-  board: vi.fn(), jcList: vi.fn(), jcGet: vi.fn(), jcCreate: vi.fn(), jcStaff: vi.fn(), jcAssignees: vi.fn(),
+  board: vi.fn(), jcList: vi.fn(), jcGet: vi.fn(), jcCreate: vi.fn(), jcStaff: vi.fn(), jcAssignees: vi.fn(), jcRecordApproval: vi.fn(),
   vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
   clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("../../../lib/garageApi", () => ({
   jobCards: {
     board: m.board, list: m.jcList, get: m.jcGet, create: m.jcCreate, update: vi.fn(), remove: vi.fn(),
     staff: m.jcStaff, assignees: m.jcAssignees, startTask: vi.fn(), completeTask: vi.fn(), sendEstimate: vi.fn(),
-    recordApproval: vi.fn(), reviseEstimate: vi.fn(), createInvoice: vi.fn(), release: vi.fn(), cancel: vi.fn(),
+    recordApproval: m.jcRecordApproval, reviseEstimate: vi.fn(), createInvoice: vi.fn(), release: vi.fn(), cancel: vi.fn(),
     analysis: m.jcAnalysis, committed: vi.fn(), recordCheckIn: m.jcCheckIn, comebackCandidates: m.jcComebacks,
     shortages: m.jcShortages, raisePurchaseOrder: m.jcRaisePO,
   },
@@ -277,6 +277,57 @@ describe("job cards list", () => {
     expect(cardId).toBe("j1");
     expect(body.vendorId).toBe("ve1");
     expect(body.items).toEqual([{ itemId: "i1", qty: 2, price: 150 }]);
+  });
+
+  it("opens the Record decision dialog and records an approval", async () => {
+    render(<JobCardsPage />);
+    fireEvent.click(await screen.findByText("JC-2026-0001"));
+    const cardDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(cardDialog).getByRole("button", { name: "Record decision" }));
+    const approveDialog = await screen.findByRole("dialog", { name: /Record the decision/ });
+    expect(within(approveDialog).getByText(/Brake pads/)).toBeInTheDocument();
+    fireEvent.click(within(approveDialog).getByRole("button", { name: "Record approval" }));
+    await waitFor(() => expect(m.jcRecordApproval).toHaveBeenCalledWith("j1", expect.objectContaining({ method: "whatsapp" })));
+  });
+
+  it("opens the Supplementary estimate dialog, where a line can be added and removed", async () => {
+    render(<JobCardsPage />);
+    fireEvent.click(await screen.findByText("JC-2026-0001"));
+    const cardDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(cardDialog).getByRole("button", { name: "Supplementary estimate" }));
+    const reviseDialog = await screen.findByRole("dialog", { name: /supplementary estimate/i });
+    // D-PH2: the row's Remove button (an X icon) and "Add line" (a Plus icon) both come from
+    // jobCardDialogs.jsx, which lint alone did not prove imported the icons it uses - only a real render does.
+    fireEvent.click(within(reviseDialog).getByRole("button", { name: "Add line" }));
+    expect(within(reviseDialog).getAllByRole("button", { name: "Remove" })).toHaveLength(2);
+    fireEvent.click(within(reviseDialog).getAllByRole("button", { name: "Remove" })[1]);
+    expect(within(reviseDialog).getAllByRole("button", { name: "Remove" })).toHaveLength(1);
+  });
+
+  it("opens the Raise invoice dialog for an approved, unbilled line", async () => {
+    m.jcGet.mockResolvedValue(jobCardFull({
+      status: "IN_PROGRESS",
+      actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: false, reviseEstimate: false, createInvoice: true, release: false, cancel: true },
+    }));
+    render(<JobCardsPage />);
+    fireEvent.click(await screen.findByText("JC-2026-0001"));
+    const cardDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(cardDialog).getByRole("button", { name: "Raise invoice" }));
+    const invoiceDialog = await screen.findByRole("dialog", { name: /invoice/i });
+    expect(within(invoiceDialog).getByText(/Brake pads/)).toBeInTheDocument();
+  });
+
+  it("opens the Release vehicle dialog", async () => {
+    m.jcGet.mockResolvedValue(jobCardFull({
+      status: "READY",
+      actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: false, reviseEstimate: false, createInvoice: false, release: true, cancel: true },
+    }));
+    render(<JobCardsPage />);
+    fireEvent.click(await screen.findByText("JC-2026-0001"));
+    const cardDialog = await screen.findByRole("dialog");
+    fireEvent.click(within(cardDialog).getByRole("button", { name: "Release vehicle" }));
+    const releaseDialog = await screen.findByRole("dialog", { name: /release/i });
+    expect(within(releaseDialog).getByRole("button", { name: /release/i })).toBeInTheDocument();
   });
 });
 
