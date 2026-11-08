@@ -20,25 +20,39 @@ const emptyRow = () => ({ item: "", condition: "ok", note: "", photos: [] });
 export default function InspectionDialog({ jobCardId, inspection, onClose, onDone }) {
   const [rows, setRows] = useState(() => (inspection?.length ? inspection.map((i) => ({ item: i.item || "", condition: i.condition || "ok", note: i.note || "", photos: [...(i.photos || [])] })) : [emptyRow()]));
   const [busy, setBusy] = useState(false);
-  const [uploadingAt, setUploadingAt] = useState(null);
+  // A SET of row indices, not one scalar: a technician can start a photo on one row, then another on a
+  // different row, before the first finishes. A single "which row is uploading" value would lose the
+  // first row's spinner the moment the second starts, RE-ENABLE its input while its own upload was still
+  // in flight, and a second click there would race the first - two uploads to one row, same closure over
+  // `rows[i].photos`, the later one silently dropping the earlier photo.
+  const [uploading, setUploading] = useState(() => new Set());
   const [failure, setFailure] = useState(null);
   const source = useMemo(() => filesFor("jobcard", jobCardId), [jobCardId]);
 
   const setRow = (i, patch) => setRows((r) => r.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
   const removeRow = (i) => setRows((r) => r.filter((_, idx) => idx !== i));
+  // Appending a photo is its OWN functional update, not setRow(i, { photos: [...rows[i].photos, id] }):
+  // that reads `rows` from the outer closure, captured at the moment the upload STARTED. If the user
+  // removes an older photo from the same row while this one is still uploading, the removal and this
+  // append would both be racing the same stale snapshot, and whichever write lands second wins outright -
+  // so a completed upload can silently resurrect a photo the user just removed. Reading the row fresh
+  // inside the updater, at the moment React actually applies it, closes that regardless of what else
+  // happened to the row in between.
+  const addPhotoToRow = (i, attachmentId) => setRows((r) => r.map((row, idx) => (idx === i ? { ...row, photos: [...row.photos, attachmentId] } : row)));
   const removePhoto = (i, attachmentId) => setRow(i, { photos: rows[i].photos.filter((p) => p !== attachmentId) });
+  const markUploading = (i, on) => setUploading((s) => { const n = new Set(s); if (on) n.add(i); else n.delete(i); return n; });
 
   async function addPhoto(i, file) {
-    if (!file) return;
-    setUploadingAt(i);
+    if (!file || uploading.has(i)) return; // the input is disabled while this row's own upload is in flight, but guard the race anyway
+    markUploading(i, true);
     setFailure(null);
     try {
       const saved = await source.upload(file);
-      setRow(i, { photos: [...rows[i].photos, saved.attachmentId] });
+      addPhotoToRow(i, saved.attachmentId);
     } catch (err) {
       setFailure(err);
     } finally {
-      setUploadingAt(null);
+      markUploading(i, false);
     }
   }
 
@@ -87,9 +101,9 @@ export default function InspectionDialog({ jobCardId, inspection, onClose, onDon
                 </span>
               ))}
               <label className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-dashed px-2 py-1 text-xs text-muted-foreground hover:bg-accent">
-                {uploadingAt === i ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Plus className="h-3 w-3" aria-hidden="true" />}
+                {uploading.has(i) ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Plus className="h-3 w-3" aria-hidden="true" />}
                 Add photo
-                <input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploadingAt === i} onChange={(e) => { addPhoto(i, e.target.files?.[0]); e.target.value = ""; }} />
+                <input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading.has(i)} onChange={(e) => { addPhoto(i, e.target.files?.[0]); e.target.value = ""; }} />
               </label>
             </div>
           </div>

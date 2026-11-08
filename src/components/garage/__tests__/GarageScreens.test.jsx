@@ -12,7 +12,7 @@ const m = vi.hoisted(() => ({
   vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(), vActivity: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
   clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(), clActivity: vi.fn(),
-  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(), jcInspection: vi.fn(), jcSendEstimate: vi.fn(),
+  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(), jcInspection: vi.fn(), jcSendEstimate: vi.fn(), filesUpload: vi.fn(),
   sendSettings: vi.fn(), documentSend: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
 }));
@@ -35,7 +35,7 @@ vi.mock("../../../lib/garageApi", () => ({
     bays: m.setupBays, createBay: m.setupCreateBay, updateBay: vi.fn(),
     services: m.setupServices, createService: vi.fn(), updateService: vi.fn(), plan: vi.fn(),
   },
-  filesFor: () => ({ list: () => Promise.resolve([]), upload: vi.fn(), remove: vi.fn(), download: vi.fn() }),
+  filesFor: () => ({ list: () => Promise.resolve([]), upload: m.filesUpload, remove: vi.fn(), download: vi.fn() }),
 }));
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet } }));
 // SendDialog's own dependencies, for the one test that opens it from "Send estimate" - its own internals
@@ -366,6 +366,52 @@ describe("job cards list", () => {
       { item: "Front brake pads", condition: "urgent", note: "2mm left", photos: ["a1"] },
       { item: "Battery", condition: "advisory", note: "", photos: [] },
     ]);
+  });
+
+  // Uploading is per ROW, not a single "which row is busy" value: starting a photo on one row, then a
+  // different one before the first finishes, must not lose the first row's spinner, re-enable its input
+  // mid-upload, or - resolved out of order - land a photo on the wrong row. And removing an older photo
+  // from a row while a NEW one is still uploading for that same row must not be undone when the upload
+  // lands: the append is its own functional update precisely so it reads the row fresh, not a snapshot
+  // from before the removal.
+  it("two photo uploads to two different rows do not cross wires, however they resolve, and a removal during an upload is not undone by it", async () => {
+    const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
+    const d0 = deferred();
+    const d1 = deferred();
+    m.filesUpload.mockImplementationOnce(() => d0.promise).mockImplementationOnce(() => d1.promise);
+    m.jcGet.mockResolvedValue(jobCardFull({ inspection: [{ _id: "insp1", item: "Front brake pads", condition: "urgent", note: "", photos: ["old1"] }, { _id: "insp2", item: "Battery", condition: "advisory", note: "", photos: [] }] }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: /The work/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit findings" }));
+    const dialog = await screen.findByRole("dialog", { name: /What was found/i });
+
+    const photoInputs = within(dialog).getAllByLabelText("Add photo");
+    const file = (name) => new File(["x"], name, { type: "image/jpeg" });
+    fireEvent.change(photoInputs[0], { target: { files: [file("brake.jpg")] } }); // row 0 starts uploading
+    fireEvent.change(photoInputs[1], { target: { files: [file("battery.jpg")] } }); // row 1 starts before row 0 finishes
+
+    // Both rows show their own spinner while both are in flight - a single scalar would have lost row 0's.
+    expect(dialog.querySelectorAll(".lucide-loader-circle").length).toBe(2);
+
+    // Row 0's EXISTING photo is removed while its NEW upload is still pending. There is exactly one
+    // "Remove photo" button at this point (row 0's pre-existing "old1" chip; neither pending upload has
+    // landed yet) - getByRole, not getAllByRole, is itself the proof of that.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove photo" }));
+
+    // Resolved out of order: row 1 first, then row 0.
+    d1.resolve({ attachmentId: "new-battery" });
+    await waitFor(() => expect(dialog.querySelectorAll(".lucide-loader-circle").length).toBe(1));
+    d0.resolve({ attachmentId: "new-brake" });
+    await waitFor(() => expect(dialog.querySelectorAll(".lucide-loader-circle").length).toBe(0));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save inspection" }));
+    await waitFor(() => expect(m.jcInspection).toHaveBeenCalled());
+    const [, body] = m.jcInspection.mock.calls[0];
+    // Row 0: the old photo is really gone (not resurrected by the later-resolving upload), and the new
+    // one landed on the RIGHT row. Row 1: its own new photo, and nothing of row 0's.
+    expect(body.inspection[0].photos).toEqual(["new-brake"]);
+    expect(body.inspection[1].photos).toEqual(["new-battery"]);
   });
 
   // The whole point of Wave 1: "Send estimate" no longer only flips a status - it opens the real send
