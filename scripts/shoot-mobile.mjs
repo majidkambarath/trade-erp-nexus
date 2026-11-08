@@ -2298,9 +2298,10 @@ function stubFor(pathname, search = "") {
     };
   }
 
-  if (p.includes("ageing")) {
-    // the server's bucket keys (ageingService.js): the screen tones the older buckets by them, and keys that match nothing
-    // would leave that styling unexercised
+  if (p.includes("ageing") && !p.includes("/garage/")) {
+    // Party receivables/payables ageing (ageingService.js); the server's own bucket keys, so the screen's tone
+    // mapping and any key that matches nothing are both exercised. Narrowed to exclude "/garage/" - this
+    // substring also matches /garage/claims/ageing, which is its own, differently-shaped stub further down.
     const buckets = [
       { key: "current", label: "Current" }, { key: "d1_30", label: "1-30 days" },
       { key: "d31_60", label: "31-60 days" }, { key: "d61_90", label: "61-90 days" }, { key: "d90plus", label: "Over 90 days" },

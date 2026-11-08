@@ -46,6 +46,19 @@ export const CLAIM_STATUS = {
   INVOICED: { label: "Invoiced", tone: "success" },
 };
 
+// How long a job (or an open claim) has sat, as the server bands it (trade ERP node/utils/garage.js
+// ageBand / utils/insuranceClaims.js claimAgeing: the same non-overlapping convention, under 5 days,
+// 5-9, 10-14, 15 or more). Status tokens, not a plain progression - CLAUDE.md's own reasoning for the
+// dashboard's age scale applies here word for word: this is how worried to be, not merely how long.
+export const AGE_BAND_LABEL = { u5: "Under 5 days", b5_9: "5-9 days", b10_14: "10-14 days", o15: "15+ days" };
+export const AGE_BAND_TONE = { u5: "neutral", b5_9: "info", b10_14: "warning", o15: "danger" };
+
+// The four claims-ageing buckets (utils/insuranceClaims.js claimAgeing), a different convention from the
+// job-ageing bands above (inclusive upper bounds, days since SUBMISSION rather than since the vehicle was
+// received) - kept apart on purpose rather than forced to share one table.
+export const CLAIM_AGE_BUCKET_LABEL = { "0-7": "0-7 days", "8-14": "8-14 days", "15-30": "15-30 days", "30+": "30+ days" };
+export const CLAIM_AGE_BUCKET_TONE = { "0-7": "neutral", "8-14": "info", "15-30": "warning", "30+": "danger" };
+
 // A job card's own words for the current task on the board - "Ready to finish" when every task is settled,
 // the task's name and state otherwise.
 export function jobCardLabel(card) {

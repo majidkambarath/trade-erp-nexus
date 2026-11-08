@@ -8,7 +8,7 @@ const m = vi.hoisted(() => ({
   board: vi.fn(), jcList: vi.fn(), jcGet: vi.fn(), jcCreate: vi.fn(), jcStaff: vi.fn(), jcAssignees: vi.fn(),
   vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
-  clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(),
+  clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(),
   jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
 }));
@@ -24,7 +24,7 @@ vi.mock("../../../lib/garageApi", () => ({
   vehicles: { list: m.vList, find: m.vFind, get: m.vGet, activity: vi.fn(), jobs: m.vJobs, catalogue: m.vCatalogue, create: m.vCreate, update: m.vUpdate },
   partyChoices: { customers: m.customers, vendors: m.vendors, createCustomer: m.createCustomer },
   claims: {
-    ageing: vi.fn(), list: m.clList, get: m.clGet, create: m.clCreate, update: vi.fn(), remove: vi.fn(),
+    ageing: m.clAgeing, list: m.clList, get: m.clGet, create: m.clCreate, update: vi.fn(), remove: vi.fn(),
     submit: m.clSubmit, recordSurvey: m.clSurvey, recordApproval: m.clDecide, raiseInvoices: m.clRaise,
   },
   setup: {
@@ -115,6 +115,15 @@ beforeEach(() => {
   m.customers.mockResolvedValue([{ id: "cu1", name: "Ali Hassan", code: "C1" }, { id: "ins1", name: "Orient Insurance", code: "INS1", isInsurer: true }]);
   m.vendors.mockResolvedValue([{ id: "ve1", name: "Shine Painters", code: "V1" }]);
   m.clList.mockResolvedValue([claimRow()]);
+  m.clAgeing.mockResolvedValue({
+    buckets: {
+      "0-7": { count: 0, total: 0, rows: [] },
+      "8-14": { count: 1, total: 6400, rows: [{ claimId: "cl1", claimNo: "CLM-2026-0001", insurer: "Orient Insurance", status: "SURVEYED", jobCardId: "j1", jobNo: "JC-2026-0001", days: 10, amount: 6400 }] },
+      "15-30": { count: 0, total: 0, rows: [] },
+      "30+": { count: 0, total: 0, rows: [] },
+    },
+    total: 6400, count: 1,
+  });
   m.clGet.mockResolvedValue(claimFull());
   m.jcAnalysis.mockResolvedValue({
     period: { from: null, to: null },
@@ -281,6 +290,17 @@ describe("claims list", () => {
     expect(within(dialog).getByText(/Ahmed Saeed/)).toBeInTheDocument();
     // actions.recordApproval is true on the fixture
     expect(within(dialog).getByRole("button", { name: "Record decision" })).toBeInTheDocument();
+  });
+
+  it("the Ageing tab buckets open claims by how long they have waited, and a row opens the same claim view", async () => {
+    render(<ClaimsPage />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Ageing" }));
+    expect(await screen.findByText("8-14 days")).toBeInTheDocument();
+    expect(screen.getByText(/1 open claim/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("CLM-2026-0001"));
+    await waitFor(() => expect(m.clGet).toHaveBeenCalledWith("cl1"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Ahmed Saeed/)).toBeInTheDocument();
   });
 });
 
