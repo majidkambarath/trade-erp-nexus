@@ -332,6 +332,38 @@ const DEEP = {
     { name: "ignore", clicks: ["^Ignore$"], settle: 900 },
     { name: "statement", clicks: ["^History$", "^Statement$"], settle: 1300 },
   ],
+  // Garage: the module had NO deep steps at all, and with no stubs either its board, job cards, vehicles,
+  // claims and setup were all screenshotted empty (or, for anything containing "card", against a list of
+  // banks). So nothing here had ever been measured with real data, and no garage dialog had ever been
+  // measured at any width. The job card is the densest surface in the product - thirteen sections and an
+  // action row - and these steps exist to put it in front of the phone pass.
+  "garage-board": [
+    { name: "board", page: true, clicks: [], settle: 1200 },
+    { name: "board-overdue", page: true, clicks: ["^Overdue"], settle: 900 }, // StatCard concatenates title+count with no space ("Overdue2"), so this is a prefix match, not ^Overdue$
+    // The card is a real navigation (react-router Link) since the job card became a routed page -
+    // not a dialog opened on top of the board. What a click leads to (the primary action, the
+    // overflow menu, every dialog it opens) is the destination page's OWN concern now, covered by
+    // the "garage-job-card" deep steps below (EXTRA_PAGES), not re-tested here.
+    { name: "board-card", page: true, clicks: ["JC-2026-0001"], settle: 1200 },
+  ],
+  "garage-job-cards": [
+    { name: "job-cards", page: true, clicks: [], settle: 1100 },
+    { name: "job-card-new", clicks: ["^New job card"], settle: 1200 },
+  ],
+  "garage-job-card": [
+    { name: "card", page: true, clicks: [], settle: 1200 },
+    { name: "card-decision", clicks: ["^Record decision$"], settle: 1100 },
+    { name: "card-more-revise", clicks: ["More actions", "^Supplementary estimate$"], settle: 1100 },
+    { name: "card-more-invoice", clicks: ["More actions", "^Raise invoice$"], settle: 1100 },
+    { name: "card-more-release", clicks: ["More actions", "^Release vehicle$"], settle: 1100 },
+    { name: "card-more-check-in", clicks: ["More actions", "^Check-in$"], settle: 1100 },
+  ],
+  "garage-vehicles": [
+    { name: "vehicles", page: true, clicks: [], settle: 1000 },
+    { name: "vehicle-new", clicks: ["^New vehicle"], settle: 1100 },
+  ],
+  "garage-claims": [{ name: "claims", page: true, clicks: [], settle: 1000 }],
+  "garage-setup": [{ name: "setup", page: true, clicks: [], settle: 1000 }],
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["banks"] = DEEP["accounts-banks"]; // check:mobile -- /banks
@@ -358,6 +390,13 @@ DEEP["follow-ups"] = DEEP["crm-follow-ups"]; // check:mobile -- /crm/follow-ups
 DEEP["users"] = DEEP["people-users-and-roles"]; // check:mobile -- /users
 DEEP["stock-item-creation"] = DEEP["inventory-stock-items"]; // check:mobile -- /stock-item-creation
 DEEP["customer-creation"] = DEEP["sales-customers"]; // check:mobile -- /customer-creation
+// Garage single-page runs are named by the LAST path segment, as the CRM ones above are.
+// There is deliberately no `reports` alias here: /crm/reports already owns that name.
+DEEP["board"] = DEEP["garage-board"]; // check:mobile -- /garage/board
+DEEP["job-cards"] = DEEP["garage-job-cards"]; // check:mobile -- /garage/job-cards
+DEEP["vehicles"] = DEEP["garage-vehicles"]; // check:mobile -- /garage/vehicles
+DEEP["claims"] = DEEP["garage-claims"]; // check:mobile -- /garage/claims
+DEEP["setup"] = DEEP["garage-setup"]; // check:mobile -- /garage/setup
 // The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
 // opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
 // not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
@@ -522,6 +561,10 @@ const EXTRA_PAGES = [
   ["console-activity", "/platform/activity"],
   ["console-developers", "/platform/developers"],
   ["console-security", "/platform/security"],
+  // The job card is a routed page now (?open=<id> on /garage/job-cards, not a click-through from the
+  // list - a DataTable row is a plain <tr>, which the sweep's clicker cannot find), so it needs its own
+  // entry here, the same way every other deep-linked detail does (console-organisation-plan above).
+  ["garage-job-card", "/garage/job-cards?open=j1"],
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
   ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],
@@ -2266,9 +2309,10 @@ function stubFor(pathname, search = "") {
     };
   }
 
-  if (p.includes("ageing")) {
-    // the server's bucket keys (ageingService.js): the screen tones the older buckets by them, and keys that match nothing
-    // would leave that styling unexercised
+  if (p.includes("ageing") && !p.includes("/garage/")) {
+    // Party receivables/payables ageing (ageingService.js); the server's own bucket keys, so the screen's tone
+    // mapping and any key that matches nothing are both exercised. Narrowed to exclude "/garage/" - this
+    // substring also matches /garage/claims/ageing, which is its own, differently-shaped stub further down.
     const buckets = [
       { key: "current", label: "Current" }, { key: "d1_30", label: "1-30 days" },
       { key: "d31_60", label: "31-60 days" }, { key: "d61_90", label: "61-90 days" }, { key: "d90plus", label: "Over 90 days" },
@@ -2397,7 +2441,209 @@ function stubFor(pathname, search = "") {
         { key: "st3", label: "Sunil Thomas", done: 9, hoursSold: 94, hoursTaken: 99.5, efficiencyPct: 94.5, waitHours: 3.1 },
         { key: "st4", label: "Arun Prasad", done: 4, hoursSold: 35, hoursTaken: 22.5, efficiencyPct: 155.6, waitHours: 0.9 },
       ],
+      // G6: one row per delivered job - just enough variety (late, a comeback, an ordinary one) to prove
+      // the panel and its Pills, not all 38.
+      jobRows: [
+        { jobCardId: "j5", jobNo: "JC-2026-0005", plate: "S 3301", vehicle: "Nissan Urvan", customer: "Al Noor Foods Trading", deliveredAt: "2026-10-30T10:00:00.000Z", total: 965.25, hoursSold: 4, hoursTaken: 3.5, onTime: false, comeback: false },
+        { jobCardId: "j6", jobNo: "JC-2026-0006", plate: "A 12345", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC", deliveredAt: "2026-10-28T10:00:00.000Z", total: 3480.75, hoursSold: 6, hoursTaken: 5.5, onTime: true, comeback: true },
+        { jobCardId: "j7", jobNo: "JC-2026-0007", plate: "Q 55901", vehicle: "Nissan Patrol", customer: "Gulf Fresh Foods", deliveredAt: "2026-10-22T10:00:00.000Z", total: 1290, hoursSold: 2.5, hoursTaken: 2.5, onTime: true, comeback: false },
+      ],
     };
+  }
+  // ---- Garage ------------------------------------------------------------------------------------------
+  // Every garage read is answered HERE, above the generic rules, for exactly the reason the analysis stub
+  // above already records: a path containing "card" falls through to the bank rule. So /garage/job-cards,
+  // /garage/job-cards/board and /garage/job-cards/<id> all used to come back as a list of BANKS - the board
+  // then received an array where it expects {counts, columns, mine}, fell to columns: [] and drew its empty
+  // state, and the job cards list drew bank rows. /garage/vehicles, /garage/claims, /garage/bays and
+  // /garage/services matched no rule at all and came back []. Five of the six garage pages were measured
+  // against junk, which is why none of them had ever failed: an empty page cannot overflow.
+  if (p.includes("/garage/")) {
+    // plateNumber is the number alone - plateCode is its own separate box (G7: a plate prints as
+    // Emirate · Code · Number, lib/garage.js vehiclePlateText; a plateNumber carrying the code too, as
+    // these fixtures once did ("A 12345" AND plateCode "A"), reads with the code twice).
+    const veh = (over = {}) => ({
+      _id: "v1", plateNumber: "12345", plateCode: "A", plateEmirate: "Dubai",
+      chassisNo: "JTEBU29J500123456", engineNo: "1GR0456789", make: "Toyota", model: "Land Cruiser",
+      variant: "GXR", year: 2021, colour: "White", transmission: "automatic", fuelType: "petrol",
+      customerId: "c1", customerName: "Al Manara Transport LLC", odometer: 84500,
+      registrationExpiry: "2027-03-14", status: "active", ...over,
+    });
+    const vehicles = [
+      veh(),
+      veh({ _id: "v2", plateNumber: "55901", plateCode: "Q", plateEmirate: "Sharjah", chassisNo: "JN8AY2NE9L9100233", make: "Nissan", model: "Patrol", variant: "LE", year: 2020, colour: "Grey", customerName: "Gulf Fresh Foods", odometer: 112380 }),
+      veh({ _id: "v3", plateNumber: "7782", plateCode: "D", plateEmirate: "Abu Dhabi", chassisNo: "JMYLYV98W8J000911", make: "Mitsubishi", model: "Pajero", variant: "GLS", year: 2018, colour: "Silver", customerName: "Noor Supermarket", odometer: 168900, status: "inactive" }),
+    ];
+    if (p.endsWith("/garage/vehicles/catalogue")) return { makes: ["Toyota", "Nissan", "Mitsubishi"], models: ["Land Cruiser", "Patrol", "Pajero"] };
+    if (p.includes("/garage/vehicles/") && p.endsWith("/activity")) return [
+      { _id: "ga1", action: "VEHICLE_UPDATED", summary: "Odometer read 84,500 km", byName: "Imran Qureshi", createdAt: "2026-11-05T07:20:00.000Z" },
+      { _id: "ga2", action: "VEHICLE_CREATED", summary: "Added to the vehicle master", byName: "Imran Qureshi", createdAt: "2026-09-02T06:05:00.000Z" },
+    ];
+    if (p.includes("/garage/vehicles/") && p.endsWith("/jobs")) return [
+      { _id: "j4", jobNo: "JC-2026-0004", status: "CLOSED", receivedAt: "2026-08-12T04:00:00.000Z", promisedAt: "2026-08-14T04:00:00.000Z", estimate: { total: 1840.5 }, invoiceStatus: "INVOICED" },
+    ];
+    if (p.endsWith("/garage/vehicles")) return vehicles;
+    if (p.includes("/garage/vehicles/")) return veh();
+
+    // A board card is exactly what utils/garage.js board() builds (jobCardId..invoiceStatus + dueState):
+    // doneTasks/taskCount/total/bay/invoiceStatus are the fields the card face draws, now with
+    // plateCode/plateEmirate too (G7) - plate is the number alone, like the vehicle fixtures above.
+    const bcard = (over = {}) => ({
+      jobCardId: "j1", jobNo: "JC-2026-0001", status: "IN_PROGRESS", jobType: "retail",
+      plate: "12345", plateCode: "A", plateEmirate: "Dubai", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC",
+      taskId: "t2", taskName: "Brake overhaul", taskStatus: "IN_PROGRESS",
+      openTasks: 2, taskCount: 5, doneTasks: 3, who: "Imran Qureshi", assigneeId: "me",
+      bay: "Bay 2", due: "2026-11-07", total: 3480.75, invoiceStatus: "NONE",
+      dueState: "overdue", receivedAt: "2026-10-28T05:00:00.000Z", daysIn: 11, ...over,
+    });
+    const b2 = bcard({ jobCardId: "j2", jobNo: "JC-2026-0002", plate: "Q 55901", vehicle: "Nissan Patrol", customer: "Gulf Fresh Foods", taskId: "t7", taskName: "Air-con service", taskStatus: "READY", openTasks: 1, taskCount: 3, doneTasks: 2, who: "Mohammed Rafi", assigneeId: "st2", bay: "Bay 1", due: "2026-11-08", total: 1290, dueState: "today", daysIn: 3 });
+    const b3 = bcard({ jobCardId: "j3", jobNo: "JC-2026-0003", status: "AWAITING_APPROVAL", jobType: "insurance", plate: "D 7782", vehicle: "Mitsubishi Pajero", customer: "Noor Supermarket", taskId: null, taskName: null, taskStatus: null, openTasks: 0, taskCount: 4, doneTasks: 0, who: "", assigneeId: null, bay: "", due: "2026-11-09", total: 7620.4, dueState: "tomorrow", daysIn: 1 });
+    const b4 = bcard({ jobCardId: "j4", jobNo: "JC-2026-0004", status: "READY", plate: "A 99120", vehicle: "Toyota Hiace", customer: "Bright Smile Clinic", taskId: null, taskName: null, taskStatus: null, openTasks: 0, taskCount: 6, doneTasks: 6, who: "", assigneeId: null, bay: "Bay 4", due: "2026-11-10", total: 2140, dueState: "later", invoiceStatus: "DRAFT", daysIn: 6 });
+    const b5 = bcard({ jobCardId: "j5", jobNo: "JC-2026-0005", status: "DELIVERED", plate: "S 3301", vehicle: "Nissan Urvan", customer: "Al Noor Foods Trading", taskId: null, taskName: null, taskStatus: null, openTasks: 0, taskCount: 2, doneTasks: 2, who: "", assigneeId: null, bay: "", due: "2026-11-04", total: 965.25, dueState: "overdue", invoiceStatus: "NONE", daysIn: 14 });
+    if (p.endsWith("/garage/job-cards/assignees") || p.endsWith("/garage/job-cards/staff")) return [{ id: "me", name: "Imran Qureshi" }, { id: "st2", name: "Mohammed Rafi" }];
+    if (p.endsWith("/garage/job-cards/comeback-candidates")) return [];
+    if (p.endsWith("/garage/job-cards/committed")) return {};
+    if (p.endsWith("/garage/job-cards/board")) {
+      return {
+        counts: { jobs: 5, awaitingApproval: 1, inProgress: 2, ready: 1, deliveredNotInvoiced: 1, notStarted: 0, overdue: 2, dueToday: 1, dueTomorrow: 1, doneToday: 3 },
+        columns: [
+          { name: "Waiting for approval", order: 0, cards: [b3] },
+          { name: "Brake overhaul", order: 11, cards: [bcard()] },
+          { name: "Air-con service", order: 21, cards: [b2] },
+          { name: "Ready for collection", order: 997, cards: [b4] },
+          { name: "Delivered, not invoiced", order: 998, cards: [b5] },
+        ],
+        overdue: [bcard(), b5], dueToday: [b2], dueTomorrow: [b3],
+        mine: [bcard()],
+      };
+    }
+
+    const row = (over = {}) => ({
+      _id: "j1", jobNo: "JC-2026-0001", status: "IN_PROGRESS", jobType: "retail",
+      vehicle: { plateNumber: "A 12345", plateCode: "A", plateEmirate: "Dubai", chassisNo: "JTEBU29J500123456", make: "Toyota", model: "Land Cruiser", year: 2021, colour: "White" },
+      customer: { name: "Al Manara Transport LLC", phone: "+971 50 123 4567" },
+      // The register now stamps its own age-in-workshop band server-side (jobCardService.js list()) -
+      // this stub stands in for the server, so it carries the field by hand: daysIn/ageBand matching
+      // receivedAt below, the same bands the board's cards use.
+      receivedAt: "2026-10-28T05:00:00.000Z", daysIn: 11, ageBand: "b10_14", promisedAt: "2026-11-07T09:00:00.000Z",
+      odometerIn: 84500, invoiceStatus: "NONE", estimate: { total: 3480.75, version: 2 }, ...over,
+    });
+    if (p.endsWith("/garage/job-cards")) return [
+      row(),
+      row({ _id: "j2", jobNo: "JC-2026-0002", vehicle: { plateNumber: "Q 55901", plateEmirate: "Sharjah", chassisNo: "JN8AY2NE9L9100233", make: "Nissan", model: "Patrol" }, customer: { name: "Gulf Fresh Foods" }, promisedAt: "2026-11-08T09:00:00.000Z", estimate: { total: 1290 } }),
+      row({ _id: "j3", jobNo: "JC-2026-0003", status: "AWAITING_APPROVAL", jobType: "insurance", vehicle: { plateNumber: "D 7782", plateEmirate: "Abu Dhabi", chassisNo: "JMYLYV98W8J000911", make: "Mitsubishi", model: "Pajero" }, customer: { name: "Noor Supermarket" }, promisedAt: "2026-11-09T09:00:00.000Z", estimate: { total: 7620.4 } }),
+      row({ _id: "j4", jobNo: "JC-2026-0004", status: "READY", invoiceStatus: "DRAFT", vehicle: { plateNumber: "A 99120", plateEmirate: "Dubai", chassisNo: "JTFST22P1K0034112", make: "Toyota", model: "Hiace" }, customer: { name: "Bright Smile Clinic" }, promisedAt: "2026-11-10T09:00:00.000Z", estimate: { total: 2140 } }),
+      row({ _id: "j5", jobNo: "JC-2026-0005", status: "DELIVERED", vehicle: { plateNumber: "S 3301", plateEmirate: "Sharjah", chassisNo: "JN6DE07Y4LX000777", make: "Nissan", model: "Urvan" }, customer: { name: "Al Noor Foods Trading" }, promisedAt: "2026-11-04T09:00:00.000Z", estimate: { total: 965.25 } }),
+    ];
+    if (p.includes("/garage/job-cards/") && p.endsWith("/shortages")) return [
+      { itemId: "s1", itemName: "Brake disc, front (pair)", short: 2, onHand: 0, vendorId: "ven1", vendorName: "Emirates Auto Parts" },
+      { itemId: "s2", itemName: "Brake pad set, ceramic", short: 1, onHand: 3, vendorId: "ven1", vendorName: "Emirates Auto Parts" },
+    ];
+    if (p.includes("/garage/job-cards/") && p.endsWith("/activity")) return [
+      { _id: "a1", action: "JOB_TASK_DONE", summary: "Diagnosis completed, 1.5 h", byName: "Imran Qureshi", createdAt: "2026-11-02T11:40:00.000Z" },
+      { _id: "a2", action: "JOB_APPROVAL_RECORDED", summary: "Customer approved 3 of 4 jobs by WhatsApp", byName: "Sara Hassan", createdAt: "2026-10-30T08:15:00.000Z" },
+      { _id: "a3", action: "JOB_ESTIMATE_SENT", summary: "Estimate v1 sent, AED 3,180.00", byName: "Sara Hassan", createdAt: "2026-10-29T06:02:00.000Z" },
+      { _id: "a4", action: "JOB_CARD_CREATED", summary: "Vehicle checked in at 84,500 km", byName: "Sara Hassan", createdAt: "2026-10-28T05:00:00.000Z" },
+    ];
+
+    // One job card in full, as JobCardService.present() returns it: totals, per-line lineTotal, the nine
+    // `actions` booleans and per-task actions. IN_PROGRESS is the status with the MOST actions true at once
+    // (six), so this is the fixture that measures the action row at its widest.
+    if (p.includes("/garage/job-cards/")) {
+      const line = (o) => ({ _id: "l1", kind: "part", itemId: "i1", itemCode: "BRK-DISC-F", description: "Brake disc, front (pair)", qty: 1, price: 820, discountPercent: 0, vatPercent: 5, vatAmount: 41, taxableAmount: 820, lineTotal: 861, approved: true, invoiced: false, addedInVersion: 1, ...o });
+      return {
+        ...row(),
+        complaints: [
+          { _id: "cm1", seq: 1, concern: "Grinding noise from the front when braking", cause: "Front discs scored past service limit", correction: "Replace discs and pads, machine rear", status: "DIAGNOSED" },
+          { _id: "cm2", seq: 2, concern: "Air-con not cold on the passenger side", cause: "Blend door actuator", correction: "Replace actuator and re-gas", status: "OPEN" },
+          { _id: "cm3", seq: 3, concern: "Pulls left above 80 km/h", cause: "", correction: "", status: "OPEN" },
+        ],
+        lines: [
+          line(),
+          line({ _id: "l2", itemCode: "BRK-PAD-C", description: "Brake pad set, ceramic", qty: 1, price: 410, vatAmount: 20.5, taxableAmount: 410, lineTotal: 430.5 }),
+          line({ _id: "l3", kind: "labour", itemCode: "LAB-BRK", description: "Brake overhaul, front and rear", qty: 3.5, price: 180, vatAmount: 31.5, taxableAmount: 630, lineTotal: 661.5 }),
+          line({ _id: "l4", kind: "sublet", itemCode: "SUB-MACH", description: "Machine rear discs", qty: 1, price: 150, vatAmount: 7.5, taxableAmount: 150, lineTotal: 157.5, vendorId: "ven2", vendorName: "Precision Machining" }),
+          line({ _id: "l5", kind: "labour", itemCode: "LAB-AC", description: "Air-con actuator and re-gas", qty: 2, price: 180, vatAmount: 18, taxableAmount: 360, lineTotal: 378, approved: false, addedInVersion: 2 }),
+          line({ _id: "l6", kind: "consumable", itemCode: "CON-CLEAN", description: "Brake cleaner and shop supplies", qty: 1, price: 45, vatAmount: 2.25, taxableAmount: 45, lineTotal: 47.25 }),
+        ],
+        totals: { part: 1230, labour: 630, sublet: 150, consumable: 45, net: 2055, vat: 102.75, total: 2157.75 },
+        tasks: [
+          { _id: "t1", seq: 1, stage: 1, name: "Diagnosis", mode: "in_house", staffId: "st1", staffName: "Imran Qureshi", assigneeId: "me", bayName: "Bay 2", standardHours: 1, actualHours: 1.5, status: "DONE", doneAt: "2026-11-02T11:40:00.000Z", actions: { start: false, complete: false } },
+          { _id: "t2", seq: 2, stage: 2, name: "Brake overhaul", mode: "in_house", staffId: "st1", staffName: "Imran Qureshi", assigneeId: "me", bayName: "Bay 2", standardHours: 3.5, status: "IN_PROGRESS", startedAt: "2026-11-05T05:30:00.000Z", actions: { start: false, complete: true } },
+          { _id: "t3", seq: 3, stage: 2, name: "Machine rear discs", mode: "sublet", vendorId: "ven2", vendorName: "Precision Machining", status: "READY", actions: { start: true, complete: true } },
+          { _id: "t4", seq: 4, stage: 3, name: "Road test", mode: "in_house", staffName: "Mohammed Rafi", assigneeId: "st2", standardHours: 0.5, status: "WAITING", actions: { start: false, complete: false } },
+          { _id: "t5", seq: 5, stage: 3, name: "Wash and valet", mode: "in_house", staffName: "", bayName: "Bay 5", standardHours: 0.5, status: "WAITING", actions: { start: false, complete: false } },
+        ],
+        checkIn: {
+          itemsPresent: ["Spare wheel", "Jack and tools", "Floor mats", "Registration card"],
+          damagePoints: [
+            { panel: "Front bumper", kind: "scratch", notes: "Near-side corner, about 120 mm" },
+            { panel: "Driver door", kind: "dent", notes: "Below the handle" },
+            { panel: "Windscreen", kind: "chip", notes: "" },
+          ],
+          photos: ["att1", "att2"], notes: "Fuel at half. Customer keeping the roof box.",
+        },
+        estimateHistory: [{ version: 1, sentAt: "2026-10-29T06:02:00.000Z", decidedAt: "2026-10-30T08:15:00.000Z", method: "whatsapp", total: 3180 }],
+        estimate: { version: 2, sentAt: "2026-11-03T07:10:00.000Z", decidedAt: null, method: "whatsapp", reference: "", total: 3480.75 },
+        purchaseOrders: [{ tradeOrderId: "po1", no: "PORD-2026-0044", vendorId: "ven1", vendorName: "Emirates Auto Parts", amount: 1230 }],
+        invoices: [],
+        delivery: {}, warranty: { months: 6, kilometres: 10000 },
+        notes: "Customer asked to be rung before any extra work.",
+        actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: true, reviseEstimate: true, createInvoice: true, release: true, cancel: true },
+      };
+    }
+
+    const claim = (over = {}) => ({
+      _id: "cl1", claimNo: "CLM-2026-0001", status: "SURVEYED",
+      insurerId: "ins1", insurer: { name: "Orient Insurance" }, insurerClaimNo: "OI/2026/88120",
+      policyNo: "POL-7741-2026", policyHolder: "Noor Supermarket",
+      jobCardId: "j3", jobNo: "JC-2026-0003", vehicleId: "v3",
+      accidentDate: "2026-10-21", reportedDate: "2026-10-22", policeReportNo: "PR-553/2026",
+      submittedAt: "2026-10-23T06:00:00.000Z",
+      survey: { surveyorName: "Khalid Abbas", company: "Gulf Surveyors", visitedAt: "2026-10-26T07:30:00.000Z", notes: "Near-side front quarter, panel beating and paint.", photos: [] },
+      approval: { lpoNo: "", approvedAt: null, approvedAmount: 0, note: "" },
+      deductions: { excess: 500, partsDepreciationPct: 15, depreciablePartsAmount: 2400 },
+      split: { insurerAmount: 0, customerAmount: 0 }, invoices: [], ...over,
+    });
+    const claims = [
+      claim(),
+      claim({ _id: "cl2", claimNo: "CLM-2026-0002", status: "APPROVED", insurer: { name: "Oman Insurance" }, policyNo: "POL-2290-2026", jobCardId: "j6", jobNo: "JC-2026-0006", accidentDate: "2026-09-30", submittedAt: "2026-10-02T06:00:00.000Z", approval: { lpoNo: "LPO-44821", approvedAt: "2026-10-18T09:00:00.000Z", approvedAmount: 6400, note: "" }, split: { insurerAmount: 5540, customerAmount: 1180 } }),
+      claim({ _id: "cl3", claimNo: "CLM-2026-0003", status: "SUBMITTED", insurer: { name: "AXA Gulf" }, policyNo: "POL-6610-2025", jobCardId: "j7", jobNo: "JC-2026-0007", accidentDate: "2026-10-05", submittedAt: "2026-10-06T06:00:00.000Z", survey: {}, deductions: { excess: 350, partsDepreciationPct: 0, depreciablePartsAmount: 0 } }),
+    ];
+    // The ageing buckets as utils/insuranceClaims.js claimAgeing builds them, with the widened row (an id
+    // to click through on, the job it belongs to, and the money at stake) and a per-bucket count/total.
+    if (p.endsWith("/garage/claims/ageing")) {
+      const ag = (o) => ({ claimId: "cl1", claimNo: "CLM-2026-0001", insurer: "Orient Insurance", status: "SURVEYED", jobCardId: "j3", jobNo: "JC-2026-0003", days: 16, amount: 7620.4, ...o });
+      return {
+        buckets: {
+          "0-7": { count: 1, total: 4120, rows: [ag({ claimId: "cl4", claimNo: "CLM-2026-0004", insurer: "Dubai Insurance", status: "SUBMITTED", jobNo: "JC-2026-0008", days: 4, amount: 4120 })] },
+          "8-14": { count: 1, total: 3290.5, rows: [ag({ claimId: "cl3", claimNo: "CLM-2026-0003", insurer: "AXA Gulf", status: "SUBMITTED", jobNo: "JC-2026-0007", days: 12, amount: 3290.5 })] },
+          "15-30": { count: 1, total: 7620.4, rows: [ag()] },
+          "30+": { count: 1, total: 6400, rows: [ag({ claimId: "cl2", claimNo: "CLM-2026-0002", insurer: "Oman Insurance", status: "APPROVED", jobNo: "JC-2026-0006", days: 37, amount: 6400 })] },
+        },
+        total: 21430.9, count: 4,
+      };
+    }
+    if (p.includes("/garage/claims/") && p.endsWith("/activity")) return [
+      { _id: "ca1", action: "CLAIM_SURVEYED", summary: "Surveyor visited, report received", byName: "Sara Hassan", createdAt: "2026-10-26T07:30:00.000Z" },
+      { _id: "ca2", action: "CLAIM_SUBMITTED", summary: "Submitted to Orient Insurance", byName: "Sara Hassan", createdAt: "2026-10-23T06:00:00.000Z" },
+    ];
+    if (p.endsWith("/garage/claims")) return claims;
+    if (p.includes("/garage/claims/")) return claim();
+    if (p.endsWith("/garage/bays")) return [
+      { _id: "by1", name: "Bay 1", code: "B1", kind: "mechanical", active: true },
+      { _id: "by2", name: "Bay 2", code: "B2", kind: "mechanical", active: true },
+      { _id: "by3", name: "Paint booth", code: "PB", kind: "paint", active: true },
+      { _id: "by4", name: "Wash bay", code: "WB", kind: "wash", active: false },
+    ];
+    if (p.endsWith("/garage/services")) return [
+      { _id: "gs1", code: "SVC-MINOR", name: "Minor service (oil and filters)", category: "Servicing", serviceItemId: "si1", standardHours: 1.5, defaultParts: [{ stockId: "i9", qty: 1 }], defaultTasks: [{ name: "Minor service", mode: "in_house", standardHours: 1.5 }], active: true },
+      { _id: "gs2", code: "SVC-MAJOR", name: "Major service (40,000 km)", category: "Servicing", serviceItemId: "si2", standardHours: 4, defaultParts: [], defaultTasks: [], active: true },
+      { _id: "gs3", code: "SVC-BRAKE", name: "Brake overhaul, front and rear", category: "Brakes", serviceItemId: "si3", standardHours: 3.5, defaultParts: [], defaultTasks: [], active: true },
+    ];
+    if (p.endsWith("/garage/services/plan")) return { lines: [], tasks: [] };
+    if (p.endsWith("/garage/customers")) return n(party);
+    if (p.endsWith("/garage/vendors")) return n(party);
   }
 
   // Everything else is a list, and a list comes back as an array.

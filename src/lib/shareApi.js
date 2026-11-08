@@ -37,3 +37,27 @@ export function markViewed(token) {
     fetch(url(token, "/viewed"), { method: "POST", credentials: "omit", keepalive: true }).catch(() => {});
   } catch { /* nothing to do */ }
 }
+
+// The one thing a customer can WRITE: their decision on an estimate. Unlike markViewed this is not
+// fire-and-forget - the screen has to know whether it worked, so this one is awaited and throws the
+// same ShareError the read does (LINE_NOT_ON_ESTIMATE, NAME_REQUIRED, NOTHING_APPROVED and the usual
+// SHARE_* codes all travel the same way).
+export async function postEstimateDecision(token, body) {
+  let res;
+  try {
+    res = await fetch(url(token, "/estimate-decision"), {
+      method: "POST", credentials: "omit",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ShareError("OFFLINE");
+  }
+  const payload = await res.json().catch(() => null);
+  if (res.ok && payload?.data) return payload.data;
+  throw new ShareError(payload?.errorCode || "ERROR", { company: payload?.details?.company || null, status: res.status, message: payload?.message });
+}
+
+// An inspection photo on the estimate. Not fetched by hand: handed to an <img src> exactly like the
+// authenticated attachment routes are, so the browser's own cache and retry apply.
+export const sharePhotoUrl = (token, attachmentId) => url(token, `/photo/${encodeURIComponent(attachmentId)}`);

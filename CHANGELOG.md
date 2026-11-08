@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.6.0.0 — 8 November 2026
+
+The garage module: the customer can now approve an estimate themselves, and every screen in the
+module has had a design pass. Frontend and backend both at 2.6.0.0.
+
+### Added
+
+- **A customer approves the estimate from the link they are sent.** `sendEstimate` used to only flip
+  a status - nothing left the building, so an advisor rang the customer and typed the answer back in,
+  and the car sat in a bay while that happened. The estimate is now a sendable document with its own
+  public page: the customer sees what was found, with photographs, and taps Approve or Decline per
+  line. "Send estimate" opens the real send dialog instead of only changing a status.
+- **A technician's inspection**, each finding a traffic-light condition with a note and photographs -
+  what turns "you need new front pads" into a picture of worn front pads on the customer's phone.
+- **Claims ageing** reads as a report: one chart comparing where the money is stuck, and one list of
+  claims oldest first, in place of four nested panels that ate a screen to show four numbers.
+- **Status chips with counts that double as filters** on the board, built from the cards actually on
+  screen so a chip can never offer a state that filters to nothing.
+- The job card is a routed page with tabs rather than a 773-line modal, and the module has its first
+  `check:mobile` coverage - before this, five of its six pages were being screenshotted against junk.
+
+### Fixed
+
+- **A money label was cut off mid-number** on Reports ("AED 184,500.0"): the chart leaves 56px past a
+  bar for its figure and the panel was asking for the full currency there, and on every axis tick.
+- **"Revenue by stream" led with near-black.** Labour - the second bar - was painted `var(--chart-1)`,
+  which is ink. The CRM already encodes the rule (teal first, ink last); the garage now does too.
+- **Every technician bar was the same black**, so nobody could be told apart: the rows named no colour
+  at all and the chart falls back to ink. Each person takes their own hue now.
+- The Estimate column printed a bare "3480.75" where the same figure reads "AED 3,480.75" everywhere
+  else, and an age pill said "Under 5 days" on every fresh row beside a date that already said so.
+- A race in the inspection photo uploader: two uploads at once could lose a photo, and removing one
+  while another was uploading could bring the removed one back.
+
+
 ## 2.5.0.1 — 8 November 2026
 
 A follow-up to 2.5.0.0: the copy handed to the customer said the same thing three times. Frontend

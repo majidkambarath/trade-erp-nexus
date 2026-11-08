@@ -146,6 +146,15 @@ describe("a link that cannot be shown", () => {
   });
 });
 
+describe("a job-card estimate is not forced through the sheet builder", () => {
+  it("routes to the estimate approval screen instead", async () => {
+    vi.stubGlobal("fetch", reply(200, { success: true, data: { kind: "job_estimate", currency: "AED", job: { jobNo: "JC-2026-0001", status: "AWAITING_APPROVAL", lines: [], complaints: [], inspection: [], vehicle: {} }, totals: { total: 0 }, party: {}, company: { companyName: "Harbour Garage" } } }));
+    open();
+    expect(await screen.findByText(/Estimate for job JC-2026-0001/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /download pdf/i })).toBeNull();
+  });
+});
+
 describe("the sheet is built from the frozen copy", () => {
   it("is the same sheet the signed-in screen builds, with only the customer copy", () => {
     const built = buildFromShare(SNAPSHOT);
