@@ -64,6 +64,9 @@ export const CLAIM_STATUS = {
 // dashboard's age scale applies here word for word: this is how worried to be, not merely how long.
 export const AGE_BAND_LABEL = { u5: "Under 5 days", b5_9: "5-9 days", b10_14: "10-14 days", o15: "15+ days" };
 export const AGE_BAND_TONE = { u5: "neutral", b5_9: "info", b10_14: "warning", o15: "danger" };
+// The same bands as a chart colour, for the Work in progress report - the exact pattern
+// CLAIM_AGE_BUCKET_COLOR already set for claims (age IS a state, the older the money the hotter the bar).
+export const AGE_BAND_COLOR = { u5: "var(--muted-foreground)", b5_9: "var(--status-info)", b10_14: "var(--status-warning)", o15: "var(--status-danger)" };
 
 // Chart colours are assigned in a FIXED order and never cycled, and --chart-1 (ink, near-black) comes
 // LAST - so the first thing in a chart is never the heaviest thing on the page. This is the CRM's own
@@ -140,6 +143,21 @@ export function defaultJobTab(status) {
   if (status === "READY" || status === "DELIVERED" || status === "CLOSED") return "money";
   return "job";
 }
+
+// The Reports screen's seven named answers (trade ERP node/services/garage/garageReportService.js), one
+// route (/garage/reports) with PillTabs over it - the shape CrmReports.jsx already proved for seven
+// reports. Two are "as at today" (the server reads live job cards / the vehicle master, no period
+// applies): asking what a car's history looked like last month is not a question anybody can act on.
+export const REPORT_TABS = [
+  ["overview", "Overview"],
+  ["wip", "Work in progress"],
+  ["profit", "Profit"],
+  ["people", "People & bays"],
+  ["customers", "Customers"],
+  ["vehicles", "Vehicles"],
+  ["insurers", "Insurers"],
+];
+export const PERIODLESS_REPORTS = new Set(["wip", "vehicles"]);
 
 // One label and one permission per job-card action, read by both the primary button and the overflow
 // menu - so the two can never show different words for the same action.

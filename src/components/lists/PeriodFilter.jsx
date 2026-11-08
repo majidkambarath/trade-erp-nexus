@@ -19,18 +19,21 @@ const SELECT_BARE =
 /**
  * @param labelled  draw a visible label above each control (the finance and quotation toolbars do); the order pages' toolbars
  *                  have none, so their controls carry an aria-label instead
+ * @param disabled  drawn but inert, never hidden - a report that ignores the period (Garage's Work in progress
+ *                  and Vehicles, the CRM's Pipeline and Aging) says so by disabling the control rather than
+ *                  making the toolbar jump about by removing it. The custom date row never appears while disabled.
  */
-export function PeriodSelect({ filter, labelled = false, className, selectClassName }) {
+export function PeriodSelect({ filter, labelled = false, className, selectClassName, disabled = false }) {
   const options = LIST_PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>);
-  const custom = filter.preset === "custom";
+  const custom = filter.preset === "custom" && !disabled;
   return (
     <div className="contents">
       {labelled ? (
         <Field label="Period" className={cn("w-full sm:w-44", className)}>
-          <select className={inputClass} value={filter.preset} onChange={(e) => filter.choose(e.target.value)}>{options}</select>
+          <select className={inputClass} value={filter.preset} onChange={(e) => filter.choose(e.target.value)} disabled={disabled}>{options}</select>
         </Field>
       ) : (
-        <select aria-label="Period" value={filter.preset} onChange={(e) => filter.choose(e.target.value)} className={cn(SELECT_BARE, selectClassName)}>
+        <select aria-label="Period" value={filter.preset} onChange={(e) => filter.choose(e.target.value)} disabled={disabled} className={cn(SELECT_BARE, selectClassName)}>
           {options}
         </select>
       )}

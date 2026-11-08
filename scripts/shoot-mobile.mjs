@@ -364,6 +364,15 @@ const DEEP = {
   ],
   "garage-claims": [{ name: "claims", page: true, clicks: [], settle: 1000 }],
   "garage-setup": [{ name: "setup", page: true, clicks: [], settle: 1000 }],
+  // Seven tabs, one route: each step is its own click from the page's initial load (PillTabs draws all
+  // Seven tabs, one route - the same crm-reports precedent below (one step, nothing more): a `clicks`
+  // step is measured by measureDialog, which expects a DIALOG to open (role="dialog") and reports a plain
+  // tab switch as BLANK (o.opened: false) however much text is really on screen - that is what the
+  // "blank six times out of six" comment above is recording, caught the same way here. The sweep's own
+  // automatic pass over every [role="tab"] after the DEEP steps (further down this file) covers all seven
+  // tabs correctly on its own; a manual click step here would only duplicate it and misreport every time.
+  // No "reports" alias is added here - /crm/reports already owns that bare name (see the note below).
+  "garage-reports": [{ name: "reports", page: true, clicks: [], settle: 1200 }],
 };
 // a single-page run (`npm run check:mobile -- /bank-reconciliation`) names the page after its path
 DEEP["banks"] = DEEP["accounts-banks"]; // check:mobile -- /banks
@@ -2448,6 +2457,107 @@ function stubFor(pathname, search = "") {
         { jobCardId: "j6", jobNo: "JC-2026-0006", plate: "A 12345", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC", deliveredAt: "2026-10-28T10:00:00.000Z", total: 3480.75, hoursSold: 6, hoursTaken: 5.5, onTime: true, comeback: true },
         { jobCardId: "j7", jobNo: "JC-2026-0007", plate: "Q 55901", vehicle: "Nissan Patrol", customer: "Gulf Fresh Foods", deliveredAt: "2026-10-22T10:00:00.000Z", total: 1290, hoursSold: 2.5, hoursTaken: 2.5, onTime: true, comeback: false },
       ],
+    };
+  }
+  // The Reports screen's seven tabs (garageReportService.js) - each its own endpoint now, read above the
+  // generic rules for the same reason the old analysis stub is: a path containing "card"/"claim" falls
+  // through to an unrelated rule otherwise, and an empty object/array cannot overflow, which is how five
+  // of six garage pages went unmeasured for months before the analysis stub above was added.
+  if (p.endsWith("/garage/reports/overview")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      jobs: {
+        delivered: 38, revenue: { part: 184500, labour: 96200, sublet: 18400, consumable: 7300, total: 306400 },
+        avgInvoice: 8063.16, avgTurnaroundHours: 26.4, withPromise: 34, onTime: 29, onTimePct: 85.3,
+        comebacks: 2, comebackPct: 5.3, hoursSold: 412.5, hoursTaken: 389.25, efficiencyPct: 106,
+        avgHoursPerJob: 10.9, effectiveLabourRate: 247.14,
+      },
+      people: [
+        { key: "st1", label: "Imran Qureshi", done: 14, hoursSold: 162.5, hoursTaken: 148.75, efficiencyPct: 109.2, waitHours: 1.8 },
+        { key: "st2", label: "Mohammed Rafi", done: 11, hoursSold: 121, hoursTaken: 118.5, efficiencyPct: 102.1, waitHours: 2.4 },
+      ],
+      jobRows: [
+        { jobCardId: "j5", jobNo: "JC-2026-0005", plate: "S 3301", vehicle: "Nissan Urvan", customer: "Al Noor Foods Trading", deliveredAt: "2026-10-30T10:00:00.000Z", total: 965.25, hoursSold: 4, hoursTaken: 3.5, onTime: false, comeback: false },
+        { jobCardId: "j6", jobNo: "JC-2026-0006", plate: "A 12345", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC", deliveredAt: "2026-10-28T10:00:00.000Z", total: 3480.75, hoursSold: 6, hoursTaken: 5.5, onTime: true, comeback: true },
+      ],
+      invoiced: { total: 298400, gapFromEstimate: 8000 },
+      previous: { period: { from: "2026-09-01", to: "2026-09-30" }, jobs: { revenue: { total: 270000 }, delivered: 32, efficiencyPct: 98 } },
+      trend: { revenue: { value: 306400, previous: 270000, changePct: 13.5 }, delivered: { value: 38, previous: 32, changePct: 18.8 }, efficiencyPct: { value: 106, previous: 98, changePct: 8.2 } },
+      capped: false,
+    };
+  }
+  if (p.endsWith("/garage/reports/wip")) {
+    return {
+      asAt: "2026-11-09",
+      value: { estimated: 48200, approvedNotBilled: 21300, deliveredNotInvoiced: { count: 2, value: 9600 }, owed: 4200 },
+      byStage: [
+        { status: "AWAITING_APPROVAL", count: 3, value: 12400 }, { status: "IN_PROGRESS", count: 6, value: 24200 },
+        { status: "READY", count: 2, value: 8900 }, { status: "DELIVERED", count: 2, value: 9600 },
+      ],
+      byAge: [{ band: "u5", count: 7, value: 29000 }, { band: "b5_9", count: 4, value: 15200 }, { band: "b10_14", count: 1, value: 3400 }, { band: "o15", count: 1, value: 700 }],
+      onHold: [{ jobCardId: "j9", jobNo: "JC-2026-0009", taskName: "Paint - front bumper", holdReason: "Waiting for a part", daysIn: 6 }],
+      rows: [
+        { jobCardId: "j9", jobNo: "JC-2026-0009", status: "IN_PROGRESS", jobType: "insurance", plate: "A 90321", vehicle: "Toyota Hilux", customer: "Al Manara Transport LLC", daysIn: 6, ageBand: "b5_9", value: 15200, owed: 0, invoiceStatus: "NONE" },
+        { jobCardId: "j10", jobNo: "JC-2026-0010", status: "DELIVERED", jobType: "retail", plate: "Q 55901", vehicle: "Nissan Patrol", customer: "Gulf Fresh Foods", daysIn: 2, ageBand: "u5", value: 9600, owed: 4200, invoiceStatus: "DRAFT" },
+      ],
+    };
+  }
+  if (p.endsWith("/garage/reports/profit")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      revenue: { part: 184500, labour: 96200, sublet: 18400, consumable: 7300, total: 306400 },
+      cost: { parts: 118400, labour: 61300, sublet: null, basis: "current average cost for parts; the organisation's own labour rates for labour" },
+      margin: { parts: 73400, labour: 34900, total: 108300, marginPct: 35.3 },
+      uncostedLabourHours: 12.5,
+      streams: [
+        { kind: "part", label: "Parts", revenue: 184500, cost: 103400, margin: 81100, basis: "current average cost" },
+        { kind: "labour", label: "Labour", revenue: 96200, cost: 61300, basis: "12.5 h with no contract rate not included in cost", margin: 34900 },
+        { kind: "sublet", label: "Sublet", revenue: 18400, cost: null, margin: null, basis: "not costed - no vendor cost is stored on a sublet line" },
+        { kind: "consumable", label: "Consumables", revenue: 7300, cost: 15000, margin: -7700, basis: "current average cost" },
+      ],
+      capped: false,
+    };
+  }
+  if (p.endsWith("/garage/reports/people")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      people: [
+        { key: "st1", label: "Imran Qureshi", done: 14, hoursSold: 162.5, hoursTaken: 148.75, efficiencyPct: 109.2, waitHours: 1.8 },
+        { key: "st2", label: "Mohammed Rafi", done: 11, hoursSold: 121, hoursTaken: 118.5, efficiencyPct: 102.1, waitHours: 2.4 },
+      ],
+      bays: [
+        { bayId: "b1", name: "Ramp 1", kind: "mechanical", jobsDone: 18, hoursSold: 210, hoursTaken: 198, efficiencyPct: 106 },
+        { bayId: "b2", name: "Paint booth", kind: "paint", jobsDone: 6, hoursSold: 80, hoursTaken: 92, efficiencyPct: 87 },
+      ],
+    };
+  }
+  if (p.endsWith("/garage/reports/customers")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      rows: [
+        { customerId: "cu1", name: "Al Manara Transport LLC", jobs: 4, estimated: 18200, invoiced: 17400, avgInvoice: 4350, repeat: true, first: "2026-10-02", last: "2026-10-28" },
+        { customerId: "cu2", name: "Gulf Fresh Foods", jobs: 1, estimated: 1290, invoiced: 1290, avgInvoice: 1290, repeat: false, first: "2026-10-22", last: "2026-10-22" },
+      ],
+      summary: { customers: 24, repeatCustomers: 9, repeatPct: 37.5, averageRepairOrder: 8063.16 },
+      capped: false,
+    };
+  }
+  if (p.endsWith("/garage/reports/vehicles")) {
+    return {
+      asAt: "2026-11-09",
+      fleet: { total: 46, active: 44, byMake: [{ make: "Toyota", count: 18 }, { make: "Nissan", count: 14 }, { make: "Mitsubishi", count: 9 }, { make: "Other", count: 5 }] },
+      registrationExpiring: [{ vehicleId: "v1", plate: "A 12345", customer: "Al Manara Transport LLC", day: "2026-11-20", daysLeft: 11, state: "soon" }],
+      policyExpiring: [{ vehicleId: "v2", plate: "Q 55901", customer: "Gulf Fresh Foods", insurer: "Orient Insurance", day: "2026-11-05", daysLeft: -4, state: "overdue" }],
+      serviceDue: [{ vehicleId: "v3", plate: "S 3301", customer: "Al Noor Foods Trading", dueDay: "2026-11-01", dueOdometer: null, odometer: 0, overdue: true }],
+      topVisited: [{ vehicleId: "v1", plate: "A 12345", make: "Toyota", model: "Land Cruiser", customer: "Al Manara Transport LLC", jobs: 6, value: 22400, lastVisit: "2026-10-28" }],
+    };
+  }
+  if (p.endsWith("/garage/reports/insurers")) {
+    return {
+      period: { from: "2026-10-01", to: "2026-10-31" },
+      rows: [{ insurerId: "ins1", insurer: "Orient Insurance", claims: 5, claimed: 42000, approved: 31000, shortfall: 11000, rejected: 1, rejectedPct: 20, rejectedValue: 6400, excess: 2500, depreciation: 1800, outstanding: 9200, avgDaysToDecide: 4.5 }],
+      totals: { claims: 5, claimed: 42000, approved: 31000, rejected: 1, outstanding: 9200 },
+      capped: false,
     };
   }
   // ---- Garage ------------------------------------------------------------------------------------------
