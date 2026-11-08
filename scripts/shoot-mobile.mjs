@@ -2441,6 +2441,13 @@ function stubFor(pathname, search = "") {
         { key: "st3", label: "Sunil Thomas", done: 9, hoursSold: 94, hoursTaken: 99.5, efficiencyPct: 94.5, waitHours: 3.1 },
         { key: "st4", label: "Arun Prasad", done: 4, hoursSold: 35, hoursTaken: 22.5, efficiencyPct: 155.6, waitHours: 0.9 },
       ],
+      // G6: one row per delivered job - just enough variety (late, a comeback, an ordinary one) to prove
+      // the panel and its Pills, not all 38.
+      jobRows: [
+        { jobCardId: "j5", jobNo: "JC-2026-0005", plate: "S 3301", vehicle: "Nissan Urvan", customer: "Al Noor Foods Trading", deliveredAt: "2026-10-30T10:00:00.000Z", total: 965.25, hoursSold: 4, hoursTaken: 3.5, onTime: false, comeback: false },
+        { jobCardId: "j6", jobNo: "JC-2026-0006", plate: "A 12345", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC", deliveredAt: "2026-10-28T10:00:00.000Z", total: 3480.75, hoursSold: 6, hoursTaken: 5.5, onTime: true, comeback: true },
+        { jobCardId: "j7", jobNo: "JC-2026-0007", plate: "Q 55901", vehicle: "Nissan Patrol", customer: "Gulf Fresh Foods", deliveredAt: "2026-10-22T10:00:00.000Z", total: 1290, hoursSold: 2.5, hoursTaken: 2.5, onTime: true, comeback: false },
+      ],
     };
   }
   // ---- Garage ------------------------------------------------------------------------------------------

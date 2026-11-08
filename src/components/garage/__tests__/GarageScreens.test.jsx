@@ -140,6 +140,10 @@ beforeEach(() => {
       avgHoursPerJob: 2, effectiveLabourRate: 100,
     },
     people: [{ key: "in_house:s1", label: "Raj", done: 2, hoursSold: 4, hoursTaken: 4, efficiencyPct: 100, waitHours: 1 }],
+    jobRows: [
+      { jobCardId: "j2", jobNo: "JC-2026-0002", plate: "B 22222", vehicle: "Nissan Patrol", customer: "Sara", deliveredAt: "2026-10-23T08:00:00.000Z", total: 100, hoursSold: 1, hoursTaken: 2, onTime: false, comeback: true },
+      { jobCardId: "j1", jobNo: "JC-2026-0001", plate: "A 11111", vehicle: "Toyota Hilux", customer: "Ali Hassan", deliveredAt: "2026-10-21T08:00:00.000Z", total: 700, hoursSold: 3, hoursTaken: 2, onTime: true, comeback: false },
+    ],
   });
   m.apiGet.mockResolvedValue({ stocks: [
     { _id: "p1", itemId: "PART-BRAKE", itemName: "Brake pads", itemType: "goods", salesPrice: 150 },
@@ -536,5 +540,21 @@ describe("reports", () => {
     expect(screen.getByText("Hours taken, by technician")).toBeInTheDocument();
     expect(screen.getByText("The shop's own figures")).toBeInTheDocument();
     expect(screen.getAllByText("Raj").length).toBeGreaterThan(0);
+  });
+
+  it("the per-job breakdown lists each delivered job, newest first, and links to it (G6)", async () => {
+    render_(<GarageReports />);
+    await waitFor(() => expect(m.jcAnalysis).toHaveBeenCalled());
+    const panel = await screen.findByText("Jobs delivered this period");
+    const rows = screen.getAllByRole("link", { name: /JC-2026-000/ });
+    expect(rows).toHaveLength(2);
+    // newest delivery first (J2, 23 Oct, before J1, 21 Oct) - the order jobRows is already sorted in.
+    expect(within(rows[0]).getByText("JC-2026-0002")).toBeInTheDocument();
+    expect(rows[0]).toHaveAttribute("href", "/garage/job-cards?open=j2");
+    expect(within(rows[0]).getByText("Late")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("Comeback")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("JC-2026-0001")).toBeInTheDocument();
+    expect(within(rows[1]).queryByText("Late")).not.toBeInTheDocument(); // onTime: true
+    expect(panel).toBeInTheDocument();
   });
 });

@@ -4,10 +4,11 @@ import { CountUp } from "../Dashborad/CountUp";
 import { RankedBars } from "../Dashborad/FlowCharts";
 import { useGarageReveal } from "./useGarageReveal";
 import { jobCards } from "../../lib/garageApi";
-import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, Pill, useAsync } from "../accounting/kit";
 import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
-import { formatCurrencyAED, formatNumber } from "../../utils/format";
+import { formatCurrencyAED, formatDate, formatNumber } from "../../utils/format";
+import { Link } from "react-router-dom";
 
 // Inventory > Garage > Reports: the workshop's own numbers over a period - revenue by stream (parts, labour,
 // sublet, consumable), technician efficiency (hours sold against hours taken, the trade's own definition),
@@ -34,6 +35,7 @@ export default function GarageReports() {
   if (report.error) return <ErrorNote error={report.error} onRetry={report.reload} />;
   const j = report.data?.jobs;
   const people = report.data?.people || [];
+  const jobRows = report.data?.jobRows || [];
   // A server that answers without `jobs` - an older build, or a period it has nothing for - must still leave
   // the page usable. This returned null, which is a blank window: no heading, no message and no period picker,
   // so there was no way to ask for another period. The five sibling garage pages all keep their shell.
@@ -128,6 +130,35 @@ export default function GarageReports() {
                   <span className="tabular-nums">{hrs(p.hoursSold)} sold</span>
                   <span className="tabular-nums">{hrs(p.hoursTaken)} taken</span>
                   <span className="tabular-nums text-muted-foreground">{pct(p.efficiencyPct)}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
+      )}
+
+      {/* G6: one row per delivered job, so a figure in the panels above can be traced to the job that
+          made it - clicking a row opens that job card, the same ?open= link the board and a vehicle's
+          history use. */}
+      {jobRows.length > 0 && (
+        <div data-reveal className="mt-6">
+          <Panel title="Jobs delivered this period" description="What the figures above are made of - revenue, hours and whether it went out on time, job by job.">
+            <ul className="divide-y rounded-lg border text-sm">
+              {jobRows.map((r) => (
+                <li key={r.jobCardId}>
+                  <Link
+                    to={`/garage/job-cards?open=${r.jobCardId}`}
+                    className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 hover:bg-secondary/50 lg:min-h-0"
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">{r.jobNo || "(draft)"}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{r.plate || r.vehicle || "–"}</span>
+                    <span className="truncate text-muted-foreground">{r.customer}</span>
+                    {r.onTime === false && <Pill tone="danger">Late</Pill>}
+                    {r.comeback && <Pill tone="warning">Comeback</Pill>}
+                    <span className="text-xs text-muted-foreground">{formatDate(r.deliveredAt)}</span>
+                    <span className="tabular-nums text-muted-foreground">{hrs(r.hoursSold)} / {hrs(r.hoursTaken)}</span>
+                    <span className="tabular-nums font-semibold">{money(r.total)}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
