@@ -1,27 +1,63 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
 import Can from "../shell/Can.jsx";
 import { jobCards } from "../../lib/garageApi";
-import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
-import { formatDate } from "../../utils/format";
+import { JOB_STATUS, INVOICE_STATUS_LABEL, JOB_TYPES, JOB_TYPE_LABEL, AGE_BAND_LABEL, AGE_BAND_TONE } from "../../lib/garage";
+import { formatCurrencyAED, formatDate } from "../../utils/format";
+import { useRecordRoute } from "../../lib/useRecordRoute";
 import JobCardForm from "./JobCardForm";
 import JobCardView from "./JobCardView";
+import { useGarageReveal } from "./useGarageReveal";
 
 // Inventory > Garage > Job cards: every live and finished job, searchable by number, plate or customer, filtered
 // by status. The board (GarageBoard.jsx) is where a job is worked day to day; this is the full register.
+//
+// What is open lives in the URL (?open=<id>), not component state - useRecordRoute, the same hook every
+// other document screen uses: opening a card pushes history (Back returns to the list), it survives a
+// reload, and it can be linked to. The list's own useAsync sits ABOVE the early return for the card view,
+// so it keeps its data while a card is open and the list reappears with no spinner when one is closed
+// (the CrmPipeline precedent). ONE useToasts() lives here and is handed to JobCardView as `notify` -
+// GoodsReceivedPage.jsx is the house precedent for that: a second toast system owned by the detail view
+// would also mean its own "{toastNode}" unmounting the instant this page swaps views, which is exactly
+// the bug a naive `if (route.recordId) return <JobCardView .../>` would have reintroduced.
 const STATUS_OPTIONS = Object.keys(JOB_STATUS).map((k) => [k, JOB_STATUS[k].label]);
+const JOB_TYPE_OPTIONS = JOB_TYPES.map((k) => [k, JOB_TYPE_LABEL[k]]);
+const AGE_BAND_OPTIONS = Object.keys(AGE_BAND_LABEL).map((k) => [k, AGE_BAND_LABEL[k]]);
 
 export default function JobCardsPage() {
+  const route = useRecordRoute();
   const { notify, toastNode } = useToasts();
   const [status, setStatus] = useState("");
+  const [jobType, setJobType] = useState("");
+  const [ageBand, setAgeBand] = useState("");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
-  const [open, setOpen] = useState(null);
-  const list = useAsync(() => jobCards.list({ status: status || undefined, search: search || undefined }), [status, search]);
+  const scope = useRef(null);
+  // A list of dated documents, so the house period control applies (CLAUDE.md "What a list remembers" /
+  // ListPage.jsx's own header comment: a period control is exactly the case ListPage does not cover, so
+  // this stays on FilterBar + DataTable directly rather than useListView, which no screen in the product
+  // combines with a period).
+  const periodFilter = usePeriodFilter();
+  const { period } = periodFilter;
+  const list = useAsync(
+    () =>
+      jobCards.list({
+        status: status || undefined,
+        jobType: jobType || undefined,
+        ageBand: ageBand || undefined,
+        search: search || undefined,
+        from: period.from || undefined,
+        to: period.to || undefined,
+      }),
+    [status, jobType, ageBand, search, period.key]
+  );
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
-  const filtersOn = Boolean(status || search);
+  const filtersOn = Boolean(status || jobType || ageBand || search);
+  useGarageReveal(scope, Boolean(list.data));
 
   const columns = [
     {
@@ -44,13 +80,43 @@ export default function JobCardsPage() {
     { key: "customer", header: "Customer", card: "meta", cell: (r) => r.customer?.name || "–" },
     { key: "status", header: "Status", card: "badge", cell: (r) => <Pill tone={JOB_STATUS[r.status]?.tone || "neutral"}>{JOB_STATUS[r.status]?.label || r.status}</Pill> },
     { key: "invoice", header: "Invoicing", card: "meta", cell: (r) => INVOICE_STATUS_LABEL[r.invoiceStatus] || r.invoiceStatus },
-    { key: "received", header: "Received", card: "meta", cell: (r) => (r.receivedAt ? formatDate(r.receivedAt) : "–") },
+    {
+      key: "received",
+      header: "Received",
+      card: "meta",
+      cell: (r) => (
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span>{r.receivedAt ? formatDate(r.receivedAt) : "–"}</span>
+          {/* Only when it MEANS something. A car that came in this week is the normal case and saying
+              "Under 5 days" on every fresh row is a column of noise beside the date that already says
+              it; 5 days and over is the triage signal worth a pill. */}
+          {r.ageBand && r.ageBand !== "u5" && <Pill tone={AGE_BAND_TONE[r.ageBand] || "neutral"}>{AGE_BAND_LABEL[r.ageBand]}</Pill>}
+        </div>
+      ),
+    },
     { key: "promised", header: "Promised", card: "meta", cell: (r) => (r.promisedAt ? formatDate(r.promisedAt) : "–") },
-    { key: "total", header: "Estimate", align: "end", card: "amount", cell: (r) => (r.estimate?.total ? r.estimate.total.toFixed(2) : "–") },
+    // Money is formatted like money everywhere else in the app: this column printed a bare "3480.75"
+    // while the very same figure reads "AED 3,480.75" on the job card and on Reports.
+    { key: "total", header: "Estimate", align: "end", card: "amount", cell: (r) => (r.estimate?.total ? formatCurrencyAED(r.estimate.total) : "–") },
   ];
 
+  if (route.recordId) {
+    return (
+      <>
+        <JobCardView
+          id={route.recordId}
+          notify={notify}
+          onClose={() => route.close()}
+          onChanged={() => list.reload()}
+          onRemoved={() => { route.close(); list.reload(); }}
+        />
+        {toastNode}
+      </>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Job cards"
         description="Every vehicle checked in, from complaint to invoice. Opened and worked day to day on the Board."
@@ -68,45 +134,45 @@ export default function JobCardsPage() {
         }
       />
 
-      <div className="mt-6">
+      <div data-reveal className="mt-6">
         <FilterBar
           search={search}
           onSearch={setSearch}
           placeholder="Search a job number, plate or customer…"
           searchLabel="Search job cards"
           active={filtersOn}
-          onClear={() => { setStatus(""); setSearch(""); }}
+          onClear={() => { setStatus(""); setJobType(""); setAgeBand(""); setSearch(""); }}
         >
           <FilterSelect label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} allLabel="Any status" />
+          <FilterSelect label="Job type" value={jobType} onChange={setJobType} options={JOB_TYPE_OPTIONS} allLabel="Any job type" />
+          <FilterSelect label="Age in workshop" value={ageBand} onChange={setAgeBand} options={AGE_BAND_OPTIONS} allLabel="Any age" />
+          <PeriodSelect filter={periodFilter} labelled />
         </FilterBar>
+        <PeriodNote filter={periodFilter} count={list.data ? rows.length : null} noun="job cards" one="job card" extra={filtersOn ? "filtered" : undefined} className="mt-3" />
       </div>
 
-      <Panel className="mt-4" bodyClassName="p-0">
+      {/* data-reveal goes on a wrapper, never on <Panel>: Panel does not spread unknown props, so the
+          attribute would be dropped and the panel would silently never join the stagger. */}
+      <div data-reveal className="mt-4">
+      <Panel bodyClassName="p-0">
         {list.loading && !list.data && <Spinner label="Reading the job cards" />}
         {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
         {list.data && rows.length === 0 && (
           <EmptyState
-            title={filtersOn ? "Nothing matches" : "No job cards yet"}
-            text={filtersOn ? "Clear the filters to see the rest." : "Check a vehicle in and it appears here."}
+            title={filtersOn ? "Nothing matches" : period.all ? "No job cards yet" : `No job cards received in ${period.label.toLowerCase()}`}
+            text={filtersOn ? "Clear the filters to see the rest." : period.all ? "Check a vehicle in and it appears here." : "Widen the period, or check a vehicle in."}
           />
         )}
         {list.data && rows.length > 0 && (
-          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => setOpen(r._id)} columns={columns} />
+          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => route.open(r._id)} columns={columns} />
         )}
       </Panel>
+      </div>
 
       {creating && (
         <JobCardForm
           onClose={() => setCreating(false)}
-          onSaved={(c, message) => { setCreating(false); notify(message); list.reload(); setOpen(c._id); }}
-        />
-      )}
-      {open && (
-        <JobCardView
-          id={open}
-          onClose={() => setOpen(null)}
-          onChanged={(m) => { notify(m); list.reload(); }}
-          onRemoved={(m) => { setOpen(null); notify(m); list.reload(); }}
+          onSaved={(c, message) => { setCreating(false); notify(message); list.reload(); route.open(c._id); }}
         />
       )}
       {toastNode}

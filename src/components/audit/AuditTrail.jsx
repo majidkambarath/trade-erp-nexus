@@ -385,6 +385,24 @@ function ActivitySection({ activity }) {
   );
 }
 
+// A record with no posting trail beneath it - nothing it does moves the ledger or stock on its own
+// (a garage vehicle, job card or insurance claim: the real financial effect, if any, is the SALES
+// INVOICE the job card raises, which already has its own DocumentAuditTrail). So there is no ledger,
+// stock or party-balance section to read first - only ActivitySection, which is otherwise private to
+// this file; this is the one reusable door onto it rather than a third copy of the Modal/loading
+// wrapper. `fetch` is the garageApi.js call (e.g. `(id) => vehicles.activity(id)`); its answer is
+// AuditService.list()'s own shape, `{rows, total, page, pages}` - only `rows` is read here.
+export function SimpleActivityTrail({ title, description, fetch, id, onClose }) {
+  const { data, loading, error, reload } = useAsync(() => fetch(id), [id]);
+  return (
+    <Modal size="lg" onClose={onClose} title={title} description={description}>
+      {loading && !data && <Spinner label="Loading the activity log" />}
+      <ErrorNote error={error} onRetry={reload} />
+      {data && <ActivitySection activity={data.rows || []} />}
+    </Modal>
+  );
+}
+
 // A trade document: purchase order, sales order, purchase return, sales return.
 export default function DocumentAuditTrail({ id, documentNo, onClose }) {
   const { data, loading, error, reload } = useAsync(() => documents.audit(id), [id]);

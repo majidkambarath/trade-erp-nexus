@@ -4,10 +4,12 @@ import { CountUp } from "../Dashborad/CountUp";
 import { RankedBars } from "../Dashborad/FlowCharts";
 import { useGarageReveal } from "./useGarageReveal";
 import { jobCards } from "../../lib/garageApi";
-import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, useAsync } from "../accounting/kit";
+import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, Pill, useAsync } from "../accounting/kit";
 import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
-import { formatCurrencyAED, formatNumber } from "../../utils/format";
+import { formatCurrencyAED, formatCurrencyCompact, formatDate, formatNumber } from "../../utils/format";
+import { hueFor } from "../../lib/garage";
+import { Link } from "react-router-dom";
 
 // Inventory > Garage > Reports: the workshop's own numbers over a period - revenue by stream (parts, labour,
 // sublet, consumable), technician efficiency (hours sold against hours taken, the trade's own definition),
@@ -15,7 +17,10 @@ import { formatCurrencyAED, formatNumber } from "../../utils/format";
 // delivered job cards (GET /garage/job-cards/analysis, utils/garage.js analysis - already pure-tested); this
 // screen only draws it. A rate with nothing to measure reads as "–", never 0.
 const STREAM_LABEL = { part: "Parts", labour: "Labour", sublet: "Sublet", consumable: "Consumables" };
-const STREAM_COLOR = { part: "var(--chart-2)", labour: "var(--chart-1)", sublet: "var(--chart-3)", consumable: "var(--chart-4)" };
+// The streams in a fixed order, coloured by position through hueFor - so ink never lands on the second
+// bar. This used to name var(--chart-1) for labour, which IS ink, and the chart led with near-black.
+const STREAMS = ["part", "labour", "sublet", "consumable"];
+const STREAM_COLOR = Object.fromEntries(STREAMS.map((key, i) => [key, hueFor(i)]));
 
 const DESCRIPTION = "The workshop's own numbers: revenue by stream, technician efficiency, and how reliably jobs go out on time.";
 
@@ -34,6 +39,7 @@ export default function GarageReports() {
   if (report.error) return <ErrorNote error={report.error} onRetry={report.reload} />;
   const j = report.data?.jobs;
   const people = report.data?.people || [];
+  const jobRows = report.data?.jobRows || [];
   // A server that answers without `jobs` - an older build, or a period it has nothing for - must still leave
   // the page usable. This returned null, which is a blank window: no heading, no message and no period picker,
   // so there was no way to ask for another period. The five sibling garage pages all keep their shell.
@@ -55,10 +61,13 @@ export default function GarageReports() {
   }
 
   const revenueTotal = j.revenue?.total || 0;
-  const streamRows = Object.keys(STREAM_LABEL)
+  const streamRows = STREAMS
     .map((key) => ({ key, name: STREAM_LABEL[key], value: j.revenue?.[key] || 0, color: STREAM_COLOR[key] }))
     .filter((r) => r.value > 0);
-  const peopleRows = people.map((p) => ({ key: p.key, name: p.label, value: p.hoursTaken || 0 }));
+  // Each technician gets their own colour by position. Without a colour RankedBars falls back to ink
+  // for every bar (FlowCharts.jsx: `fill={r.color || ink}`), which is how this chart came to be a row
+  // of identical black bars that told you nothing about who was who.
+  const peopleRows = people.map((p, i) => ({ key: p.key, name: p.label, value: p.hoursTaken || 0, color: hueFor(i) }));
 
   return (
     <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -70,12 +79,16 @@ export default function GarageReports() {
       <PeriodNote filter={filter} count={j.delivered} noun="jobs delivered" className="mt-2" />
 
       <ul data-reveal className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <li><StatCard title="Delivered" count={<CountUp value={j.delivered || 0} format={(v) => String(Math.round(v))} />} /></li>
-        <li><StatCard title="Revenue" count={money(j.revenue?.total)} tone="teal" /></li>
+        {/* subText carries the BASE each rate is measured on - a percentage with nothing behind it is
+            the easiest figure in a report to misread. These are all already in `jobs`; a period-on-period
+            trend arrow would need analysis() to return the previous period, which it does not, and a
+            trend nobody can compute is not one worth inventing. */}
+        <li><StatCard title="Delivered" count={<CountUp value={j.delivered || 0} format={(v) => String(Math.round(v))} />} subText="jobs handed back" /></li>
+        <li><StatCard title="Revenue" count={money(j.revenue?.total)} tone="teal" subText={j.delivered ? `across ${j.delivered} job${j.delivered === 1 ? "" : "s"}` : undefined} /></li>
         <li><StatCard title="Average invoice" count={money(j.avgInvoice)} /></li>
-        <li><StatCard title="On time" count={pct(j.onTimePct)} tone={j.onTimePct != null && j.onTimePct < 80 ? "warning" : "olive"} /></li>
-        <li><StatCard title="Comebacks" count={pct(j.comebackPct)} tone={j.comebackPct > 0 ? "danger" : "neutral"} /></li>
-        <li><StatCard title="Efficiency" count={pct(j.efficiencyPct)} tone="plum" /></li>
+        <li><StatCard title="On time" count={pct(j.onTimePct)} tone={j.onTimePct != null && j.onTimePct < 80 ? "warning" : "olive"} subText={j.withPromise ? `of ${j.withPromise} with a promised date` : "no promised dates to measure"} /></li>
+        <li><StatCard title="Comebacks" count={pct(j.comebackPct)} tone={j.comebackPct > 0 ? "danger" : "neutral"} subText={j.comebacks ? `${j.comebacks} came back` : "none came back"} /></li>
+        <li><StatCard title="Efficiency" count={pct(j.efficiencyPct)} tone="plum" subText={`${hrs(j.hoursSold)} sold / ${hrs(j.hoursTaken)} taken`} /></li>
       </ul>
 
       <div data-reveal className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -83,8 +96,11 @@ export default function GarageReports() {
           {streamRows.length === 0 ? <p className="text-sm text-muted-foreground">Nothing delivered in this period.</p> : (
             <RankedBars
               rows={streamRows}
-              valueText={(v) => formatCurrencyAED(v)}
-              axisText={(v) => formatCurrencyAED(v)}
+              // RankedBars leaves only 56px past the end of a bar for its figure, so a full
+              // "AED 184,500.00" was being CUT OFF mid-number. Compact here (the exact amount is in
+              // the tooltip and on the panel below), and let the axis keep the component's own
+              // compactAmount default instead of repeating "AED ..." on every tick.
+              valueText={formatCurrencyCompact}
               describe={(r) => `${formatCurrencyAED(r.value)} of ${formatCurrencyAED(revenueTotal)} revenue (${revenueTotal > 0 ? formatNumber((r.value / revenueTotal) * 100, 0) : 0}%)`}
             />
           )}
@@ -127,7 +143,39 @@ export default function GarageReports() {
                   <span className="text-muted-foreground">{p.done} done</span>
                   <span className="tabular-nums">{hrs(p.hoursSold)} sold</span>
                   <span className="tabular-nums">{hrs(p.hoursTaken)} taken</span>
+                  {/* The panel has promised "how long a task waited to start" since it was written, and
+                      the server has computed waitHours all along - it was simply never drawn. */}
+                  <span className="tabular-nums text-muted-foreground">{hrs(p.waitHours)} waiting</span>
                   <span className="tabular-nums text-muted-foreground">{pct(p.efficiencyPct)}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </div>
+      )}
+
+      {/* G6: one row per delivered job, so a figure in the panels above can be traced to the job that
+          made it - clicking a row opens that job card, the same ?open= link the board and a vehicle's
+          history use. */}
+      {jobRows.length > 0 && (
+        <div data-reveal className="mt-6">
+          <Panel title="Jobs delivered this period" description="What the figures above are made of - revenue, hours and whether it went out on time, job by job.">
+            <ul className="divide-y rounded-lg border text-sm">
+              {jobRows.map((r) => (
+                <li key={r.jobCardId}>
+                  <Link
+                    to={`/garage/job-cards?open=${r.jobCardId}`}
+                    className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 hover:bg-secondary/50 lg:min-h-0"
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">{r.jobNo || "(draft)"}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{r.plate || r.vehicle || "–"}</span>
+                    <span className="truncate text-muted-foreground">{r.customer}</span>
+                    {r.onTime === false && <Pill tone="danger">Late</Pill>}
+                    {r.comeback && <Pill tone="warning">Comeback</Pill>}
+                    <span className="text-xs text-muted-foreground">{formatDate(r.deliveredAt)}</span>
+                    <span className="tabular-nums text-muted-foreground">{hrs(r.hoursSold)} / {hrs(r.hoursTaken)}</span>
+                    <span className="tabular-nums font-semibold">{money(r.total)}</span>
+                  </Link>
                 </li>
               ))}
             </ul>

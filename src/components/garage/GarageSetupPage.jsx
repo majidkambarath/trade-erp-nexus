@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import { AmountInput, DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit.jsx";
@@ -6,6 +6,7 @@ import { PillTabs } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { setup } from "../../lib/garageApi";
 import { garageErrorText, BAY_KIND_LABEL } from "../../lib/garage";
+import { useGarageReveal } from "./useGarageReveal";
 import { useGarageMasters } from "./garageShared";
 
 // Inventory > Garage > Setup: the service menu (standard jobs that fill a job card's estimate and tasks in
@@ -88,7 +89,7 @@ function ServiceDialog({ svc, masters, onClose, onSaved }) {
 
   return (
     <Modal size="sm" onClose={onClose} title={editing ? "Edit standard job" : "New standard job"}
-      description="The labour item this bills under; parts and tasks can be added once it exists, by using it on a job card and saving those as its defaults is not built yet - add them from the estimate for now."
+      description="The labour item this standard job bills under. It has no saved list of usual parts or tasks yet - add those a job normally needs on each job card's own estimate instead."
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy || !canSave}>{busy ? "Saving…" : "Save"}</Button></>}
     >
       <div className="grid gap-3">
@@ -115,6 +116,9 @@ function ServiceDialog({ svc, masters, onClose, onSaved }) {
 export default function GarageSetupPage() {
   const { notify, toastNode } = useToasts();
   const [tab, setTab] = useState("services");
+  const scope = useRef(null);
+  // Keyed on the tab, so each view animates in as it mounts (see ClaimsPage for the same note).
+  useGarageReveal(scope, tab);
   const masters = useGarageMasters();
   const bays = useAsync(() => setup.bays({ status: "all" }), []);
   const services = useAsync(() => setup.services({ status: "all" }), []);
@@ -140,12 +144,13 @@ export default function GarageSetupPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Garage setup" description="The service menu and the bays a task can be assigned to." />
       <div className="mt-4"><PillTabs tabs={[["services", "Service menu"], ["bays", "Bays"]]} value={tab} onChange={setTab} label="Garage setup" /></div>
 
       {tab === "services" && (
-        <Panel className="mt-4">
+        <div data-reveal className="mt-4">
+        <Panel>
           <div className="flex items-center justify-between gap-2 border-b p-4">
             <h2 className="text-sm font-semibold">Standard jobs</h2>
             <Can permission="garage.manage">
@@ -157,10 +162,12 @@ export default function GarageSetupPage() {
           {!services.loading && (services.data || []).length === 0 && <EmptyState title="No standard jobs yet" description="Add one to fill a job card's estimate and tasks in one tap." />}
           {(services.data || []).length > 0 && <DataTable columns={serviceColumns} rows={services.data} rowKey={(r) => r._id} caption="Standard jobs" />}
         </Panel>
+        </div>
       )}
 
       {tab === "bays" && (
-        <Panel className="mt-4">
+        <div data-reveal className="mt-4">
+        <Panel>
           <div className="flex items-center justify-between gap-2 border-b p-4">
             <h2 className="text-sm font-semibold">Bays</h2>
             <Can permission="garage.manage">
@@ -172,6 +179,7 @@ export default function GarageSetupPage() {
           {!bays.loading && (bays.data || []).length === 0 && <EmptyState title="No bays yet" description="Add the ramps, lifts and booths a task can be assigned to." />}
           {(bays.data || []).length > 0 && <DataTable columns={bayColumns} rows={bays.data} rowKey={(r) => r._id} caption="Bays" />}
         </Panel>
+        </div>
       )}
 
       {addingBay && <BayDialog onClose={() => setAddingBay(false)} onSaved={() => { setAddingBay(false); bays.reload(); notify("Bay saved."); }} />}

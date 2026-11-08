@@ -69,9 +69,12 @@ export default function VehicleForm({ vehicle, onClose, onSaved }) {
         {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="Plate number" error={missing ? "Enter the plate, or the chassis if there is no plate yet" : undefined} className="col-span-2">
-            <TextInput value={form.plateNumber} onChange={setField("plateNumber")} placeholder="A 12345" autoFocus />
+            <TextInput value={form.plateNumber} onChange={setField("plateNumber")} placeholder="12345" autoFocus />
           </Field>
-          <Field label="Code"><TextInput value={form.plateCode} onChange={setField("plateCode")} /></Field>
+          {/* G7: this used to invite "A 12345" here while Code sat right beside it for the same letter -
+              every vehicle named on screen now prints Emirate · Code · Number together (lib/garage.js
+              vehiclePlateText), so a plate entered that way reads with the code twice. */}
+          <Field label="Code" hint="The plate's own code box, separate from the number."><TextInput value={form.plateCode} onChange={setField("plateCode")} placeholder="A" /></Field>
           <Field label="Emirate"><TextInput value={form.plateEmirate} onChange={setField("plateEmirate")} placeholder="Dubai" /></Field>
         </div>
 
