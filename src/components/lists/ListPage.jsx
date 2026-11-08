@@ -64,6 +64,10 @@ export default function ListPage({
   footer,
   caption,
   cardClassName,
+  // a table whose columns must line up (the house rule: "figures that must line up stay
+  // tables") passes "table-pin-first" here - the first column freezes and the rest scroll under
+  // it. Forwarded as-is to DataTable's own className; nothing in ListPage itself reads it.
+  tableClassName,
 
   // built-in states, passed straight through to DataTable
   loading,
@@ -159,6 +163,7 @@ export default function ListPage({
 
       <Panel bodyClassName="p-0">
         <DataTable
+          className={tableClassName}
           columns={columns}
           rows={rows}
           rowKey={rowKey}

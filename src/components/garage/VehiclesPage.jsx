@@ -57,6 +57,10 @@ export default function VehiclesPage() {
           />
         }
         caption="Vehicles"
+        // Found by the first sweep run against real data (check:mobile had no garage stubs before this branch):
+        // the chassis VIN has no natural break point, so the seven-column table pushed main itself wide at
+        // tablet width - ListPage had no way to pass table-pin-first through to DataTable until now.
+        tableClassName="table-pin-first"
         rows={rows}
         rowKey={(r) => r._id}
         onRowClick={(r) => setViewing(r._id)}
