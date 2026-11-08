@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
+import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
+import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { claims } from "../../lib/garageApi";
 import { CLAIM_STATUS } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
@@ -12,10 +14,15 @@ import ClaimsAgeing from "./ClaimsAgeing";
 // decision to the invoices it raises. A claim is opened from its own job card (JobCardView.jsx) - this is
 // the register for tracking what is waiting on an insurer and what has been settled.
 //
-// Two tabs, one shared ClaimView: "Claims" is the full register (filterable, every status), "Ageing" is
-// only what is still open, grouped by how long it has waited (the register the 30 Oct QA report asked for
-// and nothing built until now - claims.ageing() has had no caller since the route shipped). Both tabs open
-// the same modal, so a claim found either way behaves identically.
+// Two tabs, one shared ClaimView: "Claims" is the full register (filterable, every status, and - like any
+// list of dated documents - a period, by submittedAt, the same date Ageing's own buckets count from),
+// "Ageing" is only what is still open, grouped by how long it has waited (the register the 30 Oct QA
+// report asked for and nothing built until now - claims.ageing() has had no caller since the route
+// shipped) - it has no period of its own, since it is "what is open right now", not a dated range. Both
+// tabs open the same modal, so a claim found either way behaves identically.
+//
+// No separate insurer filter: the search box already matches insurer.name server-side (insuranceClaimService.js
+// list()), so a dropdown beside it would be a second control for the one thing the first already does.
 const STATUS_OPTIONS = Object.keys(CLAIM_STATUS).map((k) => [k, CLAIM_STATUS[k].label]);
 
 export default function ClaimsPage() {
@@ -24,7 +31,12 @@ export default function ClaimsPage() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(null);
-  const list = useAsync(() => claims.list({ status: status || undefined, search: search || undefined }), [status, search]);
+  const periodFilter = usePeriodFilter();
+  const { period } = periodFilter;
+  const list = useAsync(
+    () => claims.list({ status: status || undefined, search: search || undefined, from: period.from || undefined, to: period.to || undefined }),
+    [status, search, period.key]
+  );
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
   const filtersOn = Boolean(status || search);
 
@@ -55,7 +67,9 @@ export default function ClaimsPage() {
               onClear={() => { setStatus(""); setSearch(""); }}
             >
               <FilterSelect label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} allLabel="Any status" />
+              <PeriodSelect filter={periodFilter} labelled />
             </FilterBar>
+            <PeriodNote filter={periodFilter} count={list.data ? rows.length : null} noun="claims" one="claim" extra={filtersOn ? "filtered" : undefined} className="mt-3" />
           </div>
 
           <Panel className="mt-4" bodyClassName="p-0">
@@ -63,8 +77,8 @@ export default function ClaimsPage() {
             {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
             {list.data && rows.length === 0 && (
               <EmptyState
-                title={filtersOn ? "Nothing matches" : "No claims yet"}
-                text={filtersOn ? "Clear the filters to see the rest." : "Open a claim from an insurance job card, and it appears here."}
+                title={filtersOn ? "Nothing matches" : period.all ? "No claims yet" : `No claims submitted in ${period.label.toLowerCase()}`}
+                text={filtersOn ? "Clear the filters to see the rest." : period.all ? "Open a claim from an insurance job card, and it appears here." : "Widen the period, or open a claim from an insurance job card."}
               />
             )}
             {list.data && rows.length > 0 && (

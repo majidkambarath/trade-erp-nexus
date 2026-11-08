@@ -175,6 +175,37 @@ describe("job cards list", () => {
     await waitFor(() => expect(m.customers).toHaveBeenCalled());
   });
 
+  it("shows a row's age in the workshop, and the status, job type, age and period filters all reach the server", async () => {
+    m.jcList.mockResolvedValue([jobCardRow({ jobType: "insurance", ageBand: "b10_14" })]);
+    render_(<JobCardsPage />);
+    expect(await screen.findByText("JC-2026-0001")).toBeInTheDocument();
+    // the register wears the same band the board does (scoped to the table: "10-14 days" is also an option
+    // in the "Age in workshop" filter below)
+    expect(within(screen.getByRole("table", { name: "Job cards" })).getByText("10-14 days")).toBeInTheDocument();
+
+    // every call so far asked for this calendar month by default (usePeriodFilter's own default)
+    expect(m.jcList).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String), to: expect.any(String) }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "IN_PROGRESS" } });
+    await waitFor(() => expect(m.jcList).toHaveBeenLastCalledWith(expect.objectContaining({ status: "IN_PROGRESS" })));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Job type" }), { target: { value: "insurance" } });
+    await waitFor(() => expect(m.jcList).toHaveBeenLastCalledWith(expect.objectContaining({ jobType: "insurance" })));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Age in workshop" }), { target: { value: "b10_14" } });
+    await waitFor(() => expect(m.jcList).toHaveBeenLastCalledWith(expect.objectContaining({ ageBand: "b10_14" })));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Period" }), { target: { value: "all" } });
+    await waitFor(() => expect(m.jcList).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: undefined })));
+
+    fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Status" })).toHaveValue(""));
+    expect(screen.getByRole("combobox", { name: "Job type" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Age in workshop" })).toHaveValue("");
+    // clearing filters leaves the period alone - it has its own "Widen to" affordance, not Clear filters
+    expect(screen.getByRole("combobox", { name: "Period" })).toHaveValue("all");
+  });
+
   it("choosing a part or labour item fills in its price from the item master", async () => {
     render_(<JobCardsPage />);
     fireEvent.click(screen.getByRole("button", { name: /New job card/ }));
@@ -358,6 +389,21 @@ describe("claims list", () => {
     expect(within(dialog).getByText(/Ahmed Saeed/)).toBeInTheDocument();
     // actions.recordApproval is true on the fixture
     expect(within(dialog).getByRole("button", { name: "Record decision" })).toBeInTheDocument();
+  });
+
+  it("the Claims tab carries its own period, by submittedAt - widening it asks the server again with no date range", async () => {
+    render_(<ClaimsPage />);
+    expect(await screen.findByText("CLM-2026-0001")).toBeInTheDocument();
+    expect(m.clList).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String), to: expect.any(String) }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Period" }), { target: { value: "all" } });
+    await waitFor(() => expect(m.clList).toHaveBeenLastCalledWith(expect.objectContaining({ from: undefined, to: undefined })));
+
+    // the Ageing tab has no period of its own - it is "open right now", not a dated range - so switching
+    // tabs must not disturb it
+    fireEvent.click(screen.getByRole("tab", { name: "Ageing" }));
+    expect(await screen.findByText("8-14 days")).toBeInTheDocument();
+    expect(m.clAgeing).toHaveBeenCalled();
   });
 
   it("the Ageing tab buckets open claims by how long they have waited, and a row opens the same claim view", async () => {

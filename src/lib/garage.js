@@ -25,6 +25,12 @@ export const DUE_TONE = { overdue: "danger", today: "warning", tomorrow: "info" 
 
 export const INVOICE_STATUS_LABEL = { NONE: "Not invoiced", DRAFT: "Invoice drafted", INVOICED: "Invoiced" };
 
+// How a job is paid for (trade ERP node/models/modules/garage/jobCardModel.js jobType enum; "retail" is
+// the default, every other value is typed by the advisor at check-in). Order matters: it is the order the
+// job-cards register's own filter lists them in.
+export const JOB_TYPES = ["retail", "insurance", "warranty", "internal", "fleet"];
+export const JOB_TYPE_LABEL = { retail: "Retail", insurance: "Insurance", warranty: "Warranty", internal: "Internal", fleet: "Fleet" };
+
 // A bay's own kind (trade ERP node/models/modules/garage/bayModel.js), for the Setup screen's picker and list.
 export const BAY_KIND_LABEL = { mechanical: "Mechanical", body: "Body", paint: "Paint", wash: "Wash", other: "Other" };
 
