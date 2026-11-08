@@ -331,7 +331,7 @@ export const MODULES = [
       { label: "Job cards", to: "/garage/job-cards", permission: "garage.view", keywords: ["job card", "estimate", "complaint", "repair", "service", "task"] },
       { label: "Vehicles", to: "/garage/vehicles", permission: "garage.view", keywords: ["vehicle", "car", "plate", "chassis", "vin", "service history"] },
       { label: "Claims", to: "/garage/claims", permission: "garage.view", keywords: ["insurance", "insurer", "surveyor", "lpo", "excess", "depreciation", "accident"] },
-      { label: "Reports", to: "/garage/reports", permission: "garage.view", keywords: ["efficiency", "revenue", "technician", "turnaround", "comeback", "effective labour rate"] },
+      { label: "Reports", to: "/garage/reports", permission: "garage.view", keywords: ["efficiency", "revenue", "technician", "turnaround", "comeback", "effective labour rate", "work in progress", "profit", "margin", "bays", "customers", "vehicles", "insurers", "rejected claims"] },
       { label: "Setup", to: "/garage/setup", permission: "garage.manage", keywords: ["service menu", "standard job", "bay", "ramp", "lift"] },
     ],
   },

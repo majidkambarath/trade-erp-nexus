@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.7.0.0 — 9 November 2026
+
+The garage module: a reports section, not one page. Frontend and backend both at 2.7.0.0.
+
+### Added
+
+- **Seven named reports behind one route** (`/garage/reports`), `PillTabs` over it - Overview, Work in
+  progress, Profit, People & bays, Customers, Vehicles, Insurers - replacing the single report the
+  screen had before. Every report has a CSV export (garage had none anywhere before this), carrying
+  the organisation's own letterhead and the period on the download.
+- Overview / Profit / People & bays / Customers read a period; Work in progress and Vehicles are "as at
+  today" - the range is drawn but disabled, with the reason stated, rather than hidden.
+- `lib/garageReports.js` (CSV shapers), `lib/garage.js` `REPORT_TABS` / `PERIODLESS_REPORTS` /
+  `AGE_BAND_COLOR`.
+- `PeriodSelect` (`lists/PeriodFilter.jsx`) gained a `disabled` prop: drawn but inert for a periodless
+  report, never hidden - it had no way to express that before.
+
+### Fixed
+
+- The work-in-progress ring used to invent its own colour mapping and put "In progress" and "Ready for
+  collection" on the same blue; it now reuses the Board's own five-colour `RING_ROWS` mapping, so a
+  status reads one colour everywhere in the module.
+- Each report tab now fetches with its own `useAsync` instance rather than one shared async state
+  swapped by loader: the shared-state version kept the PREVIOUS tab's data on screen while the next
+  tab's fetch was still loading, so switching tabs could read one report's shape while a different
+  report's body was already mounted - a crash, caught before release by a test that actually switches
+  tabs.
+
 ## 2.6.0.0 — 8 November 2026
 
 The garage module: the customer can now approve an estimate themselves, and every screen in the

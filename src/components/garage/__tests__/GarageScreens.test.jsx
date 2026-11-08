@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(), jcInspection: vi.fn(), jcSendEstimate: vi.fn(), filesUpload: vi.fn(),
   sendSettings: vi.fn(), documentSend: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
+  reportsOverview: vi.fn(), reportsWip: vi.fn(), reportsProfit: vi.fn(), reportsPeople: vi.fn(), reportsCustomers: vi.fn(), reportsVehicles: vi.fn(), reportsInsurers: vi.fn(),
 }));
 
 vi.mock("../../../lib/garageApi", () => ({
@@ -30,6 +31,10 @@ vi.mock("../../../lib/garageApi", () => ({
   claims: {
     ageing: m.clAgeing, list: m.clList, get: m.clGet, create: m.clCreate, update: vi.fn(), remove: vi.fn(),
     submit: m.clSubmit, recordSurvey: m.clSurvey, recordApproval: m.clDecide, raiseInvoices: m.clRaise, activity: m.clActivity,
+  },
+  reports: {
+    overview: m.reportsOverview, workInProgress: m.reportsWip, profit: m.reportsProfit, people: m.reportsPeople,
+    customers: m.reportsCustomers, vehicles: m.reportsVehicles, insurers: m.reportsInsurers,
   },
   setup: {
     bays: m.setupBays, createBay: m.setupCreateBay, updateBay: vi.fn(),
@@ -152,6 +157,24 @@ beforeEach(() => {
       { jobCardId: "j2", jobNo: "JC-2026-0002", plate: "B 22222", vehicle: "Nissan Patrol", customer: "Sara", deliveredAt: "2026-10-23T08:00:00.000Z", total: 100, hoursSold: 1, hoursTaken: 2, onTime: false, comeback: true },
       { jobCardId: "j1", jobNo: "JC-2026-0001", plate: "A 11111", vehicle: "Toyota Hilux", customer: "Ali Hassan", deliveredAt: "2026-10-21T08:00:00.000Z", total: 700, hoursSold: 3, hoursTaken: 2, onTime: true, comeback: false },
     ],
+  });
+  // The Reports screen's Overview tab (garage/reports/overview) - the same figures jcAnalysis used to
+  // answer alone, plus what it was actually invoiced for and a previous-period trend.
+  m.reportsOverview.mockResolvedValue({
+    period: { from: null, to: null },
+    jobs: {
+      delivered: 2, revenue: { part: 400, labour: 400, sublet: 0, consumable: 0, total: 800 },
+      avgInvoice: 400, avgTurnaroundHours: 24, withPromise: 2, onTime: 1, onTimePct: 50,
+      comebacks: 1, comebackPct: 50, hoursSold: 4, hoursTaken: 4, efficiencyPct: 100,
+      avgHoursPerJob: 2, effectiveLabourRate: 100,
+    },
+    people: [{ key: "in_house:s1", label: "Raj", done: 2, hoursSold: 4, hoursTaken: 4, efficiencyPct: 100, waitHours: 1 }],
+    jobRows: [
+      { jobCardId: "j2", jobNo: "JC-2026-0002", plate: "B 22222", vehicle: "Nissan Patrol", customer: "Sara", deliveredAt: "2026-10-23T08:00:00.000Z", total: 100, hoursSold: 1, hoursTaken: 2, onTime: false, comeback: true },
+      { jobCardId: "j1", jobNo: "JC-2026-0001", plate: "A 11111", vehicle: "Toyota Hilux", customer: "Ali Hassan", deliveredAt: "2026-10-21T08:00:00.000Z", total: 700, hoursSold: 3, hoursTaken: 2, onTime: true, comeback: false },
+    ],
+    invoiced: { total: 800, gapFromEstimate: 0 },
+    previous: null, trend: null, capped: false,
   });
   m.apiGet.mockResolvedValue({ stocks: [
     { _id: "p1", itemId: "PART-BRAKE", itemName: "Brake pads", itemType: "goods", salesPrice: 150 },
@@ -711,7 +734,7 @@ describe("reports", () => {
   it("reads the workshop's own numbers and draws the revenue and technician panels", async () => {
     render_(<GarageReports />);
     expect(await screen.findByText("Reports")).toBeInTheDocument();
-    await waitFor(() => expect(m.jcAnalysis).toHaveBeenCalled());
+    await waitFor(() => expect(m.reportsOverview).toHaveBeenCalled());
     expect(screen.getByText("Revenue by stream")).toBeInTheDocument();
     expect(screen.getByText("Hours taken, by technician")).toBeInTheDocument();
     expect(screen.getByText("The shop's own figures")).toBeInTheDocument();
@@ -720,7 +743,7 @@ describe("reports", () => {
 
   it("the per-job breakdown lists each delivered job, newest first, and links to it (G6)", async () => {
     render_(<GarageReports />);
-    await waitFor(() => expect(m.jcAnalysis).toHaveBeenCalled());
+    await waitFor(() => expect(m.reportsOverview).toHaveBeenCalled());
     const panel = await screen.findByText("Jobs delivered this period");
     const rows = screen.getAllByRole("link", { name: /JC-2026-000/ });
     expect(rows).toHaveLength(2);

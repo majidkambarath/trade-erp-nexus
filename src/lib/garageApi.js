@@ -52,6 +52,18 @@ export const jobCards = {
   cancel: (id, body) => api.post(`/garage/job-cards/${id}/cancel`, body),
 };
 
+// The reports section (trade ERP node/services/garage/garageReportService.js). Seven named answers, not
+// one page of tables - overview/profit/people/customers read a period, wip/vehicles are "as at today".
+export const reports = {
+  overview: (params) => api.get("/garage/reports/overview", params),
+  workInProgress: () => api.get("/garage/reports/wip"),
+  profit: (params) => api.get("/garage/reports/profit", params),
+  people: (params) => api.get("/garage/reports/people", params),
+  customers: (params) => api.get("/garage/reports/customers", params),
+  vehicles: () => api.get("/garage/reports/vehicles"),
+  insurers: (params) => api.get("/garage/reports/insurers", params),
+};
+
 export const setup = {
   bays: (params) => api.get("/garage/bays", params),
   createBay: (body) => api.post("/garage/bays", body),
