@@ -1,6 +1,9 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+
+const render_ = (ui, initialEntries) => render(<MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>);
 
 const wait = (ms) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
@@ -143,7 +146,7 @@ beforeEach(() => {
 
 describe("the garage board", () => {
   it("shows the counts, the workshop's health ring, where every job is, and my own work", async () => {
-    render(<GarageBoard />);
+    render_(<GarageBoard />);
     const tiles = await screen.findByRole("list", { name: "Where the work stands" });
     expect(within(tiles).getByText("Waiting for approval")).toBeInTheDocument();
     expect(screen.getByText("The workshop's health")).toBeInTheDocument();
@@ -152,23 +155,17 @@ describe("the garage board", () => {
     expect(screen.getAllByText("JC-2026-0002").length).toBeGreaterThan(0);
   });
 
-  it("opens a job card from the board and shows its complaints, lines and tasks", async () => {
-    render(<GarageBoard />);
+  it("a job card on the board links to its own page, not a dialog", async () => {
+    render_(<GarageBoard />);
     await screen.findByRole("list", { name: "Where the work stands" });
-    fireEvent.click(screen.getByRole("button", { name: /JC-2026-0001: Toyota Hilux/ }));
-    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Brakes squeaking")).toBeInTheDocument();
-    expect(within(dialog).getByText("Brake pads")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Replace brake pads/)).toBeInTheDocument();
-    // actions.recordApproval is true, so the button is offered
-    expect(within(dialog).getByRole("button", { name: "Record decision" })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /JC-2026-0001: Toyota Hilux/ });
+    expect(link).toHaveAttribute("href", "/garage/job-cards?open=j1");
   });
 });
 
 describe("job cards list", () => {
   it("lists job cards and opens the New job card form", async () => {
-    render(<JobCardsPage />);
+    render_(<JobCardsPage />);
     expect(await screen.findByText("JC-2026-0001")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /New job card/ }));
     const dialog = await screen.findByRole("dialog");
@@ -179,7 +176,7 @@ describe("job cards list", () => {
   });
 
   it("choosing a part or labour item fills in its price from the item master", async () => {
-    render(<JobCardsPage />);
+    render_(<JobCardsPage />);
     fireEvent.click(screen.getByRole("button", { name: /New job card/ }));
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(m.apiGet).toHaveBeenCalled());
@@ -197,7 +194,7 @@ describe("job cards list", () => {
 
   it("the customer field can create a new customer in place, with no separate screen", async () => {
     m.createCustomer.mockResolvedValue({ id: "cu9", name: "Majid Khan", code: "CUST2026099", active: true });
-    render(<JobCardsPage />);
+    render_(<JobCardsPage />);
     fireEvent.click(screen.getByRole("button", { name: /New job card/ }));
     const dialog = await screen.findByRole("dialog");
     const input = within(dialog).getByRole("combobox", { name: "Customer" });
@@ -215,39 +212,57 @@ describe("job cards list", () => {
     await waitFor(() => expect(within(screen.getByRole("dialog")).getByText("Majid Khan")).toBeInTheDocument());
   });
 
+  // A job card opens as its OWN PAGE now (?open=<id> on /garage/job-cards), not a dialog - the same
+  // deep-link shape every other document screen uses (useRecordRoute). This is the one test that would
+  // have caught the Plus/X import bug too, had it existed before that fix: it renders real content, not
+  // a button's mere presence.
+  it("opens a job card from a deep link and shows its complaints, lines and tasks on the right tabs", async () => {
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    expect(screen.getByRole("button", { name: "Job cards" })).toBeInTheDocument(); // the back link, not a close X
+    // AWAITING_APPROVAL's default tab is "The estimate" - the line is there without a tab click.
+    expect(screen.getByText("Brake pads")).toBeInTheDocument();
+    // "The job" tab is not the default here, so its content (the complaint) is not yet shown...
+    expect(screen.queryByText("Brakes squeaking")).not.toBeInTheDocument();
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "The job" }));
+    await waitFor(() => expect(screen.getByText("Brakes squeaking")).toBeInTheDocument());
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: /The work/ }));
+    await waitFor(() => expect(screen.getByText(/Replace brake pads/)).toBeInTheDocument());
+    // recordApproval is true and it is the one undecided thing on an AWAITING_APPROVAL card: the primary.
+    expect(screen.getByRole("button", { name: "Record decision" })).toBeInTheDocument();
+  });
+
   it("an insurance job with no claim yet offers to open one, with the insurer picker narrowed to insurers", async () => {
     m.jcGet.mockResolvedValue(jobCardFull({ jobType: "insurance", claimId: null }));
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    let dialog = await screen.findByRole("dialog");
-    const openButton = within(dialog).getByRole("button", { name: "Open insurance claim" });
-    fireEvent.click(openButton);
-    const dialogs = await screen.findAllByRole("dialog");
-    const claimDialog = dialogs.find((d) => within(d).queryByText("Open an insurance claim"));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Money" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open insurance claim" }));
+    const claimDialog = await screen.findByRole("dialog", { name: /Open an insurance claim/ });
     expect(claimDialog).toBeTruthy();
     await waitFor(() => expect(m.customers).toHaveBeenCalled());
   });
 
   it("an insurance job that already has a claim offers to view it instead", async () => {
     m.jcGet.mockResolvedValue(jobCardFull({ jobType: "insurance", claimId: "cl1" }));
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "View claim" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Money" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View claim" }));
     await waitFor(() => expect(m.clGet).toHaveBeenCalledWith("cl1"));
-    const dialogs = await screen.findAllByRole("dialog");
-    expect(dialogs.some((d) => within(d).queryByText(/Orient Insurance/))).toBe(true);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Orient Insurance/)).toBeInTheDocument();
   });
 
+  // Check-in is not the primary action on an AWAITING_APPROVAL card (Record decision is) - it is behind
+  // "More actions", which opens the same way every other row menu in the app does (RowMenu.test.jsx).
   it("records the walk-around: items present, a damage point, and condition notes", async () => {
     m.jcCheckIn.mockResolvedValue(jobCardFull({ checkIn: { itemsPresent: ["Spare wheel"], damagePoints: [{ panel: "Front bumper", kind: "scratch", notes: "" }], notes: "" } }));
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const cardDialog = await screen.findByRole("dialog");
-    fireEvent.click(within(cardDialog).getByRole("button", { name: "Check-in" }));
-    const dialogs = await screen.findAllByRole("dialog");
-    const checkInDialog = dialogs.find((d) => within(d).queryByText("The walk-around"));
-    expect(checkInDialog).toBeTruthy();
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "More actions" }).parentElement);
+    fireEvent.click(screen.getByRole("button", { name: "Check-in" }));
+    const checkInDialog = await screen.findByRole("dialog", { name: /walk-around|check-in/i });
 
     fireEvent.click(within(checkInDialog).getByLabelText("Spare wheel"));
     fireEvent.click(within(checkInDialog).getByRole("button", { name: /Add a mark/ }));
@@ -259,16 +274,16 @@ describe("job cards list", () => {
     expect(body.damagePoints).toEqual([{ panel: "Front bumper", kind: "scratch", notes: "" }]);
   });
 
-  it("shows a short part and raises a purchase order for it", async () => {
+  it("shows a short part on the work tab and raises a purchase order for it", async () => {
     m.jcShortages.mockResolvedValue([{ itemId: "i1", itemCode: "PART-DISC", itemName: "Brake disc", needed: 2, onHand: 0, short: 2, vendorId: "ve1", vendorName: "Shine Painters", purchasePrice: 150 }]);
     m.jcRaisePO.mockResolvedValue({ jobCard: jobCardFull(), order: { _id: "po1", orderNo: "PORD-2026-0001" } });
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const dialog = await screen.findByRole("dialog");
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
     await waitFor(() => expect(m.jcShortages).toHaveBeenCalledWith("j1"));
-    expect(within(dialog).getByText(/Brake disc/)).toBeInTheDocument();
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: /The work/ }));
+    await waitFor(() => expect(screen.getByText(/Brake disc/)).toBeInTheDocument());
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Raise purchase order" }));
+    fireEvent.click(screen.getByRole("button", { name: "Raise purchase order" }));
     const poDialog = await screen.findByRole("dialog", { name: /Raise a purchase order/ });
     fireEvent.click(within(poDialog).getByRole("button", { name: "Raise purchase order" }));
 
@@ -280,24 +295,25 @@ describe("job cards list", () => {
   });
 
   it("opens the Record decision dialog and records an approval", async () => {
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const cardDialog = await screen.findByRole("dialog");
-    fireEvent.click(within(cardDialog).getByRole("button", { name: "Record decision" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.click(screen.getByRole("button", { name: "Record decision" }));
     const approveDialog = await screen.findByRole("dialog", { name: /Record the decision/ });
     expect(within(approveDialog).getByText(/Brake pads/)).toBeInTheDocument();
     fireEvent.click(within(approveDialog).getByRole("button", { name: "Record approval" }));
     await waitFor(() => expect(m.jcRecordApproval).toHaveBeenCalledWith("j1", expect.objectContaining({ method: "whatsapp" })));
   });
 
+  // Supplementary estimate is not the primary action here either (Record decision is) - same "open the
+  // overflow menu first" shape as the check-in test above.
   it("opens the Supplementary estimate dialog, where a line can be added and removed", async () => {
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const cardDialog = await screen.findByRole("dialog");
-    fireEvent.click(within(cardDialog).getByRole("button", { name: "Supplementary estimate" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "More actions" }).parentElement);
+    fireEvent.click(screen.getByRole("button", { name: "Supplementary estimate" }));
     const reviseDialog = await screen.findByRole("dialog", { name: /supplementary estimate/i });
-    // D-PH2: the row's Remove button (an X icon) and "Add line" (a Plus icon) both come from
-    // jobCardDialogs.jsx, which lint alone did not prove imported the icons it uses - only a real render does.
+    // The row's Remove button (an X icon) and "Add line" (a Plus icon) both come from jobCardDialogs.jsx,
+    // which lint alone did not prove imported the icons it uses - only a real render does.
     fireEvent.click(within(reviseDialog).getByRole("button", { name: "Add line" }));
     expect(within(reviseDialog).getAllByRole("button", { name: "Remove" })).toHaveLength(2);
     fireEvent.click(within(reviseDialog).getAllByRole("button", { name: "Remove" })[1]);
@@ -309,10 +325,12 @@ describe("job cards list", () => {
       status: "IN_PROGRESS",
       actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: false, reviseEstimate: false, createInvoice: true, release: false, cancel: true },
     }));
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const cardDialog = await screen.findByRole("dialog");
-    fireEvent.click(within(cardDialog).getByRole("button", { name: "Raise invoice" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    // The one task on the fixture is READY, not settled, so createInvoice is offered but is not the
+    // primary (jobPrimaryAction only leads with it once every task is DONE/SKIPPED) - it is in the menu.
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "More actions" }).parentElement);
+    fireEvent.click(screen.getByRole("button", { name: "Raise invoice" }));
     const invoiceDialog = await screen.findByRole("dialog", { name: /invoice/i });
     expect(within(invoiceDialog).getByText(/Brake pads/)).toBeInTheDocument();
   });
@@ -322,18 +340,17 @@ describe("job cards list", () => {
       status: "READY",
       actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: false, reviseEstimate: false, createInvoice: false, release: true, cancel: true },
     }));
-    render(<JobCardsPage />);
-    fireEvent.click(await screen.findByText("JC-2026-0001"));
-    const cardDialog = await screen.findByRole("dialog");
-    fireEvent.click(within(cardDialog).getByRole("button", { name: "Release vehicle" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    // createInvoice is false here, so release IS the primary - directly on screen, no menu to open.
+    fireEvent.click(screen.getByRole("button", { name: "Release vehicle" }));
     const releaseDialog = await screen.findByRole("dialog", { name: /release/i });
     expect(within(releaseDialog).getByRole("button", { name: /release/i })).toBeInTheDocument();
   });
 });
-
 describe("claims list", () => {
   it("lists claims and opens one, offering the action its own status allows", async () => {
-    render(<ClaimsPage />);
+    render_(<ClaimsPage />);
     expect(await screen.findByText("CLM-2026-0001")).toBeInTheDocument();
     fireEvent.click(screen.getByText("CLM-2026-0001"));
     await waitFor(() => expect(m.clGet).toHaveBeenCalledWith("cl1"));
@@ -344,7 +361,7 @@ describe("claims list", () => {
   });
 
   it("the Ageing tab buckets open claims by how long they have waited, and a row opens the same claim view", async () => {
-    render(<ClaimsPage />);
+    render_(<ClaimsPage />);
     fireEvent.click(await screen.findByRole("tab", { name: "Ageing" }));
     expect(await screen.findByText("8-14 days")).toBeInTheDocument();
     expect(screen.getByText(/1 open claim/)).toBeInTheDocument();
@@ -357,7 +374,7 @@ describe("claims list", () => {
 
 describe("vehicles list", () => {
   it("lists vehicles and opens the New vehicle form", async () => {
-    render(<VehiclesPage />);
+    render_(<VehiclesPage />);
     expect(await screen.findByText("A 11111")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /New vehicle/ }));
     const dialog = await screen.findByRole("dialog");
@@ -366,7 +383,7 @@ describe("vehicles list", () => {
 
   it("typing a registration expiry date actually reaches the form (not an onChange event object)", async () => {
     m.vUpdate.mockResolvedValue({ _id: "v1", plateNumber: "A 11111" });
-    render(<VehiclesPage />);
+    render_(<VehiclesPage />);
     fireEvent.click(await screen.findByText("A 11111"));
     // Opening a row opens its service history first (VehicleView); Edit opens the ordinary form on top of it.
     const view = await screen.findByRole("dialog");
@@ -390,7 +407,7 @@ describe("vehicles list", () => {
       { _id: "j1", jobNo: "JC-2026-0001", status: "CLOSED", estimate: { total: 350 }, receivedAt: "2026-09-01T08:00:00.000Z" },
       { _id: "j2", jobNo: "JC-2026-0002", status: "IN_PROGRESS", estimate: { total: 120 }, receivedAt: "2026-10-20T08:00:00.000Z", comebackOf: "j1" },
     ]);
-    render(<VehiclesPage />);
+    render_(<VehiclesPage />);
     fireEvent.click(await screen.findByText("A 11111"));
     const view = await screen.findByRole("dialog");
     await waitFor(() => expect(m.vJobs).toHaveBeenCalledWith("v1"));
@@ -402,7 +419,7 @@ describe("vehicles list", () => {
 
 describe("garage setup", () => {
   it("adds a bay to the list", async () => {
-    render(<GarageSetupPage />);
+    render_(<GarageSetupPage />);
     fireEvent.click(await screen.findByRole("tab", { name: "Bays" }));
     await waitFor(() => expect(m.setupBays).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /New bay/ }));
@@ -416,7 +433,7 @@ describe("garage setup", () => {
 
 describe("reports", () => {
   it("reads the workshop's own numbers and draws the revenue and technician panels", async () => {
-    render(<GarageReports />);
+    render_(<GarageReports />);
     expect(await screen.findByText("Reports")).toBeInTheDocument();
     await waitFor(() => expect(m.jcAnalysis).toHaveBeenCalled());
     expect(screen.getByText("Revenue by stream")).toBeInTheDocument();

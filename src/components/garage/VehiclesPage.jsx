@@ -13,6 +13,7 @@ import { vehicles } from "../../lib/garageApi";
 import { formatDate } from "../../utils/format";
 import VehicleForm from "./VehicleForm";
 import VehicleView from "./VehicleView";
+import { useRecordRoute } from "../../lib/useRecordRoute";
 
 export default function VehiclesPage() {
   const { notify, toastNode } = useToasts();
@@ -21,7 +22,11 @@ export default function VehiclesPage() {
   const { data, loading, error, reload } = useAsync(() => vehicles.list(query), [query]);
   const rows = data || [];
   const [editing, setEditing] = useState(null); // null closed, {} new vehicle
-  const [viewing, setViewing] = useState(null); // an existing vehicle's id - its service history
+  // The vehicle shown lives in the URL (?open=<id>), not local state, so navigating away to a job card
+  // (VehicleView.jsx's job rows are now real links) and pressing Back restores the SAME vehicle, open -
+  // a plain useState here would have closed on Back with no way to tell which vehicle had been showing.
+  const route = useRecordRoute();
+  const viewing = route.recordId;
 
   return (
     <>
@@ -63,7 +68,7 @@ export default function VehiclesPage() {
         tableClassName="table-pin-first"
         rows={rows}
         rowKey={(r) => r._id}
-        onRowClick={(r) => setViewing(r._id)}
+        onRowClick={(r) => route.open(r._id)}
         loading={loading}
         loadingLabel="Reading the vehicles"
         error={error}
@@ -107,7 +112,7 @@ export default function VehiclesPage() {
       {viewing && (
         <VehicleView
           id={viewing}
-          onClose={() => setViewing(null)}
+          onClose={() => route.close()}
           onChanged={(message) => { notify(message); reload(); }}
         />
       )}

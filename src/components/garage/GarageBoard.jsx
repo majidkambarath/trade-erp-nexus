@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { AlertTriangle, CalendarClock, Car, CheckCircle2, Clock, Hourglass, PlayCircle, Truck } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
@@ -6,7 +7,6 @@ import { CountUp } from "../Dashborad/CountUp";
 import { JobMixRing } from "./garageCharts";
 import { useGarageReveal } from "./useGarageReveal";
 import { Progress } from "../ui/progress";
-import JobCardView from "./JobCardView";
 import { CompleteTaskDialog } from "./garageShared";
 import { jobCards } from "../../lib/garageApi";
 import { DUE_LABEL, DUE_TONE, garageErrorText, INVOICE_STATUS_LABEL, jobCardLabel } from "../../lib/garage";
@@ -50,15 +50,14 @@ const RING_ROWS = [
 // single biggest readability gain the bodyshop-tracker reference offers over a bare status pill), the
 // estimate value, the bay, and the invoice state. None of this is a new server call - it rides on the
 // same GET /garage/job-cards/board payload the counts and columns already come from.
-function JobCard({ card, onOpen }) {
+function JobCard({ card }) {
   const state = jobCardLabel(card);
   const hasTasks = card.taskCount > 0;
   const pct = hasTasks ? Math.round((card.doneTasks / card.taskCount) * 100) : 0;
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(card.jobCardId)}
-      className={`w-full rounded-lg border bg-card p-3 text-start text-sm shadow-sm transition hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${card.dueState === "overdue" ? "border-destructive/60" : ""}`}
+    <Link
+      to={`/garage/job-cards?open=${card.jobCardId}`}
+      className={`block w-full rounded-lg border bg-card p-3 text-start text-sm shadow-sm transition hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${card.dueState === "overdue" ? "border-destructive/60" : ""}`}
       aria-label={`${card.jobNo}: ${card.vehicle}, ${state.label}${hasTasks ? `, ${card.doneTasks} of ${card.taskCount} tasks done` : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -90,7 +89,7 @@ function JobCard({ card, onOpen }) {
         {card.bay ? ` · ${card.bay}` : ""}
         {card.due ? ` · due ${formatDate(card.due)}` : ""}
       </div>
-    </button>
+    </Link>
   );
 }
 
@@ -101,7 +100,6 @@ export default function GarageBoard() {
   const [starting, setStarting] = useState(null);
   const [completing, setCompleting] = useState(null);
   const [failure, setFailure] = useState(null);
-  const [open, setOpen] = useState(null); // the job card id shown in JobCardView, like ProcessOrderView on ProcessBoard
   const raw = board.data;
   const d = raw && { counts: raw.counts || {}, columns: raw.columns || [], mine: raw.mine || [], overdue: raw.overdue || [], dueToday: raw.dueToday || [], dueTomorrow: raw.dueTomorrow || [] };
   const scope = useRef(null);
@@ -111,7 +109,6 @@ export default function GarageBoard() {
   if (board.error) return <ErrorNote error={board.error} onRetry={board.reload} />;
   if (!d) return null;
 
-  const openCard = setOpen;
 
   const start = async (card) => {
     setFailure(null);
@@ -159,7 +156,7 @@ export default function GarageBoard() {
         <div data-reveal className="mt-6">
           <Panel title={`${TILES.find((t) => t.list === list).label} (${chosen.length})`} actions={<Button size="sm" variant="outline" onClick={() => setList(null)}>Close</Button>}>
             {chosen.length === 0 ? <p className="text-sm text-muted-foreground">Nothing here.</p> : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{chosen.map((c) => <JobCard key={c.jobCardId} card={c} onOpen={openCard} />)}</div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">{chosen.map((c) => <JobCard key={c.jobCardId} card={c} />)}</div>
             )}
           </Panel>
         </div>
@@ -206,7 +203,7 @@ export default function GarageBoard() {
                     <span>{col.name}</span>
                     <span className="rounded-full bg-card px-2 text-xs tabular-nums text-muted-foreground">{col.cards.length}</span>
                   </h3>
-                  <div className="grid grid-cols-[minmax(0,1fr)] gap-2">{col.cards.map((c) => <JobCard key={c.jobCardId} card={c} onOpen={openCard} />)}</div>
+                  <div className="grid grid-cols-[minmax(0,1fr)] gap-2">{col.cards.map((c) => <JobCard key={c.jobCardId} card={c} />)}</div>
                 </section>
               ))}
             </div>
@@ -220,14 +217,6 @@ export default function GarageBoard() {
           task={completing}
           onClose={() => setCompleting(null)}
           onDone={(m) => { setCompleting(null); notify(m); board.reload(); }}
-        />
-      )}
-      {open && (
-        <JobCardView
-          id={open}
-          onClose={() => setOpen(null)}
-          onChanged={(m) => { notify(m); board.reload(); }}
-          onRemoved={(m) => { setOpen(null); notify(m); board.reload(); }}
         />
       )}
       {toastNode}

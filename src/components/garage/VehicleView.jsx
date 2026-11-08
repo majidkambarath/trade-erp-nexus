@@ -3,13 +3,13 @@
 // settles an argument about what was done before. Reached by opening a row on VehiclesPage; Edit opens the
 // ordinary VehicleForm on top of it.
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { vehicles, filesFor } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import VehicleForm from "./VehicleForm";
-import JobCardView from "./JobCardView";
 import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
 
 function money(n) {
@@ -29,7 +29,6 @@ export default function VehicleView({ id, onClose, onChanged }) {
   const one = useAsync(() => vehicles.get(id), [id]);
   const history = useAsync(() => vehicles.jobs(id), [id]);
   const [editing, setEditing] = useState(false);
-  const [openJob, setOpenJob] = useState(null);
   const v = one.data;
   const jobs = Array.isArray(history.data) ? history.data : [];
   const closedJobs = jobs.filter((j) => j.delivery?.gatePassAt);
@@ -109,15 +108,17 @@ export default function VehicleView({ id, onClose, onChanged }) {
             {jobs.length > 0 && (
               <ul className="divide-y rounded-lg border text-sm">
                 {jobs.map((j) => (
-                  <li key={j._id} className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 hover:bg-secondary/50" onClick={() => setOpenJob(j._id)}>
-                    <span className="min-w-0 flex-1">
-                      <span className="font-medium">{j.jobNo || "(draft)"}</span>
-                      <span className="ms-2 text-xs text-muted-foreground">{j.receivedAt ? formatDate(j.receivedAt) : ""}</span>
-                      {j.comebackOf && <span className="ms-2 rounded bg-secondary px-1.5 py-0.5 text-xs">Comeback</span>}
-                      {warrantyNote(j.warranty) && <span className="ms-2 text-xs text-muted-foreground">· {warrantyNote(j.warranty)}</span>}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{money(j.estimate?.total)}</span>
-                    <Pill tone={JOB_STATUS[j.status]?.tone || "neutral"}>{JOB_STATUS[j.status]?.label || j.status}</Pill>
+                  <li key={j._id}>
+                    <Link to={`/garage/job-cards?open=${j._id}`} className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-secondary/50">
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium">{j.jobNo || "(draft)"}</span>
+                        <span className="ms-2 text-xs text-muted-foreground">{j.receivedAt ? formatDate(j.receivedAt) : ""}</span>
+                        {j.comebackOf && <span className="ms-2 rounded bg-secondary px-1.5 py-0.5 text-xs">Comeback</span>}
+                        {warrantyNote(j.warranty) && <span className="ms-2 text-xs text-muted-foreground">· {warrantyNote(j.warranty)}</span>}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{money(j.estimate?.total)}</span>
+                      <Pill tone={JOB_STATUS[j.status]?.tone || "neutral"}>{JOB_STATUS[j.status]?.label || j.status}</Pill>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -130,14 +131,6 @@ export default function VehicleView({ id, onClose, onChanged }) {
           vehicle={v}
           onClose={() => setEditing(false)}
           onSaved={async (_r, m) => { setEditing(false); onChanged?.(m); await one.reload(); }}
-        />
-      )}
-      {openJob && (
-        <JobCardView
-          id={openJob}
-          onClose={() => setOpenJob(null)}
-          onChanged={(m) => { onChanged?.(m); history.reload(); }}
-          onRemoved={(m) => { setOpenJob(null); onChanged?.(m); history.reload(); }}
         />
       )}
     </Modal>

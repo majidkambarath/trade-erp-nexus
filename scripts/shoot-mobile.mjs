@@ -340,16 +340,23 @@ const DEEP = {
   "garage-board": [
     { name: "board", page: true, clicks: [], settle: 1200 },
     { name: "board-overdue", page: true, clicks: ["^Overdue"], settle: 900 }, // StatCard concatenates title+count with no space ("Overdue2"), so this is a prefix match, not ^Overdue$
-    { name: "board-card", clicks: ["JC-2026-0001"], settle: 1200 },
-    { name: "board-card-decision", clicks: ["JC-2026-0001", "^Record decision$"], settle: 1100 },
-    { name: "board-card-invoice", clicks: ["JC-2026-0001", "^Raise invoice$"], settle: 1100 },
-    { name: "board-card-release", clicks: ["JC-2026-0001", "^Release vehicle$"], settle: 1100 },
-    { name: "board-card-revise", clicks: ["JC-2026-0001", "^Supplementary estimate$"], settle: 1100 },
-    { name: "board-card-check-in", clicks: ["JC-2026-0001", "^Check-in$"], settle: 1100 },
+    // The card is a real navigation (react-router Link) since the job card became a routed page -
+    // not a dialog opened on top of the board. What a click leads to (the primary action, the
+    // overflow menu, every dialog it opens) is the destination page's OWN concern now, covered by
+    // the "garage-job-card" deep steps below (EXTRA_PAGES), not re-tested here.
+    { name: "board-card", page: true, clicks: ["JC-2026-0001"], settle: 1200 },
   ],
   "garage-job-cards": [
     { name: "job-cards", page: true, clicks: [], settle: 1100 },
     { name: "job-card-new", clicks: ["^New job card"], settle: 1200 },
+  ],
+  "garage-job-card": [
+    { name: "card", page: true, clicks: [], settle: 1200 },
+    { name: "card-decision", clicks: ["^Record decision$"], settle: 1100 },
+    { name: "card-more-revise", clicks: ["More actions", "^Supplementary estimate$"], settle: 1100 },
+    { name: "card-more-invoice", clicks: ["More actions", "^Raise invoice$"], settle: 1100 },
+    { name: "card-more-release", clicks: ["More actions", "^Release vehicle$"], settle: 1100 },
+    { name: "card-more-check-in", clicks: ["More actions", "^Check-in$"], settle: 1100 },
   ],
   "garage-vehicles": [
     { name: "vehicles", page: true, clicks: [], settle: 1000 },
@@ -554,6 +561,10 @@ const EXTRA_PAGES = [
   ["console-activity", "/platform/activity"],
   ["console-developers", "/platform/developers"],
   ["console-security", "/platform/security"],
+  // The job card is a routed page now (?open=<id> on /garage/job-cards, not a click-through from the
+  // list - a DataTable row is a plain <tr>, which the sweep's clicker cannot find), so it needs its own
+  // entry here, the same way every other deep-linked detail does (console-organisation-plan above).
+  ["garage-job-card", "/garage/job-cards?open=j1"],
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
   ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],

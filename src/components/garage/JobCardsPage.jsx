@@ -6,19 +6,29 @@ import Can from "../shell/Can.jsx";
 import { jobCards } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
+import { useRecordRoute } from "../../lib/useRecordRoute";
 import JobCardForm from "./JobCardForm";
 import JobCardView from "./JobCardView";
 
 // Inventory > Garage > Job cards: every live and finished job, searchable by number, plate or customer, filtered
 // by status. The board (GarageBoard.jsx) is where a job is worked day to day; this is the full register.
+//
+// What is open lives in the URL (?open=<id>), not component state - useRecordRoute, the same hook every
+// other document screen uses: opening a card pushes history (Back returns to the list), it survives a
+// reload, and it can be linked to. The list's own useAsync sits ABOVE the early return for the card view,
+// so it keeps its data while a card is open and the list reappears with no spinner when one is closed
+// (the CrmPipeline precedent). ONE useToasts() lives here and is handed to JobCardView as `notify` -
+// GoodsReceivedPage.jsx is the house precedent for that: a second toast system owned by the detail view
+// would also mean its own "{toastNode}" unmounting the instant this page swaps views, which is exactly
+// the bug a naive `if (route.recordId) return <JobCardView .../>` would have reintroduced.
 const STATUS_OPTIONS = Object.keys(JOB_STATUS).map((k) => [k, JOB_STATUS[k].label]);
 
 export default function JobCardsPage() {
+  const route = useRecordRoute();
   const { notify, toastNode } = useToasts();
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
-  const [open, setOpen] = useState(null);
   const list = useAsync(() => jobCards.list({ status: status || undefined, search: search || undefined }), [status, search]);
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
   const filtersOn = Boolean(status || search);
@@ -48,6 +58,21 @@ export default function JobCardsPage() {
     { key: "promised", header: "Promised", card: "meta", cell: (r) => (r.promisedAt ? formatDate(r.promisedAt) : "–") },
     { key: "total", header: "Estimate", align: "end", card: "amount", cell: (r) => (r.estimate?.total ? r.estimate.total.toFixed(2) : "–") },
   ];
+
+  if (route.recordId) {
+    return (
+      <>
+        <JobCardView
+          id={route.recordId}
+          notify={notify}
+          onClose={() => route.close()}
+          onChanged={() => list.reload()}
+          onRemoved={() => { route.close(); list.reload(); }}
+        />
+        {toastNode}
+      </>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -91,22 +116,14 @@ export default function JobCardsPage() {
           />
         )}
         {list.data && rows.length > 0 && (
-          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => setOpen(r._id)} columns={columns} />
+          <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => route.open(r._id)} columns={columns} />
         )}
       </Panel>
 
       {creating && (
         <JobCardForm
           onClose={() => setCreating(false)}
-          onSaved={(c, message) => { setCreating(false); notify(message); list.reload(); setOpen(c._id); }}
-        />
-      )}
-      {open && (
-        <JobCardView
-          id={open}
-          onClose={() => setOpen(null)}
-          onChanged={(m) => { notify(m); list.reload(); }}
-          onRemoved={(m) => { setOpen(null); notify(m); list.reload(); }}
+          onSaved={(c, message) => { setCreating(false); notify(message); list.reload(); route.open(c._id); }}
         />
       )}
       {toastNode}

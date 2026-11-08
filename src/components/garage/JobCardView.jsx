@@ -1,35 +1,31 @@
 import React, { useMemo, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "../ui/button";
-import Can from "../shell/Can.jsx";
 import { jobCards, filesFor } from "../../lib/garageApi";
-import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
-import { JOB_STATUS, TASK_STATUS, INVOICE_STATUS_LABEL, garageErrorText } from "../../lib/garage";
+import { JOB_STATUS, INVOICE_STATUS_LABEL, JOB_TABS, defaultJobTab, garageErrorText } from "../../lib/garage";
 import { useGarageMasters, CompleteTaskDialog } from "./garageShared";
 import JobCardForm from "./JobCardForm";
 import ClaimView from "./ClaimView";
 import CheckInDialog from "./CheckInDialog";
-import { formatCurrencyAED, formatDate } from "../../utils/format";
-import { ConfirmDialog, ErrorNote, Field, Modal, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
-import { DocLink } from "../salesDocs/parts";
+import { formatDate } from "../../utils/format";
+import { ConfirmDialog, ErrorNote, Field, Modal, PageSpinner, Pill, TextInput, useAsync } from "../accounting/kit";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { JobTab, EstimateTab, WorkTab, MoneyTab } from "./jobCardTabs";
+import JobCardActions from "./JobCardActions";
 import { ApprovalDialog, ReviseEstimateDialog, CreateInvoiceDialog, ReleaseDialog, RaisePurchaseOrderDialog, NewClaimDialog } from "./jobCardDialogs";
 import PrintRow from "./JobCardPrint";
+import { useDocumentTitle } from "../../lib/useRecordRoute";
 
-
-function Section({ title, children }) {
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function money(n) {
-  return formatCurrencyAED(Number(n) || 0);
-}
-
-
-export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
+// The job card's own page ("?open=<id>" on /garage/job-cards; GarageBoard's cards and a vehicle's job
+// history both link here the same way). Used to be a Modal with thirteen sections in one scroll and a
+// nine-button footer - replaced with a persistent header (status, the progress the board already shows,
+// Print), four tabs for the sections, and one primary action plus a "More actions" menu for the rest.
+//
+// `onClose` means "go back to the list" and `onChanged` means "the list may need to refetch". `notify` is
+// the CALLER's own useToasts() (GoodsReceivedPage.jsx is the house precedent: one toast system at the top
+// of the page, passed down, never a second one owned by the detail it shows) - this view calls it itself
+// rather than carrying a message on `onChanged`, which is why that prop now takes none.
+export default function JobCardView({ id, notify, onClose, onChanged, onRemoved }) {
   const one = useAsync(() => jobCards.get(id), [id]);
   const masters = useGarageMasters();
   const [failure, setFailure] = useState(null);
@@ -47,13 +43,9 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
   const [checkingIn, setCheckingIn] = useState(false);
   const [raisingPO, setRaisingPO] = useState(false);
   const c = one.data;
-  // Keyed on status too (D21): cancelling the card changes nothing about c._id, and the server's own
-  // CANCELLED refusal (an empty list) would otherwise sit unseen behind a list fetched before the cancel.
   const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id, c?.status]);
-  // The check-in's own photos, uploaded through this same door by CheckInDialog - read-only here so they
-  // are visible SOMEWHERE on the card, not only inside the dialog that took them (D08: "the check-in block
-  // vanishes from the screen" once the dialog that recorded it is closed).
   const checkInFiles = useMemo(() => (c?._id ? filesFor("jobcard", c._id) : null), [c?._id]);
+  useDocumentTitle(c ? `${c.jobNo || "Job card"} · Job cards` : null);
 
   async function run(fn, message) {
     setBusy(true);
@@ -61,7 +53,8 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
     try {
       const r = await fn();
       setConfirm(null);
-      onChanged(typeof message === "function" ? message(r) : message);
+      notify(typeof message === "function" ? message(r) : message);
+      onChanged();
       await one.reload();
       return r;
     } catch (err) {
@@ -78,243 +71,98 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
     setRevising(false);
     setInvoicing(false);
     setReleasing(false);
-    onChanged(message);
+    notify(message);
+    onChanged();
     await one.reload();
   };
 
+  // Dispatches a key from the primary button or the overflow menu (JobCardActions.jsx) to the same state
+  // this view has always used to open its own dialogs - the hierarchy changed, not what each one does.
+  function onAction(key) {
+    if (key === "delete") setConfirm("delete");
+    else if (key === "sendEstimate") setConfirm("sendEstimate");
+    else if (key === "cancel") setConfirm("cancel");
+    else if (key === "checkIn") setCheckingIn(true);
+    else if (key === "edit") setEditing(true);
+    else if (key === "recordApproval") setApproving(true);
+    else if (key === "reviseEstimate") setRevising(true);
+    else if (key === "createInvoice") setInvoicing(true);
+    else if (key === "release") setReleasing(true);
+  }
+
+  if (one.loading && !c) return <PageSpinner label="Loading the job card" />;
+  if (one.error) return <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8"><ErrorNote error={one.error} onRetry={one.reload} /></div>;
+  if (!c) return null;
+
+  const shortageCount = shortages.data?.length || 0;
+
   return (
-    <Modal
-      size="lg"
-      onClose={onClose}
-      title={c ? `Job card ${c.jobNo || "(draft)"}` : "Job card"}
-      description={c ? `${c.vehicle?.plateNumber || c.vehicle?.chassisNo || ""} · ${[c.vehicle?.make, c.vehicle?.model].filter(Boolean).join(" ")} · ${c.customer?.name || ""}` : undefined}
-      footer={
-        c && (
-          <div className="flex flex-wrap justify-end gap-2">
-            {c.actions?.delete && <Can permission="garage.delete"><Button variant="outline" onClick={() => setConfirm("delete")}>Delete</Button></Can>}
-            {c.actions?.checkIn && <Can permission="garage.edit"><Button variant="outline" onClick={() => setCheckingIn(true)}>Check-in</Button></Can>}
-            {c.actions?.edit && <Can permission="garage.edit"><Button variant="outline" onClick={() => setEditing(true)}>Edit</Button></Can>}
-            {c.actions?.cancel && <Can permission="garage.edit"><Button variant="outline" onClick={() => setConfirm("cancel")}>Cancel job</Button></Can>}
-            {c.actions?.sendEstimate && <Can permission="garage.edit"><Button variant="outline" onClick={() => setConfirm("sendEstimate")}>Send estimate</Button></Can>}
-            {c.actions?.recordApproval && <Can permission="garage.approve"><Button onClick={() => setApproving(true)}>Record decision</Button></Can>}
-            {c.actions?.reviseEstimate && <Can permission="garage.edit"><Button variant="outline" onClick={() => setRevising(true)}>Supplementary estimate</Button></Can>}
-            {c.actions?.createInvoice && <Can permission="garage.invoice"><Button onClick={() => setInvoicing(true)}>Raise invoice</Button></Can>}
-            {c.actions?.release && <Can permission="garage.approve"><Button onClick={() => setReleasing(true)}>Release vehicle</Button></Can>}
-          </div>
-        )
-      }
-    >
-      {one.loading && !c && <Spinner label="Loading the job card" />}
-      {one.error && <ErrorNote error={one.error} onRetry={one.reload} />}
+    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={onClose} className="-ms-2 inline-flex min-h-11 items-center gap-1.5 px-2 text-sm font-medium text-muted-foreground hover:text-foreground lg:min-h-0">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Job cards
+        </button>
+        <JobCardActions card={c} onAction={onAction} />
+      </div>
+
+      <h1 className="text-2xl font-semibold text-foreground">{c.jobNo || "(draft)"}</h1>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {c.vehicle?.plateNumber || c.vehicle?.chassisNo || ""} · {[c.vehicle?.make, c.vehicle?.model].filter(Boolean).join(" ")} · {c.customer?.name || ""}
+      </p>
+
       {failure && <div className="mb-4"><ErrorNote error={new Error(garageErrorText(failure))} /></div>}
-      {c && (
-        <div className="grid gap-5">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Pill tone={JOB_STATUS[c.status]?.tone || "neutral"}>{JOB_STATUS[c.status]?.label || c.status}</Pill>
-            <Pill tone="neutral">{INVOICE_STATUS_LABEL[c.invoiceStatus] || c.invoiceStatus}</Pill>
-            {c.comebackOf && <Pill tone="warning">Comeback</Pill>}
-            {c.promisedAt && <span className="text-xs text-muted-foreground">Promised {formatDate(c.promisedAt)}</span>}
-            {c.odometerIn != null && <span className="text-xs text-muted-foreground">In at {c.odometerIn} km</span>}
-          </div>
 
-          <PrintRow card={c} />
+      <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+        <Pill tone={JOB_STATUS[c.status]?.tone || "neutral"}>{JOB_STATUS[c.status]?.label || c.status}</Pill>
+        <Pill tone="neutral">{INVOICE_STATUS_LABEL[c.invoiceStatus] || c.invoiceStatus}</Pill>
+        {c.comebackOf && <Pill tone="warning">Comeback</Pill>}
+        {c.promisedAt && <span className="text-xs text-muted-foreground">Promised {formatDate(c.promisedAt)}</span>}
+        {c.odometerIn != null && <span className="text-xs text-muted-foreground">In at {c.odometerIn} km</span>}
+      </div>
 
-          {c.jobType === "insurance" && (
-            <Section title="Insurance claim">
-              {c.claimId ? (
-                <Button variant="outline" size="sm" onClick={() => setViewingClaim(true)}>View claim</Button>
-              ) : (
-                <Can permission="garage.create">
-                  <Button variant="outline" size="sm" onClick={() => setOpeningClaim(true)}>Open insurance claim</Button>
-                </Can>
-              )}
-            </Section>
-          )}
+      <div className="mb-4"><PrintRow card={c} /></div>
 
-          {(c.checkIn?.damagePoints?.length > 0 || c.checkIn?.itemsPresent?.length > 0 || c.checkIn?.notes) && (
-            <Section title="The walk-around">
-              {c.checkIn.itemsPresent?.length > 0 && <p className="text-sm text-muted-foreground">With them: {c.checkIn.itemsPresent.join(", ")}</p>}
-              {c.checkIn.damagePoints?.length > 0 && (
-                <ul className="mt-1 grid gap-1 text-sm">
-                  {c.checkIn.damagePoints.map((d, i) => (
-                    <li key={i}>
-                      <span className="font-medium">{d.panel}</span> - {d.kind}{d.notes ? `: ${d.notes}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {c.checkIn.notes && <p className="mt-1 text-sm text-muted-foreground">{c.checkIn.notes}</p>}
-              {checkInFiles && <AttachmentPanel source={checkInFiles} label="Check-in photos" readOnly className="mt-2" />}
-            </Section>
-          )}
-
-          <Section title="What the customer reported">
-            {c.complaints?.length ? (
-              <ul className="grid gap-1.5 text-sm">
-                {c.complaints.map((comp) => (
-                  <li key={comp._id} className="rounded-lg border px-3 py-2">
-                    <span className="font-medium">{comp.concern}</span>
-                    {comp.cause && <span className="text-muted-foreground"> · {comp.cause}</span>}
-                    {comp.correction && <span className="text-muted-foreground"> · {comp.correction}</span>}
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="text-sm text-muted-foreground">Nothing recorded.</p>}
-          </Section>
-
-          <Section title="The estimate">
-            {c.lines?.length ? (
-              <>
-                <ul className="divide-y rounded-lg border text-sm">
-                  {c.lines.map((l) => {
-                    // `approved === false` means two different things (D21): declined at the first
-                    // decision, or a later supplementary line nobody has decided on yet - and the two
-                    // are told apart ONLY where it is unambiguous: a line from the ORIGINAL estimate
-                    // (addedInVersion 1) once the card has moved past AWAITING_APPROVAL can only be
-                    // declined, because the first decision settles every version-1 line, true or false,
-                    // with nothing left pending from it. A later-version line that is still false stays
-                    // "Pending" - it may yet be decided in the next round, and nothing on the line itself
-                    // says which round last looked at it.
-                    const declined = l.approved === false && (l.addedInVersion || 1) <= 1 && !["DRAFT", "AWAITING_APPROVAL"].includes(c.status);
-                    const label = l.invoiced ? "Invoiced" : declined ? "Declined" : l.approved === false ? "Pending" : "Approved";
-                    const tone = l.invoiced ? "info" : declined ? "neutral" : l.approved === false ? "warning" : "success";
-                    return (
-                      <li key={l._id} className="flex items-center justify-between gap-2 px-3 py-2">
-                        <span className="min-w-0 flex-1 truncate">
-                          <span className="me-2 rounded bg-secondary px-1.5 py-0.5 text-xs uppercase text-muted-foreground">{l.kind}</span>
-                          {l.description}
-                        </span>
-                        <span className="shrink-0 tabular-nums">{money(l.lineTotal)}</span>
-                        <Pill tone={tone}>{label}</Pill>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="mt-2 text-end text-sm font-medium">Total (approved): {money(c.totals?.total)}</p>
-              </>
-            ) : <p className="text-sm text-muted-foreground">No lines yet. Edit the card to add parts and labour.</p>}
-          </Section>
-
-          {/* D18: a supplementary estimate (reviseEstimate) was recorded on estimateHistory with nowhere
-              on screen to show it, so "teardown found more" left no visible trail of what the FIRST
-              estimate had asked for. */}
-          {c.estimateHistory?.length > 0 && (
-            <Section title="Estimate history">
-              <ul className="divide-y rounded-lg border text-sm">
-                {c.estimateHistory.map((h, i) => (
-                  <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span>
-                      v{h.version} - sent {h.sentAt ? formatDate(h.sentAt) : ""}
-                      {h.decidedAt && <span className="text-muted-foreground"> · decided {formatDate(h.decidedAt)} ({h.method})</span>}
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">{money(h.total)}</span>
-                  </li>
-                ))}
-                {c.estimate?.version && (
-                  <li className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span>
-                      v{c.estimate.version} (current) - sent {c.estimate.sentAt ? formatDate(c.estimate.sentAt) : ""}
-                      {c.estimate.decidedAt && <span className="text-muted-foreground"> · decided {formatDate(c.estimate.decidedAt)} ({c.estimate.method})</span>}
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">{money(c.totals?.total)}</span>
-                  </li>
-                )}
-              </ul>
-            </Section>
-          )}
-
-          {shortages.data?.length > 0 && (
-            <Section title="Short of stock">
-              <ul className="grid gap-1.5 text-sm">
-                {shortages.data.map((s) => (
-                  <li key={s.itemId} className="flex items-center justify-between gap-2 rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2">
-                    <span>
-                      {s.itemName} <span className="text-muted-foreground">- short {s.short} ({s.onHand} on hand)</span>
-                      {s.vendorName && <span className="ms-1 text-xs text-muted-foreground">usually from {s.vendorName}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <Can permission="garage.edit">
-                <Button variant="outline" size="sm" className="mt-2" onClick={() => setRaisingPO(true)}>Raise purchase order</Button>
-              </Can>
-            </Section>
-          )}
-
-          {c.purchaseOrders?.length > 0 && (
-            <Section title="Purchase orders raised">
-              <ul className="divide-y rounded-lg border text-sm">
-                {c.purchaseOrders.map((po, i) => (
-                  <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span>{po.no} <span className="text-muted-foreground">({po.vendorName})</span></span>
-                    <span className="tabular-nums">{money(po.amount)}</span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-
-          <Section title="Tasks">
-            {c.tasks?.length ? (
-              <ul className="grid gap-2">
-                {c.tasks.map((t) => {
-                  const label = TASK_STATUS[t.status] || { label: t.status, tone: "neutral" };
-                  return (
-                    <li key={t._id} className="rounded-lg border p-3 text-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="min-w-0">
-                          <span className="font-medium">{t.stage}. {t.name}</span>
-                          <span className="ms-2 text-xs text-muted-foreground">{t.mode === "sublet" ? t.vendorName : t.staffName || "Unassigned"}</span>
-                        </span>
-                        <Pill tone={label.tone}>{label.label}</Pill>
-                      </div>
-                      {(t.actions?.start || t.actions?.complete) && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {t.actions.start && <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => jobCards.startTask(c._id, t._id), `${t.name} started.`)}>Start</Button>}
-                          {t.actions.complete && <Button size="sm" onClick={() => setCompleting(t)}>Done</Button>}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : <p className="text-sm text-muted-foreground">No tasks yet.</p>}
-          </Section>
-
-          {c.invoices?.length > 0 && (
-            <Section title="Invoices">
-              <ul className="divide-y rounded-lg border text-sm">
-                {c.invoices.map((inv, i) => (
-                  <li key={i} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <span>
-                      {/* Approved only: a draft invoice has no printable tax invoice yet, and "/sales-order?search=" opens the
-                          list filtered to this number either way, so a draft still lands somewhere useful. */}
-                      <DocLink kind="sales_order" no={inv.no}>{inv.no}</DocLink> <span className="text-muted-foreground">({inv.billTo})</span>
-                    </span>
-                    <span className="tabular-nums">{money(inv.amount)}</span>
-                    <Pill tone={inv.status === "APPROVED" ? "success" : "warning"}>{inv.status}</Pill>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          )}
-
-          {c.delivery?.gatePassAt && (
-            <Section title="Delivery">
-              <p className="text-sm text-muted-foreground">
-                Released {formatDate(c.delivery.gatePassAt)}{c.delivery.handedTo ? ` to ${c.delivery.handedTo}` : ""}
-                {c.warranty?.until ? ` · warranty until ${formatDate(c.warranty.until)}` : ""}
-              </p>
-            </Section>
-          )}
-
-          {c.notes && <p className="text-sm text-muted-foreground">{c.notes}</p>}
-        </div>
+      {shortageCount > 0 && (
+        <p className="mb-4 rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-status-warning">
+          {shortageCount} part{shortageCount === 1 ? "" : "s"} short of stock - see The work.
+        </p>
       )}
+
+      <Tabs defaultValue={defaultJobTab(c.status)}>
+        <TabsList aria-label="Job card">
+          {JOB_TABS.map(([key, label]) => (
+            <TabsTrigger key={key} value={key}>
+              {label}
+              {key === "work" && shortageCount > 0 && (
+                <>
+                  {" "}
+                  <span className="ms-1.5 rounded-full bg-status-warning-soft px-1.5 text-xs tabular-nums text-status-warning">({shortageCount})</span>
+                </>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="job"><JobTab card={c} checkInFiles={checkInFiles} /></TabsContent>
+        <TabsContent value="estimate"><EstimateTab card={c} /></TabsContent>
+        <TabsContent value="work">
+          <WorkTab
+            card={c}
+            shortages={shortages.data}
+            busy={busy}
+            onStartTask={(t) => run(() => jobCards.startTask(c._id, t._id), `${t.name} started.`)}
+            onCompleteTask={setCompleting}
+            onRaisePO={() => setRaisingPO(true)}
+          />
+        </TabsContent>
+        <TabsContent value="money">
+          <MoneyTab card={c} onViewClaim={() => setViewingClaim(true)} onOpenClaim={() => setOpeningClaim(true)} />
+        </TabsContent>
+      </Tabs>
 
       {confirm === "delete" && (
         <ConfirmDialog title="Delete this draft?" text="Nothing has moved. It is deleted for good." confirmLabel="Delete" danger busy={busy}
-          onClose={() => setConfirm(null)} onConfirm={() => run(() => jobCards.remove(c._id), "Job card deleted.").then(() => onRemoved("Job card deleted."))} />
+          onClose={() => setConfirm(null)}
+          onConfirm={() => run(() => jobCards.remove(c._id), "Job card deleted.").then((r) => { if (r) onRemoved(); })} />
       )}
       {confirm === "sendEstimate" && (
         <ConfirmDialog title="Send the estimate?" text="The card moves to waiting for approval." confirmLabel="Send" busy={busy}
@@ -339,7 +187,7 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
           shortages={shortages.data || []}
           masters={masters}
           onClose={() => setRaisingPO(false)}
-          onDone={async (_r, m) => { setRaisingPO(false); onChanged(m); await one.reload(); await shortages.reload(); }}
+          onDone={async (_r, m) => { setRaisingPO(false); notify(m); onChanged(); await one.reload(); await shortages.reload(); }}
         />
       )}
       {completing && (
@@ -347,7 +195,7 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
           jobCardId={c._id}
           task={completing}
           onClose={() => setCompleting(null)}
-          onDone={async (m) => { setCompleting(null); onChanged(m); await one.reload(); }}
+          onDone={async (m) => { setCompleting(null); notify(m); onChanged(); await one.reload(); }}
         />
       )}
       {openingClaim && (
@@ -355,17 +203,17 @@ export default function JobCardView({ id, onClose, onChanged, onRemoved }) {
           jobCardId={c._id}
           masters={masters}
           onClose={() => setOpeningClaim(false)}
-          onDone={async (_claim, m) => { setOpeningClaim(false); onChanged(m); await one.reload(); }}
+          onDone={async (_claim, m) => { setOpeningClaim(false); notify(m); onChanged(); await one.reload(); }}
         />
       )}
       {viewingClaim && (
         <ClaimView
           id={c.claimId}
           onClose={() => setViewingClaim(false)}
-          onChanged={onChanged}
-          onRemoved={async (m) => { setViewingClaim(false); onChanged(m); await one.reload(); }}
+          onChanged={async (m) => { notify(m); onChanged(); await one.reload(); }}
+          onRemoved={async (m) => { setViewingClaim(false); notify(m); onChanged(); await one.reload(); }}
         />
       )}
-    </Modal>
+    </div>
   );
 }
