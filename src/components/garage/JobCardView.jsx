@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ArrowLeft, History } from "lucide-react";
 import { Button } from "../ui/button";
+import { Progress } from "../ui/progress";
 import { jobCards, filesFor } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL, JOB_TABS, defaultJobTab, garageErrorText } from "../../lib/garage";
 import { useGarageMasters, CompleteTaskDialog } from "./garageShared";
@@ -103,6 +104,11 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
   if (!c) return null;
 
   const shortageCount = shortages.data?.length || 0;
+  // "Settled" is DONE or SKIPPED - the same definition jobCardLabel already uses in lib/garage.js, not a
+  // second one invented here, so the header, the board card and "Ready to finish" can never disagree.
+  const taskCount = (c.tasks || []).length;
+  const doneTasks = (c.tasks || []).filter((t) => t.status === "DONE" || t.status === "SKIPPED").length;
+  const donePct = taskCount > 0 ? Math.round((doneTasks / taskCount) * 100) : 0;
   // What lets "Send estimate" actually deliver the link, once the card is waiting for a decision - the
   // SAME descriptor every other document uses (components/send/SendDialog.jsx), `kind: "job_estimate"`
   // reaching documentSource.js's loadEstimate on the server. No pre-filled email: the job card's own
@@ -137,6 +143,18 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
         {c.promisedAt && <span className="text-xs text-muted-foreground">Promised {formatDate(c.promisedAt)}</span>}
         {c.odometerIn != null && <span className="text-xs text-muted-foreground">In at {c.odometerIn} km</span>}
       </div>
+
+      {/* How far along, in the header. The BOARD has drawn this from the same tasks since the board was
+          redesigned, but the card you open to actually work the job had no sense of progress at all -
+          you had to open The work tab and count the task pills yourself. */}
+      {taskCount > 0 && (
+        <div className="mb-4 max-w-sm">
+          <Progress value={donePct} className="h-1.5" aria-hidden="true" />
+          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+            {doneTasks}/{taskCount} tasks done
+          </p>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <PrintRow card={c} />

@@ -79,12 +79,16 @@ export default function GarageReports() {
       <PeriodNote filter={filter} count={j.delivered} noun="jobs delivered" className="mt-2" />
 
       <ul data-reveal className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <li><StatCard title="Delivered" count={<CountUp value={j.delivered || 0} format={(v) => String(Math.round(v))} />} /></li>
-        <li><StatCard title="Revenue" count={money(j.revenue?.total)} tone="teal" /></li>
+        {/* subText carries the BASE each rate is measured on - a percentage with nothing behind it is
+            the easiest figure in a report to misread. These are all already in `jobs`; a period-on-period
+            trend arrow would need analysis() to return the previous period, which it does not, and a
+            trend nobody can compute is not one worth inventing. */}
+        <li><StatCard title="Delivered" count={<CountUp value={j.delivered || 0} format={(v) => String(Math.round(v))} />} subText="jobs handed back" /></li>
+        <li><StatCard title="Revenue" count={money(j.revenue?.total)} tone="teal" subText={j.delivered ? `across ${j.delivered} job${j.delivered === 1 ? "" : "s"}` : undefined} /></li>
         <li><StatCard title="Average invoice" count={money(j.avgInvoice)} /></li>
-        <li><StatCard title="On time" count={pct(j.onTimePct)} tone={j.onTimePct != null && j.onTimePct < 80 ? "warning" : "olive"} /></li>
-        <li><StatCard title="Comebacks" count={pct(j.comebackPct)} tone={j.comebackPct > 0 ? "danger" : "neutral"} /></li>
-        <li><StatCard title="Efficiency" count={pct(j.efficiencyPct)} tone="plum" /></li>
+        <li><StatCard title="On time" count={pct(j.onTimePct)} tone={j.onTimePct != null && j.onTimePct < 80 ? "warning" : "olive"} subText={j.withPromise ? `of ${j.withPromise} with a promised date` : "no promised dates to measure"} /></li>
+        <li><StatCard title="Comebacks" count={pct(j.comebackPct)} tone={j.comebackPct > 0 ? "danger" : "neutral"} subText={j.comebacks ? `${j.comebacks} came back` : "none came back"} /></li>
+        <li><StatCard title="Efficiency" count={pct(j.efficiencyPct)} tone="plum" subText={`${hrs(j.hoursSold)} sold / ${hrs(j.hoursTaken)} taken`} /></li>
       </ul>
 
       <div data-reveal className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -139,6 +143,9 @@ export default function GarageReports() {
                   <span className="text-muted-foreground">{p.done} done</span>
                   <span className="tabular-nums">{hrs(p.hoursSold)} sold</span>
                   <span className="tabular-nums">{hrs(p.hoursTaken)} taken</span>
+                  {/* The panel has promised "how long a task waited to start" since it was written, and
+                      the server has computed waitHours all along - it was simply never drawn. */}
+                  <span className="tabular-nums text-muted-foreground">{hrs(p.waitHours)} waiting</span>
                   <span className="tabular-nums text-muted-foreground">{pct(p.efficiencyPct)}</span>
                 </li>
               ))}

@@ -323,6 +323,21 @@ describe("job cards list", () => {
     expect(screen.getByRole("button", { name: "Record decision" })).toBeInTheDocument();
   });
 
+  // The board has drawn progress from these same tasks all along; the card you open to work the job
+  // had none, so you had to open The work tab and count the pills yourself.
+  it("the job card header says how far along the work is, counting a skipped task as settled", async () => {
+    m.jcGet.mockResolvedValue(jobCardFull({
+      tasks: [
+        { _id: "t1", stage: 1, name: "Diagnosis", mode: "in_house", status: "DONE", actions: {} },
+        { _id: "t2", stage: 1, name: "Wash", mode: "in_house", status: "SKIPPED", actions: {} },
+        { _id: "t3", stage: 2, name: "Road test", mode: "in_house", status: "WAITING", actions: {} },
+      ],
+    }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    expect(await screen.findByText("2/3 tasks done")).toBeInTheDocument();
+  });
+
   it("opens the job card's own audit trail, beside Print, not behind a status-driven action (G10)", async () => {
     render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
     await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));

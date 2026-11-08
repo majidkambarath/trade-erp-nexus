@@ -8,6 +8,7 @@ import { JobMixRing } from "./garageCharts";
 import { useGarageReveal } from "./useGarageReveal";
 import { Progress } from "../ui/progress";
 import { CompleteTaskDialog } from "./garageShared";
+import StatusChips, { chipsFrom } from "./StatusChips";
 import { jobCards } from "../../lib/garageApi";
 import { AGE_BAND_LABEL, AGE_BAND_TONE, DUE_LABEL, DUE_TONE, garageErrorText, INVOICE_STATUS_LABEL, JOB_STATUS, JOB_TYPE_LABEL, jobCardLabel, vehiclePlateText } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
@@ -154,9 +155,7 @@ export default function GarageBoard() {
   // Status chips with counts, that double as filters - the one pattern every garage-UI reference leads
   // with. They are built from the cards actually on the board rather than from `counts`, so a chip can
   // never offer a state that filters to nothing: what it counts is exactly what pressing it shows.
-  const boardCards = d.columns.flatMap((c) => c.cards);
-  const chipCounts = boardCards.reduce((acc, c) => { acc[c.status] = (acc[c.status] || 0) + 1; return acc; }, {});
-  const chips = Object.keys(JOB_STATUS).filter((s) => chipCounts[s]).map((s) => ({ key: s, label: JOB_STATUS[s].label, tone: JOB_STATUS[s].tone, count: chipCounts[s] }));
+  const chips = chipsFrom(d.columns.flatMap((c) => c.cards), "status", JOB_STATUS);
   const columns = status
     ? d.columns.map((col) => ({ ...col, cards: col.cards.filter((c) => c.status === status) })).filter((col) => col.cards.length)
     : d.columns;
@@ -263,30 +262,7 @@ export default function GarageBoard() {
 
       <div data-reveal className="mt-6">
         <Panel title="Where every job is" description="A column per task. A job sits in the column of the task it is at; red is overdue.">
-          {chips.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter the board by status">
-              {chips.map((c) => {
-                const on = status === c.key;
-                return (
-                  <button
-                    key={c.key}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setStatus(on ? "" : c.key)}
-                    className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-0 lg:py-1.5 ${on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:bg-accent"}`}
-                  >
-                    {c.label}
-                    <span className={`tabular-nums ${on ? "opacity-80" : "text-muted-foreground"}`}>{c.count}</span>
-                  </button>
-                );
-              })}
-              {status && (
-                <button type="button" onClick={() => setStatus("")} className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-muted-foreground underline hover:text-foreground lg:min-h-0">
-                  Show all
-                </button>
-              )}
-            </div>
-          )}
+          <StatusChips chips={chips} value={status} onChange={setStatus} label="Filter the board by status" className="mb-3" />
           {columns.length === 0 ? (
             <EmptyState
               title={status ? "Nothing at that status" : "Nothing in the workshop"}
