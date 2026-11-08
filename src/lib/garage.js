@@ -23,6 +23,12 @@ export const TASK_STATUS = {
 export const DUE_LABEL = { overdue: "Overdue", today: "Due today", tomorrow: "Due tomorrow" };
 export const DUE_TONE = { overdue: "danger", today: "warning", tomorrow: "info" };
 
+// An inspection item's traffic light (trade ERP node/utils/garage.js INSPECTION_CONDITIONS): fine, will
+// need doing, needs doing now. Used on both the technician's own screen and the customer's estimate page.
+export const CONDITION_LABEL = { ok: "OK", advisory: "Keep an eye on it", urgent: "Needs doing now" };
+export const CONDITION_TONE = { ok: "success", advisory: "warning", urgent: "danger" };
+export const CONDITIONS = ["ok", "advisory", "urgent"];
+
 export const INVOICE_STATUS_LABEL = { NONE: "Not invoiced", DRAFT: "Invoice drafted", INVOICED: "Invoiced" };
 
 // How a job is paid for (trade ERP node/models/modules/garage/jobCardModel.js jobType enum; "retail" is

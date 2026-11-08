@@ -6,6 +6,7 @@ import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup } from "../
 import { readAccent } from "../PurchaseOrder/shared/invoiceModel";
 import { SHEET_DESIGN_WIDTH, buildFromShare, fitScale } from "./shareSheet";
 import { formatDate } from "../../utils/format";
+import EstimateApproval from "./EstimateApproval";
 
 // The page a customer opens from the emailed or WhatsApp link: no sign-in, no menu, nothing of ours but
 // the document and who it is from. It must not use the signed-in helpers (the company profile hook and
@@ -104,6 +105,13 @@ export default function SharedDocument() {
     );
   }
   if (state.status === "error") return <Problem error={state.error} onRetry={load} />;
+
+  // A job-card estimate is not a sheet to print: it is a decision the customer makes, so it gets its
+  // own screen entirely rather than being forced through buildFromShare/sheetComponent (every other
+  // kind here is a printed document first and foremost).
+  if (state.data.kind === "job_estimate") {
+    return <EstimateApproval token={token} payload={state.data} expiresAt={state.data.expiresAt} />;
+  }
 
   const doc = buildFromShare(state.data);
   if (!doc) return <Problem error={{ code: "ERROR" }} onRetry={load} />;
