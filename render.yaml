@@ -1,42 +1,48 @@
-# Render Blueprint for the Trade ERP frontend (static site).
+# Render Blueprint for the GOLDEN ARROW frontend (static site). This file is on the branch
+# `production/golden-arrow` and describes that client's own site. Deploy it from THIS BRANCH.
 #
-# The Vite app is at the repository root, so the build writes ./dist there and
-# rootDir stays empty. Keep staticPublishPath and rootDir consistent: Render
-# reported "Publish directory dist does not exist" when the build ran in one
-# directory and the publish step looked in another.
+# The Vite app is at the repository root, so the build writes ./dist there and rootDir stays empty.
+# Keep staticPublishPath and rootDir consistent: Render reported "Publish directory dist does not
+# exist" when the build ran in one directory and the publish step looked in another.
 #
-# Render does not read public/_redirects (that file is Netlify's); the SPA
-# fallback has to be the rewrite route below, or deep links such as
-# /dashboard 404 even though index.html is published.
+# Render does not read public/_redirects (that file is Netlify's); the SPA fallback has to be the
+# rewrite route below, or deep links such as /dashboard 404 on refresh even though index.html is
+# published.
 #
-# The backend is proxied through this frontend (CLAUDE.md "Deployment (Render)", 26 Oct 2026): the API
-# rewrite must sit ABOVE the SPA fallback - below it, /* would answer every API call with index.html and
-# the app would die on a JSON parse error at the first request. This keeps the backend's own host out of
-# every request a browser can see; the backend's own render.yaml must ship SESSION_COOKIE_SAMESITE=lax in
-# the SAME deploy, since app and API are one origin now and the backend may no longer see an Origin header
-# to check. (A dashboard-made service ignores this file - see the note at the top of the backend's
-# render.yaml - so this is the record to apply by hand in the dashboard, not something that deploys itself.)
+# The backend is proxied through this site, so the backend's own host is in no request a browser can
+# see. THE /api/* REWRITE MUST SIT ABOVE THE SPA FALLBACK - below it, /* answers every API call with
+# index.html and the app dies on a JSON parse error at the first request. Its destination is THIS
+# CLIENT'S OWN backend; pointed at another client's service it would sign people in against the wrong
+# database. The backend must ship SESSION_COOKIE_SAMESITE=lax in the same deploy, since app and API
+# are one origin now. (A dashboard-made service ignores this file - see the backend's render.yaml -
+# so this is also the record to apply by hand in the dashboard.)
 services:
   - type: web
     runtime: static
-    name: zarvia
+    name: golden-arrow
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
-      # Baked into the bundle at build time by src/axios/axios.js. Relative on purpose: resolveApiBaseUrl's
-      # "host only" branch exists for the OLDER bare-host value this used to be; a relative path keeps the
-      # backend's address out of the bundle entirely.
+      # The ONLY build-time variable the code reads (src/axios/axios.js; the developer console builds
+      # on the same API_BASE_URL). Relative on purpose: resolveApiBaseUrl's "host only" branch exists
+      # for the older bare-host value this used to be, and a relative path keeps the backend's address
+      # out of the bundle entirely. .env.production carries the same value, so a build with no
+      # dashboard variables still behaves like the deployed site.
       - key: VITE_API_URL
         value: /api/v1
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
+        destination: https://golden-arrow-api.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
-    # Response headers for every page and file of the site. These are the ones that cannot break the app; a Content-Security-Policy is
-    # deliberately NOT here (see "Content-Security-Policy" in CLAUDE.md for what it would need before it can be switched on).
+    # Response headers for every page and file. These are the ones that cannot break the app; a
+    # Content-Security-Policy is deliberately NOT here (see "Content-Security-Policy" in CLAUDE.md for
+    # what it would need first). A DASHBOARD-MADE STATIC SITE IGNORES THIS BLOCK - measured 21 Oct
+    # 2026, the live site answered only nosniff and Render's own HSTS - so add them as dashboard
+    # header rules too. Of these, X-Frame-Options matters most: an ERP that moves money should not be
+    # embeddable in someone else's page.
     headers:
       - path: /*
         name: X-Content-Type-Options
@@ -58,9 +64,10 @@ services:
       - path: /sw.js
         name: Cache-Control
         value: no-cache
-      # A customer's document link carries its secret in the address, so the PAGE must not be indexed. The share API already
-      # answers noindex and no-store, but the page the customer actually opens is /d/<token> here on the static site, and a
-      # token pasted anywhere a crawler can reach would otherwise be indexed with the document behind it.
+      # A customer's document link carries its secret in the address, so the PAGE must not be indexed.
+      # The share API already answers noindex and no-store, but the page the customer opens is
+      # /d/<token> here on the static site, and a token pasted anywhere a crawler reaches would
+      # otherwise be indexed with the document behind it.
       - path: /d/*
         name: X-Robots-Tag
         value: noindex, nofollow, noarchive
