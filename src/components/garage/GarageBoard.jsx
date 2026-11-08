@@ -9,7 +9,7 @@ import { useGarageReveal } from "./useGarageReveal";
 import { Progress } from "../ui/progress";
 import { CompleteTaskDialog } from "./garageShared";
 import { jobCards } from "../../lib/garageApi";
-import { DUE_LABEL, DUE_TONE, garageErrorText, INVOICE_STATUS_LABEL, jobCardLabel } from "../../lib/garage";
+import { DUE_LABEL, DUE_TONE, garageErrorText, INVOICE_STATUS_LABEL, jobCardLabel, vehiclePlateText } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { EmptyState, ErrorNote, PageHeader, Panel, Pill, PageSpinner, useAsync, useToasts } from "../accounting/kit";
 
@@ -54,6 +54,11 @@ function JobCard({ card }) {
   const state = jobCardLabel(card);
   const hasTasks = card.taskCount > 0;
   const pct = hasTasks ? Math.round((card.doneTasks / card.taskCount) * 100) : 0;
+  // The full plate (G7: emirate · code · number, the same helper VehicleView and the register use) when
+  // the card carries one, else the vehicle's make and model - never both, there is no room for it here.
+  // The board's own card shape names the number `plate`, not `plateNumber` (unlike Vehicle/VehicleView
+  // and the job-cards register), so it is handed across under the name vehiclePlateText expects.
+  const plateText = vehiclePlateText({ plateNumber: card.plate, plateCode: card.plateCode, plateEmirate: card.plateEmirate }) || card.vehicle;
   return (
     <Link
       to={`/garage/job-cards?open=${card.jobCardId}`}
@@ -62,7 +67,7 @@ function JobCard({ card }) {
     >
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0">
-          <span className="block truncate font-medium" title={card.vehicle}>{card.plate || card.vehicle}</span>
+          <span className="block truncate font-medium" title={plateText}>{plateText}</span>
           <span className="block font-mono text-xs text-muted-foreground">{card.jobNo || "(draft)"}</span>
         </span>
         {card.total > 0 && <span className="shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums">{formatCurrencyAED(card.total)}</span>}
@@ -177,7 +182,7 @@ export default function GarageBoard() {
               {d.mine.map((c) => (
                 <li key={`${c.jobCardId}-${c.taskId}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                   <span className="min-w-0">
-                    <span className="font-medium">{c.taskName}</span> · {c.plate || c.vehicle} <span className="text-muted-foreground">({c.jobNo})</span>
+                    <span className="font-medium">{c.taskName}</span> · {vehiclePlateText({ plateNumber: c.plate, plateCode: c.plateCode, plateEmirate: c.plateEmirate }) || c.vehicle} <span className="text-muted-foreground">({c.jobNo})</span>
                     {DUE_LABEL[c.dueState] && <span className="ms-2"><Pill tone={DUE_TONE[c.dueState]}>{DUE_LABEL[c.dueState]}</Pill></span>}
                   </span>
                   <span className="flex flex-wrap gap-2">

@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { AGE_BAND_LABEL, AGE_BAND_TONE, CLAIM_AGE_BUCKET_LABEL, CLAIM_AGE_BUCKET_TONE, DUE_LABEL, DUE_TONE, JOB_STATUS, TASK_STATUS, defaultJobTab, garageErrorText, jobCardLabel, jobOverflowActions, jobPrimaryAction, lineDecisionLabel } from "../garage";
+import { AGE_BAND_LABEL, AGE_BAND_TONE, CLAIM_AGE_BUCKET_LABEL, CLAIM_AGE_BUCKET_TONE, DUE_LABEL, DUE_TONE, JOB_STATUS, TASK_STATUS, defaultJobTab, garageErrorText, jobCardLabel, jobOverflowActions, jobPrimaryAction, lineDecisionLabel, vehiclePlateText } from "../garage";
+
+describe("vehiclePlateText", () => {
+  it("joins emirate, code and number in the order a UAE plate is read, only the parts that are set", () => {
+    expect(vehiclePlateText({ plateEmirate: "Dubai", plateCode: "A", plateNumber: "12345" })).toBe("Dubai · A · 12345");
+    expect(vehiclePlateText({ plateNumber: "A 12345" })).toBe("A 12345"); // an older record: no code, no emirate
+    expect(vehiclePlateText({ plateCode: "A", plateNumber: "12345" })).toBe("A · 12345"); // no emirate on file
+  });
+  it("falls back to the chassis for a vehicle checked in with no plate yet, and to nothing for neither", () => {
+    expect(vehiclePlateText({ chassisNo: "JTEBU29J500123456" })).toBe("JTEBU29J500123456");
+    expect(vehiclePlateText({})).toBe("");
+    expect(vehiclePlateText(null)).toBe("");
+  });
+});
 
 describe("garage words", () => {
   it("every job status and task status has a label and a tone", () => {

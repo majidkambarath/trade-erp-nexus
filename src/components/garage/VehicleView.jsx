@@ -6,7 +6,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { vehicles, filesFor } from "../../lib/garageApi";
-import { JOB_STATUS, INVOICE_STATUS_LABEL } from "../../lib/garage";
+import { JOB_STATUS, INVOICE_STATUS_LABEL, vehiclePlateText } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import VehicleForm from "./VehicleForm";
@@ -41,7 +41,7 @@ export default function VehicleView({ id, onClose, onChanged }) {
     <Modal
       size="lg"
       onClose={onClose}
-      title={v ? `${v.plateNumber || v.chassisNo}${v.plateEmirate ? ` (${v.plateEmirate})` : ""}` : "Vehicle"}
+      title={v ? vehiclePlateText(v) : "Vehicle"}
       description={v ? `${[v.make, v.model, v.variant].filter(Boolean).join(" ")}${v.year ? ` · ${v.year}` : ""}${v.colour ? ` · ${v.colour}` : ""}` : undefined}
       footer={<><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit</Button></>}
     >

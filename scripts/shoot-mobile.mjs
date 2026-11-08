@@ -2452,8 +2452,11 @@ function stubFor(pathname, search = "") {
   // /garage/services matched no rule at all and came back []. Five of the six garage pages were measured
   // against junk, which is why none of them had ever failed: an empty page cannot overflow.
   if (p.includes("/garage/")) {
+    // plateNumber is the number alone - plateCode is its own separate box (G7: a plate prints as
+    // Emirate · Code · Number, lib/garage.js vehiclePlateText; a plateNumber carrying the code too, as
+    // these fixtures once did ("A 12345" AND plateCode "A"), reads with the code twice).
     const veh = (over = {}) => ({
-      _id: "v1", plateNumber: "A 12345", plateCode: "A", plateEmirate: "Dubai",
+      _id: "v1", plateNumber: "12345", plateCode: "A", plateEmirate: "Dubai",
       chassisNo: "JTEBU29J500123456", engineNo: "1GR0456789", make: "Toyota", model: "Land Cruiser",
       variant: "GXR", year: 2021, colour: "White", transmission: "automatic", fuelType: "petrol",
       customerId: "c1", customerName: "Al Manara Transport LLC", odometer: 84500,
@@ -2461,8 +2464,8 @@ function stubFor(pathname, search = "") {
     });
     const vehicles = [
       veh(),
-      veh({ _id: "v2", plateNumber: "Q 55901", plateCode: "Q", plateEmirate: "Sharjah", chassisNo: "JN8AY2NE9L9100233", make: "Nissan", model: "Patrol", variant: "LE", year: 2020, colour: "Grey", customerName: "Gulf Fresh Foods", odometer: 112380 }),
-      veh({ _id: "v3", plateNumber: "D 7782", plateCode: "D", plateEmirate: "Abu Dhabi", chassisNo: "JMYLYV98W8J000911", make: "Mitsubishi", model: "Pajero", variant: "GLS", year: 2018, colour: "Silver", customerName: "Noor Supermarket", odometer: 168900, status: "inactive" }),
+      veh({ _id: "v2", plateNumber: "55901", plateCode: "Q", plateEmirate: "Sharjah", chassisNo: "JN8AY2NE9L9100233", make: "Nissan", model: "Patrol", variant: "LE", year: 2020, colour: "Grey", customerName: "Gulf Fresh Foods", odometer: 112380 }),
+      veh({ _id: "v3", plateNumber: "7782", plateCode: "D", plateEmirate: "Abu Dhabi", chassisNo: "JMYLYV98W8J000911", make: "Mitsubishi", model: "Pajero", variant: "GLS", year: 2018, colour: "Silver", customerName: "Noor Supermarket", odometer: 168900, status: "inactive" }),
     ];
     if (p.endsWith("/garage/vehicles/catalogue")) return { makes: ["Toyota", "Nissan", "Mitsubishi"], models: ["Land Cruiser", "Patrol", "Pajero"] };
     if (p.includes("/garage/vehicles/") && p.endsWith("/activity")) return [
@@ -2476,10 +2479,11 @@ function stubFor(pathname, search = "") {
     if (p.includes("/garage/vehicles/")) return veh();
 
     // A board card is exactly what utils/garage.js board() builds (jobCardId..invoiceStatus + dueState):
-    // doneTasks/taskCount/total/bay/invoiceStatus are the fields the card face draws.
+    // doneTasks/taskCount/total/bay/invoiceStatus are the fields the card face draws, now with
+    // plateCode/plateEmirate too (G7) - plate is the number alone, like the vehicle fixtures above.
     const bcard = (over = {}) => ({
       jobCardId: "j1", jobNo: "JC-2026-0001", status: "IN_PROGRESS", jobType: "retail",
-      plate: "A 12345", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC",
+      plate: "12345", plateCode: "A", plateEmirate: "Dubai", vehicle: "Toyota Land Cruiser", customer: "Al Manara Transport LLC",
       taskId: "t2", taskName: "Brake overhaul", taskStatus: "IN_PROGRESS",
       openTasks: 2, taskCount: 5, doneTasks: 3, who: "Imran Qureshi", assigneeId: "me",
       bay: "Bay 2", due: "2026-11-07", total: 3480.75, invoiceStatus: "NONE",

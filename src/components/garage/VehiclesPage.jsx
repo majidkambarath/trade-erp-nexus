@@ -10,6 +10,7 @@ import { FilterSelect } from "../lists/FilterBar.jsx";
 import { useListView } from "../../lib/useListView";
 import Can from "../shell/Can.jsx";
 import { vehicles } from "../../lib/garageApi";
+import { vehiclePlateText } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
 import VehicleForm from "./VehicleForm";
 import VehicleView from "./VehicleView";
@@ -81,7 +82,7 @@ export default function VehiclesPage() {
             header: "Plate",
             sortable: true,
             card: "primary",
-            cell: (r) => <span className="whitespace-nowrap font-medium">{r.plateNumber || r.chassisNo || "–"}</span>,
+            cell: (r) => <span className="whitespace-nowrap font-medium">{vehiclePlateText(r) || "–"}</span>,
           },
           {
             key: "vehicle",

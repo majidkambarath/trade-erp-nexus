@@ -65,6 +65,18 @@ export const AGE_BAND_TONE = { u5: "neutral", b5_9: "info", b10_14: "warning", o
 export const CLAIM_AGE_BUCKET_LABEL = { "0-7": "0-7 days", "8-14": "8-14 days", "15-30": "15-30 days", "30+": "30+ days" };
 export const CLAIM_AGE_BUCKET_TONE = { "0-7": "neutral", "8-14": "info", "15-30": "warning", "30+": "danger" };
 
+// A UAE plate in full, the way a workshop reads one off the car: the issuing emirate, the plate's own
+// code/category box, then the number - each only when it is actually set, so an older record with just a
+// plateNumber reads exactly as it always did. Falls back to the chassis for a vehicle checked in with no
+// plate yet. One helper for every place a vehicle is named (G7) - the vehicle screen, the register and the
+// board - so the three pieces (captured on VehicleForm, shown nowhere until this) cannot read differently
+// from one screen to the next.
+export function vehiclePlateText(v) {
+  if (!v) return "";
+  const parts = [v.plateEmirate, v.plateCode, v.plateNumber].filter(Boolean);
+  return parts.length ? parts.join(" · ") : v.chassisNo || "";
+}
+
 // A job card's own words for the current task on the board - "Ready to finish" when every task is settled,
 // the task's name and state otherwise.
 export function jobCardLabel(card) {

@@ -62,7 +62,7 @@ import GarageSetupPage from "../GarageSetupPage";
 const boardData = {
   counts: { jobs: 3, awaitingApproval: 1, inProgress: 1, ready: 1, deliveredNotInvoiced: 0, overdue: 1, dueToday: 1, dueTomorrow: 0, doneToday: 0 },
   columns: [
-    { name: "Waiting for approval", order: 0, cards: [{ jobCardId: "j1", jobNo: "JC-2026-0001", status: "AWAITING_APPROVAL", plate: "A 11111", vehicle: "Toyota Hilux", customer: "Ali Hassan", taskName: null, taskStatus: null, due: "2026-10-20", dueState: "overdue" }] },
+    { name: "Waiting for approval", order: 0, cards: [{ jobCardId: "j1", jobNo: "JC-2026-0001", status: "AWAITING_APPROVAL", plate: "11111", plateCode: "A", plateEmirate: "Dubai", vehicle: "Toyota Hilux", customer: "Ali Hassan", taskName: null, taskStatus: null, due: "2026-10-20", dueState: "overdue" }] },
     { name: "Replace brake pads", order: 11, cards: [{ jobCardId: "j2", jobNo: "JC-2026-0002", status: "IN_PROGRESS", plate: "B 22222", vehicle: "Nissan Patrol", customer: "Sara", taskId: "t1", taskName: "Replace brake pads", taskStatus: "READY", who: "Raj", due: "2026-10-26", dueState: "today" }] },
   ],
   mine: [{ jobCardId: "j2", taskId: "t1", jobNo: "JC-2026-0002", plate: "B 22222", vehicle: "Nissan Patrol", taskName: "Replace brake pads", taskStatus: "READY", dueState: "today" }],
@@ -160,6 +160,15 @@ describe("the garage board", () => {
     await screen.findByRole("list", { name: "Where the work stands" });
     const link = screen.getByRole("link", { name: /JC-2026-0001: Toyota Hilux/ });
     expect(link).toHaveAttribute("href", "/garage/job-cards?open=j1");
+  });
+
+  it("shows the full plate on a card - emirate, code and number - not just the bare number (G7)", async () => {
+    render_(<GarageBoard />);
+    await screen.findByRole("list", { name: "Where the work stands" });
+    // j1 carries plateCode/plateEmirate; j2 (in "My work" too) carries neither and still reads its plain
+    // plate - an older job card's snapshot has none of the two new fields and must not break.
+    expect(screen.getByText("Dubai · A · 11111")).toBeInTheDocument();
+    expect(screen.getAllByText("B 22222").length).toBeGreaterThan(0);
   });
 });
 
@@ -446,6 +455,15 @@ describe("vehicles list", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(m.vUpdate).toHaveBeenCalled());
     expect(m.vUpdate.mock.calls[0][1].registrationExpiry).toBe("2026-10-28");
+  });
+
+  it("shows the full plate - emirate, code and number - on the list and the vehicle's own page (G7)", async () => {
+    m.vList.mockResolvedValue([{ _id: "v1", plateNumber: "12345", plateCode: "A", plateEmirate: "Dubai", make: "Toyota", model: "Hilux", year: 2019, colour: "White", chassisNo: "", odometer: 85000, status: "active" }]);
+    m.vGet.mockResolvedValue({ _id: "v1", plateNumber: "12345", plateCode: "A", plateEmirate: "Dubai", make: "Toyota", model: "Hilux", year: 2019, colour: "White", chassisNo: "", odometer: 85000, status: "active", serviceDue: {} });
+    render_(<VehiclesPage />);
+    expect(await screen.findByText("Dubai · A · 12345")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Dubai · A · 12345"));
+    expect(await screen.findByRole("dialog", { name: "Dubai · A · 12345" })).toBeInTheDocument();
   });
 
   it("opening a vehicle shows its job history - the reason a workshop buys this", async () => {
