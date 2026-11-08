@@ -31,9 +31,12 @@ services:
       - key: VITE_API_URL
         value: /api/v1
     routes:
+      # The backend service is named `api-golden-arrow`. Get this wrong and Render's edge answers
+      # every API call with 404 and `x-render-routing: no-server` - the SPA still loads, so the app
+      # looks fine until the first request, and the developer console cannot sign in either.
       - type: rewrite
         source: /api/*
-        destination: https://golden-arrow-api.onrender.com/api/*
+        destination: https://api-golden-arrow.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
