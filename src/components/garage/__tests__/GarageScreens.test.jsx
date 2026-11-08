@@ -170,6 +170,42 @@ describe("the garage board", () => {
     expect(screen.getAllByText("JC-2026-0002").length).toBeGreaterThan(0);
   });
 
+  // The board is operational: the headline is context, the tiles are things to act on, and a count of
+  // zero is deliberately NOT dressed up as an alert - a quiet day has to look quiet.
+  it("leads with the day's own figures, and a zero keeps its neutral tone instead of shouting", async () => {
+    render_(<GarageBoard />);
+    const tiles = await screen.findByRole("list", { name: "Where the work stands" });
+    // The headline names the total (the ring below carries the same words, hence getAllByText).
+    expect(screen.getAllByText(/jobs? in the workshop/).length).toBeGreaterThan(0);
+    // In progress and Due tomorrow are flow state, read as a quiet line rather than as tiles.
+    expect(within(tiles).queryByText("In progress")).toBeNull();
+    expect(within(tiles).queryByText("Due tomorrow")).toBeNull();
+    const quiet = screen.getByRole("list", { name: "Also on the board" });
+    expect(within(quiet).getByText(/in progress/)).toBeInTheDocument();
+    expect(within(quiet).getByText(/due tomorrow/)).toBeInTheDocument();
+    // deliveredNotInvoiced is 0 in the fixture: it keeps the neutral tone rather than reading as an alert.
+    const calmTile = within(tiles).getByText("Delivered, not invoiced").closest("li");
+    expect(calmTile.querySelector('[class*="opacity-60"]')).not.toBeNull();
+  });
+
+  it("status chips count what is on the board and filter it, so a chip can never show nothing", async () => {
+    render_(<GarageBoard />);
+    await screen.findByRole("list", { name: "Where the work stands" });
+    const chips = screen.getByRole("group", { name: "Filter the board by status" });
+    const inProgress = within(chips).getByRole("button", { name: /In progress/ });
+    expect(inProgress).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(inProgress);
+    expect(inProgress).toHaveAttribute("aria-pressed", "true");
+    // j2 is the IN_PROGRESS card and stays; j1's whole awaiting-approval column goes.
+    expect(screen.getAllByText("JC-2026-0002").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("region", { name: "Waiting for approval" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(inProgress).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("region", { name: "Waiting for approval" })).toBeInTheDocument();
+  });
+
   it("a job card on the board links to its own page, not a dialog", async () => {
     render_(<GarageBoard />);
     await screen.findByRole("list", { name: "Where the work stands" });
