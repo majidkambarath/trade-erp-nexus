@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History } from "lucide-react";
 import { Button } from "../ui/button";
 import { jobCards, filesFor } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL, JOB_TABS, defaultJobTab, garageErrorText } from "../../lib/garage";
@@ -14,6 +14,7 @@ import { JobTab, EstimateTab, WorkTab, MoneyTab } from "./jobCardTabs";
 import JobCardActions from "./JobCardActions";
 import { ApprovalDialog, ReviseEstimateDialog, CreateInvoiceDialog, ReleaseDialog, RaisePurchaseOrderDialog, NewClaimDialog } from "./jobCardDialogs";
 import PrintRow from "./JobCardPrint";
+import { SimpleActivityTrail } from "../audit/AuditTrail.jsx";
 import { useDocumentTitle } from "../../lib/useRecordRoute";
 
 // The job card's own page ("?open=<id>" on /garage/job-cards; GarageBoard's cards and a vehicle's job
@@ -42,6 +43,7 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
   const [viewingClaim, setViewingClaim] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
   const [raisingPO, setRaisingPO] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const c = one.data;
   const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id, c?.status]);
   const checkInFiles = useMemo(() => (c?._id ? filesFor("jobcard", c._id) : null), [c?._id]);
@@ -120,7 +122,14 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
         {c.odometerIn != null && <span className="text-xs text-muted-foreground">In at {c.odometerIn} km</span>}
       </div>
 
-      <div className="mb-4"><PrintRow card={c} /></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <PrintRow card={c} />
+        {/* Not one of jobOverflowActions's status-driven actions (it is always available, never gated
+            by card.actions) - a plain button beside Print, the same "secondary, always there" weight. */}
+        <Button type="button" variant="outline" size="sm" onClick={() => setShowActivity(true)}>
+          <History className="me-1 h-3.5 w-3.5" aria-hidden="true" /> Audit trail
+        </Button>
+      </div>
 
       {shortageCount > 0 && (
         <p className="mb-4 rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-status-warning">
@@ -212,6 +221,15 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
           onClose={() => setViewingClaim(false)}
           onChanged={async (m) => { notify(m); onChanged(); await one.reload(); }}
           onRemoved={async (m) => { setViewingClaim(false); notify(m); onChanged(); await one.reload(); }}
+        />
+      )}
+      {showActivity && (
+        <SimpleActivityTrail
+          title={`Audit trail${c.jobNo ? ` - ${c.jobNo}` : ""}`}
+          description="Saving, check-in, estimate decisions, tasks, invoicing and release - who did it and when."
+          fetch={jobCards.activity}
+          id={id}
+          onClose={() => setShowActivity(false)}
         />
       )}
     </div>

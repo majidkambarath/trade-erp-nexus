@@ -8,10 +8,10 @@ const render_ = (ui, initialEntries) => render(<MemoryRouter initialEntries={ini
 const wait = (ms) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
 const m = vi.hoisted(() => ({
-  board: vi.fn(), jcList: vi.fn(), jcGet: vi.fn(), jcCreate: vi.fn(), jcStaff: vi.fn(), jcAssignees: vi.fn(), jcRecordApproval: vi.fn(),
-  vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(),
+  board: vi.fn(), jcList: vi.fn(), jcGet: vi.fn(), jcCreate: vi.fn(), jcStaff: vi.fn(), jcAssignees: vi.fn(), jcRecordApproval: vi.fn(), jcActivity: vi.fn(),
+  vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(), vActivity: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
-  clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(),
+  clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(), clActivity: vi.fn(),
   jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
 }));
@@ -22,13 +22,13 @@ vi.mock("../../../lib/garageApi", () => ({
     staff: m.jcStaff, assignees: m.jcAssignees, startTask: vi.fn(), completeTask: vi.fn(), sendEstimate: vi.fn(),
     recordApproval: m.jcRecordApproval, reviseEstimate: vi.fn(), createInvoice: vi.fn(), release: vi.fn(), cancel: vi.fn(),
     analysis: m.jcAnalysis, committed: vi.fn(), recordCheckIn: m.jcCheckIn, comebackCandidates: m.jcComebacks,
-    shortages: m.jcShortages, raisePurchaseOrder: m.jcRaisePO,
+    shortages: m.jcShortages, raisePurchaseOrder: m.jcRaisePO, activity: m.jcActivity,
   },
-  vehicles: { list: m.vList, find: m.vFind, get: m.vGet, activity: vi.fn(), jobs: m.vJobs, catalogue: m.vCatalogue, create: m.vCreate, update: m.vUpdate },
+  vehicles: { list: m.vList, find: m.vFind, get: m.vGet, activity: m.vActivity, jobs: m.vJobs, catalogue: m.vCatalogue, create: m.vCreate, update: m.vUpdate },
   partyChoices: { customers: m.customers, vendors: m.vendors, createCustomer: m.createCustomer },
   claims: {
     ageing: m.clAgeing, list: m.clList, get: m.clGet, create: m.clCreate, update: vi.fn(), remove: vi.fn(),
-    submit: m.clSubmit, recordSurvey: m.clSurvey, recordApproval: m.clDecide, raiseInvoices: m.clRaise,
+    submit: m.clSubmit, recordSurvey: m.clSurvey, recordApproval: m.clDecide, raiseInvoices: m.clRaise, activity: m.clActivity,
   },
   setup: {
     bays: m.setupBays, createBay: m.setupCreateBay, updateBay: vi.fn(),
@@ -112,6 +112,9 @@ beforeEach(() => {
   m.vCatalogue.mockResolvedValue({ makes: [], modelsByMake: {} });
   m.jcComebacks.mockResolvedValue([]);
   m.jcShortages.mockResolvedValue([]);
+  m.jcActivity.mockResolvedValue({ rows: [{ _id: "a1", action: "TRANSACTION_CREATED", summary: "Job card opened", username: "Imran Qureshi", at: "2026-10-28T06:00:00.000Z" }], total: 1 });
+  m.vActivity.mockResolvedValue({ rows: [{ _id: "a2", action: "VEHICLE_CREATED", summary: "Vehicle added", username: "Imran Qureshi", at: "2026-10-01T06:00:00.000Z" }], total: 1 });
+  m.clActivity.mockResolvedValue({ rows: [{ _id: "a3", action: "CLAIM_CREATED", summary: "Claim opened", username: "Imran Qureshi", at: "2026-10-20T06:00:00.000Z" }], total: 1 });
   m.setupBays.mockResolvedValue([]);
   m.setupServices.mockResolvedValue([]);
   m.setupCreateBay.mockResolvedValue({ _id: "b1", name: "Ramp 1", active: true });
@@ -272,6 +275,15 @@ describe("job cards list", () => {
     expect(screen.getByRole("button", { name: "Record decision" })).toBeInTheDocument();
   });
 
+  it("opens the job card's own audit trail, beside Print, not behind a status-driven action (G10)", async () => {
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.click(screen.getByRole("button", { name: /Audit trail/ }));
+    await waitFor(() => expect(m.jcActivity).toHaveBeenCalledWith("j1"));
+    const dialog = await screen.findByRole("dialog", { name: /Audit trail/ });
+    expect(within(dialog).getByText("Job card opened")).toBeInTheDocument();
+  });
+
   it("an insurance job with no claim yet offers to open one, with the insurer picker narrowed to insurers", async () => {
     m.jcGet.mockResolvedValue(jobCardFull({ jobType: "insurance", claimId: null }));
     render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
@@ -425,6 +437,16 @@ describe("claims list", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/Ahmed Saeed/)).toBeInTheDocument();
   });
+
+  it("opens the claim's own audit trail (G10)", async () => {
+    render_(<ClaimsPage />);
+    fireEvent.click(await screen.findByText("CLM-2026-0001"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Audit trail/ }));
+    await waitFor(() => expect(m.clActivity).toHaveBeenCalledWith("cl1"));
+    const trail = await screen.findByRole("dialog", { name: /Audit trail/ });
+    expect(within(trail).getByText("Claim opened")).toBeInTheDocument();
+  });
 });
 
 describe("vehicles list", () => {
@@ -478,6 +500,16 @@ describe("vehicles list", () => {
     expect(within(view).getByText("JC-2026-0001")).toBeInTheDocument();
     expect(within(view).getByText("JC-2026-0002")).toBeInTheDocument();
     expect(within(view).getByText("Comeback")).toBeInTheDocument();
+  });
+
+  it("opens the vehicle's own audit trail - who changed the record, not the jobs it has had (G10)", async () => {
+    render_(<VehiclesPage />);
+    fireEvent.click(await screen.findByText("A 11111"));
+    const view = await screen.findByRole("dialog");
+    fireEvent.click(within(view).getByRole("button", { name: /Audit trail/ }));
+    await waitFor(() => expect(m.vActivity).toHaveBeenCalledWith("v1"));
+    const trail = await screen.findByRole("dialog", { name: /Audit trail/ });
+    expect(within(trail).getByText("Vehicle added")).toBeInTheDocument();
   });
 });
 

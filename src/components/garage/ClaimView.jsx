@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import { History } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can.jsx";
 import { claims } from "../../lib/garageApi";
 import { CLAIM_STATUS, garageErrorText } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { AmountInput, ConfirmDialog, DateInput, ErrorNote, Field, Modal, Pill, Select, Spinner, TextInput, useAsync } from "../accounting/kit";
+import { SimpleActivityTrail } from "../audit/AuditTrail.jsx";
 
 const DECISIONS = [["APPROVED", "Approved in full"], ["PARTLY_APPROVED", "Partly approved"], ["REJECTED", "Rejected"]];
 
@@ -132,6 +134,7 @@ export default function ClaimView({ id, onClose, onChanged, onRemoved }) {
   const [confirm, setConfirm] = useState(null); // "delete" | "submit" | "raiseInvoices"
   const [surveying, setSurveying] = useState(false);
   const [deciding, setDeciding] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const c = one.data;
 
   async function run(fn, message) {
@@ -167,6 +170,7 @@ export default function ClaimView({ id, onClose, onChanged, onRemoved }) {
       footer={
         c && (
           <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowActivity(true)}><History className="h-4 w-4" aria-hidden="true" />Audit trail</Button>
             {c.actions?.delete && <Can permission="garage.delete"><Button variant="outline" onClick={() => setConfirm("delete")}>Delete</Button></Can>}
             {c.actions?.submit && <Can permission="garage.edit"><Button variant="outline" onClick={() => setConfirm("submit")}>Submit</Button></Can>}
             {c.actions?.recordSurvey && <Can permission="garage.edit"><Button variant="outline" onClick={() => setSurveying(true)}>Record survey</Button></Can>}
@@ -242,7 +246,12 @@ export default function ClaimView({ id, onClose, onChanged, onRemoved }) {
 
       {confirm === "delete" && (
         <ConfirmDialog title="Delete this draft claim?" text="Nothing has been submitted. It is deleted for good." confirmLabel="Delete" danger busy={busy}
-          onClose={() => setConfirm(null)} onConfirm={() => run(() => claims.remove(c._id), "Claim deleted.").then(() => onRemoved("Claim deleted."))} />
+          onClose={() => setConfirm(null)}
+          // run() catches its own error and resolves null rather than rejecting (so a dialog can show the
+          // failure instead of throwing past it) - a bare .then(() => onRemoved(...)) therefore announced
+          // "deleted" on a FAILED delete too, same defect as JobCardView.jsx's delete before this session.
+          onConfirm={() => run(() => claims.remove(c._id), "Claim deleted.").then((r) => { if (r) onRemoved("Claim deleted."); })}
+        />
       )}
       {confirm === "submit" && (
         <ConfirmDialog title="Submit this claim?" text="It moves to waiting for a survey." confirmLabel="Submit" busy={busy}
@@ -254,6 +263,15 @@ export default function ClaimView({ id, onClose, onChanged, onRemoved }) {
       )}
       {surveying && <SurveyDialog claim={c} onClose={() => setSurveying(false)} onDone={changed} />}
       {deciding && <DecisionDialog claim={c} jobTotal={c?.approval?.approvedAmount} onClose={() => setDeciding(false)} onDone={changed} />}
+      {showActivity && (
+        <SimpleActivityTrail
+          title={`Audit trail${c?.claimNo ? ` - ${c.claimNo}` : ""}`}
+          description="Submitting, surveying, the insurer's decision and raising invoices, who did it and when."
+          fetch={claims.activity}
+          id={id}
+          onClose={() => setShowActivity(false)}
+        />
+      )}
     </Modal>
   );
 }

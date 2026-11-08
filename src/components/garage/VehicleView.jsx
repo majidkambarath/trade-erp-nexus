@@ -4,11 +4,13 @@
 // ordinary VehicleForm on top of it.
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { History } from "lucide-react";
 import { Button } from "../ui/button";
 import { vehicles, filesFor } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL, vehiclePlateText } from "../../lib/garage";
 import { formatDate } from "../../utils/format";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
+import { SimpleActivityTrail } from "../audit/AuditTrail.jsx";
 import VehicleForm from "./VehicleForm";
 import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
 
@@ -29,6 +31,7 @@ export default function VehicleView({ id, onClose, onChanged }) {
   const one = useAsync(() => vehicles.get(id), [id]);
   const history = useAsync(() => vehicles.jobs(id), [id]);
   const [editing, setEditing] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const v = one.data;
   const jobs = Array.isArray(history.data) ? history.data : [];
   const closedJobs = jobs.filter((j) => j.delivery?.gatePassAt);
@@ -43,7 +46,11 @@ export default function VehicleView({ id, onClose, onChanged }) {
       onClose={onClose}
       title={v ? vehiclePlateText(v) : "Vehicle"}
       description={v ? `${[v.make, v.model, v.variant].filter(Boolean).join(" ")}${v.year ? ` · ${v.year}` : ""}${v.colour ? ` · ${v.colour}` : ""}` : undefined}
-      footer={<><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => setEditing(true)}>Edit</Button></>}
+      footer={<>
+        <Button variant="outline" onClick={onClose}>Close</Button>
+        <Button variant="outline" onClick={() => setShowActivity(true)}><History className="h-4 w-4" aria-hidden="true" />Audit trail</Button>
+        <Button onClick={() => setEditing(true)}>Edit</Button>
+      </>}
     >
       {one.loading && !v && <Spinner label="Loading the vehicle" />}
       {one.error && <ErrorNote error={one.error} onRetry={one.reload} />}
@@ -131,6 +138,15 @@ export default function VehicleView({ id, onClose, onChanged }) {
           vehicle={v}
           onClose={() => setEditing(false)}
           onSaved={async (_r, m) => { setEditing(false); onChanged?.(m); await one.reload(); }}
+        />
+      )}
+      {showActivity && (
+        <SimpleActivityTrail
+          title={`Audit trail${v ? ` - ${vehiclePlateText(v)}` : ""}`}
+          description="Who changed this vehicle's own record, and when - not the jobs it has had, which are its history above."
+          fetch={vehicles.activity}
+          id={id}
+          onClose={() => setShowActivity(false)}
         />
       )}
     </Modal>
