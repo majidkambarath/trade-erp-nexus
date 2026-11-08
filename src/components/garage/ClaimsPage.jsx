@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
@@ -9,6 +9,7 @@ import { CLAIM_STATUS } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import ClaimView from "./ClaimView";
 import ClaimsAgeing from "./ClaimsAgeing";
+import { useGarageReveal } from "./useGarageReveal";
 
 // Inventory > Garage > Claims: every insurance claim, from the first submission through the insurer's
 // decision to the invoices it raises. A claim is opened from its own job card (JobCardView.jsx) - this is
@@ -39,6 +40,12 @@ export default function ClaimsPage() {
   );
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
   const filtersOn = Boolean(status || search);
+  const scope = useRef(null);
+  // Keyed on the TAB (a non-empty string, which the hook reads as "ready" and has in its deps), so
+  // switching to Ageing replays the reveal for the body that just mounted. It deliberately does not
+  // wait on `list.data` the way Reports does: the panel frame is on screen either way, and Ageing
+  // fetches its own data, so waiting here would mean the Ageing tab never animated at all.
+  useGarageReveal(scope, tab);
 
   const columns = [
     { key: "claimNo", header: "Claim", card: "primary", cell: (r) => <span className="whitespace-nowrap font-medium">{r.claimNo || "(draft)"}</span> },
@@ -50,14 +57,14 @@ export default function ClaimsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Claims" description="Every insurance claim, from submission to the invoices it raises. Opened from the job card it is for." />
 
       <div className="mt-6"><PillTabs tabs={[["list", "Claims"], ["ageing", "Ageing"]]} value={tab} onChange={setTab} label="Claims view" /></div>
 
       {tab === "list" ? (
         <>
-          <div className="mt-4">
+          <div data-reveal className="mt-4">
             <FilterBar
               search={search}
               onSearch={setSearch}
@@ -72,7 +79,9 @@ export default function ClaimsPage() {
             <PeriodNote filter={periodFilter} count={list.data ? rows.length : null} noun="claims" one="claim" extra={filtersOn ? "filtered" : undefined} className="mt-3" />
           </div>
 
-          <Panel className="mt-4" bodyClassName="p-0">
+          {/* the wrapper carries data-reveal, not <Panel>, which does not spread unknown props */}
+          <div data-reveal className="mt-4">
+          <Panel bodyClassName="p-0">
             {list.loading && !list.data && <Spinner label="Reading the claims" />}
             {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
             {list.data && rows.length === 0 && (
@@ -85,9 +94,10 @@ export default function ClaimsPage() {
               <DataTable className="table-pin-first" caption="Claims" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => setOpen(r._id)} columns={columns} />
             )}
           </Panel>
+          </div>
         </>
       ) : (
-        <div className="mt-4"><ClaimsAgeing onOpen={setOpen} /></div>
+        <div data-reveal className="mt-4"><ClaimsAgeing onOpen={setOpen} /></div>
       )}
 
       {open && (

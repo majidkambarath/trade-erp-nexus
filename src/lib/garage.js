@@ -65,6 +65,18 @@ export const CLAIM_STATUS = {
 export const AGE_BAND_LABEL = { u5: "Under 5 days", b5_9: "5-9 days", b10_14: "10-14 days", o15: "15+ days" };
 export const AGE_BAND_TONE = { u5: "neutral", b5_9: "info", b10_14: "warning", o15: "danger" };
 
+// Chart colours are assigned in a FIXED order and never cycled, and --chart-1 (ink, near-black) comes
+// LAST - so the first thing in a chart is never the heaviest thing on the page. This is the CRM's own
+// rule (lib/crm.js CHART_HUES/hueFor), copied here rather than imported: each module keeps its own
+// small copy, the way useGarageReveal is a copy of the CRM's useReveal.
+//
+// It is copied because garage had the bug the rule exists to prevent: "Revenue by stream" painted
+// LABOUR - the second bar - with var(--chart-1), so the chart led with near-black; and the technician
+// bars named no colour at all, so RankedBars fell back to ink for every one of them and nobody could
+// be told apart. A chart that names its series in a fixed order cannot drift like that again.
+export const CHART_HUES = ["var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-1)"];
+export const hueFor = (index) => CHART_HUES[Math.min(Math.max(0, index), CHART_HUES.length - 1)];
+
 // The four claims-ageing buckets (utils/insuranceClaims.js claimAgeing), a different convention from the
 // job-ageing bands above (inclusive upper bounds, days since SUBMISSION rather than since the vehicle was
 // received) - kept apart on purpose rather than forced to share one table.

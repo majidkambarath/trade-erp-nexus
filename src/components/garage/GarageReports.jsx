@@ -7,7 +7,8 @@ import { jobCards } from "../../lib/garageApi";
 import { EmptyState, ErrorNote, Panel, PageHeader, PageSpinner, Pill, useAsync } from "../accounting/kit";
 import { PeriodNote, PeriodSelect } from "../lists/PeriodFilter";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
-import { formatCurrencyAED, formatDate, formatNumber } from "../../utils/format";
+import { formatCurrencyAED, formatCurrencyCompact, formatDate, formatNumber } from "../../utils/format";
+import { hueFor } from "../../lib/garage";
 import { Link } from "react-router-dom";
 
 // Inventory > Garage > Reports: the workshop's own numbers over a period - revenue by stream (parts, labour,
@@ -16,7 +17,10 @@ import { Link } from "react-router-dom";
 // delivered job cards (GET /garage/job-cards/analysis, utils/garage.js analysis - already pure-tested); this
 // screen only draws it. A rate with nothing to measure reads as "–", never 0.
 const STREAM_LABEL = { part: "Parts", labour: "Labour", sublet: "Sublet", consumable: "Consumables" };
-const STREAM_COLOR = { part: "var(--chart-2)", labour: "var(--chart-1)", sublet: "var(--chart-3)", consumable: "var(--chart-4)" };
+// The streams in a fixed order, coloured by position through hueFor - so ink never lands on the second
+// bar. This used to name var(--chart-1) for labour, which IS ink, and the chart led with near-black.
+const STREAMS = ["part", "labour", "sublet", "consumable"];
+const STREAM_COLOR = Object.fromEntries(STREAMS.map((key, i) => [key, hueFor(i)]));
 
 const DESCRIPTION = "The workshop's own numbers: revenue by stream, technician efficiency, and how reliably jobs go out on time.";
 
@@ -57,10 +61,13 @@ export default function GarageReports() {
   }
 
   const revenueTotal = j.revenue?.total || 0;
-  const streamRows = Object.keys(STREAM_LABEL)
+  const streamRows = STREAMS
     .map((key) => ({ key, name: STREAM_LABEL[key], value: j.revenue?.[key] || 0, color: STREAM_COLOR[key] }))
     .filter((r) => r.value > 0);
-  const peopleRows = people.map((p) => ({ key: p.key, name: p.label, value: p.hoursTaken || 0 }));
+  // Each technician gets their own colour by position. Without a colour RankedBars falls back to ink
+  // for every bar (FlowCharts.jsx: `fill={r.color || ink}`), which is how this chart came to be a row
+  // of identical black bars that told you nothing about who was who.
+  const peopleRows = people.map((p, i) => ({ key: p.key, name: p.label, value: p.hoursTaken || 0, color: hueFor(i) }));
 
   return (
     <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -85,8 +92,11 @@ export default function GarageReports() {
           {streamRows.length === 0 ? <p className="text-sm text-muted-foreground">Nothing delivered in this period.</p> : (
             <RankedBars
               rows={streamRows}
-              valueText={(v) => formatCurrencyAED(v)}
-              axisText={(v) => formatCurrencyAED(v)}
+              // RankedBars leaves only 56px past the end of a bar for its figure, so a full
+              // "AED 184,500.00" was being CUT OFF mid-number. Compact here (the exact amount is in
+              // the tooltip and on the panel below), and let the axis keep the component's own
+              // compactAmount default instead of repeating "AED ..." on every tick.
+              valueText={formatCurrencyCompact}
               describe={(r) => `${formatCurrencyAED(r.value)} of ${formatCurrencyAED(revenueTotal)} revenue (${revenueTotal > 0 ? formatNumber((r.value / revenueTotal) * 100, 0) : 0}%)`}
             />
           )}

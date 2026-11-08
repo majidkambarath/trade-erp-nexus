@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Pill, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
@@ -7,10 +7,11 @@ import { usePeriodFilter } from "../lists/usePeriodFilter";
 import Can from "../shell/Can.jsx";
 import { jobCards } from "../../lib/garageApi";
 import { JOB_STATUS, INVOICE_STATUS_LABEL, JOB_TYPES, JOB_TYPE_LABEL, AGE_BAND_LABEL, AGE_BAND_TONE } from "../../lib/garage";
-import { formatDate } from "../../utils/format";
+import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { useRecordRoute } from "../../lib/useRecordRoute";
 import JobCardForm from "./JobCardForm";
 import JobCardView from "./JobCardView";
+import { useGarageReveal } from "./useGarageReveal";
 
 // Inventory > Garage > Job cards: every live and finished job, searchable by number, plate or customer, filtered
 // by status. The board (GarageBoard.jsx) is where a job is worked day to day; this is the full register.
@@ -35,6 +36,7 @@ export default function JobCardsPage() {
   const [ageBand, setAgeBand] = useState("");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const scope = useRef(null);
   // A list of dated documents, so the house period control applies (CLAUDE.md "What a list remembers" /
   // ListPage.jsx's own header comment: a period control is exactly the case ListPage does not cover, so
   // this stays on FilterBar + DataTable directly rather than useListView, which no screen in the product
@@ -55,6 +57,7 @@ export default function JobCardsPage() {
   );
   const rows = useMemo(() => (Array.isArray(list.data) ? list.data : []), [list.data]);
   const filtersOn = Boolean(status || jobType || ageBand || search);
+  useGarageReveal(scope, Boolean(list.data));
 
   const columns = [
     {
@@ -84,12 +87,17 @@ export default function JobCardsPage() {
       cell: (r) => (
         <div className="flex items-center gap-1.5 whitespace-nowrap">
           <span>{r.receivedAt ? formatDate(r.receivedAt) : "–"}</span>
-          {r.ageBand && <Pill tone={AGE_BAND_TONE[r.ageBand] || "neutral"}>{AGE_BAND_LABEL[r.ageBand]}</Pill>}
+          {/* Only when it MEANS something. A car that came in this week is the normal case and saying
+              "Under 5 days" on every fresh row is a column of noise beside the date that already says
+              it; 5 days and over is the triage signal worth a pill. */}
+          {r.ageBand && r.ageBand !== "u5" && <Pill tone={AGE_BAND_TONE[r.ageBand] || "neutral"}>{AGE_BAND_LABEL[r.ageBand]}</Pill>}
         </div>
       ),
     },
     { key: "promised", header: "Promised", card: "meta", cell: (r) => (r.promisedAt ? formatDate(r.promisedAt) : "–") },
-    { key: "total", header: "Estimate", align: "end", card: "amount", cell: (r) => (r.estimate?.total ? r.estimate.total.toFixed(2) : "–") },
+    // Money is formatted like money everywhere else in the app: this column printed a bare "3480.75"
+    // while the very same figure reads "AED 3,480.75" on the job card and on Reports.
+    { key: "total", header: "Estimate", align: "end", card: "amount", cell: (r) => (r.estimate?.total ? formatCurrencyAED(r.estimate.total) : "–") },
   ];
 
   if (route.recordId) {
@@ -108,7 +116,7 @@ export default function JobCardsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Job cards"
         description="Every vehicle checked in, from complaint to invoice. Opened and worked day to day on the Board."
@@ -126,7 +134,7 @@ export default function JobCardsPage() {
         }
       />
 
-      <div className="mt-6">
+      <div data-reveal className="mt-6">
         <FilterBar
           search={search}
           onSearch={setSearch}
@@ -143,7 +151,10 @@ export default function JobCardsPage() {
         <PeriodNote filter={periodFilter} count={list.data ? rows.length : null} noun="job cards" one="job card" extra={filtersOn ? "filtered" : undefined} className="mt-3" />
       </div>
 
-      <Panel className="mt-4" bodyClassName="p-0">
+      {/* data-reveal goes on a wrapper, never on <Panel>: Panel does not spread unknown props, so the
+          attribute would be dropped and the panel would silently never join the stagger. */}
+      <div data-reveal className="mt-4">
+      <Panel bodyClassName="p-0">
         {list.loading && !list.data && <Spinner label="Reading the job cards" />}
         {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
         {list.data && rows.length === 0 && (
@@ -156,6 +167,7 @@ export default function JobCardsPage() {
           <DataTable className="table-pin-first" caption="Job cards" rows={rows} rowKey={(r) => r._id} onRowClick={(r) => route.open(r._id)} columns={columns} />
         )}
       </Panel>
+      </div>
 
       {creating && (
         <JobCardForm
