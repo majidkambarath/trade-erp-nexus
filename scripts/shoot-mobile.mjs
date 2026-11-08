@@ -525,6 +525,9 @@ const EXTRA_PAGES = [
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
   ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],
+  // the router's catch-all: a mistyped address or an old bookmark. Outside the sign-in guard and
+  // the shell, so it renders directly rather than bouncing to sign-in.
+  ["not-found", "/this-page-does-not-exist"],
 ];
 const PAGES = [
   ["login", "/"],
