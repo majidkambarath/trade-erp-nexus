@@ -2511,7 +2511,10 @@ function stubFor(pathname, search = "") {
       _id: "j1", jobNo: "JC-2026-0001", status: "IN_PROGRESS", jobType: "retail",
       vehicle: { plateNumber: "A 12345", plateCode: "A", plateEmirate: "Dubai", chassisNo: "JTEBU29J500123456", make: "Toyota", model: "Land Cruiser", year: 2021, colour: "White" },
       customer: { name: "Al Manara Transport LLC", phone: "+971 50 123 4567" },
-      receivedAt: "2026-10-28T05:00:00.000Z", promisedAt: "2026-11-07T09:00:00.000Z",
+      // The register now stamps its own age-in-workshop band server-side (jobCardService.js list()) -
+      // this stub stands in for the server, so it carries the field by hand: daysIn/ageBand matching
+      // receivedAt below, the same bands the board's cards use.
+      receivedAt: "2026-10-28T05:00:00.000Z", daysIn: 11, ageBand: "b10_14", promisedAt: "2026-11-07T09:00:00.000Z",
       odometerIn: 84500, invoiceStatus: "NONE", estimate: { total: 3480.75, version: 2 }, ...over,
     });
     if (p.endsWith("/garage/job-cards")) return [
