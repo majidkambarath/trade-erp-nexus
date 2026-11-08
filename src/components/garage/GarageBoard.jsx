@@ -5,11 +5,12 @@ import StatCard from "../ui/stat-card";
 import { CountUp } from "../Dashborad/CountUp";
 import { JobMixRing } from "./garageCharts";
 import { useGarageReveal } from "./useGarageReveal";
+import { Progress } from "../ui/progress";
 import JobCardView from "./JobCardView";
 import { CompleteTaskDialog } from "./garageShared";
 import { jobCards } from "../../lib/garageApi";
-import { DUE_LABEL, DUE_TONE, garageErrorText, jobCardLabel } from "../../lib/garage";
-import { formatDate } from "../../utils/format";
+import { DUE_LABEL, DUE_TONE, garageErrorText, INVOICE_STATUS_LABEL, jobCardLabel } from "../../lib/garage";
+import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { EmptyState, ErrorNote, PageHeader, Panel, Pill, PageSpinner, useAsync, useToasts } from "../accounting/kit";
 
 // Inventory > Garage > Board: what is in the workshop right now - waiting for approval, in progress, ready
@@ -45,28 +46,48 @@ const RING_ROWS = [
   { key: "deliveredNotInvoiced", name: "Delivered, not invoiced", color: "var(--status-danger)" },
 ];
 
+// What board() already sends and the card used to throw away: doneTasks/taskCount (a progress bar - the
+// single biggest readability gain the bodyshop-tracker reference offers over a bare status pill), the
+// estimate value, the bay, and the invoice state. None of this is a new server call - it rides on the
+// same GET /garage/job-cards/board payload the counts and columns already come from.
 function JobCard({ card, onOpen }) {
   const state = jobCardLabel(card);
+  const hasTasks = card.taskCount > 0;
+  const pct = hasTasks ? Math.round((card.doneTasks / card.taskCount) * 100) : 0;
   return (
     <button
       type="button"
       onClick={() => onOpen(card.jobCardId)}
       className={`w-full rounded-lg border bg-card p-3 text-start text-sm shadow-sm transition hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${card.dueState === "overdue" ? "border-destructive/60" : ""}`}
-      aria-label={`${card.jobNo}: ${card.vehicle}, ${state.label}`}
+      aria-label={`${card.jobNo}: ${card.vehicle}, ${state.label}${hasTasks ? `, ${card.doneTasks} of ${card.taskCount} tasks done` : ""}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0">
           <span className="block truncate font-medium" title={card.vehicle}>{card.plate || card.vehicle}</span>
           <span className="block font-mono text-xs text-muted-foreground">{card.jobNo || "(draft)"}</span>
         </span>
+        {card.total > 0 && <span className="shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums">{formatCurrencyAED(card.total)}</span>}
       </div>
+      {hasTasks && (
+        <div className="mt-2">
+          <Progress
+            value={pct}
+            className="h-1.5"
+            indicatorClassName={card.dueState === "overdue" ? "bg-status-danger" : undefined}
+            aria-hidden="true"
+          />
+          <span className="mt-1 block text-[11px] tabular-nums text-muted-foreground">{card.doneTasks}/{card.taskCount} tasks</span>
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-1">
         <Pill tone={state.tone}>{state.label}</Pill>
         {DUE_LABEL[card.dueState] && <Pill tone={DUE_TONE[card.dueState]}>{DUE_LABEL[card.dueState]}</Pill>}
+        {card.invoiceStatus !== "NONE" && <Pill tone="neutral">{INVOICE_STATUS_LABEL[card.invoiceStatus] || card.invoiceStatus}</Pill>}
       </div>
       <div className="mt-2 truncate text-xs text-muted-foreground">
         {card.customer}
         {card.who ? ` · ${card.who}` : ""}
+        {card.bay ? ` · ${card.bay}` : ""}
         {card.due ? ` · due ${formatDate(card.due)}` : ""}
       </div>
     </button>
