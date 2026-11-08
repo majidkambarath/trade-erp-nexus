@@ -1,9 +1,10 @@
 import React from "react";
+import { Image as ImageIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import Can from "../shell/Can.jsx";
 import { Pill } from "../accounting/kit";
 import AttachmentPanel from "../accounting/AttachmentPanel.jsx";
-import { TASK_STATUS, lineDecisionLabel } from "../../lib/garage";
+import { TASK_STATUS, CONDITION_LABEL, CONDITION_TONE, lineDecisionLabel } from "../../lib/garage";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { DocLink } from "../salesDocs/parts";
 
@@ -130,10 +131,32 @@ export function EstimateTab({ card }) {
 // "The work": tasks, and the two things that explain why one is stuck - a shortage is a task that cannot
 // start, a purchase order is what was done about it. Kept in one causal chain rather than split across
 // the old single scroll's own order (which put "Estimate history" between them).
-export function WorkTab({ card, shortages, busy, onStartTask, onCompleteTask, onRaisePO }) {
+export function WorkTab({ card, shortages, busy, onStartTask, onCompleteTask, onRaisePO, onEditInspection }) {
   const c = card;
   return (
     <div className="grid grid-cols-1 gap-5">
+      {/* What was found, with photos - this is also exactly what the customer sees on the estimate link
+          (components/send/EstimateApproval.jsx), so it lives ahead of the tasks it justifies. */}
+      <Section title="What was found">
+        {c.inspection?.length ? (
+          <ul className="grid gap-1.5 text-sm">
+            {c.inspection.map((i) => (
+              <li key={i._id} className="flex items-start justify-between gap-2 rounded-lg border px-3 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">{i.item}</span>
+                  {i.note && <span className="text-muted-foreground"> · {i.note}</span>}
+                  {i.photos?.length > 0 && <span className="ms-2 inline-flex items-center gap-0.5 text-xs text-muted-foreground"><ImageIcon className="h-3 w-3" aria-hidden="true" />{i.photos.length}</span>}
+                </span>
+                <Pill tone={CONDITION_TONE[i.condition] || "neutral"}>{CONDITION_LABEL[i.condition] || i.condition}</Pill>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm text-muted-foreground">Nothing recorded yet.</p>}
+        <Can permission="garage.edit">
+          <Button variant="outline" size="sm" className="mt-2" onClick={onEditInspection}>{c.inspection?.length ? "Edit findings" : "Record findings"}</Button>
+        </Can>
+      </Section>
+
       <Section title="Tasks">
         {c.tasks?.length ? (
           <ul className="grid gap-2">

@@ -12,16 +12,17 @@ const m = vi.hoisted(() => ({
   vList: vi.fn(), vCreate: vi.fn(), vFind: vi.fn(), vUpdate: vi.fn(), vGet: vi.fn(), vJobs: vi.fn(), vCatalogue: vi.fn(), vActivity: vi.fn(),
   customers: vi.fn(), vendors: vi.fn(), apiGet: vi.fn(), createCustomer: vi.fn(),
   clList: vi.fn(), clGet: vi.fn(), clCreate: vi.fn(), clSubmit: vi.fn(), clSurvey: vi.fn(), clDecide: vi.fn(), clRaise: vi.fn(), clAgeing: vi.fn(), clActivity: vi.fn(),
-  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(),
+  jcAnalysis: vi.fn(), jcCheckIn: vi.fn(), jcComebacks: vi.fn(), jcShortages: vi.fn(), jcRaisePO: vi.fn(), jcInspection: vi.fn(), jcSendEstimate: vi.fn(),
+  sendSettings: vi.fn(), documentSend: vi.fn(),
   setupBays: vi.fn(), setupServices: vi.fn(), setupCreateBay: vi.fn(),
 }));
 
 vi.mock("../../../lib/garageApi", () => ({
   jobCards: {
     board: m.board, list: m.jcList, get: m.jcGet, create: m.jcCreate, update: vi.fn(), remove: vi.fn(),
-    staff: m.jcStaff, assignees: m.jcAssignees, startTask: vi.fn(), completeTask: vi.fn(), sendEstimate: vi.fn(),
+    staff: m.jcStaff, assignees: m.jcAssignees, startTask: vi.fn(), completeTask: vi.fn(), sendEstimate: m.jcSendEstimate,
     recordApproval: m.jcRecordApproval, reviseEstimate: vi.fn(), createInvoice: vi.fn(), release: vi.fn(), cancel: vi.fn(),
-    analysis: m.jcAnalysis, committed: vi.fn(), recordCheckIn: m.jcCheckIn, comebackCandidates: m.jcComebacks,
+    analysis: m.jcAnalysis, committed: vi.fn(), recordCheckIn: m.jcCheckIn, recordInspection: m.jcInspection, comebackCandidates: m.jcComebacks,
     shortages: m.jcShortages, raisePurchaseOrder: m.jcRaisePO, activity: m.jcActivity,
   },
   vehicles: { list: m.vList, find: m.vFind, get: m.vGet, activity: m.vActivity, jobs: m.vJobs, catalogue: m.vCatalogue, create: m.vCreate, update: m.vUpdate },
@@ -37,6 +38,12 @@ vi.mock("../../../lib/garageApi", () => ({
   filesFor: () => ({ list: () => Promise.resolve([]), upload: vi.fn(), remove: vi.fn(), download: vi.fn() }),
 }));
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet } }));
+// SendDialog's own dependencies, for the one test that opens it from "Send estimate" - its own internals
+// (channel choice, attachment handling) are SendDialog.test.jsx's job, not this file's.
+vi.mock("../../../lib/sendDocumentsApi", () => ({
+  sendSettings: { get: m.sendSettings },
+  documentSends: { send: m.documentSend, handoff: vi.fn() },
+}));
 vi.mock("../../shell/OrganisationContext", () => ({
   useOrganisation: () => ({ can: () => true, canAny: () => true, me: { id: "u1", name: "Ravi" } }),
 }));
@@ -116,6 +123,7 @@ beforeEach(() => {
   m.vActivity.mockResolvedValue({ rows: [{ _id: "a2", action: "VEHICLE_CREATED", summary: "Vehicle added", username: "Imran Qureshi", at: "2026-10-01T06:00:00.000Z" }], total: 1 });
   m.clActivity.mockResolvedValue({ rows: [{ _id: "a3", action: "CLAIM_CREATED", summary: "Claim opened", username: "Imran Qureshi", at: "2026-10-20T06:00:00.000Z" }], total: 1 });
   m.setupBays.mockResolvedValue([]);
+  m.sendSettings.mockResolvedValue({ enabled: true, shareEnabled: true, attachPdf: false, shareLinkDays: 30, defaultNote: "" });
   m.setupServices.mockResolvedValue([]);
   m.setupCreateBay.mockResolvedValue({ _id: "b1", name: "Ramp 1", active: true });
   m.customers.mockResolvedValue([{ id: "cu1", name: "Ali Hassan", code: "C1" }, { id: "ins1", name: "Orient Insurance", code: "INS1", isInsurer: true }]);
@@ -328,6 +336,74 @@ describe("job cards list", () => {
     await waitFor(() => expect(m.jcCheckIn).toHaveBeenCalledWith("j1", expect.objectContaining({ itemsPresent: ["Spare wheel"] })));
     const body = m.jcCheckIn.mock.calls[0][1];
     expect(body.damagePoints).toEqual([{ panel: "Front bumper", kind: "scratch", notes: "" }]);
+  });
+
+  // The technician's own findings, with photos - what the customer actually sees on the estimate link
+  // (components/send/EstimateApproval.jsx on the backend's snapshot). Shown on "The work" tab, ahead of
+  // the tasks it justifies.
+  it("shows what was found, and records a new finding with its condition", async () => {
+    m.jcGet.mockResolvedValue(jobCardFull({ inspection: [{ _id: "insp1", item: "Front brake pads", condition: "urgent", note: "2mm left", photos: ["a1"] }] }));
+    m.jcInspection.mockResolvedValue(jobCardFull({ inspection: [{ _id: "insp1", item: "Front brake pads", condition: "urgent", note: "2mm left", photos: ["a1"] }, { _id: "insp2", item: "Battery", condition: "advisory", note: "", photos: [] }] }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: /The work/ }));
+    await waitFor(() => expect(screen.getByText("Front brake pads")).toBeInTheDocument());
+    expect(screen.getByText("Needs doing now")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit findings" }));
+    const dialog = await screen.findByRole("dialog", { name: /What was found/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Add another item/ }));
+    const items = within(dialog).getAllByLabelText("Item");
+    fireEvent.change(items[1], { target: { value: "Battery" } });
+    const conditions = within(dialog).getAllByLabelText("Condition");
+    fireEvent.change(conditions[1], { target: { value: "advisory" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save inspection" }));
+
+    await waitFor(() => expect(m.jcInspection).toHaveBeenCalled());
+    const [cardId, body] = m.jcInspection.mock.calls[0];
+    expect(cardId).toBe("j1");
+    expect(body.inspection).toEqual([
+      { item: "Front brake pads", condition: "urgent", note: "2mm left", photos: ["a1"] },
+      { item: "Battery", condition: "advisory", note: "", photos: [] },
+    ]);
+  });
+
+  // The whole point of Wave 1: "Send estimate" no longer only flips a status - it opens the real send
+  // dialog so the link actually leaves the building.
+  it("sending the estimate flips the status AND opens the real send dialog, with no price in the descriptor", async () => {
+    // Once sent, the card is AWAITING_APPROVAL - the reload after the confirm must reflect that, or the
+    // descriptor guard (["AWAITING_APPROVAL","IN_PROGRESS"].includes(c.status)) would hide the dialog.
+    m.jcGet
+      .mockResolvedValueOnce(jobCardFull({
+        status: "DRAFT", jobNo: "JC-2026-0009", customer: { name: "Ali Hassan", phone: "050 111 2222" },
+        actions: { edit: true, delete: true, checkIn: true, sendEstimate: true, recordApproval: false, reviseEstimate: false, createInvoice: false, release: false, cancel: true },
+      }))
+      .mockResolvedValue(jobCardFull({
+        status: "AWAITING_APPROVAL", jobNo: "JC-2026-0009", customer: { name: "Ali Hassan", phone: "050 111 2222" },
+        actions: { edit: false, delete: false, checkIn: true, sendEstimate: false, recordApproval: true, reviseEstimate: true, createInvoice: false, release: false, cancel: true },
+      }));
+    m.jcSendEstimate.mockResolvedValue(jobCardFull({ status: "AWAITING_APPROVAL", jobNo: "JC-2026-0009" }));
+    render_(<JobCardsPage />, ["/garage/job-cards?open=j1"]);
+    await waitFor(() => expect(m.jcGet).toHaveBeenCalledWith("j1"));
+    fireEvent.click(screen.getByRole("button", { name: "Send estimate" }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /Send the estimate\?/ });
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(m.jcSendEstimate).toHaveBeenCalledWith("j1"));
+
+    // The real send dialog opens automatically - no pre-filled email (the job card's own snapshot never
+    // carries one, by design), so the advisor types it.
+    const sendDialog = await screen.findByRole("dialog", { name: /send/i });
+    // Settled once the channel tabs are there - sendSettings.get() is still loading right after open.
+    expect(await within(sendDialog).findByRole("button", { name: /email/i })).toBeInTheDocument();
+    expect(within(sendDialog).getByRole("button", { name: /whatsapp/i })).toBeInTheDocument();
+    fireEvent.change(within(sendDialog).getByLabelText("To"), { target: { value: "ali@alnoor.ae" } });
+    fireEvent.click(within(sendDialog).getByRole("button", { name: /send email/i }));
+
+    await waitFor(() => expect(m.documentSend).toHaveBeenCalled());
+    const [fields] = m.documentSend.mock.calls[0];
+    expect(fields.docType).toBe("job_estimate");
+    expect(fields.sourceId).toBe("j1");
+    expect(JSON.stringify(fields)).not.toMatch(/price|lineTotal|vat/i);
   });
 
   it("shows a short part on the work tab and raises a purchase order for it", async () => {

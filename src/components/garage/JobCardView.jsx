@@ -7,6 +7,7 @@ import { useGarageMasters, CompleteTaskDialog } from "./garageShared";
 import JobCardForm from "./JobCardForm";
 import ClaimView from "./ClaimView";
 import CheckInDialog from "./CheckInDialog";
+import InspectionDialog from "./InspectionDialog";
 import { formatDate } from "../../utils/format";
 import { ConfirmDialog, ErrorNote, Field, Modal, PageSpinner, Pill, TextInput, useAsync } from "../accounting/kit";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -16,6 +17,8 @@ import { ApprovalDialog, ReviseEstimateDialog, CreateInvoiceDialog, ReleaseDialo
 import PrintRow from "./JobCardPrint";
 import { SimpleActivityTrail } from "../audit/AuditTrail.jsx";
 import { useDocumentTitle } from "../../lib/useRecordRoute";
+import SendDialog from "../send/SendDialog";
+import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 
 // The job card's own page ("?open=<id>" on /garage/job-cards; GarageBoard's cards and a vehicle's job
 // history both link here the same way). Used to be a Modal with thirteen sections in one scroll and a
@@ -42,8 +45,11 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
   const [openingClaim, setOpeningClaim] = useState(false);
   const [viewingClaim, setViewingClaim] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
   const [raisingPO, setRaisingPO] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const company = useCompanyProfile();
   const c = one.data;
   const shortages = useAsync(() => (c ? jobCards.shortages(c._id) : Promise.resolve([])), [c?._id, c?.status]);
   const checkInFiles = useMemo(() => (c?._id ? filesFor("jobcard", c._id) : null), [c?._id]);
@@ -97,6 +103,16 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
   if (!c) return null;
 
   const shortageCount = shortages.data?.length || 0;
+  // What lets "Send estimate" actually deliver the link, once the card is waiting for a decision - the
+  // SAME descriptor every other document uses (components/send/SendDialog.jsx), `kind: "job_estimate"`
+  // reaching documentSource.js's loadEstimate on the server. No pre-filled email: the job card's own
+  // customer snapshot only ever carries a name and a phone (jobCardModel.js), and customerChoices() is a
+  // DELIBERATELY narrow read with no email in it either - widening either just for this would be the
+  // kind of module-boundary leak the codebase explicitly avoids elsewhere. The advisor types it, or sends
+  // by WhatsApp instead, where the phone IS already known.
+  const sendDescriptor = ["AWAITING_APPROVAL", "IN_PROGRESS"].includes(c.status)
+    ? { kind: "job_estimate", sourceType: "JobCard", id: c._id, number: c.jobNo, title: "Estimate", companyName: company.companyName, party: { phone: c.customer?.phone } }
+    : null;
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
@@ -161,6 +177,7 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
             onStartTask={(t) => run(() => jobCards.startTask(c._id, t._id), `${t.name} started.`)}
             onCompleteTask={setCompleting}
             onRaisePO={() => setRaisingPO(true)}
+            onEditInspection={() => setInspecting(true)}
           />
         </TabsContent>
         <TabsContent value="money">
@@ -175,7 +192,17 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
       )}
       {confirm === "sendEstimate" && (
         <ConfirmDialog title="Send the estimate?" text="The card moves to waiting for approval." confirmLabel="Send" busy={busy}
-          onClose={() => setConfirm(null)} onConfirm={() => run(() => jobCards.sendEstimate(c._id), "Estimate sent.")} />
+          onClose={() => setConfirm(null)}
+          onConfirm={() => run(() => jobCards.sendEstimate(c._id), "Estimate ready.").then((r) => { if (r) setSendOpen(true); })} />
+      )}
+      {sendOpen && sendDescriptor && (
+        <SendDialog
+          doc={sendDescriptor}
+          attachment={null}
+          notify={notify}
+          onClose={() => setSendOpen(false)}
+          onSent={() => { setSendOpen(false); onChanged(); }}
+        />
       )}
       {confirm === "cancel" && (
         <Modal size="sm" onClose={() => setConfirm(null)} title={`Cancel ${c?.jobNo || "this job"}?`}
@@ -186,6 +213,7 @@ export default function JobCardView({ id, notify, onClose, onChanged, onRemoved 
       )}
       {editing && <JobCardForm jobCard={c} onClose={() => setEditing(false)} onSaved={(r, m) => { setEditing(false); changed(r, m); }} />}
       {checkingIn && <CheckInDialog jobCardId={c._id} checkIn={c.checkIn} onClose={() => setCheckingIn(false)} onDone={(r, m) => { setCheckingIn(false); changed(r, m); }} />}
+      {inspecting && <InspectionDialog jobCardId={c._id} inspection={c.inspection} onClose={() => setInspecting(false)} onDone={(r, m) => { setInspecting(false); changed(r, m); }} />}
       {approving && <ApprovalDialog card={c} onClose={() => setApproving(false)} onDone={changed} />}
       {revising && <ReviseEstimateDialog card={c} masters={masters} onClose={() => setRevising(false)} onDone={changed} />}
       {invoicing && <CreateInvoiceDialog card={c} onClose={() => setInvoicing(false)} onDone={changed} />}

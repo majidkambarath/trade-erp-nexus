@@ -41,6 +41,7 @@ export const jobCards = {
   update: (id, body) => api.put(`/garage/job-cards/${id}`, body),
   remove: (id) => api.del(`/garage/job-cards/${id}`),
   recordCheckIn: (id, body) => api.put(`/garage/job-cards/${id}/check-in`, body),
+  recordInspection: (id, body) => api.put(`/garage/job-cards/${id}/inspection`, body),
   sendEstimate: (id) => api.post(`/garage/job-cards/${id}/send-estimate`, {}),
   recordApproval: (id, body) => api.post(`/garage/job-cards/${id}/approve`, body),
   reviseEstimate: (id, body) => api.post(`/garage/job-cards/${id}/revise-estimate`, body),
