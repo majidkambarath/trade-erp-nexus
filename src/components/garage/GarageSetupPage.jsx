@@ -88,7 +88,7 @@ function ServiceDialog({ svc, masters, onClose, onSaved }) {
 
   return (
     <Modal size="sm" onClose={onClose} title={editing ? "Edit standard job" : "New standard job"}
-      description="The labour item this bills under; parts and tasks can be added once it exists, by using it on a job card and saving those as its defaults is not built yet - add them from the estimate for now."
+      description="The labour item this standard job bills under. It has no saved list of usual parts or tasks yet - add those a job normally needs on each job card's own estimate instead."
       footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy || !canSave}>{busy ? "Saving…" : "Save"}</Button></>}
     >
       <div className="grid gap-3">
