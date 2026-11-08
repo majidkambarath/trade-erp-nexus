@@ -40,4 +40,30 @@ describe("product identity", () => {
     expect(brand.timezone).toBe("Asia/Dubai");
     expect(brand.locale).toBe("en-GB");
   });
+  // The product was called "Trade ERP" before it was Zarvia. The rename missed src/components/NotFound.jsx,
+  // and that page - the one a mistyped address lands on - went on showing the old name to a live client for
+  // months, because nothing looked. Matched case-sensitively, and with the BACKEND REPO'S OWN DIRECTORY NAME
+  // ("trade ERP node", which comments cite constantly) taken out first: 17 files name that path and none of
+  // them is the brand. Test files are skipped - they name the old brand on purpose, to pin that it is gone.
+  it("has no trace of the name the product used to have", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    // globalThis.process, not a bare `process`: Vite rewrites import.meta.url to an http:// URL under
+    // vitest, so fileURLToPath refuses it, and the lint config declares no bare Node globals.
+    const src = join(globalThis.process.cwd(), "src");
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "__tests__") walk(full);
+        } else if (/\.(js|jsx)$/.test(entry.name)) {
+          const text = readFileSync(full, "utf8").replace(/trade ERP node/gi, "");
+          if (/Trade ERP/.test(text)) offenders.push(full);
+        }
+      }
+    };
+    walk(src);
+    expect(offenders).toEqual([]);
+  });
 });

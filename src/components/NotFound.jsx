@@ -1,129 +1,58 @@
-import React, { useEffect, useState } from "react";
-// eslint-disable-next-line no-unused-vars -- used as <motion.div> etc. in JSX, which core no-unused-vars cannot see
-import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Home, AlertCircle } from "lucide-react";
+import React from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft, Compass, LayoutDashboard } from "lucide-react";
+import { PRODUCT_NAME } from "../config/product";
 
-const NotFound = () => {
-  const [counter, setCounter] = useState(10);
-
-  useEffect(() => {
-    const timer = counter > 0 && setInterval(() => setCounter(counter - 1), 1000);
-    return () => clearInterval(timer);
-  }, [counter]);
+// Shown for any address the router does not recognise (`path="*"`), which is a mistyped URL or an
+// old bookmark. It sits OUTSIDE both the sign-in guard and the app shell, so it brings its own
+// full-height frame, exactly as OrganisationBlocked and TwoFactorRequired do.
+//
+// There is deliberately no countdown and no automatic redirect: this page used to fire a
+// `<meta http-equiv="refresh">` at the sign-in page while telling the person it was taking them to
+// the dashboard, which moved them before they could read the address they had got wrong.
+//
+// "Go to dashboard" needs no check for whether anyone is signed in, and must not grow one. A fresh
+// tab holds no access token in memory even for a signed-in person - RequireSession restores the
+// session from the cookie - so asking here would answer "signed out" for someone who is not. The
+// link is self-correcting: RequireSession either lets them through or sends them to sign in with
+// `?next=/dashboard`, which brings them back.
+export default function NotFound() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   return (
-    <div className="bg-background flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
-      {/* Enhanced Animated Background */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 opacity-15">
-          <div className="absolute top-10 -left-10 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-pulse"></div>
-          <div className="absolute top-20 -right-10 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-pulse animation-delay-2000"></div>
-          <div className="absolute -bottom-20 left-40 w-96 h-96 bg-cyan-500 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-pulse animation-delay-4000"></div>
+    <div className="pt-safe pb-safe grid min-h-dvh place-items-center bg-background px-4 text-foreground">
+      <main className="w-full max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-card sm:p-8">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-secondary text-muted-foreground">
+          <Compass className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight">This page does not exist</h1>
+        <p className="mt-4 text-sm text-muted-foreground">
+          There is nothing at this address. It may have been mistyped, or the page may have moved.
+        </p>
+        {/* The address itself, so a typo is visible rather than guessed at. React escapes it. */}
+        <p className="mt-3 break-all rounded-lg bg-secondary px-3 py-2 font-mono text-xs text-foreground">
+          {pathname}
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-input bg-card px-5 text-sm font-medium hover:bg-accent md:h-10"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Go back
+          </button>
+          <Link
+            to="/dashboard"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground hover:opacity-90 md:h-10"
+          >
+            <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+            Go to dashboard
+          </Link>
         </div>
-      </div>
-
-      {/* Main Content Container */}
-      <div className="relative z-10 max-w-4xl mx-auto text-center">
-        {/* Logo with ERP Branding */}
-        <motion.div
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="mb-8"
-        >
-          <div className="inline-block font-extrabold text-4xl text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
-            Trade ERP
-          </div>
-        </motion.div>
-
-        {/* Main Content Card */}
-        <motion.div
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="bg-gray-800/60 backdrop-blur-lg rounded-2xl p-10 border border-gray-700/40 shadow-2xl"
-        >
-          {/* Icon with Animation */}
-          <motion.div
-            initial={{ scale: 0.7, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.8, type: "spring" }}
-            className="mx-auto mb-8 w-24 h-24 bg-blue-900/50 rounded-full flex items-center justify-center"
-          >
-            <AlertCircle size={48} className="text-cyan-300" />
-          </motion.div>
-
-          {/* 404 Text */}
-          <motion.div
-            initial={{ y: -30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.6, duration: 0.8 }}
-          >
-            <h1 className="text-8xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-400">
-              404
-            </h1>
-          </motion.div>
-
-          {/* Message */}
-          <motion.div
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.8, duration: 0.8 }}
-          >
-            <h2 className="text-3xl font-semibold mb-4">Page Not Found</h2>
-            <p className="text-lg text-gray-300 mb-10 max-w-2xl mx-auto">
-              Oops! The page you're looking for doesn't exist in our Trade ERP system.
-              <br />
-              <span className="text-base text-cyan-200">
-                Redirecting to the dashboard in <span className="text-white font-bold">{counter}</span> seconds.
-              </span>
-            </p>
-          </motion.div>
-
-          {/* Buttons */}
-          <motion.div
-            className="flex flex-wrap justify-center gap-6"
-            initial={{ y: 30, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 1, duration: 0.8 }}
-          >
-            <Link to="/">
-              <motion.button
-                whileHover={{ scale: 1.05, backgroundColor: "#3b82f6" }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-semibold transition-colors shadow-md"
-              >
-                <Home size={20} /> Back to Dashboard
-              </motion.button>
-            </Link>
-            <Link to="/help-center">
-              <motion.button
-                whileHover={{ scale: 1.05, borderColor: "#60a5fa" }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 bg-transparent border-2 border-blue-600 text-blue-200 hover:text-blue-100 hover:border-blue-500 px-8 py-3 rounded-xl font-semibold transition-colors"
-              >
-                <ArrowLeft size={16} /> Get Help
-              </motion.button>
-            </Link>
-          </motion.div>
-        </motion.div>
-
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.8 }}
-          className="mt-10 text-sm text-gray-400"
-        >
-          © {new Date().getFullYear()} Trade ERP. All rights reserved.
-        </motion.div>
-      </div>
-
-      {/* Auto Redirect */}
-      {counter === 0 && <meta httpEquiv="refresh" content="0;url=/" />}
+        <p className="mt-6 text-xs text-muted-foreground">{PRODUCT_NAME}</p>
+      </main>
     </div>
   );
-};
-
-export default NotFound;
+}
