@@ -585,15 +585,18 @@ describe("claims list", () => {
     // the Ageing tab has no period of its own - it is "open right now", not a dated range - so switching
     // tabs must not disturb it
     fireEvent.click(screen.getByRole("tab", { name: "Ageing" }));
-    expect(await screen.findByText("8-14 days")).toBeInTheDocument();
+    expect(await screen.findByText("Where the money is waiting")).toBeInTheDocument();
     expect(m.clAgeing).toHaveBeenCalled();
   });
 
-  it("the Ageing tab buckets open claims by how long they have waited, and a row opens the same claim view", async () => {
+  // The buckets are ONE chart (the comparison this report exists for) and the claims are ONE list,
+  // rather than a panel per bucket each wrapping its own list.
+  it("the Ageing tab compares the buckets and lists the claims oldest first, and a row opens the same claim view", async () => {
     render_(<ClaimsPage />);
     fireEvent.click(await screen.findByRole("tab", { name: "Ageing" }));
-    expect(await screen.findByText("8-14 days")).toBeInTheDocument();
+    expect(await screen.findByText("Where the money is waiting")).toBeInTheDocument();
     expect(screen.getByText(/1 open claim/)).toBeInTheDocument();
+    expect(screen.getByText("Open claims")).toBeInTheDocument();
     fireEvent.click(screen.getByText("CLM-2026-0001"));
     await waitFor(() => expect(m.clGet).toHaveBeenCalledWith("cl1"));
     const dialog = await screen.findByRole("dialog");

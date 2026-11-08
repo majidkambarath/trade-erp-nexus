@@ -82,6 +82,14 @@ export const hueFor = (index) => CHART_HUES[Math.min(Math.max(0, index), CHART_H
 // received) - kept apart on purpose rather than forced to share one table.
 export const CLAIM_AGE_BUCKET_LABEL = { "0-7": "0-7 days", "8-14": "8-14 days", "15-30": "15-30 days", "30+": "30+ days" };
 export const CLAIM_AGE_BUCKET_TONE = { "0-7": "neutral", "8-14": "info", "15-30": "warning", "30+": "danger" };
+// The same four steps as a chart colour. Age IS a state, not a grouping, so it takes the status tokens
+// rather than the categorical hues above - the older the money, the hotter the bar.
+export const CLAIM_AGE_BUCKET_COLOR = {
+  "0-7": "var(--muted-foreground)",
+  "8-14": "var(--status-info)",
+  "15-30": "var(--status-warning)",
+  "30+": "var(--status-danger)",
+};
 
 // A UAE plate in full, the way a workshop reads one off the car: the issuing emirate, the plate's own
 // code/category box, then the number - each only when it is actually set, so an older record with just a
