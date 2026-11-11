@@ -31,8 +31,10 @@ export const quotations = {
   accept: (id, body) => api.post(`/quotations/${id}/accept`, body),
   reject: (id, body) => api.post(`/quotations/${id}/reject`, body),
   revise: (id) => api.post(`/quotations/${id}/revise`, {}),
-  // -> { quotation, salesOrder }: a DRAFT sales order, which is the invoice
+  // -> { quotation, salesOrder }: a DRAFT sales INVOICE, for a deal that goes out in one go
   convert: (id, body) => api.post(`/quotations/${id}/convert`, body || {}),
+  // -> { quotation, tradeOrder }: a DRAFT sales ORDER (SORD) - a commitment that posts nothing, delivered in stages
+  toTradeOrder: (id, body) => api.post(`/quotations/${id}/sales-order`, body || {}),
   // -> { quotation, deliveryNote }: the goods go first and are invoiced afterwards
   toDeliveryNote: (id, body) => api.post(`/quotations/${id}/delivery-note`, body || {}),
 };

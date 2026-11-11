@@ -12,13 +12,14 @@ vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({ useCompanyProfi
 vi.mock("../../../lib/salesDocumentsApi", () => ({
   quotations: {
     get: vi.fn(), activity: vi.fn(), send: vi.fn(), accept: vi.fn(), reject: vi.fn(), revise: vi.fn(),
-    convert: vi.fn(), toDeliveryNote: vi.fn(), remove: vi.fn(),
+    convert: vi.fn(), toTradeOrder: vi.fn(), toDeliveryNote: vi.fn(), remove: vi.fn(),
   },
 }));
 
 const actionsFor = (status, expired = false) => ({
   edit: status === "DRAFT", delete: status === "DRAFT", send: status === "DRAFT", accept: status === "SENT" && !expired,
   reject: ["SENT", "ACCEPTED"].includes(status), convert: ["SENT", "ACCEPTED"].includes(status) && !expired,
+  convertToOrder: ["SENT", "ACCEPTED"].includes(status) && !expired,
   revise: ["SENT", "ACCEPTED", "REJECTED"].includes(status),
 });
 
@@ -62,7 +63,7 @@ describe("QuotationView", () => {
     await screen.findByRole("button", { name: /mark as sent/i });
     expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^delete$/i })).toBeInTheDocument();
-    for (const gone of [/^accept$/i, /convert to sales order/i, /create delivery note/i, /^revise$/i]) {
+    for (const gone of [/^accept$/i, /convert to sales order/i, /convert to invoice/i, /create delivery note/i, /^revise$/i]) {
       expect(screen.queryByRole("button", { name: gone })).not.toBeInTheDocument();
     }
   });
@@ -72,6 +73,7 @@ describe("QuotationView", () => {
     expect(await screen.findByText(/ran out on/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^accept$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /convert to sales order/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /convert to invoice/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^revise$/i })).toBeInTheDocument();
     expect(screen.getAllByText("Expired").length).toBeGreaterThan(0);
   });
@@ -99,19 +101,34 @@ describe("QuotationView", () => {
     await waitFor(() => expect(quotations.accept).toHaveBeenCalledWith("q1", { acceptedBy: "Mr Ali, LPO 991" }));
   });
 
-  it("converting sends the date and says what was created", async () => {
-    quotations.convert.mockResolvedValue({ quotation: {}, salesOrder: { transactionNo: "SO-2026-0031" } });
+  // The offer can become the ORDER (a commitment, delivered in stages) or the INVOICE directly. Before this
+  // the single button labelled "Convert to sales order" made the invoice, so an order could not be raised at all.
+  it("converting to a sales order raises the order document, not the invoice", async () => {
+    quotations.toTradeOrder.mockResolvedValue({ quotation: {}, tradeOrder: { orderNo: "SORD-2026-0003" } });
     show(quotation({ status: "ACCEPTED" }));
     fireEvent.click(await screen.findByRole("button", { name: /convert to sales order/i }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/nothing moves in stock or the ledger/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/commits nothing to the accounts/i)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: /create sales order/i }));
+    await waitFor(() => expect(quotations.toTradeOrder).toHaveBeenCalledWith("q1", { date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), expectedDate: undefined }));
+    await waitFor(() => expect(notify).toHaveBeenCalledWith("SORD-2026-0003 created from QT-2026-0007"));
+    expect(quotations.convert).not.toHaveBeenCalled();
+  });
+
+  it("converting to an invoice sends the date and says what was created", async () => {
+    quotations.convert.mockResolvedValue({ quotation: {}, salesOrder: { transactionNo: "SO-2026-0031" } });
+    show(quotation({ status: "ACCEPTED" }));
+    fireEvent.click(await screen.findByRole("button", { name: /convert to invoice/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/nothing moves in stock or the ledger/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: /create invoice/i }));
     await waitFor(() => expect(quotations.convert).toHaveBeenCalledWith("q1", { date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }));
     await waitFor(() => expect(notify).toHaveBeenCalledWith("SO-2026-0031 created from QT-2026-0007"));
+    expect(quotations.toTradeOrder).not.toHaveBeenCalled();
   });
 
   it("when the server refuses, the reason is shown in the dialog and the dialog stays open", async () => {
-    quotations.convert.mockRejectedValue(new ApiError("QT-2026-0007 expired on 2026-11-05. Revise it to offer it again.", { code: "QUOTATION_EXPIRED", status: 409 }));
+    quotations.toTradeOrder.mockRejectedValue(new ApiError("QT-2026-0007 expired on 2026-11-05. Revise it to offer it again.", { code: "QUOTATION_EXPIRED", status: 409 }));
     show(quotation({ status: "ACCEPTED" }));
     fireEvent.click(await screen.findByRole("button", { name: /convert to sales order/i }));
     const dialog = await screen.findByRole("dialog");

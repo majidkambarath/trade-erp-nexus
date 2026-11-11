@@ -53,8 +53,11 @@ describe("validityText", () => {
 describe("lineageOf", () => {
   it("names where an offer came from and where it went", () => {
     expect(lineageOf({ revisionOf: { no: "QT-1", id: "a" } })).toEqual([{ text: "Revision of QT-1", kind: "quotation", id: "a" }]);
-    expect(lineageOf({ convertedTo: { kind: "sales_order", no: "SO-9", id: "b" } })[0].text).toBe("Became SO-9");
+    // Each target is named by what that document IS: a commitment, the sale, or the goods going out.
+    expect(lineageOf({ convertedTo: { kind: "trade_order", no: "SORD-4", id: "d" } })[0]).toEqual({ text: "Ordered on SORD-4", kind: "trade_order", id: "d" });
+    expect(lineageOf({ convertedTo: { kind: "sales_order", no: "SO-9", id: "b" } })[0].text).toBe("Invoiced on SO-9");
     expect(lineageOf({ convertedTo: { kind: "delivery_note", no: "DLN-3", id: "c" } })[0].text).toBe("Delivered on DLN-3");
+    expect(lineageOf({ convertedTo: { kind: "something_new", no: "X-1", id: "e" } })[0].text).toBe("Became X-1");
     expect(lineageOf({})).toEqual([]);
   });
 });

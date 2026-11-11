@@ -5,8 +5,11 @@
 // The server is the authority and enforces all of this itself. Nothing here grants anything: it decides what to
 // SHOW, so a person is not offered a screen the plan does not include, and is told why when the door is shut.
 
-// permissions.js imports nothing of ours, so this is a one-way edge and not a cycle.
-import { canAny } from "./permissions";
+// permissions.js imports nothing of ours, so this is a one-way edge and not a cycle. The explicit ".js" is
+// required, not a style: plain Node loads this file (scripts/shoot-mobile.mjs reads it through
+// config/navigation.js) and will not resolve an extensionless path - config/__tests__/nodeLoadable.test.js
+// loads it in a real Node process and fails if that slips.
+import { canAny } from "./permissions.js";
 
 // Fired on window when any request is refused because the organisation may not use the system; the shell listens.
 export const BLOCKED_EVENT = "organisation-blocked";
