@@ -171,11 +171,13 @@ const noticeFor = (status) => {
   return "This voucher has NOT been posted to the ledger. It becomes part of the books only once it is approved.";
 };
 
-// Which copies this kind of voucher is drawn as. The first is what the dialog prints; a receipt is
-// also the acknowledgement handed to the payer, so the label is recorded rather than lost.
+// Which copies this kind of voucher is drawn as. THE FIRST IS THE ONE THAT OPENS, and for a receipt or a
+// payment that is the party's: the voucher exists to be handed over, and the person at the counter should
+// not have to notice a switch before giving the customer their receipt. The office copy is one tap away.
+// A journal, contra, expense or note goes to nobody, so it has the office copy alone.
 const copiesFor = (voucherType) =>
-  (voucherType === "receipt" ? ["Office copy", "Customer copy"]
-    : voucherType === "payment" ? ["Office copy", "Payee copy"]
+  (voucherType === "receipt" ? ["Customer copy", "Office copy"]
+    : voucherType === "payment" ? ["Payee copy", "Office copy"]
       : ["Office copy"]);
 
 // One voucher as a printable sheet. `profile` is the organisation's one letterhead
