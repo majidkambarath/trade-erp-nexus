@@ -3,6 +3,7 @@ import { Check, Pencil, RefreshCw, Send, ClipboardList, ShoppingCart, Trash2, Tr
 import InvoiceScreen from "../PurchaseOrder/shared/InvoiceScreen";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { DateInput, ErrorNote, Field, Panel, Spinner, Textarea, TextInput, useAsync } from "../accounting/kit";
+import RowMenu from "../lists/RowMenu";
 import { quotations } from "../../lib/salesDocumentsApi";
 import { expiresSoon, lineageOf, statusLabel, validityText } from "../../lib/salesDocuments";
 import { todayInput, formatDate } from "../../utils/format";
@@ -10,18 +11,23 @@ import { buildQuotationDocument } from "./documents";
 import { ActionModal, ActivityList, DocLink, Note } from "./parts";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
-import { allowActions } from "../../lib/salesDocuments";
+import { quotationActions } from "../../lib/salesDocuments";
 import { orgCurrency } from "../../utils/orgLocale";
 import { useDocumentTitle } from "../../lib/useRecordRoute";
 import { PRODUCT_NAME } from "../../config/product";
 
 const TB = "inline-flex h-11 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 lg:h-10";
 const PRIMARY = "erp-btn-primary";
+const ITEM = "w-full px-3 py-2 text-left text-sm hover:bg-secondary";
+
+// The dialog each action opens (`edit` is the only one that leaves for the form instead).
+const DIALOG = { send: "send", accept: "accept", convertToOrder: "order", convert: "convert", deliveryNote: "delivery", reject: "reject", revise: "revise", delete: "delete" };
+const ICON = { edit: Pencil, send: Send, accept: Check, convertToOrder: ClipboardList, convert: ShoppingCart, deliveryNote: Truck, revise: RefreshCw, reject: X, delete: Trash2 };
 
 // One quotation: the page the customer gets, the actions that move it along, and what has happened to it.
 // Which actions exist comes from the server (q.actions), so a rule is decided in one place.
 export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onChanged, notify }) {
-  const { me } = useOrganisation();
+  const { me, featureOn } = useOrganisation();
   const company = useCompanyProfile();
   const currency = orgCurrency();
   const { data: q, loading, error, reload } = useAsync(() => quotations.get(id), [id]);
@@ -44,33 +50,39 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
   if (error) return <div className="mx-auto max-w-3xl p-6"><ErrorNote error={error} onRetry={reload} /></div>;
   if (!q) return null;
 
-  const A = allowActions(q.actions, me);
+  // One loud button for the step the offer is waiting for, everything else behind "More actions" - the
+  // six-button row (Accept, two conversions, a delivery note, Reject, Revise, beside the copy toggle and
+  // the print buttons InvoiceScreen adds) read as a wall and wrapped to several lines on a phone.
+  // "Create delivery note" is drawn only where the organisation HOLDS delivery notes: it used to ride on
+  // `convert`, the invoice's own flag, so an organisation without the feature was offered a document it
+  // cannot have (and the server now refuses).
+  const { primary, overflow } = quotationActions(q, me, { deliveryNotes: featureOn("deliveryNotes") });
   const finish = async (promise, message, after) => {
     // an action that leaves this screen (a delete, a revision) has nothing here left to refresh
     const out = await action.run(() => promise(), message, { refresh: !after });
     if (out) { close(); after?.(out); }
   };
 
-  // The one thing most likely to be wanted next gets the strong button.
-  const next = A.send ? "send" : A.accept ? "accept" : A.convertToOrder ? "order" : A.convert ? "convert" : A.revise && (q.expired || q.status === "REJECTED") ? "revise" : null;
-  const btn = (name, label, Icon, onClick) => (
-    <button key={name} type="button" onClick={onClick} className={next === name ? PRIMARY : TB}>
-      <Icon className="h-4 w-4" aria-hidden="true" />
-      {label}
-    </button>
-  );
+  const run = (key) => (key === "edit" ? onEdit(q._id) : open(DIALOG[key]));
+  const PrimaryIcon = primary ? ICON[primary.key] : null;
 
-  const actions = (
+  const actions = !primary && !overflow.length ? null : (
     <>
-      {A.edit && btn("edit", "Edit", Pencil, () => onEdit(q._id))}
-      {A.send && btn("send", "Mark as sent", Send, () => open("send"))}
-      {A.accept && btn("accept", "Accept", Check, () => open("accept"))}
-      {A.convertToOrder && btn("order", "Convert to sales order", ClipboardList, () => open("order"))}
-      {A.convert && btn("convert", "Convert to invoice", ShoppingCart, () => open("convert"))}
-      {A.convert && btn("delivery", "Create delivery note", Truck, () => open("delivery"))}
-      {A.reject && btn("reject", "Reject", X, () => open("reject"))}
-      {A.revise && btn("revise", "Revise", RefreshCw, () => open("revise"))}
-      {A.delete && btn("delete", "Delete", Trash2, () => open("delete"))}
+      {primary && (
+        <button type="button" onClick={() => run(primary.key)} className={PRIMARY}>
+          <PrimaryIcon className="h-4 w-4" aria-hidden="true" />
+          {primary.label}
+        </button>
+      )}
+      {overflow.length > 0 && (
+        <RowMenu label="More actions" buttonText="More actions" buttonClassName={TB} menuClassName="w-56 rounded-2xl border border-border bg-card py-1 shadow-lg">
+          {overflow.map((a) => (
+            <button key={a.key} type="button" onClick={() => run(a.key)} className={`${ITEM} ${a.danger ? "text-destructive" : "text-muted-foreground"}`}>
+              {a.label}
+            </button>
+          ))}
+        </RowMenu>
+      )}
     </>
   );
 

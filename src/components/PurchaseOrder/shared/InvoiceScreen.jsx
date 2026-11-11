@@ -28,7 +28,7 @@ const COPIES = ["Customer copy", "Internal copy"];
 // `send` is what lets the document go to a customer (components/send): a descriptor { kind, id, number,
 // title, companyName, party, notice, sourceType, lastSend }. A document that cannot be sent passes none and
 // shows no Send button at all, not a disabled one.
-export default function InvoiceScreen({ sheet, fileName, status, statusLabel, payment, onBack, missingTrn, auditId, copies = COPIES, actions, banner, footer, send }) {
+export default function InvoiceScreen({ sheet, fileName, status, statusLabel, payment, onBack, missingTrn, missingTrnReason = "noNumber", auditId, copies = COPIES, actions, banner, footer, send }) {
   const [copy, setCopy] = useState(copies[0]);
   const [auditOpen, setAuditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -159,8 +159,18 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, pa
 
       {missingTrn && (
         <p className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-foreground">
-          Your {taxIdWord()} is not set, so this prints as an Invoice, not a Tax invoice. If you are {taxWord()}-registered, add your {taxIdWord()} in{" "}
-          <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue it.
+          {missingTrnReason === "notRegistered" ? (
+            <>
+              You are marked as not registered for {taxWord()}, so this prints as an Invoice, not a Tax invoice - your {taxIdWord()} is on file but is not used. If you are
+              registered, tick it in{" "}
+              <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue it.
+            </>
+          ) : (
+            <>
+              Your {taxIdWord()} is not set, so this prints as an Invoice, not a Tax invoice. If you are {taxWord()}-registered, add your {taxIdWord()} in{" "}
+              <Link to="/settings" className="font-semibold underline underline-offset-2">Settings</Link> before you issue it.
+            </>
+          )}
         </p>
       )}
 
