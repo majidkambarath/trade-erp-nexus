@@ -43,6 +43,7 @@ const SaleInvoiceView = ({
       status={doc.status}
       payment={paymentStatus(so)}
       missingTrn={doc.missingTrn}
+      missingTrnReason={doc.missingTrnReason}
       auditId={so.id || so._id}
       send={send}
       banner={<ApprovalBanner doc={so} permission="sales.approve" />}

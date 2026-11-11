@@ -135,6 +135,17 @@ describe('SaleInvoiceView', () => {
     expect(screen.getByText(/computer-generated tax invoice/)).toBeInTheDocument();
   });
 
+  // The other way to be unregistered, and the one the tick box in Settings is for. Telling this person
+  // to "add your TRN" would be nonsense - it is already on file, it is simply not in use.
+  it('a company marked as not registered prints a plain invoice, and the warning says THAT, not "add your TRN"', () => {
+    useCompanyProfile.mockImplementation(() => ({ ...WITH_TRN, vatRegistered: false }));
+    renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
+    expect(screen.getByText(/You are marked as not registered for VAT/)).toBeInTheDocument();
+    expect(screen.queryByText(/Your TRN is not set/)).toBeNull();
+    expect(screen.getByText('Invoice', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByText('Tax invoice', { selector: 'div' })).toBeNull();
+  });
+
   it("shows the customer's VAT status under their TRN", () => {
     renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
     expect(screen.getByText('VAT status')).toBeInTheDocument();
