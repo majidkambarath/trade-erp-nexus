@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { resetOrgLocale, setOrgLocale } from "../../utils/orgLocale";
 import {
-  DOC_STATUS, addRow, daysToTerms, documentStatus, emptyBankAccount, emptyContact, emptyParty, errorCountBySection, expirySummary, fieldForServerError,
+  CUSTOMER_TERMS, DOC_STATUS, VENDOR_TERMS, addRow, daysToTerms, documentStatus, emptyBankAccount, emptyContact, emptyParty, errorCountBySection, expirySummary, fieldForServerError,
   firstSectionWithErrors, formToPayload, isValidSwift, isValidTrn, normalizeTrn, partyToForm, removeRow, sectionOf, setPrimary, termOptions, termsToDays,
   taxIdRule, toDay, validateParty, withCreditDays, withPaymentTerms,
 } from "../partyForms";
@@ -50,8 +50,23 @@ describe("payment terms and credit days", () => {
     const h = withCreditDays(g, "customer", "");
     expect([h.paymentTerms, h.creditDays]).toEqual(["Net 90", ""]); // clearing the days keeps the label
     expect(withCreditDays(g, "customer", "9999").paymentTerms).toBe("Net 90"); // an impossible number changes nothing
-    expect(termOptions("customer", "Net 90")).toEqual(["Net 30", "Net 45", "Net 60", "Cash on Delivery", "Prepaid", "Net 90"]);
-    expect(termOptions("vendor", "COD")).toHaveLength(6);
+    expect(termOptions("customer", "Net 90")).toEqual(["Cash", "Net 30", "Net 45", "Net 60", "Cash on Delivery", "Prepaid", "Net 90"]);
+    expect(termOptions("vendor", "COD")).toHaveLength(VENDOR_TERMS.length);
+  });
+  // A walk-in party quick-added from an order is saved on "Cash". It means 0 days like COD, but it
+  // is its own label, and a 0-day party must keep the label it was given: daysToTerms only does that
+  // for a term that is in the standard list, which is why "Cash" belongs in CUSTOMER_TERMS/VENDOR_TERMS
+  // and not merely in the quick-add payload.
+  it("keeps Cash as the wording for a party that pays on the day", () => {
+    expect(termsToDays("Cash")).toBe(0);
+    expect(CUSTOMER_TERMS).toContain("Cash");
+    expect(VENDOR_TERMS).toContain("Cash");
+    expect(daysToTerms("customer", 0, "Cash")).toBe("Cash");
+    expect(daysToTerms("vendor", 0, "Cash")).toBe("Cash");
+    const f = withPaymentTerms(filled(), "customer", "Cash");
+    expect([f.paymentTerms, f.creditDays]).toEqual(["Cash", "0"]);
+    // typing the days back does not rewrite the label it already means
+    expect(withCreditDays(f, "customer", "0").paymentTerms).toBe("Cash");
   });
 });
 

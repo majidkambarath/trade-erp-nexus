@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X } from "lucide-react";
-import { isRequired, missingRequired } from "./quickCreate";
+import { invalidField, isRequired, isShown, missingRequired } from "./quickCreate";
 import { cn } from "../../lib/utils";
 
 // One dialog for every quick create. The field list comes from quickCreate.js, so the
@@ -50,6 +50,11 @@ export default function QuickCreateDialog({
       setError(`${miss.label} is required.`);
       return;
     }
+    const bad = invalidField(spec, values);
+    if (bad) {
+      setError(bad);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -88,10 +93,29 @@ export default function QuickCreateDialog({
 
           <form onSubmit={submit} noValidate className="space-y-4">
             {spec.fields.map((f) => {
+              // A field can depend on another: the tax number appears only once the box is ticked.
+              if (!isShown(f, values)) return null;
               const id = `${uid}-${f.name}`;
               const isSelect = Boolean(f.select);
               const opts = isSelect ? options[f.select] || [] : [];
               const required = isRequired(f, values); // some fields depend on others (origin and brand are not asked of a service)
+              // A tick is its own row: the label sits beside the box, not above it.
+              if (f.checkbox) {
+                return (
+                  <div key={f.name} className="flex items-center gap-2.5 pt-1">
+                    <input
+                      id={id}
+                      type="checkbox"
+                      checked={Boolean(values[f.name])}
+                      onChange={(e) => set(f.name, e.target.checked)}
+                      className="h-4 w-4 shrink-0 rounded border-input accent-[var(--color-primary,currentColor)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <label htmlFor={id} className="text-sm font-semibold">
+                      {f.label}
+                    </label>
+                  </div>
+                );
+              }
               return (
                 <div key={f.name} className="space-y-1.5">
                   <label htmlFor={id} className="block text-sm font-semibold">
@@ -148,6 +172,7 @@ export default function QuickCreateDialog({
                       className={inputCls}
                     />
                   )}
+                  {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                 </div>
               );
             })}

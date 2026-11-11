@@ -18,8 +18,11 @@ export const VAT_STATUSES = [
 export const vatStatusLabel = (v) => VAT_STATUSES.find((s) => s.value === v)?.label || "";
 const TRN_REQUIRED_FOR = ["registered", "designated_zone"];
 
-export const CUSTOMER_TERMS = ["Net 30", "Net 45", "Net 60", "Cash on Delivery", "Prepaid"];
-export const VENDOR_TERMS = ["30 days", "Net 30", "45 days", "Net 60", "60 days", "COD"];
+// "Cash" parses to 0 days through termsToDays (no digits), so ageing and due dates need no
+// special case. It must be in these lists for daysToTerms to keep the label on a 0-day party
+// rather than flipping it to Cash on Delivery / COD. Mirrors STANDARD_TERMS on the server.
+export const CUSTOMER_TERMS = ["Cash", "Net 30", "Net 45", "Net 60", "Cash on Delivery", "Prepaid"];
+export const VENDOR_TERMS = ["Cash", "30 days", "Net 30", "45 days", "Net 60", "60 days", "COD"];
 export const CUSTOMER_STATUSES = ["Active", "Inactive"];
 export const VENDOR_STATUSES = ["Compliant", "Non-compliant", "Pending", "Expired"];
 export const DEFAULT_TERMS = { customer: "Net 30", vendor: "30 days" };

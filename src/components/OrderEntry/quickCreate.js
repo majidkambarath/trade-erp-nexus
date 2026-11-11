@@ -1,3 +1,6 @@
+import { isValidTrn, normalizeTrn, taxIdRule } from "../../lib/partyForms";
+import { taxWord } from "../../lib/taxTerms";
+
 // Create a master record from inside an order without leaving the page.
 //
 // Each spec names the fields the backend requires (taken from the validation on each
@@ -22,6 +25,33 @@ export const nextSku = (categoryName, existingSkus = []) => {
 
 const text = (v) => (v == null ? "" : String(v).trim());
 
+// A walk-in pays on the day. Without this the payload sent "" and the server fell through to its
+// own Net 30 / 30 days default, so a party quick-added from an order silently carried a month's
+// credit into its first due date and ageing bucket. Editable afterwards on the master screen.
+const QUICK_TERMS = "Cash";
+
+// The tax number is asked for only when the box is ticked, and its wording follows the
+// organisation's country (TRN in the UAE, GSTIN in India) through the same rule the master form
+// uses - so a quick-added party is registered exactly as one added on the Customers screen.
+const vatFields = () => [
+  { name: "vatRegistered", get label() { return `${taxWord()} registered`; }, checkbox: true },
+  {
+    name: "trn",
+    get label() { return taxIdRule().label; },
+    when: (v) => Boolean(v.vatRegistered),
+    required: (v) => Boolean(v.vatRegistered),
+    get hint() { return taxIdRule().message; },
+  },
+];
+
+// Sent inside `vat`, never as a top-level trnNumber/trnNO: the create services take an explicit
+// whitelist and would drop an unknown key, while PartyMasterService.prepare reads `vat` and writes
+// both it and the legacy field. An unticked box is exactly what was sent before.
+const vatPayload = (v) =>
+  v.vatRegistered
+    ? { vat: { status: "registered", trn: normalizeTrn(v.trn) } }
+    : { vat: { status: "unregistered", trn: "" } };
+
 // The measure types the unit of measure screen accepts (UnitOfMeasure model enum).
 export const MEASURE_TYPES = ["Weight", "Volume", "Quantity", "Packaging", "Length", "Area"];
 
@@ -33,6 +63,7 @@ export const QUICK_CREATE = {
       { name: "vendorName", label: "Vendor name", required: true },
       { name: "contactPerson", label: "Contact person", required: true },
       { name: "address", label: "Address", required: true, multiline: true },
+      ...vatFields(),
     ],
     payload: (v) => ({
       vendorName: text(v.vendorName),
@@ -40,8 +71,9 @@ export const QUICK_CREATE = {
       address: text(v.address),
       phone: "",
       email: "",
-      paymentTerms: "",
+      paymentTerms: QUICK_TERMS,
       status: "Compliant",
+      ...vatPayload(v),
     }),
     // The created record has to be selectable straight away.
     labelOf: (r) => `${r.vendorId} - ${r.vendorName}`,
@@ -55,6 +87,7 @@ export const QUICK_CREATE = {
       { name: "customerName", label: "Customer name", required: true },
       { name: "contactPerson", label: "Contact person", required: true },
       { name: "billingAddress", label: "Billing address", required: true, multiline: true },
+      ...vatFields(),
     ],
     // contactPerson and phone are trimmed by the backend route; they must never be undefined.
     payload: (v) => ({
@@ -65,10 +98,10 @@ export const QUICK_CREATE = {
       email: "",
       phone: "",
       creditLimit: 0,
-      paymentTerms: "",
+      paymentTerms: QUICK_TERMS,
       status: "Active",
-      trnNumber: null,
       salesPerson: null,
+      ...vatPayload(v),
     }),
     labelOf: (r) => `${r.customerId} - ${r.customerName}`,
     idOf: (r) => r._id,
@@ -141,8 +174,13 @@ export const QUICK_CREATE = {
   },
 };
 
+// Whether a field is drawn at all: the tax number only once the box is ticked. A field that is
+// not shown is never required, so a hidden one can never block the form from being submitted.
+export const isShown = (field, values = {}) => (typeof field.when === "function" ? Boolean(field.when(values)) : true);
+
 // A field is required outright, or by a rule on the other values (origin and brand are not asked of a service).
-export const isRequired = (field, values = {}) => (typeof field.required === "function" ? Boolean(field.required(values)) : Boolean(field.required));
+export const isRequired = (field, values = {}) =>
+  isShown(field, values) && (typeof field.required === "function" ? Boolean(field.required(values)) : Boolean(field.required));
 
 // Returns the first missing required field, or null when the values are complete.
 export const missingRequired = (spec, values) => {
@@ -150,4 +188,13 @@ export const missingRequired = (spec, values) => {
     if (isRequired(f, values) && !text(values[f.name])) return f;
   }
   return null;
+};
+
+// The one check worth making before the request: a malformed tax number is refused by the server
+// with INVALID_TRN anyway, but saying so on the spot saves the round trip. Returns a message or null.
+export const invalidField = (spec, values) => {
+  const trn = spec.fields.find((f) => f.name === "trn");
+  if (!trn || !isShown(trn, values)) return null;
+  const typed = text(values.trn);
+  return typed && !isValidTrn(typed) ? taxIdRule().message : null;
 };
