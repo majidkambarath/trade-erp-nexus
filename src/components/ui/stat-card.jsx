@@ -40,7 +40,7 @@ export function StatCard({ title, count, icon, subText, trend, tone, textColor, 
     <Root
       {...(interactive ? { type: "button", onClick } : {})}
       className={cn(
-        "flex w-full flex-col rounded-xl border border-border bg-card p-4 text-start shadow-card sm:p-5",
+        "flex h-full w-full flex-col rounded-xl border border-border bg-card p-4 text-start shadow-card sm:p-5",
         interactive &&
           "transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className

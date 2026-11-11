@@ -37,7 +37,7 @@ export function UsedBar({ utilisation, status, label = "Credit used", className 
 export function CreditUsedCard({ credit }) {
   const s = CREDIT_STATUS[credit.status] || CREDIT_STATUS.ok;
   return (
-    <div className="flex w-full flex-col rounded-xl border border-border bg-card p-5 text-start shadow-card">
+    <div className="flex h-full w-full flex-col rounded-xl border border-border bg-card p-5 text-start shadow-card">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-medium text-muted-foreground">Credit used</h3>
         <Pill tone={s.tone}>{s.label}</Pill>
