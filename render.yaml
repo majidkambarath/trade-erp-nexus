@@ -29,6 +29,11 @@ services:
       - key: VITE_API_URL
         value: /api/v1
     routes:
+      # MUST come before the SPA fallback. Below it, /* catches every API call and answers index.html,
+      # and the whole app fails on a JSON parse error at the first request.
+      - type: rewrite
+        source: /api/*
+        destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
       - type: rewrite
         source: /api/*
         destination: https://trade-erp-nexus-nodejs.onrender.com/api/*
