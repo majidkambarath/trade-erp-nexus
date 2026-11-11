@@ -37,8 +37,10 @@ export default function InvoiceScreen({ sheet, fileName, status, statusLabel, pa
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sent, setSent] = useState(send?.lastSend || null); // how it last went to the customer
   const { notify, toastNode } = useToasts();
-  const { canAny } = useOrganisation();
-  const maySend = canAny("sales.send"); // the history of what was sent stays for whoever can see the document; sending is the action
+  const { mayUse } = useOrganisation();
+  // Sending needs the role AND the plan: an organisation that did not buy Send documents has no Send button,
+  // whoever is looking. The history of what was sent stays for whoever can see the document.
+  const maySend = mayUse("sales.send", "messaging");
   const accent = readAccent();
   const Sheet = sheetComponent(sheet);
 

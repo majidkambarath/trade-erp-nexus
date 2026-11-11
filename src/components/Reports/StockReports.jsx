@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, ErrorNote, Field, PageHeader, Panel, Pill, SearchSelect, TextInput, useAsync } from "../accounting/kit";
 import { DateRange, Frame, monthStart, yearStart } from "./reportKit";
 import { taxWord } from "../../lib/taxTerms";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 // Stock reports, read from the stock movements, the item master, the batches and the approved
 // documents. Valuation and Movement are checked against the Inventory account of the ledger.
@@ -29,7 +30,11 @@ const TABS = [
   { id: "slow", label: "Slow stock" },
   { id: "reorder", label: "Reorder" },
 ];
-const TAB_IDS = TABS.map((t) => t.id);
+// The Expiry report, and the Batch column beside it, mean nothing without the Batches feature - and they are
+// worse than nothing. The server mints a lot number for every receipt whatever the plan (batchService.js), so
+// the column would show real-looking codes with no Batches screen to look one up on and no expiry report to
+// reconcile it against. FEFO keeps working off those numbers either way, so hiding them loses nothing.
+const batchTabs = (batches) => (batches ? TABS : TABS.filter((t) => t.id !== "expiry"));
 
 function defaultFilters() {
   const today = todayInput();
@@ -56,7 +61,12 @@ function useDebounced(value, ms = 300) {
 
 export default function StockReports() {
   const [params, setParams] = useSearchParams();
-  const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "valuation";
+  const { featureOn } = useOrganisation();
+  const batches = featureOn("batches");
+  const tabs = batchTabs(batches);
+  // The valid ids come from the tabs that are really drawn, so ?tab=expiry - which is the exact link the
+  // dashboard's own "expiring" alert sends - falls back to Valuation instead of opening a hidden tab's body.
+  const tab = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "valuation";
   const [filters, setFilters] = useState(defaultFilters);
   const lookups = useAsync(() => stockReports.lookups(), []);
   const setFor = (id) => (patch) => setFilters((all) => ({ ...all, [id]: { ...all[id], ...patch } }));
@@ -74,7 +84,7 @@ export default function StockReports() {
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="erp-scroll table-pin-first overflow-x-auto">
           <TabsList aria-label="Stock reports">
-            {TABS.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}
+            {tabs.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}
           </TabsList>
         </div>
         <TabsContent value="valuation">{tab === "valuation" && <Valuation {...shared("valuation")} />}</TabsContent>
@@ -457,6 +467,8 @@ function MovementBody({ d, view }) {
 // ------------------------------------------------------------------ 3. item ledger
 
 function ItemLedger({ f, set, lookups }) {
+  const { featureOn } = useOrganisation();
+  const batches = featureOn("batches");
   const options = useMemo(
     () => (lookups.data?.items || []).filter((i) => i.id).map((i) => ({ value: i.id, label: i.name, hint: i.sku || i.code, searchText: `${i.code} ${i.sku}` })),
     [lookups.data]
@@ -476,20 +488,20 @@ function ItemLedger({ f, set, lookups }) {
       {!f.itemId ? (
         <Panel><EmptyState title="Choose an item" text="Pick an item to see every movement of it, with the running quantity and value." /></Panel>
       ) : (
-        <Frame state={state} label="Reading the item ledger">{(d) => <LedgerBody d={d} />}</Frame>
+        <Frame state={state} label="Reading the item ledger">{(d) => <LedgerBody d={d} batches={batches} />}</Frame>
       )}
     </>
   );
 }
 
-function LedgerBody({ d }) {
+function LedgerBody({ d, batches = true }) {
   const unit = d.item.unit ? ` ${d.item.unit}` : "";
   const columns = [
     { key: "date", header: "Date", cell: (r) => formatDate(r.date), total: "Closing balance", className: "whitespace-nowrap" },
     { key: "doc", header: "Document", cell: (r) => <span className="font-mono text-xs">{r.documentNo}</span> },
     { key: "type", header: "Type", cell: (r) => r.typeLabel },
     { key: "party", header: "Party", cell: (r) => r.partyName || "–", className: "text-muted-foreground" },
-    { key: "batch", header: "Batch", cell: (r) => r.batchNo || "–", className: "text-muted-foreground" },
+    ...(batches ? [{ key: "batch", header: "Batch", cell: (r) => r.batchNo || "–", className: "text-muted-foreground" }] : []),
     { key: "in", header: "Qty in", align: "end", cell: (r) => (r.qtyIn ? qty(r.qtyIn) : ""), total: qty(d.totals.qtyIn) },
     { key: "out", header: "Qty out", align: "end", cell: (r) => (r.qtyOut ? qty(r.qtyOut) : ""), total: qty(d.totals.qtyOut) },
     { key: "cost", header: moneyHeading("Unit cost"), align: "end", cell: (r) => rate(r.unitCost) },
@@ -507,10 +519,10 @@ function LedgerBody({ d }) {
   function exportCsv() {
     downloadCSV(
       `item-ledger-${d.item.sku || d.item.itemId}-${d.from || "start"}-${d.to}.csv`,
-      ["Date", "Document", "Type", "Party", "Batch", "Qty in", "Qty out", "Unit cost", "Balance qty", "Balance value"],
+      ["Date", "Document", "Type", "Party", ...(batches ? ["Batch"] : []), "Qty in", "Qty out", "Unit cost", "Balance qty", "Balance value"],
       [
         ["", "Opening balance", "", "", "", "", "", "", d.opening.qty, d.opening.value],
-        ...d.rows.map((r) => [formatDate(r.date), r.documentNo, r.typeLabel, r.partyName, r.batchNo, r.qtyIn || "", r.qtyOut || "", r.unitCost, r.balanceQty, r.balanceValue]),
+        ...d.rows.map((r) => [formatDate(r.date), r.documentNo, r.typeLabel, r.partyName, ...(batches ? [r.batchNo] : []), r.qtyIn || "", r.qtyOut || "", r.unitCost, r.balanceQty, r.balanceValue]),
         ["", "Closing balance", "", "", "", d.totals.qtyIn, d.totals.qtyOut, d.closing.avgCost, d.closing.qty, d.closing.value],
       ]
     );

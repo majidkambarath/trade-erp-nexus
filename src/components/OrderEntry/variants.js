@@ -39,6 +39,15 @@ const EXPIRY_COL = col("expiryDate", "Expiry", "date", { min: "min-w-[150px]" })
 // A return against an invoice shows how much of each line can still be returned.
 const MAXQTY_COL = col("maxQty", "Can return", "ro", { min: "min-w-[90px]", align: "end" });
 
+// The columns a form really draws: a variant's own list, less the ones a switched-off feature makes
+// meaningless. With Batches off there is no Batches screen to look a lot up on and no expiry report to
+// reconcile it against, so asking a buyer to type one is asking for data the organisation cannot manage -
+// and FEFO keeps working from the numbers the server mints for itself (batchService.js), so nothing is
+// lost by not asking. Keyed by name, not by identity, so a variant that builds its own column list works.
+const BATCH_KEYS = ["batchNumber", "expiryDate"];
+export const columnsFor = (V, { batches = true } = {}) =>
+  (batches ? V.columns : (V.columns || []).filter((c) => !BATCH_KEYS.includes(c.key)));
+
 const PURCHASE_COLUMNS = [
   col("itemId", "Item", "item", { min: "min-w-[240px]" }),
   col("description", "Description", "text", { min: "min-w-[180px]" }),
@@ -549,6 +558,9 @@ VARIANTS.quotation = {
   series: "QT",
   ...customerSide,
   key: "quotation",
+  // the optional feature this document IS, so any host can refuse to mount the form rather than let it
+  // call an endpoint the plan answers with FEATURE_NOT_IN_PLAN
+  feature: "quotations",
   noun: "Quotation",
   endpoint: "/quotations",
   numberField: "quotationNo",
@@ -576,6 +588,7 @@ VARIANTS.deliveryNote = {
   series: "DLN",
   ...customerSide,
   key: "deliveryNote",
+  feature: "deliveryNotes",
   noun: "Delivery note",
   endpoint: "/delivery-notes",
   numberField: "deliveryNoteNo",

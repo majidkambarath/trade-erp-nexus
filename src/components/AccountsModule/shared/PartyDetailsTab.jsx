@@ -7,24 +7,28 @@ import { ErrorNote, Panel, Pill } from "../../accounting/kit";
 import { DetailList, Skeleton } from "./partyAccountParts";
 import { partyStatusTone } from "./partyAccountUtils";
 import { taxIdWord } from "../../../lib/taxTerms";
+import { useOrganisation } from "../../shell/OrganisationContext";
 
 const tel = (v) => (v ? <a className="underline underline-offset-2" href={`tel:${v}`}>{v}</a> : null);
 const mail = (v) => (v ? <a className="break-all underline underline-offset-2" href={`mailto:${v}`}>{v}</a> : null);
 const text = (v) => (v ? <span className="whitespace-pre-line">{v}</span> : null);
 
 // What the record holds, grouped the way someone reads it. Edited on the Customers / Vendors page.
-function sections(kind, p) {
+// A Peppol participant id is only meaningful to an organisation that has E-invoicing, so without it the
+// section is simply "Tax" and the id is not shown - the tax number itself always matters.
+function sections(kind, p, { einvoicing = true } = {}) {
+  const taxTitle = einvoicing ? "Tax and e-invoicing" : "Tax";
   if (kind === "vendor") {
     return [
       { title: "Contact", items: [{ label: "Contact person", value: p.contactPerson }, { label: "Phone", value: tel(p.phone) }, { label: "Email", value: mail(p.email) }, { label: "Vendor since", value: p.enrollDate ? formatDate(p.enrollDate) : null }] },
-      { title: "Tax and e-invoicing", items: [{ label: taxIdWord(), value: p.trnNO }, { label: "Peppol participant ID", value: p.participantId }] },
+      { title: taxTitle, items: [{ label: taxIdWord(), value: p.trnNO }, ...(einvoicing ? [{ label: "Peppol participant ID", value: p.participantId }] : [])] },
       { title: "Terms", items: [{ label: "Payment terms", value: p.paymentTerms }, { label: "Status", value: p.status ? <Pill tone={partyStatusTone(p.status)}>{p.status}</Pill> : null }] },
       { title: "Address", items: [{ label: "Address", value: text(p.address), wide: true }] },
     ];
   }
   return [
     { title: "Contact", items: [{ label: "Contact person", value: p.contactPerson }, { label: "Phone", value: tel(p.phone) }, { label: "Email", value: mail(p.email) }, { label: "Sales person", value: p.salesPerson }, { label: "Customer since", value: p.joinDate ? formatDate(p.joinDate) : null }] },
-    { title: "Tax and e-invoicing", items: [{ label: taxIdWord(), value: p.trnNumber }, { label: "Peppol participant ID", value: p.eInvoice?.participantId }, { label: "City", value: p.eInvoice?.city }, { label: "Country", value: p.eInvoice?.countryCode }] },
+    { title: taxTitle, items: [{ label: taxIdWord(), value: p.trnNumber }, ...(einvoicing ? [{ label: "Peppol participant ID", value: p.eInvoice?.participantId }] : []), { label: "City", value: p.eInvoice?.city }, { label: "Country", value: p.eInvoice?.countryCode }] },
     {
       title: "Terms and credit",
       items: [
@@ -41,6 +45,7 @@ function sections(kind, p) {
 /** Read-only party details with a way into the page where they are edited. */
 export default function PartyDetailsTab({ k, party }) {
   const { data, loading, error, reload } = party;
+  const { featureOn } = useOrganisation();
 
   if (loading && !data) {
     return (
@@ -61,7 +66,7 @@ export default function PartyDetailsTab({ k, party }) {
         </Button>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {sections(k.kind, data).map((s) => (
+        {sections(k.kind, data, { einvoicing: featureOn("einvoicing") }).map((s) => (
           <Panel key={s.title} title={s.title}><DetailList items={s.items} /></Panel>
         ))}
       </div>

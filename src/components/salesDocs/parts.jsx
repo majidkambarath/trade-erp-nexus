@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 import { ErrorNote, Modal, Pill } from "../accounting/kit";
 import { cn } from "../../lib/utils";
 import { formatDateTime } from "../../utils/format";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 // The segmented control the list screens use for a status filter. Scrolls rather than wraps on a phone,
 // so it keeps its one-line shape. `counts` is optional, { value: n }.
@@ -54,10 +55,19 @@ export function Note({ tone = "info", children, className }) {
 
 // Where a document came from or went. A quotation opens inside its own screen; an order and a delivery
 // note are other pages, reached by their number.
+//
+// A document whose own feature the organisation does not have is NAMED but not linked: the plain-text branch
+// this already ended in. Every caller today sits inside the feature's own screen, so nothing is leaking here
+// now - this is the shared "where a document lives" primitive, and making it the second gate is what stops
+// the next caller leaking. Only an explicit no hides a link, as featureOn reads it.
+const DOC_FEATURE = { quotation: "quotations", delivery_note: "deliveryNotes" };
 export function DocLink({ kind, id, no, onOpenQuotation, children }) {
+  const { featureOn } = useOrganisation();
   const cls = "font-semibold underline underline-offset-2";
+  if (!featureOn(DOC_FEATURE[kind])) return <span className="font-semibold">{children || no}</span>;
   if (kind === "quotation" && onOpenQuotation) return <button type="button" onClick={() => onOpenQuotation(id)} className={cls}>{children || no}</button>;
   if (kind === "delivery_note") return <Link to={`/delivery-notes?open=${id}`} className={cls}>{children || no}</Link>;
+  if (kind === "trade_order") return <Link to={`/sales-orders?open=${id}`} className={cls}>{children || no}</Link>;
   if (kind === "sales_order") return <Link to={`/sales-order?search=${encodeURIComponent(no)}`} className={cls}>{children || no}</Link>;
   return <span className="font-semibold">{children || no}</span>;
 }

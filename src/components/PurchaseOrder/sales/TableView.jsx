@@ -212,7 +212,9 @@ const TableView = ({
                     <PaymentBadge doc={so} />
                     <AwaitingSecondBadge doc={so} state={stateOf(so)} />
                     {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
-                    {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
+                    {so.status === "APPROVED" && !so.isOpening && (so.lastSend
+                      ? <SentLine send={so.lastSend} />
+                      : !!onSendDocument && <Can permission="sales.send" feature="messaging"><SentLine send={so.lastSend} /></Can>)}
                     <div className="flex space-x-1">
                       {so.invoiceGenerated && (
                         <div
@@ -236,7 +238,7 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div className="flex items-center justify-center space-x-2">
                     {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
-                      <Can permission="sales.send">
+                      <Can permission="sales.send" feature="messaging">
                         <button
                           type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
                           className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"

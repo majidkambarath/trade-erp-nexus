@@ -370,3 +370,60 @@ describe("sending the invoice, for a person who may not send (sales.send)", () =
     expect(nextAction(deal({ order: order() }), NOW, NO_SEND).label).toBe("Approve the order");
   });
 });
+
+// A feature the organisation did not buy must leave nothing behind. Two rules, and they pull in opposite
+// directions on purpose: a STAGE that can never happen is dropped, so a deal does not look stuck at a step
+// nobody can complete; but a DOCUMENT that exists is never hidden, and real outstanding work is still
+// announced - only the link to a screen the plan refuses is taken away.
+describe("with a feature switched off", () => {
+  const NOW = Date.parse("2026-10-20T00:00:00.000Z");
+  const keys = (c, opts) => dealSteps(c, opts).map((s) => s.key);
+
+  it("drops a stage the organisation can never reach, and keeps the ones it can", () => {
+    const c = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED" }) });
+    expect(keys(c, {})).toEqual(["quotation", "order", "delivery", "invoice", "paid"]);
+    expect(keys(c, { deliveryNotes: false })).toEqual(["quotation", "order", "invoice", "paid"]);
+    expect(keys(c, { quotations: false })).toEqual(["order", "delivery", "invoice", "paid"]);
+    expect(keys(c, { quotations: false, deliveryNotes: false })).toEqual(["order", "invoice", "paid"]);
+  });
+
+  // Switching a feature off after documents were raised must not make them vanish: what happened, happened.
+  it("keeps a stage whose documents really exist, and unlinks them instead", () => {
+    const c = deal({ stage: "invoiced", mode: "order_first", quotation: quote({ status: "CONVERTED" }), order: order({ status: "APPROVED" }), notes: [note()] });
+    const off = { quotations: false, deliveryNotes: false };
+    expect(keys(c, off)).toEqual(["quotation", "order", "delivery", "invoice", "paid"]);
+    expect(dealSteps(c, off).find((s) => s.key === "quotation").docs[0]).toMatchObject({ no: "QT-2026-0007", to: null });
+    expect(dealSteps(c, off).find((s) => s.key === "delivery").docs[0]).toMatchObject({ no: "DLN-2026-0012", to: null });
+    // the invoice is not an optional feature, so its link is untouched
+    expect(dealSteps(c, off).find((s) => s.key === "invoice").docs[0].to).toBe(orderTo(order()));
+  });
+
+  it("still says what is outstanding, without a button to a screen the plan refuses", () => {
+    const part = deal({ stage: "invoiced", mode: "order_first", order: order({ status: "APPROVED", date: "2026-10-18T00:00:00.000Z" }), notes: [note()], delivery: { started: true, complete: false, remaining: [{ description: "Rice", qty: 4 }] } });
+    const next = nextAction(part, NOW, { deliveryNotes: false });
+    expect(next).toMatchObject({ label: "Deliver the rest", why: "Still to deliver: 4 x Rice", to: null });
+    // and it is still work, so the deal still counts as needing someone
+    expect(dealGroup(part, NOW, { deliveryNotes: false })).toBe("action");
+
+    const unsigned = deal({ mode: "order_first", order: order(), notes: [note({ status: "DRAFT" })] });
+    expect(nextAction(unsigned, NOW, { deliveryNotes: false })).toMatchObject({ label: "Dispatch the delivery", to: null });
+
+    const accepted = deal({ quotation: quote({ status: "ACCEPTED" }) });
+    expect(nextAction(accepted, NOW, { quotations: false })).toMatchObject({ label: "Convert to a sales order", to: null });
+
+    const delivered = deal({ mode: "delivery_first", notes: [note()] });
+    expect(nextAction(delivered, NOW, { deliveryNotes: false })).toMatchObject({ label: "Create the invoice", to: null });
+    expect(nextAction(delivered, NOW, {}).to).toBe(INVOICE_QUEUE);
+  });
+
+  // "Tax invoice" is a claim about the SELLER's registration, so a company with no tax number heads its
+  // invoices "Invoice" - exactly as the printed sheet does (invoiceDocuments.js isTaxInvoice).
+  it("heads an approved order's deal by the seller's own registration", () => {
+    const invoiced = deal({ order: order({ status: "APPROVED" }) });
+    expect(dealTitle(invoiced)).toEqual({ no: "SO-2026-0031", kind: "Tax invoice" });
+    expect(dealTitle(invoiced, { taxInvoice: true })).toEqual({ no: "SO-2026-0031", kind: "Tax invoice" });
+    expect(dealTitle(invoiced, { taxInvoice: false })).toEqual({ no: "SO-2026-0031", kind: "Invoice" });
+    // an order that has not been approved is not an invoice at all, whoever the seller is
+    expect(dealTitle(deal({ order: order() }), { taxInvoice: false }).kind).toBe("Sales order");
+  });
+});

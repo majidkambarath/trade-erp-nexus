@@ -51,6 +51,7 @@ import { ago, dayLabel, gold, hourLabel, ink, monthLabel, monthYearLabel, mutedI
 import { addMonths, quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
 import { isUae, taxWord } from "../../lib/taxTerms";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const cap = (text) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -65,7 +66,16 @@ const toneBadge = {
   muted: "bg-secondary text-muted-foreground border-transparent",
 };
 
+// Which optional feature each server-built "needs attention" row belongs to. A key that is not here is not
+// feature-coupled and always shows (featureOn reads a missing key as on).
+const ATTENTION_FEATURE = { expired: "batches", expiring: "batches", "unclassified-vat": "vatReturn" };
+
 export default function OverviewTab({ core, analytics, scope, theme }) {
+  // "Needs attention" is a list of links the SERVER builds, and some of them belong to optional features
+  // (dashboardService.js sends expiring / expired batches and unclassified VAT whatever the plan). An
+  // unmapped key passes, because featureOn reads a missing key as on.
+  const { featureOn } = useOrganisation();
+  const attentionShown = (rows) => (rows || []).filter((i) => featureOn(ATTENTION_FEATURE[i.key]));
   const navigate = useNavigate();
   const c = core.data;
   const a = analytics.data;
@@ -280,13 +290,13 @@ export default function OverviewTab({ core, analytics, scope, theme }) {
               {c && (
                 <>
                   <h3 className="mt-2 text-xl font-extrabold leading-snug tracking-tight">
-                    {c.attention.length === 0
+                    {attentionShown(c.attention).length === 0
                       ? "Nothing needs attention"
-                      : `${c.attention.length} ${c.attention.length === 1 ? "thing" : "things"} to look at`}
+                      : `${attentionShown(c.attention).length} ${attentionShown(c.attention).length === 1 ? "thing" : "things"} to look at`}
                   </h3>
-                  {c.attention.length > 0 && (
+                  {attentionShown(c.attention).length > 0 && (
                     <ul className="mt-4 space-y-2">
-                      {c.attention.map((item) => (
+                      {attentionShown(c.attention).map((item) => (
                         <li key={item.key}>
                           <Link to={item.to} className="flex items-start gap-2 rounded-xl bg-card/60 px-3 py-2 text-sm font-medium transition hover:bg-card">
                             <span className="min-w-0 flex-1">{item.text}</span>

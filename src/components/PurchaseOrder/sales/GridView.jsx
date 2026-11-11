@@ -81,7 +81,9 @@ const GridView = ({
                 </div>
                 <PaymentBadge doc={so} />
                 {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
-                {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && <SentLine send={so.lastSend} />}
+                {so.status === "APPROVED" && !so.isOpening && (so.lastSend
+                  ? <SentLine send={so.lastSend} />
+                  : !!onSendDocument && <Can permission="sales.send" feature="messaging"><SentLine send={so.lastSend} /></Can>)}
               </div>
             </div>
           </div>
@@ -161,7 +163,7 @@ const GridView = ({
                 </button>
                 <PayAction doc={so} sales partyId={so.customerId} variant="card" />
                 {!!onSendDocument && so.status === "APPROVED" && !so.isOpening && (
-                  <Can permission="sales.send">
+                  <Can permission="sales.send" feature="messaging">
                     <button
                       type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
                       className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
