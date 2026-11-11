@@ -242,7 +242,8 @@ const DEEP = {
 
   "sales-quotations": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
-    { name: "convert", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
+    { name: "convert-order", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
+    { name: "convert-invoice", clicks: ["^View$", "Convert to invoice"], settle: 1300 },
     // the shared order form, configured as a quotation (valid until, terms, reference)
     { name: "form", page: true, clicks: ["^New quotation"], settle: 1500 },
   ],
@@ -662,6 +663,8 @@ const QSTATES = ["DRAFT", "SENT", "ACCEPTED", "SENT", "CONVERTED", "REJECTED"];
 const quotationActions = (s, expired) => ({
   edit: s === "DRAFT", delete: s === "DRAFT", send: s === "DRAFT", accept: s === "SENT" && !expired,
   reject: ["SENT", "ACCEPTED"].includes(s), convert: ["SENT", "ACCEPTED"].includes(s) && !expired, revise: ["SENT", "ACCEPTED", "REJECTED"].includes(s),
+  // the offer can become the ORDER (SORD, a commitment) as well as the invoice: its own flag, its own button
+  convertToOrder: ["SENT", "ACCEPTED"].includes(s) && !expired,
 });
 const quotation = (i) => {
   const status = QSTATES[i - 1];
