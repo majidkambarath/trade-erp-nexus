@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { stampYMD } from "../../utils/format";
+import { DEFAULT_TERMS } from "../../lib/partyForms";
 
 const useVendorForm = (initialData = {}) => {
   const [formData, setFormData] = useState({
@@ -9,7 +10,9 @@ const useVendorForm = (initialData = {}) => {
     email: "",
     phone: "",
     address: "",
-    paymentTerms: "",
+    // Named rather than left blank: an empty string relies on the server's own fallback, so the
+    // form showed nothing while the vendor was saved on 30 days.
+    paymentTerms: DEFAULT_TERMS.vendor,
     taxId: "",
     ...initialData,
   });

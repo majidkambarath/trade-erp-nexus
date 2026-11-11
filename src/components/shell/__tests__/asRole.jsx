@@ -12,10 +12,12 @@ import { OrganisationProvider, useOrganisation } from "../OrganisationContext";
 //
 // and renders <AsRole>...</AsRole>, then `await roleLoaded()` BEFORE asserting that something is absent:
 // while the grants are unknown the app hides nothing, so a check made before they arrive says nothing.
-export const statusFor = (grants) => ({
+// `features` names only what is OFF: an absent key is on, as the server's own featureOn reads it, so every existing
+// caller that passes grants alone gets an organisation with every feature - which is what it had before this argument.
+export const statusFor = (grants, features = {}) => ({
   organisation: { legalName: "Harbour Trading", baseCurrency: "AED", timezone: "Asia/Dubai" },
   subscription: { state: "active", blocked: false },
-  features: {},
+  features,
   me: { id: "u1", name: "Someone", role: { key: "custom", name: "A role", rank: 40 }, grants },
 });
 

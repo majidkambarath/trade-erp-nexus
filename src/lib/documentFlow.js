@@ -13,6 +13,19 @@ import { taxWord } from "./taxTerms.js";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+// What this organisation and this person can do, passed in by the screen so the rules stay pure:
+// { canSend, deliveryNotes, quotations, taxInvoice }. Anything missing is ALLOWED - the same fail-open
+// rule featureOn and canAny keep, so a caller that knows nothing still gets the whole flow.
+//
+// Two rules hold wherever a switched-off feature meets this file:
+//   A step is OMITTED only when it never existed and never can. A deal whose delivery notes were switched
+//     off after some were raised still shows them: hiding a document that exists is worse than any tidiness.
+//   A link is DROPPED but the words are KEPT. These branches only fire when the document is really there,
+//     so real outstanding work must still be announced and still counted under "Needs action" - it simply
+//     stops offering a button to a screen the plan answers with "not included in your plan".
+const on = (opts, key) => opts[key] !== false;
+const href = (opts, key, path) => (on(opts, key) ? path : null);
+
 export const STAGE_LABEL = { quoted: "Quoted", ordered: "Ordered", delivering: "Delivering", delivered: "Delivered", invoiced: "Invoiced", lost: "Lost", lapsed: "Expired" };
 export const STAGE_TONE = { quoted: "info", ordered: "info", delivering: "info", delivered: "warning", invoiced: "success", lost: "danger", lapsed: "neutral" };
 
@@ -23,17 +36,17 @@ export const noteTo = (n) => `/delivery-notes?open=${n._id}`;
 export const INVOICE_QUEUE = "/delivery-notes?status=UNINVOICED";
 
 // ---- the documents of a deal, as a step shows them -----------------------------------------
-const quoteDoc = (q) => {
+const quoteDoc = (q, opts = {}) => {
   const shown = q.expired ? "EXPIRED" : q.status;
   const open = q.status === "SENT" && !q.expired && q.daysLeft != null;
-  return { kind: "quotation", no: q.quotationNo, status: statusLabel(shown), tone: statusTone(shown), to: quotationTo(q), meta: open ? `valid ${plural(q.daysLeft, "more day")}` : `valid until ${formatDate(q.validUntil)}` };
+  return { kind: "quotation", no: q.quotationNo, status: statusLabel(shown), tone: statusTone(shown), to: href(opts, "quotations", quotationTo(q)), meta: open ? `valid ${plural(q.daysLeft, "more day")}` : `valid until ${formatDate(q.validUntil)}` };
 };
 const orderDoc = (o, status) => ({
   kind: "order", no: o.transactionNo, status: status || (o.status === "APPROVED" ? "Approved" : "Draft"), tone: o.status === "APPROVED" ? "success" : "neutral",
   to: orderTo(o), meta: `${orgCurrency()} ${formatNumber(o.totalAmount, 2)}`,
 });
-const noteDoc = (n) => ({
-  kind: "note", no: n.deliveryNoteNo, status: statusLabel(n.status), tone: statusTone(n.status), to: noteTo(n),
+const noteDoc = (n, opts = {}) => ({
+  kind: "note", no: n.deliveryNoteNo, status: statusLabel(n.status), tone: statusTone(n.status), to: href(opts, "deliveryNotes", noteTo(n)),
   meta: n.status === "DELIVERED" ? `delivered ${formatDate(n.deliveredAt)}` : `${orgCurrency()} ${formatNumber(n.totalAmount, 2)}`,
 });
 const invoiceDoc = (o) => {
@@ -68,7 +81,7 @@ const partDelivered = (c) => Boolean(c.delivery && c.delivery.started && !c.deli
 
 // A step is `done`, `doing` (in hand now), `stopped` (the deal ended here), `todo` (still to come) or
 // `none` (this deal never had one). The first step still to be done is marked `current`.
-export function dealSteps(c) {
+export function dealSteps(c, opts = {}) {
   const q = c.quotation;
   const o = c.order;
   const notes = c.notes || [];
@@ -76,22 +89,31 @@ export function dealSteps(c) {
   const goodsFirst = c.mode === "delivery_first";
   const steps = [];
 
+  // quoteState is read by every later step, so it is worked out whether or not the step itself is shown.
   const quoteState = !q ? "none" : q.status === "REJECTED" || q.expired ? "stopped" : ["ACCEPTED", "CONVERTED"].includes(q.status) ? "done" : "doing";
-  steps.push({ key: "quotation", label: "Quotation", state: quoteState, docs: q ? [quoteDoc(q)] : [], hint: q ? "" : "No quotation" });
+  // An organisation without Quotations has no offer stage at all, so the deal reads order -> invoice -> paid.
+  // One that switched the feature off AFTER raising this offer still sees it: the document exists.
+  if (on(opts, "quotations") || q) {
+    steps.push({ key: "quotation", label: "Quotation", state: quoteState, docs: q ? [quoteDoc(q, opts)] : [], hint: q ? "" : "No quotation" });
+  }
 
   if (!goodsFirst) {
     const orderHint = q && q.status === "ACCEPTED" ? "Accepted: convert it to a sales order" : q && quoteState === "doing" ? "Not ordered yet" : "";
     steps.push({ key: "order", label: "Sales order", state: o ? "done" : quoteState === "stopped" ? "none" : "todo", docs: o ? [orderDoc(o)] : [], hint: o ? "" : orderHint });
   }
 
-  const deliveryHint = c.closeShort
-    ? `Closed short: ${leftText(c.closeShort.left)} will not be delivered`
-    : o && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
-  steps.push({
-    key: "delivery", label: "Delivery",
-    state: !notes.length ? (quoteState === "stopped" && !o ? "none" : "todo") : notes.every(delivered) && !partDelivered(c) ? "done" : "doing",
-    docs: notes.map(noteDoc), hint: deliveryHint,
-  });
+  // Same rule for the delivery stage: an organisation without Delivery notes invoices straight from the order,
+  // so a greyed step it can never complete would only make a healthy deal look stuck.
+  if (on(opts, "deliveryNotes") || notes.length) {
+    const deliveryHint = c.closeShort
+      ? `Closed short: ${leftText(c.closeShort.left)} will not be delivered`
+      : o && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
+    steps.push({
+      key: "delivery", label: "Delivery",
+      state: !notes.length ? (quoteState === "stopped" && !o ? "none" : "todo") : notes.every(delivered) && !partDelivered(c) ? "done" : "doing",
+      docs: notes.map((n) => noteDoc(n, opts)), hint: deliveryHint,
+    });
+  }
 
   let invoiceHint = "";
   if (!invoiced) {
@@ -157,6 +179,8 @@ export function sendPill(c, now = Date.now(), opts = {}) {
 
 // The one thing to do about a deal, and where to do it. `waiting` means the move is the customer's.
 // `opts.canSend: false` (a person without sales.send) leaves out "Send the invoice", which they could not do.
+// A switched-off feature leaves the words and takes the LINK (`to: null`): the work is still outstanding and
+// still counts under "Needs action", but there is no button to a screen the plan does not include.
 export function nextAction(c, now = Date.now(), opts = {}) {
   const q = c.quotation;
   const o = c.order;
@@ -164,13 +188,14 @@ export function nextAction(c, now = Date.now(), opts = {}) {
   const out = notes.filter((n) => !delivered(n));
   if (out.length) {
     const n = out[0];
+    const to = href(opts, "deliveryNotes", noteTo(n));
     return n.status === "DRAFT"
-      ? { label: "Dispatch the delivery", why: `${n.deliveryNoteNo} has not left the warehouse`, to: noteTo(n) }
-      : { label: "Confirm the delivery", why: `${n.deliveryNoteNo} is on the road: record who signed for it`, to: noteTo(n) };
+      ? { label: "Dispatch the delivery", why: `${n.deliveryNoteNo} has not left the warehouse`, to }
+      : { label: "Confirm the delivery", why: `${n.deliveryNoteNo} is on the road: record who signed for it`, to };
   }
   // part of the order has gone out: the rest is the next delivery, whether or not it has been invoiced
   if (o && partDelivered(c)) {
-    return { label: "Deliver the rest", why: `Still to deliver: ${leftText(c.delivery.remaining)}`, to: `/delivery-notes?order=${o._id}` };
+    return { label: "Deliver the rest", why: `Still to deliver: ${leftText(c.delivery.remaining)}`, to: href(opts, "deliveryNotes", `/delivery-notes?order=${o._id}`) };
   }
   // an invoiced order closed short billed goods that never left: a sales return puts the books right
   if (o && c.closeShort?.creditDue) {
@@ -191,16 +216,17 @@ export function nextAction(c, now = Date.now(), opts = {}) {
       : { label: notes.length ? "Approve the order to invoice it" : "Approve the order", why: "Approving books the sale and takes the goods out of stock", to: orderTo(o) };
   }
   if (notes.length) {
-    return { label: "Create the invoice", why: c.invoiceClock ? clockText(c.invoiceClock) : "Delivered and not invoiced yet", to: INVOICE_QUEUE };
+    return { label: "Create the invoice", why: c.invoiceClock ? clockText(c.invoiceClock) : "Delivered and not invoiced yet", to: href(opts, "deliveryNotes", INVOICE_QUEUE) };
   }
   if (!q) return null;
-  if (q.status === "DRAFT") return { label: "Finish and send", why: "This offer has not gone to the customer", to: quotationTo(q) };
+  const toQuote = href(opts, "quotations", quotationTo(q));
+  if (q.status === "DRAFT") return { label: "Finish and send", why: "This offer has not gone to the customer", to: toQuote };
   if (q.status === "SENT") {
     return q.expired
-      ? { label: "Revise the offer", why: `It ran out on ${formatDate(q.validUntil)}`, to: quotationTo(q) }
-      : { label: "Record the answer", why: "Waiting for the customer", to: quotationTo(q), waiting: true };
+      ? { label: "Revise the offer", why: `It ran out on ${formatDate(q.validUntil)}`, to: toQuote }
+      : { label: "Record the answer", why: "Waiting for the customer", to: toQuote, waiting: true };
   }
-  if (q.status === "ACCEPTED") return { label: "Convert to a sales order", why: "The customer said yes", to: quotationTo(q) };
+  if (q.status === "ACCEPTED") return { label: "Convert to a sales order", why: "The customer said yes", to: toQuote };
   return null;
 }
 
@@ -227,8 +253,14 @@ export const filterDeals = (chains, filter, opts = {}) => (filter === "all" ? ch
 export const defaultFilter = (counts) => (counts.action > 0 ? "action" : "all");
 
 // What heads a deal: its invoice or order if it has one, else its offer, else its first note.
-export function dealTitle(c) {
-  if (c.order) return { no: c.order.transactionNo, kind: c.order.status === "APPROVED" ? "Tax invoice" : c.mode === "delivery_first" ? "Draft invoice" : "Sales order" };
+//
+// An approved order IS the invoice, and whether that invoice is a TAX invoice follows the SELLER's own
+// registration - exactly as the printed sheet decides it (PurchaseOrder/shared/invoiceDocuments.js
+// isTaxInvoice). This list cannot see the company, so the caller passes the answer in: `opts.taxInvoice`
+// false heads it "Invoice". It said "Tax invoice" for every approved order, which claimed a registration a
+// company without a tax number has not got.
+export function dealTitle(c, opts = {}) {
+  if (c.order) return { no: c.order.transactionNo, kind: c.order.status === "APPROVED" ? (on(opts, "taxInvoice") ? "Tax invoice" : "Invoice") : c.mode === "delivery_first" ? "Draft invoice" : "Sales order" };
   if (c.quotation) return { no: c.quotation.quotationNo, kind: "Quotation" };
   return { no: c.notes[0]?.deliveryNoteNo || "", kind: "Delivery note" };
 }

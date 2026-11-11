@@ -7,7 +7,7 @@
 import { documentTotals } from "../../utils/documentTotals";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { companyBlock } from "../PurchaseOrder/shared/invoiceModel";
-import { contactLines, dateOf, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
+import { contactLines, dateOf, partyTrnFor, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
 
 const SOURCE_LABEL = { sales_order: "Sales order", quotation: "Quotation" };
 
@@ -26,7 +26,7 @@ export const buildQuotationDocument = (q, customer, company, currency) => {
         code: customer.customerId || "",
         address: customer.billingAddress || "",
         contact: contactLines(customer),
-        trn: customer.trnNumber || customer.vat?.trn || "",
+        trn: partyTrnFor(customer, customer.trnNumber || customer.vat?.trn),
       },
       meta: [
         ["Date", dateOf(q.date)],

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Check, Pencil, RefreshCw, Send, ShoppingCart, Trash2, Truck, X } from "lucide-react";
+import { Check, Pencil, RefreshCw, Send, ClipboardList, ShoppingCart, Trash2, Truck, X } from "lucide-react";
 import InvoiceScreen from "../PurchaseOrder/shared/InvoiceScreen";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { DateInput, ErrorNote, Field, Panel, Spinner, Textarea, TextInput, useAsync } from "../accounting/kit";
@@ -27,15 +27,15 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
   const { data: q, loading, error, reload } = useAsync(() => quotations.get(id), [id]);
   const activity = useAsync(() => quotations.activity(id), [id]);
   useDocumentTitle(q ? `${q.quotationNo} · Quotations · ${PRODUCT_NAME}` : null);
-  const [dialog, setDialog] = useState(null); // send | accept | reject | convert | delivery | revise | delete
-  const [form, setForm] = useState({ acceptedBy: "", reason: "", date: todayInput(), deliveryAddress: "" });
+  const [dialog, setDialog] = useState(null); // send | accept | reject | order | convert | delivery | revise | delete
+  const [form, setForm] = useState({ acceptedBy: "", reason: "", date: todayInput(), expectedDate: "", deliveryAddress: "" });
 
   const refresh = async () => {
     await Promise.all([reload(), activity.reload()]);
     onChanged?.();
   };
   const action = useDocumentAction({ notify, reload: refresh });
-  const open = (name) => { setForm({ acceptedBy: "", reason: "", date: todayInput(), deliveryAddress: "" }); action.clear(); setDialog(name); };
+  const open = (name) => { setForm({ acceptedBy: "", reason: "", date: todayInput(), expectedDate: "", deliveryAddress: "" }); action.clear(); setDialog(name); };
   const close = () => { setDialog(null); action.clear(); };
 
   const doc = useMemo(() => (q ? buildQuotationDocument(q, q.party || {}, company, currency) : null), [q, company, currency]);
@@ -52,7 +52,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
   };
 
   // The one thing most likely to be wanted next gets the strong button.
-  const next = A.send ? "send" : A.accept ? "accept" : A.convert ? "convert" : A.revise && (q.expired || q.status === "REJECTED") ? "revise" : null;
+  const next = A.send ? "send" : A.accept ? "accept" : A.convertToOrder ? "order" : A.convert ? "convert" : A.revise && (q.expired || q.status === "REJECTED") ? "revise" : null;
   const btn = (name, label, Icon, onClick) => (
     <button key={name} type="button" onClick={onClick} className={next === name ? PRIMARY : TB}>
       <Icon className="h-4 w-4" aria-hidden="true" />
@@ -65,7 +65,8 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
       {A.edit && btn("edit", "Edit", Pencil, () => onEdit(q._id))}
       {A.send && btn("send", "Mark as sent", Send, () => open("send"))}
       {A.accept && btn("accept", "Accept", Check, () => open("accept"))}
-      {A.convert && btn("convert", "Convert to sales order", ShoppingCart, () => open("convert"))}
+      {A.convertToOrder && btn("order", "Convert to sales order", ClipboardList, () => open("order"))}
+      {A.convert && btn("convert", "Convert to invoice", ShoppingCart, () => open("convert"))}
       {A.convert && btn("delivery", "Create delivery note", Truck, () => open("delivery"))}
       {A.reject && btn("reject", "Reject", X, () => open("reject"))}
       {A.revise && btn("revise", "Revise", RefreshCw, () => open("revise"))}
@@ -146,16 +147,32 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
         </ActionModal>
       )}
 
-      {dialog === "convert" && (
+      {dialog === "order" && (
         <ActionModal
           title="Convert to a sales order" confirmLabel="Create sales order" busy={action.busy} problem={action.problem} onClose={close}
-          description={`${q.quotationNo} becomes a draft sales order with the same lines, prices and discounts.`}
-          onConfirm={() => finish(() => quotations.convert(q._id, { date: form.date }), (r) => `${r.salesOrder.transactionNo} created from ${q.quotationNo}`)}
+          description={`${q.quotationNo} becomes a draft sales order with the same lines, prices and discounts. It commits nothing to the accounts.`}
+          onConfirm={() => finish(() => quotations.toTradeOrder(q._id, { date: form.date, expectedDate: form.expectedDate || undefined }), (r) => `${r.tradeOrder.orderNo} created from ${q.quotationNo}`)}
         >
           <Field label="Order date" hint="Priced at the tax rates in force on this date.">
             <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </Field>
-          <Note>Nothing moves in stock or the ledger until you approve the sales order, which is when it becomes the tax invoice.</Note>
+          <Field label="Delivery date the customer asked for" hint="Optional.">
+            <DateInput value={form.expectedDate} onChange={(e) => setForm({ ...form, expectedDate: e.target.value })} />
+          </Field>
+          <Note>Confirm the order, then deliver against it in as many parts as you like. The invoice is raised from what was actually delivered.</Note>
+        </ActionModal>
+      )}
+
+      {dialog === "convert" && (
+        <ActionModal
+          title="Convert to an invoice" confirmLabel="Create invoice" busy={action.busy} problem={action.problem} onClose={close}
+          description={`${q.quotationNo} becomes a draft sales invoice with the same lines, prices and discounts.`}
+          onConfirm={() => finish(() => quotations.convert(q._id, { date: form.date }), (r) => `${r.salesOrder.transactionNo} created from ${q.quotationNo}`)}
+        >
+          <Field label="Invoice date" hint="Priced at the tax rates in force on this date.">
+            <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          </Field>
+          <Note>Nothing moves in stock or the ledger until you approve it, which is when it becomes the tax invoice. For goods going out in stages, convert the offer to a sales order instead.</Note>
         </ActionModal>
       )}
 

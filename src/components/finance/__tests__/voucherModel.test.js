@@ -284,9 +284,10 @@ describe("the letterhead, the words and the file", () => {
     expect(sheet().title).toBe("Receipt voucher");
   });
 
-  it("offers the copies this kind of voucher is drawn as, printing the first", () => {
-    expect(sheet().copies).toEqual(["Office copy", "Customer copy"]);
-    expect(sheet().copy).toBe("Office copy");
+  it("offers the copies this kind of voucher is drawn as, opening on the one that is handed over", () => {
+    expect(sheet().copies).toEqual(["Customer copy", "Office copy"]);
+    expect(sheet().copy).toBe("Customer copy");
+    expect(sheet({ voucherType: "payment" }).copies).toEqual(["Payee copy", "Office copy"]);
     expect(sheet({ voucherType: "journal" }).copies).toEqual(["Office copy"]);
   });
 

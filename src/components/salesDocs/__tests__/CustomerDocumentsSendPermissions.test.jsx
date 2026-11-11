@@ -10,6 +10,12 @@ vi.mock("../../../lib/salesDocumentsApi", () => ({
   documentFlow: { customer: vi.fn() },
   orderClose: { preview: vi.fn(), closeShort: vi.fn(), reopen: vi.fn() },
 }));
+// The deal's heading says "Tax invoice" only when WE are registered (lib/documentFlow.js dealTitle, the same rule
+// the printed sheet keeps), so the company profile has to be here for the list to read as it does in a real
+// registered organisation. Without it the heading is the honest "Invoice".
+vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({
+  useCompanyProfile: () => ({ companyName: "Harbour Trading", vatNumber: "100123456700003" }),
+}));
 let orgStatus = null;
 vi.mock("../../../lib/organisationApi", () => ({ getOrganisationStatus: vi.fn(() => Promise.resolve(orgStatus)) }));
 

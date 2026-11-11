@@ -91,10 +91,13 @@ describe("the voucher on its own page", () => {
     expect(within(preview).getByText("Harbour Trading")).toBeInTheDocument();
     expect(within(preview).getByText("RV-2026-0001")).toBeInTheDocument();
     expect(within(preview).getByText("Received from")).toBeInTheDocument();
-    // Twice on purpose: the "Invoice ref" row names it at a glance, the "Against invoice" table
-    // below carries what was put against it and the balance left after.
-    expect(within(preview).getAllByText("SO-2026-0042")).toHaveLength(2);
     expect(within(preview).getByText("Invoice ref")).toBeInTheDocument();
+
+    // The "Against invoice" table is the office copy's (the party copy's own body already names the
+    // invoice in words), so the number appears twice only there. A receipt OPENS on the customer copy -
+    // it is the thing handed over - so switch before counting.
+    fireEvent.click(screen.getByRole("button", { name: "Office copy" }));
+    await waitFor(() => expect(within(sheetOnScreen()).getAllByText("SO-2026-0042")).toHaveLength(2));
   });
 
   it("names the document from the voucher itself, not from the address it was opened at", async () => {
@@ -133,9 +136,9 @@ describe("the voucher on its own page", () => {
   it("offers a receipt's two copies and prints the one chosen", async () => {
     await openAt("/receipt-voucher/v1");
     await waitFor(() => expect(sheetOnScreen()).not.toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "Customer copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Office copy" }));
     fireEvent.click(screen.getByRole("button", { name: /Print/ }));
-    await waitFor(() => expect(printedSheet()).toContain("Customer copy"));
+    await waitFor(() => expect(printedSheet()).toContain("Office copy"));
   });
 
   // The two copies are not the same sheet with a different word at the top. The customer is told
@@ -144,7 +147,8 @@ describe("the voucher on its own page", () => {
     await openAt("/receipt-voucher/v1");
     await waitFor(() => expect(sheetOnScreen()).not.toBeNull());
 
-    fireEvent.click(screen.getByRole("button", { name: /Print/ })); // Office copy is the default
+    fireEvent.click(screen.getByRole("button", { name: "Office copy" }));
+    fireEvent.click(screen.getByRole("button", { name: /Print/ }));
     await waitFor(() => expect(printedSheet()).toContain("Office copy"));
     const office = printedSheet();
     expect(office).toContain("Debit (AED)");
@@ -152,7 +156,7 @@ describe("the voucher on its own page", () => {
     expect(office).not.toContain("Being receipt against");
     expect(office).toContain("Approved by");
 
-    fireEvent.click(screen.getByRole("button", { name: "Customer copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Customer copy" })); // back to the copy it opened on
     fireEvent.click(screen.getByRole("button", { name: /Print/ }));
     await waitFor(() => expect(printedSheet()).toContain("Customer copy"));
     const customer = printedSheet();

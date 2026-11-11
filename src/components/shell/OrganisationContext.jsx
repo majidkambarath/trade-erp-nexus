@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { BLOCKED_EVENT, BRANCH_RESET_EVENT, branchLabel, featureOn, validBranchSelection } from "../../lib/organisation";
+import { BLOCKED_EVENT, BRANCH_RESET_EVENT, branchLabel, featureOn, mayUse, validBranchSelection } from "../../lib/organisation";
 import { getSelectedBranch, setSelectedBranch } from "../../axios/session";
 import { can, canAny } from "../../lib/permissions";
 import { normalisePolicy } from "../../lib/approvals";
@@ -17,7 +17,7 @@ const Context = createContext(null);
 // The approval rules the organisation has set (Settings -> Business rules -> Approvals); off until it sets them.
 const NO_APPROVAL_POLICY = { separateApprover: false, secondApprovalAbove: null };
 
-const NOTHING = { status: null, me: null, policy: NO_APPROVAL_POLICY, blocked: null, loading: false, refresh: () => {}, featureOn: () => true, can: () => true, canAny: () => true, branch: null, branchKey: 0, localeKey: "", selectBranch: () => {} };
+const NOTHING = { status: null, me: null, policy: NO_APPROVAL_POLICY, blocked: null, loading: false, refresh: () => {}, featureOn: () => true, mayUse: () => true, can: () => true, canAny: () => true, branch: null, branchKey: 0, localeKey: "", selectBranch: () => {} };
 export const useOrganisation = () => useContext(Context) || NOTHING;
 
 const REFRESH_AFTER_MS = 60 * 1000;
@@ -117,6 +117,8 @@ export function OrganisationProvider({ children }) {
       loading,
       refresh,
       featureOn: (key) => featureOn(status, key),
+      // the role AND the plan, for an action that needs both (lib/organisation.js mayUse)
+      mayUse: (permission, feature) => mayUse(status, permission, feature),
       branch: { selected: validBranchSelection(status, selected), label: branchLabel(status, selected) },
       branchKey,
       // changes when the organisation's currency or time zone does, so a page remounts and reads everything again
