@@ -44,7 +44,24 @@ describe("the date on a printed document", () => {
     // without this link the frame has no Inter and falls back to Arial - the whole bug
     expect(html).toContain(`href="${FONT_HREF}"`);
     expect(FONT_HREF).toContain("family=Inter");
-    // and the figures in that column are drawn at a fixed width so they line up
-    expect(html).toContain("tabular-nums");
+    // and the date is drawn with PROPORTIONAL figures. This is the whole of the visible fix:
+    // tabular figures pad the narrow "1" out to a full digit slot and the padding lands as
+    // whitespace before the slash - measured in Chrome, Inter's "1" goes from 41.5 to 64.8 units
+    // under tabular-nums. That is what printed "11 /11 /2026". Arial (the fallback when the
+    // webfont does not load) is tabular BY DEFAULT, which is why this is named rather than
+    // simply left off: Inter's default is already proportional, Arial's is not.
+    expect(html).toContain("proportional-nums");
+  });
+
+  // The failure the user photographed, as a test: a date of all ones is the worst case for
+  // tabular figures - four narrow "1"s, each padded, so a gap appears before every slash.
+  it("renders a date of all ones without padding any digit", () => {
+    setDateFormat("DD/MM/YYYY");
+    const allOnes = { ...quotation, date: "2026-11-11T00:00:00.000Z", validUntil: "2026-11-11T00:00:00.000Z" };
+    const sheet = buildQuotationDocument(allOnes, customer, company, "AED").sheet;
+    expect(metaValue(sheet, "Date")).toBe("11/11/2026");
+    const html = frameHtml(sheetMarkup(sheet, { copy: "Customer copy", accent: readAccent() }));
+    expect(html).toContain("11/11/2026");
+    expect(html).toContain("proportional-nums");
   });
 });
