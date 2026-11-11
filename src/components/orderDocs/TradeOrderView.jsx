@@ -29,7 +29,12 @@ const PRIMARY = "erp-btn-primary";
 export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, notify }) {
   const sales = kind === "sales";
   const navigate = useNavigate();
-  const { me, can } = useOrganisation();
+  const { me, can, featureOn } = useOrganisation();
+  // Delivering against a sales order raises a delivery note, so with that feature off the action has nowhere to
+  // go. Deciding it in the pure rules (lib/orderDocuments.js, lib/invoiceFlow.js) takes it out of the button AND
+  // out of the "what next" pick at once - the server cannot help, since its own actions.receive is true whatever
+  // the plan. A purchase order receives through a goods receipt, which is not an optional feature.
+  const flow = { deliveryNotes: featureOn("deliveryNotes") };
   const company = useCompanyProfile();
   const currency = orgCurrency();
   const { data: order, loading, error, reload } = useAsync(() => tradeOrders.get(id), [id]);
@@ -53,7 +58,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   if (error) return <div className="mx-auto max-w-3xl p-6"><ErrorNote error={error} onRetry={reload} /></div>;
   if (!order) return null;
 
-  const A = allowOrderActions(order.actions, me, kind);
+  const A = allowOrderActions(order.actions, me, kind, flow);
   const finish = async (promise, message, after) => {
     const out = await action.run(() => promise(), message, { refresh: !after });
     if (out) { close(); after?.(out); }
@@ -80,7 +85,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   };
   const payInvoice = (inv) =>
     navigate(payHref({ sales, partyId: order.partyId, invoiceId: inv.id, outstanding: inv.outstandingAmount }));
-  const model = orderSteps(order);
+  const model = orderSteps(order, flow);
 
   const actions = (
     <>

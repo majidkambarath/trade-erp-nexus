@@ -253,7 +253,7 @@ describe('buildSalesDocument', () => {
     expect(approved.fileName).toBe('Tax-invoice_SO-2');
     expect(approved.taxInvoice).toBe(true);
     expect(approved.sheet.notice).toMatch(/computer-generated tax invoice/);
-    expect(approved.sheet.party.vatStatus).toBe('Unregistered'); // the customer's own status is still printed
+    expect(approved.sheet.party.vatStatus).toBe(''); // a customer who is not registered is not described on the paper
     expect(approved.missingTrn).toBe(false);
     const draft = buildSalesDocument({ transactionNo: 'SO-2', status: 'DRAFT', items: [] }, walkIn, company, 'AED');
     expect(draft.sheet.title).toBe('Tax invoice');
@@ -271,14 +271,25 @@ describe('buildSalesDocument', () => {
     expect(doc.missingTrn).toBe(false); // an unregistered customer is not expecting our tax number
   });
 
-  it("prints the party's VAT status from the master, from the TRN when the master has none, and not at all for an unknown party", () => {
+  // A document says what the business positively recorded, and nothing else. "Unregistered" is not a classification worth
+  // printing: it was shown for a customer nobody had classified AND for one carrying the party form's own default, which is
+  // every customer saved through that form - so the sheet made a claim about almost every party that nobody had made.
+  it("prints the party's VAT status only where one was positively recorded", () => {
     const status = (c) => buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, c, company, 'AED').sheet.party.vatStatus;
     expect(status({ customerName: 'A', vat: { status: 'exempt' } })).toBe('Exempt');
     expect(status({ customerName: 'A', vat: { status: 'designated_zone', trn: '100123456700003' } })).toBe('Designated zone');
-    expect(status({ customerName: 'A', vat: { status: 'unregistered' } })).toBe('Unregistered');
-    expect(status({ customerName: 'A', trnNumber: '100123456700003' })).toBe('Registered');
-    expect(status({ customerName: 'A' })).toBe('Unregistered');
+    expect(status({ customerName: 'A', trnNumber: '100123456700003' })).toBe('Registered'); // saved before the vat block existed
+    expect(status({ customerName: 'A', vat: { status: 'unregistered' } })).toBe('');
+    expect(status({ customerName: 'A' })).toBe('');
     expect(status({})).toBe('');
+  });
+
+  // A tax number in the Bill to block is what marks a party as registered, so it may not appear beside "not registered".
+  it("leaves a not-registered party's tax number off the document", () => {
+    const party = (c) => buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, c, company, 'AED').sheet.party;
+    expect(party({ customerName: 'A', trnNumber: '100123456700003', vat: { status: 'unregistered' } }).trn).toBe('');
+    expect(party({ customerName: 'A', trnNumber: '100123456700003' }).trn).toBe('100123456700003');
+    expect(party({ customerName: 'A', vat: { status: 'designated_zone', trn: '100123456700003' } }).trn).toBe('100123456700003');
   });
 
   it('a registered customer is given a tax invoice from the draft on, and only an approved one has an invoice number', () => {

@@ -9,7 +9,7 @@ import axiosInstance from "../../axios/axios";
 import LineItemsGrid from "./LineItemsGrid";
 import QuickCreateDialog from "./QuickCreateDialog";
 import { QUICK_CREATE, MEASURE_TYPES } from "./quickCreate";
-import { buildPayload, recalcRow, rowFromReturnLine } from "./variants";
+import { buildPayload, columnsFor, recalcRow, rowFromReturnLine } from "./variants";
 import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
 import { formatNumber, CURRENCY } from "../../utils/format";
@@ -168,7 +168,12 @@ export default function OrderForm({
   activeView = "create",
 }) {
   const uid = useId();
-  const { me } = useOrganisation();
+  const { me, featureOn } = useOrganisation();
+  // The availability check is a DELIVERY NOTES endpoint, so an organisation without that feature would be
+  // asking for a 403 on every keystroke. The variant still says whether it wants the check at all; this only
+  // adds whether the plan allows it, and gates the warnings with it so neither half runs on its own.
+  const checkStock = V.checkAvailability && featureOn("deliveryNotes");
+  const noBatches = !featureOn("batches");
   const fid = (k) => `${uid}-${k}`;
   const editing = activeView === "edit";
   const partyKind = V.partyType === "Vendor" ? "vendor" : "customer";
@@ -323,16 +328,16 @@ export default function OrderForm({
   // a service has nothing on hand, so it is never asked about (and never warned about)
   const itemKey = useMemo(() => stockedItemIds(rows).join(","), [rows]);
   useEffect(() => {
-    if (!V.checkAvailability || !itemKey) return undefined;
+    if (!checkStock || !itemKey) return undefined;
     let live = true;
     axiosInstance
       .get("/delivery-notes/availability", { params: { itemIds: itemKey, excludeId: selected?.id } })
       .then((r) => live && setAvailability(Object.fromEntries((r.data?.data || []).map((a) => [a.itemId, a]))))
       .catch(() => {});
     return () => { live = false; };
-  }, [V.checkAvailability, itemKey, selected?.id]);
+  }, [checkStock, itemKey, selected?.id]);
   const stockWarnings = useMemo(() => {
-    if (!V.checkAvailability) return [];
+    if (!checkStock) return [];
     const wanted = new Map(); // two lines for one item draw on the same stock
     for (const r of rows) if (r.itemId && !rowIsService(r)) wanted.set(String(r.itemId), (wanted.get(String(r.itemId)) || 0) + num(r.qty));
     return [...wanted]
@@ -951,7 +956,7 @@ export default function OrderForm({
           )}
           <LineItemsGrid
             label={V.title.items}
-            columns={V.columns}
+            columns={columnsFor(V, { batches: !noBatches })}
             rows={rows}
             errors={errors}
             itemOptions={itemOptions}

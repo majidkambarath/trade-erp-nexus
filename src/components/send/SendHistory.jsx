@@ -18,8 +18,10 @@ function linkState(share) {
 }
 
 export default function SendHistory({ sourceType, sourceId, title, notify, onClose, onChanged }) {
-  const { canAny } = useOrganisation();
-  const maySend = canAny("sales.send"); // the history is for whoever can see the document; trying again and withdrawing a link need sales.send
+  const { mayUse } = useOrganisation();
+  // The history is for whoever can see the document; trying again and withdrawing a link are actions, so they
+  // need the role AND the plan (lib/organisation.js mayUse) - the rows themselves are never hidden.
+  const maySend = mayUse("sales.send", "messaging");
   const list = useAsync(() => documentSends.history(sourceType, sourceId), [sourceType, sourceId]);
   const [withdrawing, setWithdrawing] = useState(null);
   const [busy, setBusy] = useState(false);

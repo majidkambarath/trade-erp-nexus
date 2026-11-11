@@ -6,12 +6,18 @@ import { receiptInvoiceBlocker, receivePayload, receiveRows, validateReceive } f
 import { invoiceConfirmLabel } from "../../lib/invoiceFlow";
 import ApproveNow from "./ApproveNow";
 import { taxWord } from "../../lib/taxTerms";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 const numInput = "h-11 w-full rounded-lg border border-input bg-background px-3 text-end text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 aria-[invalid=true]:border-status-danger lg:h-9";
 
 // The goods turned up: who took them in, and what actually arrived against what was expected. A line that came short
 // says why; the receipt's value follows what arrived, so the invoice made from it matches the goods.
 export function ReceiveDialog({ receipt, busy, problem, onClose, onConfirm }) {
+  // Without the Batches feature there is no screen to look a lot number up on, so asking the storeman to type
+  // one is asking for data the organisation cannot manage. The server mints its own either way, and the payload
+  // already sends ""/null for a row nobody touched, so it stays valid.
+  const { featureOn } = useOrganisation();
+  const batches = featureOn("batches");
   const [rows, setRows] = useState(() => receiveRows(receipt));
   const [header, setHeader] = useState({ receivedBy: "", receivedAt: todayInput(), vendorDeliveryNo: receipt.vendorDeliveryNo || "", proofNote: "" });
   const [errors, setErrors] = useState(null);
@@ -47,8 +53,8 @@ export function ReceiveDialog({ receipt, busy, problem, onClose, onConfirm }) {
               <th scope="col" className="px-3 py-2 text-end font-semibold">Expected</th>
               <th scope="col" className="w-28 px-3 py-2 text-end font-semibold">Received</th>
               <th scope="col" className="px-3 py-2 text-start font-semibold">If short, why</th>
-              <th scope="col" className="px-3 py-2 text-start font-semibold">Batch</th>
-              <th scope="col" className="px-3 py-2 text-start font-semibold">Expiry</th>
+              {batches && <th scope="col" className="px-3 py-2 text-start font-semibold">Batch</th>}
+              {batches && <th scope="col" className="px-3 py-2 text-start font-semibold">Expiry</th>}
             </tr>
           </thead>
           <tbody>
@@ -67,8 +73,8 @@ export function ReceiveDialog({ receipt, busy, problem, onClose, onConfirm }) {
                 <td data-label="If short, why" className="px-3 py-2">
                   <TextInput value={r.shortReason} onChange={(e) => setRow(i, { shortReason: e.target.value })} aria-label={`Why ${r.description} came short`} placeholder="Damaged, not sent…" />
                 </td>
-                <td data-label="Batch" className="px-3 py-2"><TextInput value={r.batchNumber} onChange={(e) => setRow(i, { batchNumber: e.target.value })} aria-label={`Batch of ${r.description}`} /></td>
-                <td data-label="Expiry" className="px-3 py-2"><DateInput value={r.expiryDate} onChange={(e) => setRow(i, { expiryDate: e.target.value })} aria-label={`Expiry of ${r.description}`} /></td>
+                {batches && <td data-label="Batch" className="px-3 py-2"><TextInput value={r.batchNumber} onChange={(e) => setRow(i, { batchNumber: e.target.value })} aria-label={`Batch of ${r.description}`} /></td>}
+                {batches && <td data-label="Expiry" className="px-3 py-2"><DateInput value={r.expiryDate} onChange={(e) => setRow(i, { expiryDate: e.target.value })} aria-label={`Expiry of ${r.description}`} /></td>}
               </tr>
             ))}
           </tbody>

@@ -105,7 +105,7 @@ export default function DeliverySheet({
           {meta.map(([k, v]) => (
             <React.Fragment key={k}>
               <div style={{ ...label, paddingTop: 2 }}>{k}</div>
-              <div style={{ textAlign: "right", fontWeight: 500 }}>{v}</div>
+              <div style={{ textAlign: "right", fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{v}</div>
             </React.Fragment>
           ))}
         </div>

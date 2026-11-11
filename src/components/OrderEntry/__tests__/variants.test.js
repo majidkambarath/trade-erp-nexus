@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { VARIANTS, buildPayload } from "../variants";
-import { nextSku, QUICK_CREATE, missingRequired } from "../quickCreate";
+import { nextSku, QUICK_CREATE, missingRequired, invalidField, isShown } from "../quickCreate";
 
 const stock = (over = {}) => ({
   _id: "s1", itemId: "ITM1", itemName: "Basmati 5kg", brand: "Royal", origin: "India",
@@ -218,6 +218,39 @@ describe("quick-create payloads", () => {
   it("reports the first missing required field", () => {
     expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "" }).name).toBe("contactPerson");
     expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "Y", address: "Z" })).toBeNull();
+  });
+
+  // A party quick-added from an order used to be saved on the server's Net 30 fallback, so a
+  // walk-in silently carried a month's credit into their first due date and ageing bucket.
+  it("both parties are quick-added on Cash terms", () => {
+    expect(QUICK_CREATE.vendor.payload({ vendorName: "Al Maya", contactPerson: "Omar", address: "Dubai" }).paymentTerms).toBe("Cash");
+    expect(QUICK_CREATE.customer.payload({ customerName: "Spinneys", contactPerson: "Ali", billingAddress: "Abu Dhabi" }).paymentTerms).toBe("Cash");
+  });
+
+  // The tax number travels inside `vat`: the create services take an explicit field whitelist and
+  // would drop a top-level trnNumber, while PartyMasterService.prepare reads `vat` and writes both.
+  it("the VAT tick carries the tax number into vat, and an unticked box registers nobody", () => {
+    const base = { customerName: "Spinneys", contactPerson: "Ali", billingAddress: "Abu Dhabi" };
+    expect(QUICK_CREATE.customer.payload(base).vat).toEqual({ status: "unregistered", trn: "" });
+    expect(QUICK_CREATE.customer.payload({ ...base, vatRegistered: true, trn: " 100 123 456 700 003 " }).vat)
+      .toEqual({ status: "registered", trn: "100123456700003" });
+    expect(QUICK_CREATE.vendor.payload({ vendorName: "Al Maya", contactPerson: "Omar", address: "Dubai", vatRegistered: true, trn: "100123456700003" }).vat)
+      .toEqual({ status: "registered", trn: "100123456700003" });
+    // never as a top-level key, which the create whitelist would drop in silence
+    expect(QUICK_CREATE.customer.payload(base).trnNumber).toBeUndefined();
+  });
+
+  it("the tax number is asked for only once the box is ticked, and is checked before the request", () => {
+    const base = { customerName: "Spinneys", contactPerson: "Ali", billingAddress: "Abu Dhabi" };
+    const trnField = QUICK_CREATE.customer.fields.find((f) => f.name === "trn");
+    expect(isShown(trnField, base)).toBe(false);
+    expect(isShown(trnField, { ...base, vatRegistered: true })).toBe(true);
+    // hidden, so it can never block the form
+    expect(missingRequired(QUICK_CREATE.customer, base)).toBeNull();
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, vatRegistered: true }).name).toBe("trn");
+    expect(invalidField(QUICK_CREATE.customer, { ...base, vatRegistered: true, trn: "12345" })).toBeTruthy();
+    expect(invalidField(QUICK_CREATE.customer, { ...base, vatRegistered: true, trn: "100123456700003" })).toBeNull();
+    expect(invalidField(QUICK_CREATE.customer, base)).toBeNull();
   });
 });
 

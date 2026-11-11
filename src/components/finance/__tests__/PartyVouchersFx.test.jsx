@@ -393,13 +393,18 @@ describe("foreign vouchers in the list and in the view", () => {
     expect(within(dialog).getByText(/25\.00/)).toBeInTheDocument(); // the on-account line
     expect(within(dialog).getByText(/not yet set against an invoice/)).toBeInTheDocument();
 
+    // The dialog's Print draws the copy the voucher OPENS on, which for a receipt is the customer's -
+    // that is the sheet handed over at the counter. It carries the same facts as the office copy's
+    // "Against invoice" table, in the words the payer reads rather than as our bookkeeping; the office
+    // copy is one tap away on the voucher's own page, which has the switch.
     fireEvent.click(within(dialog).getByRole("button", { name: /Print/ }));
     const printed = printedSheet();
-    expect(printed).toContain("Against invoice");
+    expect(printed).toContain("Customer copy");
+    expect(printed).toContain("Being receipt against SO-2026-0042");
     expect(printed).toContain("SO-2026-0042");
     expect(printed).toContain("Balance after");
-    expect(printed).toContain("20/09/2026");
     expect(printed).toContain("On account");
+    expect(printed).not.toContain("Debit (AED)"); // the postings stay on the copy we file
   });
 
   // Replaces "says to allow pop-ups when the browser blocked the print window": the voucher no

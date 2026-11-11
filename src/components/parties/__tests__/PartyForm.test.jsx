@@ -168,7 +168,7 @@ describe("the party form: credit and terms", () => {
     render(<Harness kind="vendor" />);
     openTab("Credit and terms");
     expect(screen.queryByLabelText(/Credit limit/)).toBeNull();
-    expect(within(screen.getByLabelText("Payment terms")).getAllByRole("option").map((o) => o.textContent)).toEqual(["30 days", "Net 30", "45 days", "Net 60", "60 days", "COD"]);
+    expect(within(screen.getByLabelText("Payment terms")).getAllByRole("option").map((o) => o.textContent)).toEqual(["Cash", "30 days", "Net 30", "45 days", "Net 60", "60 days", "COD"]);
     fireEvent.change(screen.getByLabelText("Payment terms"), { target: { value: "45 days" } });
     expect(screen.getByLabelText("Credit days")).toHaveValue(45);
   });

@@ -22,20 +22,17 @@ import { FilterSelect } from "../lists/FilterBar";
 import { ConfirmDialog, Pill, useAsync, useToasts } from "../accounting/kit";
 import Can from "../shell/Can";
 import { taxIdWord } from "../../lib/taxTerms";
+import { VENDOR_TERMS } from "../../lib/partyForms";
 
 // What this screen keeps while the person visits another page and comes back (lib/pageSession.js): the search,
 // the two choices and the column it is sorted by - all via useListView, below. Held in memory for the tab;
 // emptied at sign-out. The add / edit form is the shared party form (components/parties) and keeps no draft
 // here, as before.
 const STATUS_OPTIONS = ["Compliant", "Non-compliant", "Pending", "Expired"].map((s) => [s, s]);
-const PAYMENT_TERMS_OPTIONS = [
-  ["30 days", "30 days"],
-  ["Net 30", "Net 30"],
-  ["45 days", "45 days"],
-  ["Net 60", "Net 60"],
-  ["60 days", "60 days"],
-  ["COD", "Cash On Delivery"],
-];
+// Built from the one term list (lib/partyForms.js) rather than kept by hand: a hand-kept copy here
+// silently left "Cash" out of the filter the day it was added to the form.
+const TERM_LABEL = { COD: "Cash On Delivery" };
+const PAYMENT_TERMS_OPTIONS = VENDOR_TERMS.map((t) => [t, TERM_LABEL[t] || t]);
 
 // A vendor saved without an email (it is optional on the form) has none to search; reading it must not stop the page.
 const hasText = (value, needle) => String(value ?? "").toLowerCase().includes(needle);

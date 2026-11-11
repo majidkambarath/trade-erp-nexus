@@ -15,7 +15,7 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // offered Accept or Dispatch, which belong to sales.approve. (The server refuses them either way.)
 const ACTION_PERMISSION = {
   edit: "sales.edit", revise: "sales.create", delete: "sales.delete", send: "sales.send",
-  accept: "sales.approve", reject: "sales.approve", convert: "sales.approve", dispatch: "sales.approve", deliver: "sales.approve", cancel: "sales.approve", invoice: "sales.approve",
+  accept: "sales.approve", reject: "sales.approve", convert: "sales.approve", convertToOrder: "sales.approve", dispatch: "sales.approve", deliver: "sales.approve", cancel: "sales.approve", invoice: "sales.approve",
 };
 export const allowActions = (actions, me) =>
   Object.fromEntries(Object.entries(actions || {}).map(([name, on]) => [name, Boolean(on) && (!ACTION_PERMISSION[name] || !Array.isArray(me?.grants) || me.grants.includes(ACTION_PERMISSION[name]))]));
@@ -63,13 +63,17 @@ export function validityText(q) {
 // A sent offer that runs out within a week is worth a nudge.
 export const expiresSoon = (q) => q?.status === "SENT" && !q.expired && q.daysLeft !== null && q.daysLeft !== undefined && q.daysLeft <= 7;
 
-// Where a quotation came from or went: "Revision of QT-2026-0007", "Became SO-2026-0031".
+// What an offer became, named by what that document IS. Three targets now, and "Became" told none of them
+// apart: an order is a commitment, an invoice is the sale, a delivery note is the goods going out.
+const WENT_TO = { trade_order: "Ordered on", sales_order: "Invoiced on", delivery_note: "Delivered on" };
+
+// Where a quotation came from or went: "Revision of QT-2026-0007", "Ordered on SORD-2026-0004".
 export function lineageOf(q) {
   const out = [];
   if (q?.revisionOf?.no) out.push({ text: `Revision of ${q.revisionOf.no}`, kind: "quotation", id: q.revisionOf.id });
   if (q?.supersededBy?.no) out.push({ text: `Replaced by ${q.supersededBy.no}`, kind: "quotation", id: q.supersededBy.id });
   if (q?.convertedTo?.no) {
-    out.push({ text: `${q.convertedTo.kind === "delivery_note" ? "Delivered on" : "Became"} ${q.convertedTo.no}`, kind: q.convertedTo.kind, id: q.convertedTo.id });
+    out.push({ text: `${WENT_TO[q.convertedTo.kind] || "Became"} ${q.convertedTo.no}`, kind: q.convertedTo.kind, id: q.convertedTo.id });
   }
   return out;
 }

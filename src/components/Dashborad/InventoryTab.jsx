@@ -10,6 +10,7 @@ import { ChartArea, Empty, Skeleton } from "./widgets";
 import { Waterfall } from "./FlowCharts";
 import { ink, monthLabel, monthYearLabel, slices, compactAmount, tip } from "./helpers";
 import { trailing } from "@/lib/dashboardPeriod";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 
@@ -22,12 +23,16 @@ const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 //   - the stock ALERTS (reorder level, batches near expiry) cannot be wound back: they are today's position whichever period
 //     is chosen.
 export default function InventoryTab({ state, theme, scope }) {
+  // The server sends expiring batches whatever the plan, and every one of those rows is a link to /batches -
+  // a screen an organisation without the feature is answered "not included in your plan" on.
+  const { featureOn } = useOrganisation();
+  const batches = featureOn("batches");
   const d = state.data;
   const asAt = scope.current ? "today" : formatDate(scope.to);
   const trail = (n, unit) => trailing(scope, n, unit, formatDate);
   const colours = slices(theme, "inventory");
   const trend = (d?.stockValueTrend?.months || []).map((m) => ({ ...m, label: monthLabel(m.month), full: monthYearLabel(m.month) }));
-  const alerts = d ? d.lowStock.length + d.batches.length : 0;
+  const alerts = d ? d.lowStock.length + (batches ? d.batches.length : 0) : 0;
   // what the stock was worth at the start, what came in, what went out (at cost), and what it is worth now
   const flow = d?.stockFlow;
   const flowSteps = flow
@@ -108,7 +113,7 @@ export default function InventoryTab({ state, theme, scope }) {
         <Card data-anim="bento" className={cardClass}>
           <CardHeader>
             <CardTitle className="font-extrabold">Stock alerts</CardTitle>
-            <CardDescription>Items at or below reorder level, and batches that expire within 30 days or already have · as of today</CardDescription>
+            <CardDescription>{batches ? "Items at or below reorder level, and batches that expire within 30 days or already have · as of today" : "Items at or below reorder level · as of today"}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {!d && [0, 1, 2].map((i) => <Skeleton key={i} className="h-14" />)}
@@ -125,7 +130,7 @@ export default function InventoryTab({ state, theme, scope }) {
                 <p className="shrink-0 text-sm font-bold">{formatQty(a.qty)} {a.unit}</p>
               </Link>
             ))}
-            {d?.batches?.map((b) => (
+            {batches && d?.batches?.map((b) => (
               <Link key={b.batchId} to="/batches" className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/70 px-4 py-3 hover:bg-secondary">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="rounded-full bg-foreground p-2 text-background"><AlertTriangle className="h-3.5 w-3.5" /></span>

@@ -13,6 +13,8 @@ import { Note, PillTabs } from "./parts";
 import CloseShortDialog from "./CloseShortDialog";
 import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
+import { isTaxInvoice } from "../PurchaseOrder/shared/invoiceDocuments";
 
 // One customer's deals, each as a stepper from the offer to the invoice, with the one thing to do next.
 // The server joins the documents (GET /document-flow/customer/:id); lib/documentFlow.js decides how a deal
@@ -43,15 +45,26 @@ function Step({ step }) {
         {s.word && <span className="text-xs text-muted-foreground">{s.word}</span>}
       </div>
       <div className="mt-1.5 space-y-1.5 md:ps-7">
-        {step.docs.map((d) => (
-          <Link key={`${d.kind}-${d.no}`} to={d.to} className="block rounded-lg border border-border bg-background px-2.5 py-1.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-mono text-xs font-semibold text-foreground">{d.no}</span>
-              <Pill tone={d.tone}>{d.status}</Pill>
-            </span>
-            {d.meta && <span className="mt-0.5 block text-xs text-muted-foreground">{d.meta}</span>}
-          </Link>
-        ))}
+        {step.docs.map((d) => {
+          // A document whose feature the organisation no longer has is still SHOWN - it exists, and hiding it
+          // would be a lie about this customer's history - but it is not a link, because the screen behind it
+          // answers "not included in your plan" (lib/documentFlow.js gives `to: null`).
+          const body = (
+            <>
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-mono text-xs font-semibold text-foreground">{d.no}</span>
+                <Pill tone={d.tone}>{d.status}</Pill>
+              </span>
+              {d.meta && <span className="mt-0.5 block text-xs text-muted-foreground">{d.meta}</span>}
+            </>
+          );
+          const box = "block rounded-lg border border-border bg-background px-2.5 py-1.5";
+          return d.to ? (
+            <Link key={`${d.kind}-${d.no}`} to={d.to} className={cn(box, "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>{body}</Link>
+          ) : (
+            <div key={`${d.kind}-${d.no}`} className={box}>{body}</div>
+          );
+        })}
         {!step.docs.length && step.hint && <p className="text-xs text-muted-foreground">{step.hint}</p>}
         {step.docs.length > 0 && step.hint && <p className="text-xs text-muted-foreground">{step.hint}</p>}
       </div>
@@ -59,15 +72,15 @@ function Step({ step }) {
   );
 }
 
-function Deal({ deal, notify, reload, canSend }) {
+function Deal({ deal, notify, reload, opts }) {
   const [dialog, setDialog] = useState(null); // "close" | "reopen"
   const action = useDocumentAction({ notify, reload });
-  const title = dealTitle(deal);
-  const steps = dealSteps(deal);
-  const next = nextAction(deal, Date.now(), { canSend });
-  const pill = sendPill(deal, Date.now(), { canSend });
+  const title = dealTitle(deal, opts);
+  const steps = dealSteps(deal, opts);
+  const next = nextAction(deal, Date.now(), opts);
+  const pill = sendPill(deal, Date.now(), opts);
   const money = paymentPill(deal);
-  const group = dealGroup(deal);
+  const group = dealGroup(deal, Date.now(), opts);
   // literal class names: Tailwind only builds the ones it can read
   const grid = steps.length === 5 ? "md:grid-cols-5" : steps.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3";
   const cs = deal.closeShort;
@@ -112,7 +125,7 @@ function Deal({ deal, notify, reload, canSend }) {
           <p className="min-w-0 text-sm text-muted-foreground">{next && <><span className="font-medium text-foreground">Next:</span> {next.why}</>}</p>
           <div className="flex flex-wrap items-center gap-2">
             {offerClose && <Button size="sm" variant="outline" onClick={() => setDialog("close")}>Close order short</Button>}
-            {next && (
+            {next?.to && (
               <Button asChild size="sm" variant={group === "action" ? "default" : "outline"}>
                 <Link to={next.to}>{next.label}<ArrowRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
               </Button>
@@ -146,11 +159,24 @@ function Deal({ deal, notify, reload, canSend }) {
 export default function CustomerDocumentsTab({ customerId }) {
   const { data, loading, error, reload } = useAsync(() => documentFlow.customer(customerId), [customerId]);
   const { notify, toastNode } = useToasts();
-  const { canAny } = useOrganisation();
-  const canSend = canAny("sales.send"); // "Send the invoice" is only a next step for someone who may send
+  const { mayUse, featureOn } = useOrganisation();
+  const company = useCompanyProfile();
+  // What this organisation and this person can do, worked out once and handed to every pure rule, so the
+  // steps, the next action and the counts cannot disagree with each other (lib/documentFlow.js).
+  //   canSend      "Send the invoice" is an ACTION: it needs the role AND the Send documents feature
+  //   taxInvoice   "Tax invoice" is a claim about OUR registration, and this list cannot see the company
+  const opts = useMemo(
+    () => ({
+      canSend: mayUse("sales.send", "messaging"),
+      deliveryNotes: featureOn("deliveryNotes"),
+      quotations: featureOn("quotations"),
+      taxInvoice: isTaxInvoice(company),
+    }),
+    [mayUse, featureOn, company]
+  );
   const [filter, setFilter] = useState(null); // null until the person chooses: then the default decides
   const chains = useMemo(() => data?.chains || [], [data]);
-  const counts = useMemo(() => flowCounts(chains, { canSend }), [chains, canSend]);
+  const counts = useMemo(() => flowCounts(chains, opts), [chains, opts]);
 
   if (loading && !data) return <div className="py-10"><Spinner label="Loading documents" /></div>;
   if (error) return <ErrorNote error={error} onRetry={reload} />;
@@ -158,7 +184,7 @@ export default function CustomerDocumentsTab({ customerId }) {
 
   const s = data.summary;
   const active = filter ?? defaultFilter(counts);
-  const shown = filterDeals(chains, active, { canSend });
+  const shown = filterDeals(chains, active, opts);
   const amount = (x) => formatNumber(x.value, 2);
 
   return (
@@ -178,9 +204,11 @@ export default function CustomerDocumentsTab({ customerId }) {
 
       {chains.length === 0 ? (
         <EmptyState
-          title="No quotations, orders or delivery notes yet"
-          text="Start with a quotation. It can become the order, the delivery and the invoice, and the whole story shows here."
-          action={<Button asChild><Link to="/quotations">New quotation</Link></Button>}
+          title={opts.quotations ? "No quotations, orders or delivery notes yet" : "No orders or invoices yet"}
+          text={opts.quotations
+            ? "Start with a quotation. It can become the order, the delivery and the invoice, and the whole story shows here."
+            : "Start with a sales order. It becomes the invoice, and the whole story shows here."}
+          action={opts.quotations ? <Button asChild><Link to="/quotations">New quotation</Link></Button> : null}
         />
       ) : (
         <>
@@ -190,7 +218,7 @@ export default function CustomerDocumentsTab({ customerId }) {
               {active === "action" ? "Nothing needs doing for this customer." : "No deals here."}
             </p>
           ) : (
-            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} notify={notify} reload={reload} canSend={canSend} />)}</div>
+            <div className="space-y-4">{shown.map((d) => <Deal key={d.key} deal={d} notify={notify} reload={reload} opts={opts} />)}</div>
           )}
         </>
       )}

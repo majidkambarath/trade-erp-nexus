@@ -5,6 +5,12 @@
 // The server is the authority and enforces all of this itself. Nothing here grants anything: it decides what to
 // SHOW, so a person is not offered a screen the plan does not include, and is told why when the door is shut.
 
+// permissions.js imports nothing of ours, so this is a one-way edge and not a cycle. The explicit ".js" is
+// required, not a style: plain Node loads this file (scripts/shoot-mobile.mjs reads it through
+// config/navigation.js) and will not resolve an extensionless path - config/__tests__/nodeLoadable.test.js
+// loads it in a real Node process and fails if that slips.
+import { canAny } from "./permissions.js";
+
 // Fired on window when any request is refused because the organisation may not use the system; the shell listens.
 export const BLOCKED_EVENT = "organisation-blocked";
 
@@ -56,6 +62,19 @@ export function planRefusalMessage(error) {
  * could not be loaded, everything is shown and the server's own refusal (FEATURE_NOT_IN_PLAN) is the backstop.
  */
 export const featureOn = (status, key) => !key || status?.features?.[key] !== false;
+
+/**
+ * May this person actually do it? Their ROLE must allow it and the organisation's PLAN must include the feature -
+ * two different refusals that both end in the same place, so a screen that offers an action has to ask both.
+ *
+ * The distinction worth keeping: an ACTION or a NUDGE is gated by permission and feature; a RECORD OF WHAT ALREADY
+ * HAPPENED is gated by neither. Switching a feature off must not erase the history of what was done while it was on.
+ *
+ * Both halves fail open while nothing is known, as featureOn and canAny do on their own, and the server refuses
+ * either way.
+ */
+export const mayUse = (status, permission, feature) =>
+  featureOn(status, feature) && (permission ? canAny(status?.me, permission) : true);
 
 // The modules that ARE the ERP: what an organisation buys when it buys the trade and the books. An organisation holding none of
 // them has bought the CRM and nothing else (the `crm` plan, utils/plans.js on the server). Users, Settings, Reports and the pick

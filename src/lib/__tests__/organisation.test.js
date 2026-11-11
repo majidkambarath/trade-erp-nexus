@@ -14,6 +14,7 @@ import {
   canViewAllBranches,
   featureLabel,
   featureOn,
+  mayUse,
   isBlockedError,
   isFeatureError,
   isLimitError,
@@ -66,6 +67,22 @@ describe("what the plan includes", () => {
     expect(featureOn(null, "einvoicing")).toBe(true); // unknown (loading, or unreachable): not hidden
     expect(featureOn({}, "einvoicing")).toBe(true);
     expect(featureOn(status, undefined)).toBe(true); // a tab with no feature is always in the plan
+  });
+
+  // An action needs BOTH: the role must allow it and the plan must include it. They are different refusals that
+  // land in the same place, and a screen offering the action has to ask both - a permission alone left Send on an
+  // invoice for an organisation that had not bought messaging at all.
+  it("an action needs the role AND the plan", () => {
+    const sender = { ...status, features: { messaging: false }, me: { grants: ["sales.send", "sales.view"] } };
+    expect(mayUse(sender, "sales.send", "messaging")).toBe(false); // role yes, plan no
+    expect(mayUse(sender, "sales.send", "quotations")).toBe(true); // plan says nothing about it: on
+    expect(mayUse(sender, "accounts.manage", "quotations")).toBe(false); // plan yes, role no
+
+    // Each half on its own, and both failing open while nothing is known - the same rule featureOn and canAny keep.
+    expect(mayUse(sender, null, "messaging")).toBe(false);
+    expect(mayUse(sender, "sales.send", null)).toBe(true);
+    expect(mayUse(null, "sales.send", "messaging")).toBe(true);
+    expect(mayUse({}, "sales.send", "messaging")).toBe(true);
   });
 
   it("a tab is in the plan when it names no feature or its feature is on", () => {

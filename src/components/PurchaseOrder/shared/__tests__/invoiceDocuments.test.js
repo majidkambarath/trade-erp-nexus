@@ -89,6 +89,34 @@ describe("purchase invoice", () => {
     expect(doc.sheet.title).toBe("Purchase invoice");
     expect(doc.sheet.party.vatStatus).toBe("");
   });
+
+  // A document states the party's tax position only where somebody positively recorded one. "Unregistered" was printed for a
+  // party nobody had classified AND for one saved with the party form's own default, which is every party saved through it -
+  // so the paper asserted something about almost every customer that the business had never said.
+  it("a party who is not registered is described on the paper at all", () => {
+    const unclassified = buildPurchaseDocument({ transactionNo: "PO-5", status: "APPROVED", items: [] }, { vendorName: "Corner Shop" }, company, "AED");
+    expect(unclassified.sheet.party.vatStatus).toBe("");
+    expect(unclassified.sheet.party.trn).toBe("");
+
+    const stored = buildPurchaseDocument({ transactionNo: "PO-6", status: "APPROVED", items: [] }, { vendorName: "Corner Shop", vat: { status: "unregistered" } }, company, "AED");
+    expect(stored.sheet.party.vatStatus).toBe("");
+
+    // A record holding BOTH "not registered" and a stray tax number contradicts itself. The status is the deliberate
+    // statement, so the number is left off: a TRN in the Bill to block means the party is registered.
+    const contradictory = buildPurchaseDocument({ transactionNo: "PO-7", status: "APPROVED", items: [] }, { vendorName: "Corner Shop", trnNO: "100000000000003", vat: { status: "unregistered" } }, company, "AED");
+    expect(contradictory.sheet.party.trn).toBe("");
+    expect(contradictory.sheet.party.vatStatus).toBe("");
+    expect(contradictory.sheet.title).toBe("Purchase invoice");
+  });
+
+  // The other two classifications are deliberate statements and are printed as they always were.
+  it("an exempt or designated-zone party is still described", () => {
+    const exempt = buildPurchaseDocument({ transactionNo: "PO-8", status: "APPROVED", items: [] }, { vendorName: "X", vat: { status: "exempt" } }, company, "AED");
+    expect(exempt.sheet.party.vatStatus).toBe("Exempt");
+    const zone = buildPurchaseDocument({ transactionNo: "PO-9", status: "APPROVED", items: [] }, { vendorName: "X", trnNO: "100000000000003", vat: { status: "designated_zone" } }, company, "AED");
+    expect(zone.sheet.party.vatStatus).toBe("Designated zone");
+    expect(zone.sheet.party.trn).toBe("100000000000003");
+  });
 });
 
 describe("a line's value", () => {
@@ -164,7 +192,7 @@ describe("returns: a credit note and a debit note, with the invoice returned nam
   it("a purchase return is the same debit note whoever the supplier is", () => {
     const doc = buildPurchaseReturnDocument(ret({ transactionNo: "PR-2" }), { vendorName: "Corner Shop", vat: { status: "unregistered" } }, company, "AED");
     expect(doc.sheet.title).toBe("Debit note");
-    expect(doc.sheet.party.vatStatus).toBe("Unregistered");
+    expect(doc.sheet.party.vatStatus).toBe(""); // a supplier who is not registered is simply not described
     expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
   });
 });

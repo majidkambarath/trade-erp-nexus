@@ -33,6 +33,33 @@ export const sheetMarkup = (sheet, { copy, accent }) => {
   return renderToStaticMarkup(<Sheet {...sheet} copy={copy} accent={accent} />);
 };
 
+// The sheets ask for Inter, but this frame is built from a bare srcdoc and inherits nothing from
+// the app document - so without this link the text fell back to Arial, whose slash has a narrow
+// left and a wide right sidebearing: a date printed as "09/11 /2026" while the screen, where Inter
+// does load, showed it evenly. The same href as index.html, so it is already in the browser cache.
+export const FONT_HREF = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap";
+
+// How long to wait for that font before drawing anyway. A browser with no network still prints,
+// in the fallback face, exactly as it did before this.
+const FONT_WAIT_MS = 2000;
+
+// The frame's load event fires before a webfont has been fetched, and html2canvas measures text the
+// moment it is handed the node - so capturing without this wait would draw the fallback face and
+// leave the bug exactly where it was.
+const fontsReady = (frame) => {
+  const fonts = frame.contentDocument?.fonts;
+  if (!fonts?.ready) return Promise.resolve();
+  return Promise.race([fonts.ready, new Promise((r) => setTimeout(r, FONT_WAIT_MS))]);
+};
+
+// The document the frame is loaded with. Exported so the font link can be tested: it is the whole
+// of the fix for the clotted date, and nothing else in the suite renders this frame.
+export const frameHtml = (markup) =>
+  '<!doctype html><html><head><meta charset="utf-8">' +
+  `<link rel="stylesheet" href="${FONT_HREF}">` +
+  "<style>@page{size:A4;margin:0}html,body{margin:0;padding:0;background:#fff}</style>" +
+  `</head><body>${markup}</body></html>`;
+
 // A frame holding one copy, loaded and ready to be captured or printed. It sits off screen, so
 // the user never sees it, but it has full layout size, which is what both the PDF and print need.
 const loadFrame = (markup) =>
@@ -40,12 +67,9 @@ const loadFrame = (markup) =>
     const frame = document.createElement("iframe");
     frame.setAttribute("aria-hidden", "true");
     frame.style.cssText = `position:fixed;left:-10000px;top:0;width:${SHEET_PX}px;height:1600px;border:0`;
-    frame.onload = () => resolve(frame);
+    frame.onload = () => fontsReady(frame).then(() => resolve(frame));
     frame.onerror = () => reject(new Error("The document frame could not load"));
-    frame.srcdoc =
-      '<!doctype html><html><head><meta charset="utf-8">' +
-      "<style>@page{size:A4;margin:0}html,body{margin:0;padding:0;background:#fff}</style>" +
-      `</head><body>${markup}</body></html>`;
+    frame.srcdoc = frameHtml(markup);
     document.body.appendChild(frame);
   });
 

@@ -29,16 +29,23 @@ const INVOICED = ["APPROVED", "INVOICED"];
 // notice that it is a draft: a title of "Sales order" on the invoice page told people the wrong thing.
 export const isTaxInvoice = (company) => Boolean(String(company?.vatNumber ?? "").trim());
 
-// How a customer's or vendor's VAT registration reads on a document. The master stores one of registered / unregistered /
-// exempt / designated_zone (and a record saved before that block existed has none, so a TRN decides). A party that was not
-// found says nothing rather than "Unregistered".
-const VAT_STATUS_LABEL = { registered: "Registered", unregistered: "Unregistered", exempt: "Exempt", designated_zone: "Designated zone" };
-export const partyVatStatus = (record, trn, name) => {
+// How a customer's or vendor's VAT registration reads on a document. ONLY A POSITIVE CLASSIFICATION IS PRINTED: a party nobody
+// classified, and a party explicitly recorded as not registered, both say nothing at all. "Unregistered" used to be printed for
+// both, which put a statement about the party's tax position on the paper that the business had never made - and because
+// lib/partyForms.js seeds every new party with vatStatus "unregistered" and always writes it, that word reached almost every
+// document ever issued. A record saved before the vat block existed has no status, so a TRN is read as the registration.
+const VAT_STATUS_LABEL = { registered: "Registered", exempt: "Exempt", designated_zone: "Designated zone" };
+export const partyVatStatus = (record, trn) => {
   const stored = record?.vat?.status;
   if (VAT_STATUS_LABEL[stored]) return VAT_STATUS_LABEL[stored];
-  if (trn) return VAT_STATUS_LABEL.registered;
-  return name ? VAT_STATUS_LABEL.unregistered : "";
+  if (stored === "unregistered") return ""; // recorded, and not something a document asserts
+  return trn ? VAT_STATUS_LABEL.registered : "";
 };
+
+// A tax number belongs to a registered party. A record holding an explicit "not registered" AND a stray TRN contradicts itself;
+// the status is the deliberate statement, so it wins and the number is left off - which is what keeps a TRN in the Bill to block
+// a mark of registration rather than a field that merely happens to be filled in.
+export const partyTrnFor = (record, trn) => (record?.vat?.status === "unregistered" ? "" : trn || "");
 
 export const contactLines = (p) =>
   [p.phone && `Tel: ${p.phone}`, p.email && `Email: ${p.email}`].filter(Boolean);
@@ -88,8 +95,8 @@ export const dateOf = (value) => (value ? formatDateGB(value) : "");
 
 export const buildSalesDocument = (so, customer, company, currency) => {
   const invoiced = INVOICED.includes(so.status);
-  const customerTrn = customer.trnNumber || customer.vat?.trn || "";
-  const vatStatus = partyVatStatus(customer, customerTrn, customer.customerName);
+  const customerTrn = partyTrnFor(customer, customer.trnNumber || customer.vat?.trn);
+  const vatStatus = partyVatStatus(customer, customerTrn);
   // The heading follows the SELLER, which is us: a company with its own tax number issues a "Tax invoice", a company without one
   // a plain "Invoice". The customer's registration does NOT decide it - a supply to an unregistered customer is still an invoice,
   // and in both the UAE and India a registered supplier must issue a tax invoice for a taxable supply. It used to decide it, so
@@ -158,8 +165,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
 // altogether - the non-posting order in front of it, under Orders.
 export const buildPurchaseDocument = (po, vendor, company, currency) => {
   const invoiced = INVOICED.includes(po.status);
-  const vendorTrn = vendor.trnNO || vendor.vat?.trn || "";
-  const vatStatus = partyVatStatus(vendor, vendorTrn, vendor.vendorName);
+  const vendorTrn = partyTrnFor(vendor, vendor.trnNO || vendor.vat?.trn);
+  const vatStatus = partyVatStatus(vendor, vendorTrn);
   const registered = vatStatus === "Registered";
   const kind = registered ? "tax invoice" : "purchase invoice";
   return {
@@ -203,9 +210,9 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
 // follows our own registration, as the invoice it credits does: a company with a tax number gives a "Tax credit note", one without
 // a plain "Credit note". The invoice it returns is named, and an approved return is set against it (the invoice owes that much less).
 export const buildSalesReturnDocument = (so, customer, company, currency) => {
-  const trn = customer.trnNumber || customer.vat?.trn || "";
+  const trn = partyTrnFor(customer, customer.trnNumber || customer.vat?.trn);
   const name = customer.customerName || so.customerName || "";
-  const vatStatus = partyVatStatus(customer, trn, name);
+  const vatStatus = partyVatStatus(customer, trn);
   const registered = isTaxInvoice(company);
   const original = so.returnOf?.transactionNo || so.refNo || so.lpono || "";
   const issued = INVOICED.includes(so.status);
@@ -247,8 +254,8 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
 // are, so it is titled so for every supplier; only the notice differs, because an unregistered supplier charged no tax to reverse.
 // An approved return is set against the invoice it returns.
 export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
-  const trn = vendor.trnNO || vendor.vat?.trn || "";
-  const vatStatus = partyVatStatus(vendor, trn, vendor.vendorName);
+  const trn = partyTrnFor(vendor, vendor.trnNO || vendor.vat?.trn);
+  const vatStatus = partyVatStatus(vendor, trn);
   const original = po.returnOf?.transactionNo || "";
   const issued = INVOICED.includes(po.status);
   return {

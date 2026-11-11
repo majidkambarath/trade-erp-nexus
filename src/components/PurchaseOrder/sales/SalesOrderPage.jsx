@@ -81,9 +81,13 @@ import { isService } from "../../../lib/itemTypes";
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
 
 const SalesOrderManagement = () => {
-  const { canAny } = useOrganisation();
+  const { canAny, featureOn } = useOrganisation();
   const { stateOf, me } = useApproval();
   const navigate = useNavigate();
+  // Raising a delivery note against an invoice needs the Delivery notes feature. The row menu's item and the card's
+  // button are both drawn only when this callback is given, so withholding it is the whole gate - and it closes the
+  // card view too, which never received the callback and would otherwise have grown a live button the day it did.
+  const deliveryNotes = featureOn("deliveryNotes");
   const [activeView, setActiveView] = useState(() => (linkedSearch() ? "list" : "dashboard"));
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
@@ -1098,7 +1102,7 @@ const SalesOrderManagement = () => {
                     onDownloadCustomer={(so) => downloadInvoiceCopy(so, 'Customer Copy')}
                     onShowAudit={setAuditSO}
                     onSendDocument={setSendSO}
-                    onDeliveryNote={(so) => navigate(`/delivery-notes?order=${so.id}`)}
+                    onDeliveryNote={deliveryNotes ? (so) => navigate(`/delivery-notes?order=${so.id}`) : null}
                   />
                 ) : (
                   <GridView

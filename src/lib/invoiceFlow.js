@@ -40,7 +40,10 @@ export const invoiceConfirmLabel = (approveNow) => (approveNow ? "Create and app
 
 const TOL = 0.005;
 
-export function orderSteps(order) {
+// `opts.deliveryNotes: false` leaves the "Delivered" STEP in place - the goods genuinely have not gone out, and the
+// Invoiced / Approved / Paid steps are read from it - and drops only the instruction nobody could follow, since
+// delivering against a sales order raises a delivery note.
+export function orderSteps(order, opts = {}) {
   if (!order) return { steps: [], next: null };
   const sales = order.kind === "sales";
   const got = sales ? "Delivered" : "Received";
@@ -75,7 +78,7 @@ export function orderSteps(order) {
   if (!cancelled) {
     if (order.status === "DRAFT") next = { key: "confirm", text: "Confirm the order" };
     else if (draft.length) next = { key: "approve", text: draft.length === 1 ? `Approve ${draft[0].no}` : `Approve ${draft.length} draft invoices` };
-    else if (!gotAll && order.status === "CONFIRMED") next = { key: "receive", text: sales ? "Deliver the goods" : "Receive the goods" };
+    else if (!gotAll && order.status === "CONFIRMED" && !(sales && opts.deliveryNotes === false)) next = { key: "receive", text: sales ? "Deliver the goods" : "Receive the goods" };
     if (!next && order.status === "CONFIRMED" && order.actions?.invoice) next = { key: "invoice", text: "Create the invoice" };
     if (!next && approved.length && !settled) next = { key: "pay", text: sales ? "Receive payment" : "Make payment" };
   }

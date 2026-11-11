@@ -11,10 +11,18 @@ const round3 = (n) => Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
 // The server says which actions the document's STATE allows (actions.confirm, actions.receive...); this narrows that to
 // what the person's ROLE may do. (The server refuses them either way.) An order belongs to sales or to purchase.
 const ORDER_PERMISSION = { edit: "edit", delete: "delete", confirm: "approve", cancel: "approve", close: "approve", reopen: "approve", receive: "create", invoice: "approve" };
-export function allowOrderActions(actions, me, kind) {
+
+// `opts.deliveryNotes: false` drops `receive` on a SALES order: delivering against one raises a delivery note, so with
+// that feature off the action leads to a screen the plan does not include. The server cannot help here - its own
+// actions.receive is true whatever the plan - so this is the only place it can be decided, and deciding it here puts
+// it out of BOTH the screen's button and its "what to do next" pick at once. A purchase order receives goods through
+// a goods receipt, which is not an optional feature, so it is untouched.
+export function allowOrderActions(actions, me, kind, opts = {}) {
   const module = kind === "sales" ? "sales" : "purchase";
+  const noDelivery = kind === "sales" && opts.deliveryNotes === false;
   return Object.fromEntries(
     Object.entries(actions || {}).map(([name, on]) => {
+      if (name === "receive" && noDelivery) return [name, false];
       const need = ORDER_PERMISSION[name] ? `${module}.${ORDER_PERMISSION[name]}` : null;
       return [name, Boolean(on) && (!need || !Array.isArray(me?.grants) || me.grants.includes(need))];
     })

@@ -5,13 +5,13 @@
 import { documentTotals } from "../../utils/documentTotals";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { companyBlock } from "../PurchaseOrder/shared/invoiceModel";
-import { contactLines, dateOf, partyVatStatus, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
+import { contactLines, dateOf, partyTrnFor, partyVatStatus, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
 
 export const buildTradeOrderDocument = (order, party, company, currency) => {
   const sales = order.kind === "sales";
   // invoiceLines reads `rate` as the line value after discount: on an order that is taxableAmount
   const items = (order.items || []).map((l) => ({ ...l, rate: l.taxableAmount }));
-  const trn = sales ? party.trnNumber || party.vat?.trn || "" : party.trnNO || party.vat?.trn || "";
+  const trn = partyTrnFor(party, sales ? party.trnNumber || party.vat?.trn : party.trnNO || party.vat?.trn);
   const name = sales ? party.customerName : party.vendorName;
   // An order is NOT an invoice, whoever it is for: it posts nothing and moves no stock, and the invoice made from it carries the
   // tax. So it always reads as the order it is - it used to read "Tax invoice" for a registered party, which put that heading on a
@@ -29,7 +29,7 @@ export const buildTradeOrderDocument = (order, party, company, currency) => {
         address: (sales ? party.billingAddress : party.address) || "",
         contact: contactLines(party),
         trn,
-        vatStatus: partyVatStatus(party, trn, name),
+        vatStatus: partyVatStatus(party, trn),
       },
       meta: [
         ["Date", dateOf(order.date)],
