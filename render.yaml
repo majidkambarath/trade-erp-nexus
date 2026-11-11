@@ -19,7 +19,7 @@
 services:
   - type: web
     runtime: static
-    name: golden-arrow
+    name: goldenarrow
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
@@ -31,12 +31,19 @@ services:
       - key: VITE_API_URL
         value: /api/v1
     routes:
-      # The backend service is named `api-golden-arrow`. Get this wrong and Render's edge answers
-      # every API call with 404 and `x-render-routing: no-server` - the SPA still loads, so the app
-      # looks fine until the first request, and the developer console cannot sign in either.
+      # The backend service is named `api-golden-arrow-385b` - Render appends a suffix when the name
+      # is already taken on the account, so READ IT OFF THE DASHBOARD rather than assuming the tidy
+      # name. Get it wrong and the SPA still loads, so the app looks fine until its first request;
+      # the developer console cannot sign in either. The two wrong-destination symptoms differ, and
+      # both were MEASURED on this client (11 Nov 2026):
+      #   - a name that was never a service     -> 404 with `x-render-routing: no-server`
+      #   - a name whose service has been DELETED -> HTTP 200, Content-Length 0, NO content-type,
+      #     and Cloudflare caches it (`cf-cache-status: HIT`), so it survives a reload
+      # An empty 200 is the tell that the rule EXISTS and is ordered correctly: a missing rule would
+      # fall through to the SPA fallback below and answer index.html as text/html instead.
       - type: rewrite
         source: /api/*
-        destination: https://api-golden-arrow.onrender.com/api/*
+        destination: https://api-golden-arrow-385b.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
