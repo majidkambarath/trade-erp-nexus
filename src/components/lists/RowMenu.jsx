@@ -17,9 +17,11 @@ const MENU = "w-36 rounded-2xl border border-border bg-card py-1 shadow-lg";
 const BUTTON =
   "grid min-h-10 min-w-10 place-items-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary lg:min-h-0 lg:min-w-0";
 
-export default function RowMenu({ children, label = "More actions", buttonClassName = BUTTON, menuClassName = MENU }) {
+// `buttonText` puts the words on the trigger instead of a bare ellipsis. A row has no room for them and
+// does not need them (the menu is beside an action cell people already know); a document header has both.
+export default function RowMenu({ children, label = "More actions", buttonText = null, buttonClassName = BUTTON, menuClassName = MENU }) {
   const root = useRef(null);
-  const [place, setPlace] = useState(null); // { right, top } | { right, bottom } in viewport pixels while open
+  const [place, setPlace] = useState(null); // { right|left, top|bottom } in viewport pixels while open
 
   const show = useCallback(() => {
     const button = root.current?.querySelector("button");
@@ -28,9 +30,14 @@ export default function RowMenu({ children, label = "More actions", buttonClassN
     // the layout viewport without the page's scrollbar, which is what `fixed` offsets are measured from
     const width = document.documentElement.clientWidth || window.innerWidth;
     const height = document.documentElement.clientHeight || window.innerHeight;
-    const right = Math.max(4, width - r.right);
+    // Hung from the button's RIGHT edge, which is right for a row menu (its button is at the end of the
+    // row). A button on the LEFT of a narrow screen - the "More actions" beside a document's primary
+    // button on a phone - would then put the menu off the left of the window, where nothing can reach it
+    // and no overflow check can see it (a `fixed` box off to the left makes the page no wider). So a
+    // button in the left half hangs from its LEFT edge instead and the menu opens rightwards.
+    const side = r.left < width / 2 ? { left: Math.max(4, r.left) } : { right: Math.max(4, width - r.right) };
     const below = height - r.bottom;
-    setPlace(below < MENU_ROOM && r.top > below ? { right, bottom: height - r.top } : { right, top: r.bottom });
+    setPlace(below < MENU_ROOM && r.top > below ? { ...side, bottom: height - r.top } : { ...side, top: r.bottom });
   }, []);
   const hide = useCallback(() => setPlace(null), []);
 
@@ -64,6 +71,7 @@ export default function RowMenu({ children, label = "More actions", buttonClassN
       }}
     >
       <button type="button" aria-label={label} aria-haspopup="true" aria-expanded={Boolean(place)} className={buttonClassName}>
+        {buttonText}
         <MoreVertical className="h-4 w-4" aria-hidden="true" />
       </button>
       {/* closing on a click lets a pointer user act and move on; the dialog an item opens is not covered by a lingering menu */}

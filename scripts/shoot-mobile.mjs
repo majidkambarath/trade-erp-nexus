@@ -242,8 +242,14 @@ const DEEP = {
 
   "sales-quotations": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
+    // The offer leads with one button and keeps the rest behind "More actions": converting to the order is
+    // the primary here, the invoice and the delivery note are in the menu (which really is display:none
+    // until it is opened - a step that forgets to open it SKIPs rather than failing, so check for one).
     { name: "convert-order", clicks: ["^View$", "Convert to sales order"], settle: 1300 },
-    { name: "convert-invoice", clicks: ["^View$", "Convert to invoice"], settle: 1300 },
+    { name: "convert-invoice", clicks: ["^View$", "More actions", "Convert to invoice"], settle: 1300 },
+    // the open menu measured as a PAGE, not a dialog: it is fixed-position, so the thing to catch is it
+    // hanging off the right edge of a 390px phone
+    { name: "menu", page: true, clicks: ["^View$", "More actions"], settle: 900 },
     // the shared order form, configured as a quotation (valid until, terms, reference)
     { name: "form", page: true, clicks: ["^New quotation"], settle: 1500 },
   ],
@@ -665,6 +671,9 @@ const quotationActions = (s, expired) => ({
   reject: ["SENT", "ACCEPTED"].includes(s), convert: ["SENT", "ACCEPTED"].includes(s) && !expired, revise: ["SENT", "ACCEPTED", "REJECTED"].includes(s),
   // the offer can become the ORDER (SORD, a commitment) as well as the invoice: its own flag, its own button
   convertToOrder: ["SENT", "ACCEPTED"].includes(s) && !expired,
+  // and a delivery note - its own flag too, never read off `convert`, which is the invoice's answer. The
+  // screen draws it only where the organisation holds the Delivery notes feature; this stub's does.
+  deliveryNote: ["SENT", "ACCEPTED"].includes(s) && !expired,
 });
 const quotation = (i) => {
   const status = QSTATES[i - 1];

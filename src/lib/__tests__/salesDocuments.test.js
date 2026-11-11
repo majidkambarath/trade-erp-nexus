@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   availabilityWarning, clockText, deliverForm, deliverPayload, expiresSoon, invoiceBlocker, invoiceText, lineageOf,
-  orderPayload, orderRows, shortLines, statusLabel, validateDeliver, validateOrderRows, validityText,
+  orderPayload, orderRows, quotationActions, shortLines, statusLabel, validateDeliver, validateOrderRows, validityText,
 } from "../salesDocuments";
 import { statusTone } from "../status";
 
@@ -239,5 +239,65 @@ describe("editing a note against an order", () => {
     expect(validateOrderRows(rows)).toBeNull();
     rows[0].qty = "9";
     expect(validateOrderRows(rows)[0]).toBe("Only 8 is left on the order");
+  });
+});
+
+describe("quotationActions: one loud button, the rest in the menu", () => {
+  const ALL = ["sales.view", "sales.edit", "sales.create", "sales.delete", "sales.send", "sales.approve"];
+  const q = (over = {}) => ({
+    status: "SENT", expired: false,
+    actions: { edit: false, delete: false, send: false, accept: true, reject: true, convert: true, convertToOrder: true, deliveryNote: true, revise: true },
+    ...over,
+  });
+  const me = (grants = ALL) => ({ grants });
+  const keys = (list) => list.map((a) => a.key);
+
+  it("leads with the step the offer is waiting for", () => {
+    const draft = { status: "DRAFT", expired: false, actions: { edit: true, delete: true, send: true } };
+    expect(quotationActions(draft, me()).primary).toMatchObject({ key: "send", label: "Mark as sent" });
+    expect(quotationActions(q(), me()).primary.key).toBe("accept"); // SENT: say what the customer answered
+    expect(quotationActions(q({ status: "ACCEPTED", actions: { ...q().actions, accept: false } }), me()).primary.key).toBe("convertToOrder");
+  });
+
+  it("leads with Revise only when the offer is finished: run out, or turned down", () => {
+    const dead = { accept: false, convert: false, convertToOrder: false, reject: false, revise: true };
+    expect(quotationActions({ status: "SENT", expired: true, actions: dead }, me()).primary.key).toBe("revise");
+    expect(quotationActions({ status: "REJECTED", expired: false, actions: dead }, me()).primary.key).toBe("revise");
+    // still live: Revise waits in the menu rather than shouting over the answer we are waiting for
+    const live = quotationActions(q(), me());
+    expect(live.primary.key).toBe("accept");
+    expect(keys(live.overflow)).toContain("revise");
+  });
+
+  it("never offers the same action twice, and keeps one steady order", () => {
+    const { primary, overflow } = quotationActions(q(), me());
+    expect(keys(overflow)).not.toContain(primary.key);
+    expect(keys(overflow)).toEqual(["convertToOrder", "convert", "deliveryNote", "revise", "reject"]);
+  });
+
+  it("marks the two that cannot be taken back", () => {
+    const { overflow } = quotationActions(q({ actions: { ...q().actions, delete: true } }), me());
+    expect(overflow.filter((a) => a.danger).map((a) => a.key)).toEqual(["reject", "delete"]);
+  });
+
+  // The defect this was written for: an organisation whose plan has no Delivery notes was still offered
+  // "Create delivery note", because the button rode on `convert` - the INVOICE's flag.
+  it("offers no delivery note to an organisation that did not buy them", () => {
+    const off = quotationActions(q(), me(), { deliveryNotes: false });
+    expect(keys(off.overflow)).not.toContain("deliveryNote");
+    expect(keys(off.overflow)).toContain("convert"); // converting to an invoice is untouched
+    expect(keys(quotationActions(q(), me(), { deliveryNotes: true }).overflow)).toContain("deliveryNote");
+    expect(keys(quotationActions(q(), me()).overflow)).toContain("deliveryNote"); // absent reads as on, like featureOn
+  });
+
+  it("still asks the role, not only the plan", () => {
+    const { primary, overflow } = quotationActions(q(), me(["sales.view", "sales.create"]));
+    expect(keys(overflow)).toEqual(["revise"]); // revise is sales.create; accept/convert/deliveryNote are sales.approve
+    expect(primary).toBeNull();
+  });
+
+  it("says there is nothing to do rather than drawing an empty menu", () => {
+    const done = quotationActions({ status: "CONVERTED", expired: false, actions: {} }, me());
+    expect(done).toEqual({ primary: null, overflow: [] });
   });
 });

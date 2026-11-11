@@ -15,10 +15,52 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // offered Accept or Dispatch, which belong to sales.approve. (The server refuses them either way.)
 const ACTION_PERMISSION = {
   edit: "sales.edit", revise: "sales.create", delete: "sales.delete", send: "sales.send",
-  accept: "sales.approve", reject: "sales.approve", convert: "sales.approve", convertToOrder: "sales.approve", dispatch: "sales.approve", deliver: "sales.approve", cancel: "sales.approve", invoice: "sales.approve",
+  accept: "sales.approve", reject: "sales.approve", convert: "sales.approve", convertToOrder: "sales.approve", deliveryNote: "sales.approve", dispatch: "sales.approve", deliver: "sales.approve", cancel: "sales.approve", invoice: "sales.approve",
 };
 export const allowActions = (actions, me) =>
   Object.fromEntries(Object.entries(actions || {}).map(([name, on]) => [name, Boolean(on) && (!ACTION_PERMISSION[name] || !Array.isArray(me?.grants) || me.grants.includes(ACTION_PERMISSION[name]))]));
+
+// ---- what the quotation screen leads with --------------------------------------------------
+
+export const QUOTATION_ACTION_LABEL = {
+  edit: "Edit", send: "Mark as sent", accept: "Accept",
+  convertToOrder: "Convert to sales order", convert: "Convert to invoice",
+  deliveryNote: "Create delivery note", revise: "Revise", reject: "Reject", delete: "Delete",
+};
+
+// One steady order whatever the status, so a button never moves about; the two that cannot be taken
+// back are last and marked danger.
+const QUOTATION_OVERFLOW_ORDER = ["send", "accept", "convertToOrder", "convert", "deliveryNote", "edit", "revise", "reject", "delete"];
+const DANGER = ["reject", "delete"];
+
+// The one thing most likely to be wanted next: the step the offer is actually waiting for.
+function primaryKey(A, q) {
+  if (A.send) return "send";
+  if (A.accept) return "accept";
+  if (A.convertToOrder) return "convertToOrder";
+  if (A.convert) return "convert";
+  // Revise leads only when there is nothing else to do with the offer: it ran out, or it was turned down.
+  if (A.revise && (q?.expired || q?.status === "REJECTED")) return "revise";
+  return null;
+}
+
+// What the screen draws: one loud button, and the rest behind "More actions". The two can never offer
+// the same thing twice, because the overflow is built by taking the primary out.
+//
+// `deliveryNotes` is the organisation's Delivery notes feature. A quotation can be turned into one, so an
+// organisation that did not buy them must not be offered it - the server refuses it either way. It
+// defaults to true, the same way featureOn does: only an explicit false hides anything, so a status that
+// has not loaded yet hides nothing.
+export function quotationActions(q, me, { deliveryNotes = true } = {}) {
+  const A = allowActions(q?.actions, me);
+  if (!deliveryNotes) A.deliveryNote = false;
+  const key = primaryKey(A, q);
+  const act = (k) => ({ key: k, label: QUOTATION_ACTION_LABEL[k], danger: DANGER.includes(k) });
+  return {
+    primary: key ? act(key) : null,
+    overflow: QUOTATION_OVERFLOW_ORDER.filter((k) => A[k] && k !== key).map(act),
+  };
+}
 
 export const STATUS_LABEL = {
   DRAFT: "Draft",
