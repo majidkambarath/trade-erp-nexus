@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { CheckCircle2, Circle, Loader2, ShieldCheck, XCircle } from "lucide-react";
 import { postEstimateDecision, sharePhotoUrl, ShareError } from "../../lib/shareApi";
 import { CONDITION_LABEL, vehiclePlateText } from "../../lib/garage";
+import { setOrgLocale } from "../../utils/orgLocale";
 import { formatDate } from "../../utils/format";
 
 // One plain sentence per refusal code this door can give (jobCardService.js recordCustomerDecision /
@@ -92,6 +93,8 @@ function Confirmation({ outcome, jobNo }) {
 }
 
 export default function EstimateApproval({ token, payload, expiresAt }) {
+  // The sender's date format and calendar, not the visitor's - see SharedDocument.jsx.
+  if (payload?.locale) setOrgLocale(payload.locale);
   const { job, totals, party, company } = payload;
   const lines = useMemo(() => job.lines || [], [job.lines]);
   const [checked, setChecked] = useState(() => new Set(lines.filter((l) => l.approved !== false).map((l) => l._id)));

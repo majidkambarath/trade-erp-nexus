@@ -6,6 +6,7 @@ import { downloadSheetsPdf, printMarkup, sheetComponent, sheetMarkup } from "../
 import { readAccent } from "../PurchaseOrder/shared/invoiceModel";
 import { SHEET_DESIGN_WIDTH, buildFromShare, fitScale } from "./shareSheet";
 import { formatDate } from "../../utils/format";
+import { setOrgLocale } from "../../utils/orgLocale";
 import EstimateApproval from "./EstimateApproval";
 
 // The page a customer opens from the emailed or WhatsApp link: no sign-in, no menu, nothing of ours but
@@ -112,6 +113,12 @@ export default function SharedDocument() {
   if (state.data.kind === "job_estimate") {
     return <EstimateApproval token={token} payload={state.data} expiresAt={state.data.expiresAt} />;
   }
+
+  // Render in the SENDER's locale, not the visitor's. Without this the customer's copy takes this
+  // browser's date format and falls back to Asia/Dubai, so an organisation in another zone can print
+  // the wrong calendar DAY on the document its customer keeps. Set before buildFromShare, which
+  // formats the dates. Older links carry no `locale` and read exactly as they did.
+  if (state.data.locale) setOrgLocale(state.data.locale);
 
   const doc = buildFromShare(state.data);
   if (!doc) return <Problem error={{ code: "ERROR" }} onRetry={load} />;

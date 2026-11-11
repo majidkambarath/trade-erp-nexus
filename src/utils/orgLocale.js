@@ -10,7 +10,15 @@
 import { getBrand } from "../config/brands";
 
 const brand = getBrand();
-let locale = { currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE" };
+
+// How a date is WRITTEN. It is the organisation's, not the device's: it used to be each browser's own
+// localStorage, so two people printing the same invoice produced two different dates and the customer's
+// copy at /d/:token rendered in THEIR browser's default. Mirrors DATE_FORMATS on the server
+// (utils/orgLocale.js, models/core/organisationModel.js).
+export const DATE_FORMATS = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "DD-MM-YYYY", "DD MMM YYYY"];
+const DEFAULT_DATE_FORMAT = "DD/MM/YYYY";
+
+let locale = { currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE", dateFormat: DEFAULT_DATE_FORMAT };
 const listeners = new Set();
 
 const validZone = (zone) => {
@@ -28,6 +36,8 @@ export const orgCurrency = () => locale.currency;
 export const orgTimezone = () => locale.timezone;
 /** The organisation's country (ISO code): decides what a tax number looks like (a UAE TRN, an Indian GSTIN) and the job-work challan. */
 export const orgCountry = () => locale.country;
+/** How this organisation writes a date. Every printed and on-screen date follows it (utils/format.js). */
+export const orgDateFormat = () => locale.dateFormat;
 
 /** Subscribe to a change of currency or zone. Returns the unsubscribe. */
 export function subscribeOrgLocale(fn) {
@@ -36,20 +46,21 @@ export function subscribeOrgLocale(fn) {
 }
 
 /** Set the organisation's currency and zone. A missing or invalid part keeps what is held. -> true when something changed. */
-export function setOrgLocale({ currency, timezone, country } = {}) {
+export function setOrgLocale({ currency, timezone, country, dateFormat } = {}) {
   const next = {
     currency: typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency.trim()) ? currency.trim().toUpperCase() : locale.currency,
     timezone: validZone(timezone) ? timezone : locale.timezone,
     country: typeof country === "string" && /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : locale.country,
+    dateFormat: DATE_FORMATS.includes(dateFormat) ? dateFormat : locale.dateFormat,
   };
-  if (next.currency === locale.currency && next.timezone === locale.timezone && next.country === locale.country) return false;
+  if (next.currency === locale.currency && next.timezone === locale.timezone && next.country === locale.country && next.dateFormat === locale.dateFormat) return false;
   locale = next;
   listeners.forEach((fn) => fn(locale));
   return true;
 }
 
 /** Back to the brand pack's (for a test, and for signing out). */
-export const resetOrgLocale = () => setOrgLocale({ currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE" });
+export const resetOrgLocale = () => setOrgLocale({ currency: brand.currency, timezone: brand.timezone, country: brand.country || "AE", dateFormat: DEFAULT_DATE_FORMAT });
 
 // ----------------------------------------------------------------------------------------------- days in a zone
 

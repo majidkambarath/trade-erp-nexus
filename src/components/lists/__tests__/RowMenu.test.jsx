@@ -43,6 +43,27 @@ describe("RowMenu", () => {
     expect(button.getAttribute("aria-expanded")).toBe("true");
   });
 
+  // A row menu's button sits at the end of the row, so hanging the menu from its RIGHT edge keeps it on
+  // screen. A document header's "More actions" sits beside the primary button, at the LEFT of a phone:
+  // hung from the right edge, a 224px menu started at -67px and its labels were unreadable and
+  // unreachable - and nothing caught it, because a fixed box off to the left makes the page no wider.
+  it("hangs from the left edge when the button is in the left half, so a narrow screen never cuts it off", () => {
+    renderMenu();
+    const button = screen.getByRole("button", { name: "More actions" });
+    button.getBoundingClientRect = () => ({ top: 100, bottom: 128, left: 36, right: 160, width: 124, height: 28 });
+    fireEvent.mouseEnter(button.parentElement);
+    expect(menuOf().style.left).toBe("36px"); // opens rightwards from the button
+    expect(menuOf().style.right).toBe("");
+  });
+
+  it("still hangs from the right edge for a row's own menu, at the end of the row", () => {
+    renderMenu();
+    const button = placeButton(100); // left: 900 of a 1024px window
+    fireEvent.mouseEnter(button.parentElement);
+    expect(menuOf().style.right).toBe(`${window.innerWidth - 928}px`);
+    expect(menuOf().style.left).toBe("");
+  });
+
   it("opens on keyboard focus, and closes on Escape", () => {
     renderMenu();
     const button = placeButton(100);

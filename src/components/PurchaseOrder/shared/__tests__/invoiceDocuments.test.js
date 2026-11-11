@@ -306,3 +306,55 @@ describe("the due date, and where the customer is", () => {
     expect(d.sheet.terms).toBe("Payment within 30 days.");
   });
 });
+
+// Whether WE are registered is two facts, not one: the organisation says it is (Settings > Business
+// rules > "Registered for VAT", profile.vatRegistered) and it has a number to print. Until this the tick
+// box was read by nothing at all, so an organisation that unticked it and left its old number on file
+// went on heading every sale "Tax invoice".
+describe("the seller's own registration decides the heading", () => {
+  const sale = { transactionNo: "SO-9", status: "APPROVED", items, date: "2026-10-05" };
+  const customer = { customerId: "C-1", customerName: "Spinneys", trnNumber: "100456783400003", vat: { status: "registered" } };
+  const titleFor = (c) => buildSalesDocument(sale, customer, c, "AED").sheet.title;
+  const creditFor = (c) => buildSalesReturnDocument({ ...sale, transactionNo: "SR-9" }, customer, c, "AED").sheet.title;
+
+  it("is a tax invoice only when the box is ticked AND a number is on file", () => {
+    expect(titleFor({ vatNumber: "100000000000003", vatRegistered: true })).toBe("Tax invoice");
+    expect(titleFor({ vatNumber: "100000000000003", vatRegistered: false })).toBe("Invoice"); // the defect
+    expect(titleFor({ vatNumber: "", vatRegistered: true })).toBe("Invoice");
+    expect(titleFor({ vatNumber: "", vatRegistered: false })).toBe("Invoice");
+  });
+
+  it("reads an absent flag as registered, so nothing issued before it moves", () => {
+    expect(titleFor({ vatNumber: "100000000000003" })).toBe("Tax invoice");
+    expect(titleFor(company)).toBe("Tax invoice");
+  });
+
+  it("carries the same rule to the credit note and to the file name", () => {
+    expect(creditFor({ vatNumber: "100000000000003", vatRegistered: true })).toBe("Tax credit note");
+    expect(creditFor({ vatNumber: "100000000000003", vatRegistered: false })).toBe("Credit note");
+    expect(buildSalesDocument(sale, customer, { vatNumber: "1", vatRegistered: false }, "AED").fileName).toBe("Invoice_SO-9");
+    expect(buildSalesDocument(sale, customer, { vatNumber: "1", vatRegistered: false }, "AED").taxInvoice).toBe(false);
+  });
+
+  // Both reasons print "Invoice", but only one is fixed by typing a number in, so the screen must not
+  // tell somebody to add a TRN that is already there.
+  it("says which of the two reasons it is, for the screen's notice", () => {
+    const noNumber = buildSalesDocument(sale, customer, { vatNumber: "", vatRegistered: true }, "AED");
+    expect(noNumber.missingTrn).toBe(true);
+    expect(noNumber.missingTrnReason).toBe("noNumber");
+
+    const deregistered = buildSalesDocument(sale, customer, { vatNumber: "100000000000003", vatRegistered: false }, "AED");
+    expect(deregistered.missingTrn).toBe(true);
+    expect(deregistered.missingTrnReason).toBe("notRegistered");
+
+    // a registered seller raises no notice at all
+    expect(buildSalesDocument(sale, customer, company, "AED").missingTrn).toBe(false);
+  });
+
+  // The buyer's registration never decided our heading and still does not.
+  it("ignores the customer's own registration", () => {
+    const walkIn = { customerId: "C-2", customerName: "Walk-in", trnNumber: "" };
+    expect(buildSalesDocument(sale, walkIn, { vatNumber: "100000000000003", vatRegistered: true }, "AED").sheet.title).toBe("Tax invoice");
+    expect(buildSalesDocument(sale, walkIn, { vatNumber: "100000000000003", vatRegistered: false }, "AED").sheet.title).toBe("Invoice");
+  });
+});

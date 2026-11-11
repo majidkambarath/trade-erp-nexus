@@ -27,7 +27,17 @@ const INVOICED = ["APPROVED", "INVOICED"];
 // The heading does not wait for approval. This screen's document IS the invoice (the sales / purchase ORDER is a separate,
 // non-posting document with its own heading), so a draft reads "Tax invoice" too and says in its number label and its
 // notice that it is a draft: a title of "Sales order" on the invoice page told people the wrong thing.
-export const isTaxInvoice = (company) => Boolean(String(company?.vatNumber ?? "").trim());
+// Registered means BOTH, and the two are different facts: the organisation SAYS it is registered
+// (Settings > Business rules > "Registered for VAT", stored as profile.vatRegistered) and it HAS a
+// number to print. A tax invoice must carry the seller's own tax number (UAE Decree-Law Art. 65, CGST
+// s.31), so a company with no number can never issue one whatever the tick box says; and a number left
+// on file after deregistering does not make one either, which is what the tick box is for. Until this,
+// the tick box was read by nothing at all and a stale number alone went on printing "Tax invoice".
+// An ABSENT flag reads as registered, the way featureOn does: only an explicit false changes the
+// answer, so a document built from an older server - or from a share snapshot taken before the flag
+// was carried - reads exactly as it did.
+export const isTaxInvoice = (company) =>
+  Boolean(String(company?.vatNumber ?? "").trim()) && company?.vatRegistered !== false;
 
 // How a customer's or vendor's VAT registration reads on a document. ONLY A POSITIVE CLASSIFICATION IS PRINTED: a party nobody
 // classified, and a party explicitly recorded as not registered, both say nothing at all. "Unregistered" used to be printed for
@@ -112,8 +122,12 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   return {
     fileName: `${invoiced ? "" : "Draft-"}${kind.replace(/ /g, "-")}_${number}`,
     status: so.status,
-    // a registered customer with no company TRN gets a plain invoice, and the screen says why
+    // a registered customer getting a plain invoice, and the screen says why
     missingTrn: customerRegistered && !companyRegistered,
+    // WHICH of the two reasons, so the screen states the true one instead of always blaming a missing
+    // number: the number was never set, or the organisation is marked as not registered with a number
+    // still on file. Both print "Invoice"; only one is fixed by typing a number in.
+    missingTrnReason: String(company?.vatNumber ?? "").trim() ? "notRegistered" : "noNumber",
     taxInvoice,
     sheet: sheetFor(so, {
       title: kind,

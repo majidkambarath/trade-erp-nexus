@@ -2,7 +2,7 @@
 
 import { getBrand } from '../config/brands';
 import { groupingLocaleFor } from '../lib/numberInput';
-import { dayOf, orgCountry, orgCurrency, orgTimezone, subscribeOrgLocale } from './orgLocale';
+import { DATE_FORMATS as ORG_DATE_FORMATS, dayOf, orgCountry, orgCurrency, orgDateFormat, orgTimezone, setOrgLocale, subscribeOrgLocale } from './orgLocale';
 
 // Number grouping, the currency and the time zone are the signed-in ORGANISATION's
 // (src/utils/orgLocale.js) - NEVER the browser's. A bare `value.toLocaleString()` with no locale argument
@@ -24,11 +24,12 @@ export let TIMEZONE = orgTimezone();
 // TYPES into an amount field (`AmountInput`), so the field and the figure beside it always agree.
 export let NUMBER_LOCALE = groupingLocaleFor(orgCountry(), LOCALE);
 export let MONEY_LOCALE = groupingLocaleFor(orgCountry(), CURRENCY_LOCALE);
-subscribeOrgLocale(({ currency, timezone, country }) => {
+subscribeOrgLocale(({ currency, timezone, country, dateFormat: df }) => {
   CURRENCY = currency;
   TIMEZONE = timezone;
   NUMBER_LOCALE = groupingLocaleFor(country, LOCALE);
   MONEY_LOCALE = groupingLocaleFor(country, CURRENCY_LOCALE);
+  dateFormat = df;
 });
 
 // Format a number with fixed decimals using Intl for consistent grouping
@@ -86,13 +87,21 @@ export const moneyHeading = (label) => `${label} (${CURRENCY})`;
 export const amountsIn = () => `Amounts in ${CURRENCY}`;
 
 // ---------------------------------------------------------------------------
-// Dates and times as the person chose to see them (Settings > Preferences)
+// Dates and times
 // ---------------------------------------------------------------------------
-
-// How a date reads. Stored per browser; the default is the UAE convention, DD/MM/YYYY.
-export const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'DD-MM-YYYY', 'DD MMM YYYY'];
+//
+// HOW A DATE IS WRITTEN IS THE ORGANISATION'S, NOT THE DEVICE'S. It is a live binding off
+// utils/orgLocale.js, exactly like CURRENCY, TIMEZONE and NUMBER_LOCALE above, set from
+// GET /organisation/status and changed in Settings by someone with settings.manage.
+//
+// It used to be read from this browser's localStorage, and that was wrong in three ways at once:
+// two people printing the SAME invoice produced different dates (11/04/2026 against 04/11/2026,
+// indistinguishable to the customer and material on a tax invoice); the customer's own copy at
+// /d/:token rendered in THEIR browser's default; and the emailed body used a third format again.
+//
+// The TIME format stays per device: it is a reading convenience and is not printed on a document.
+export const DATE_FORMATS = ORG_DATE_FORMATS;
 export const TIME_FORMATS = ['24h', '12h'];
-const DATE_KEY = 'erp-date-format';
 const TIME_KEY = 'erp-time-format';
 
 const readPref = (key, allowed, fallback) => {
@@ -110,14 +119,20 @@ const writePref = (key, value) => {
     /* private mode: the choice holds for this visit only */
   }
 };
-let dateFormat = readPref(DATE_KEY, DATE_FORMATS, 'DD/MM/YYYY');
+// The organisation's, as soon as its status has loaded; DD/MM/YYYY for the moment before that.
+let dateFormat = orgDateFormat();
 let timeFormat = readPref(TIME_KEY, TIME_FORMATS, '24h');
 export const getDateFormat = () => dateFormat;
 export const getTimeFormat = () => timeFormat;
+/**
+ * Sets it for THIS TAB only, by going through the one place the locale lives - so a later change of
+ * time zone or currency cannot quietly undo it, which is what a private variable here would allow.
+ * To change it for the ORGANISATION (which is what a document prints) call
+ * PUT /organisation/date-format; Settings -> Company does that and then refreshes the status.
+ */
 export const setDateFormat = (id) => {
-  if (!DATE_FORMATS.includes(id)) return;
-  dateFormat = id;
-  writePref(DATE_KEY, id);
+  if (!ORG_DATE_FORMATS.includes(id)) return;
+  setOrgLocale({ dateFormat: id });
 };
 export const setTimeFormat = (id) => {
   if (!TIME_FORMATS.includes(id)) return;

@@ -12,7 +12,7 @@ vi.mock("../../../lib/accountingApi", () => ({ accounting: { settings: vi.fn().m
 import Settings from "../Settings";
 import { OrganisationProvider } from "../../shell/OrganisationContext";
 import { ThemeProvider } from "../../theme-provider";
-import { formatDate, getDateFormat, setDateFormat, setTimeFormat } from "../../../utils/format";
+import { getTimeFormat, setTimeFormat } from "../../../utils/format";
 import { APP_VERSION } from "../../../lib/version";
 
 // The organisation's letterhead (GET /company/profile): one copy for everyone, in the shape the screens read.
@@ -181,14 +181,25 @@ describe("preferences", () => {
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull(); // nothing to save: choices apply at once
   });
 
-  it("changes how dates read everywhere, and remembers it", async () => {
+  // The date format is the ORGANISATION's now, not this device's: it is printed on documents that
+  // leave the building, so two people printing one invoice must not produce two different dates.
+  // Preferences shows it, and says where it is set, but cannot change it.
+  it("shows the date format but does not let this device change it", async () => {
     at("preferences");
     const select = await screen.findByLabelText("Date format");
-    fireEvent.change(select, { target: { value: "YYYY-MM-DD" } });
-    expect(getDateFormat()).toBe("YYYY-MM-DD");
-    expect(localStorage.getItem("erp-date-format")).toBe("YYYY-MM-DD");
-    expect(formatDate("2026-10-04T10:00:00Z")).toBe("2026-10-04");
-    setDateFormat("DD/MM/YYYY");
+    expect(select).toBeDisabled();
+    expect(screen.getByText(/whole organisation, under Company/i)).toBeTruthy();
+    // the per-browser key is gone: nothing here writes it any more
+    expect(localStorage.getItem("erp-date-format")).toBeNull();
+    setTimeFormat("24h");
+  });
+
+  it("still keeps the time format on this device", async () => {
+    at("preferences");
+    const select = await screen.findByLabelText("Time format");
+    fireEvent.change(select, { target: { value: "12h" } });
+    expect(getTimeFormat()).toBe("12h");
+    expect(localStorage.getItem("erp-time-format")).toBe("12h");
     setTimeFormat("24h");
   });
 });

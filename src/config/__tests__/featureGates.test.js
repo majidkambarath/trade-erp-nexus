@@ -50,7 +50,10 @@ const ROUTE_TABLE = "the route table; Layout answers an out-of-plan address with
 const SITES = [
   {
     feature: "deliveryNotes",
-    hit: /\/delivery-notes/,
+    // `toDeliveryNote` as well as the route: a button that CREATES one is as much an offer as a link to
+    // the screen, and the quotation's "Create delivery note" was neither gated nor caught, because it
+    // calls the API client instead of linking anywhere.
+    hit: /\/delivery-notes|toDeliveryNote/,
     allow: {
       "lib/salesDocumentsApi.js": API_CLIENT,
       "router/index.jsx": ROUTE_TABLE,
