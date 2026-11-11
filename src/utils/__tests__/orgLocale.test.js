@@ -1,12 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { addDays, dayEnd, dayOf, dayStart, endOfDay, getOrgLocale, offsetMinutes, orgCountry, orgCurrency, orgTimezone, resetOrgLocale, setOrgLocale, subscribeOrgLocale, today } from "../orgLocale";
+import { addDays, dayEnd, dayOf, dayStart, endOfDay, getOrgLocale, offsetMinutes, orgCountry, orgCurrency, orgDateFormat, orgTimezone, resetOrgLocale, setOrgLocale, subscribeOrgLocale, today } from "../orgLocale";
 import { CURRENCY, TIMEZONE, formatCurrencyAED, formatCurrencyCompact, formatDate, formatDateTime, formatTime, toInputDate } from "../format";
 
 afterEach(() => resetOrgLocale());
 
 describe("the organisation's locale", () => {
   it("is what the product always assumed until an organisation says otherwise: AED and Dubai", () => {
-    expect(getOrgLocale()).toEqual({ currency: "AED", timezone: "Asia/Dubai", country: "AE" });
+    expect(getOrgLocale()).toEqual({ currency: "AED", timezone: "Asia/Dubai", country: "AE", dateFormat: "DD/MM/YYYY" });
     expect(orgCurrency()).toBe("AED");
     expect(orgCountry()).toBe("AE");
     expect(orgTimezone()).toBe("Asia/Dubai");
@@ -16,8 +16,8 @@ describe("the organisation's locale", () => {
     const heard = vi.fn();
     const stop = subscribeOrgLocale(heard);
     expect(setOrgLocale({ currency: "gbp", timezone: "Europe/London" })).toBe(true);
-    expect(getOrgLocale()).toEqual({ currency: "GBP", timezone: "Europe/London", country: "AE" });
-    expect(heard).toHaveBeenCalledWith({ currency: "GBP", timezone: "Europe/London", country: "AE" });
+    expect(getOrgLocale()).toEqual({ currency: "GBP", timezone: "Europe/London", country: "AE", dateFormat: "DD/MM/YYYY" });
+    expect(heard).toHaveBeenCalledWith({ currency: "GBP", timezone: "Europe/London", country: "AE", dateFormat: "DD/MM/YYYY" });
     expect(setOrgLocale({ currency: "GBP", timezone: "Europe/London" })).toBe(false); // nothing changed, nothing said
     expect(heard).toHaveBeenCalledTimes(1);
     stop();
@@ -32,10 +32,23 @@ describe("the organisation's locale", () => {
     expect(orgCountry()).toBe("IN");
   });
 
+  // How a date is written is the ORGANISATION's, not the device's. It used to be each browser's own
+  // localStorage, so two people printing one invoice produced two different dates.
+  it("carries the organisation's date format, and refuses a pattern it does not know", () => {
+    expect(orgDateFormat()).toBe("DD/MM/YYYY");
+    expect(setOrgLocale({ dateFormat: "MM/DD/YYYY" })).toBe(true);
+    expect(orgDateFormat()).toBe("MM/DD/YYYY");
+    setOrgLocale({ dateFormat: "nonsense" }); // not one of the five: kept as it was
+    expect(orgDateFormat()).toBe("MM/DD/YYYY");
+    setOrgLocale({ dateFormat: undefined });
+    expect(orgDateFormat()).toBe("MM/DD/YYYY");
+    expect(setOrgLocale({ dateFormat: "MM/DD/YYYY" })).toBe(false); // nothing changed
+  });
+
   it("keeps what it holds for a part that is missing or not valid", () => {
     setOrgLocale({ currency: "INR", timezone: "Asia/Kolkata" });
     setOrgLocale({ currency: "", timezone: "Mars/Phobos" });
-    expect(getOrgLocale()).toEqual({ currency: "INR", timezone: "Asia/Kolkata", country: "AE" });
+    expect(getOrgLocale()).toEqual({ currency: "INR", timezone: "Asia/Kolkata", country: "AE", dateFormat: "DD/MM/YYYY" });
     setOrgLocale({ currency: "RUPEES", timezone: undefined });
     expect(orgCurrency()).toBe("INR");
     setOrgLocale({});

@@ -4,7 +4,7 @@ import { Bell, Globe, Trash2, Upload } from "lucide-react";
 import axiosInstance from "../../axios/axios";
 import { normalizeIban } from "../../lib/iban";
 import { STRENGTH, passwordStrength, validateProfile } from "../../lib/settingsForm";
-import { DATE_FORMATS, TIME_FORMATS, formatDate, formatTime, getDateFormat, getTimeFormat, setDateFormat, setTimeFormat } from "../../utils/format";
+import { DATE_FORMATS, TIME_FORMATS, formatDate, formatTime, getDateFormat, getTimeFormat, setTimeFormat } from "../../utils/format";
 import { useTheme } from "../theme-provider";
 import { Button } from "../ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -12,7 +12,7 @@ import { useOrganisation } from "../shell/OrganisationContext";
 import { buildState, supportLine } from "../../lib/version";
 import { hasErpModules } from "../../lib/organisation";
 import GoogleConnect from "../crm/GoogleConnect.jsx";
-import { orgCurrency, orgTimezone } from "../../utils/orgLocale";
+import { orgCurrency, orgTimezone, setOrgLocale } from "../../utils/orgLocale";
 import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
 import SendingSettings from "./SendingSettings";
@@ -273,6 +273,7 @@ export default function SettingsModule() {
               </div>
             </Panel>
             </fieldset>
+            <DateFormatPanel notify={notify} />
           </TabsContent>
 
           <TabsContent value="branches">
@@ -409,10 +410,55 @@ const SOON = [
   { icon: <Bell className="h-4 w-4" aria-hidden="true" />, title: "Notifications", text: "Alerts for approvals, low stock, expiring batches and overdue invoices." },
 ];
 
+// How this organisation writes a date, on screen AND on every document it prints or sends. It is
+// deliberately ONE setting for the whole organisation rather than a per-browser preference: two people
+// printing the same invoice must not produce two different dates, and the copy the customer opens must
+// read what the sender printed. Changing it needs settings.manage, like any other organisation setting.
+function DateFormatPanel({ notify }) {
+  const { status, can, refresh } = useOrganisation();
+  const canEdit = can("settings.manage");
+  const [value, setValue] = useState(getDateFormat);
+  const [saving, setSaving] = useState(false);
+  const now = new Date();
+
+  const choose = async (next) => {
+    const before = value;
+    setValue(next);
+    setSaving(true);
+    try {
+      await axiosInstance.put("/organisation/date-format", { dateFormat: next });
+      setOrgLocale({ dateFormat: next }); // every date on screen follows at once
+      await refresh?.();
+      notify?.("Date format saved", "success");
+    } catch (err) {
+      setValue(before);
+      notify?.(err?.response?.data?.message || "Could not save the date format", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Panel title="Date format" description="How every date is written, for everyone in this organisation and on every document you send.">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label="Date format" hint={canEdit ? `Today reads ${formatDate(now, value)}` : "Only someone who can change settings may set this."}>
+          <Select value={value} disabled={!canEdit || saving} onChange={(e) => choose(e.target.value)}>
+            {DATE_FORMATS.map((f) => <option key={f} value={f}>{f} - {formatDate(now, f)}</option>)}
+          </Select>
+        </Field>
+      </div>
+      {status?.organisation?.legalName && (
+        <p className="mt-3 text-xs text-muted-foreground">Applies to everyone in {status.organisation.legalName}, not just this device.</p>
+      )}
+    </Panel>
+  );
+}
+
 // How this device shows the app. Each choice applies at once and is remembered in this browser.
+// The DATE format is deliberately not here: it is the organisation's (Company tab), because it is
+// printed on documents that leave the building and must not differ between the people who print them.
 function PreferencesPanel() {
   const { preference, setTheme } = useTheme();
-  const [dateFormat, setDate] = useState(getDateFormat);
   const [timeFormat, setTime] = useState(getTimeFormat);
   const now = new Date();
   return (
@@ -428,16 +474,16 @@ function PreferencesPanel() {
         </div>
       </Panel>
 
-      <Panel title="Dates and times" description={`How dates and times read in lists, statements and printed documents. Dates follow your organisation's time zone, ${orgTimezone()}.`}>
+      <Panel title="Times" description={`How times read on this device. Dates follow your organisation's time zone, ${orgTimezone()}.`}>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Date format" hint={`Today reads ${formatDate(now, dateFormat)}`}>
-            <Select value={dateFormat} onChange={(e) => { setDate(e.target.value); setDateFormat(e.target.value); }}>
-              {DATE_FORMATS.map((f) => <option key={f} value={f}>{f} - {formatDate(now, f)}</option>)}
-            </Select>
-          </Field>
           <Field label="Time format" hint={`Now reads ${formatTime(now, timeFormat)}`}>
             <Select value={timeFormat} onChange={(e) => { setTime(e.target.value); setTimeFormat(e.target.value); }}>
               {TIME_FORMATS.map((f) => <option key={f} value={f}>{f === "12h" ? `12-hour - ${formatTime(now, "12h")}` : `24-hour - ${formatTime(now, "24h")}`}</option>)}
+            </Select>
+          </Field>
+          <Field label="Date format" hint="Set once for the whole organisation, under Company.">
+            <Select value={getDateFormat()} disabled>
+              <option value={getDateFormat()}>{getDateFormat()} - {formatDate(now, getDateFormat())}</option>
             </Select>
           </Field>
         </div>

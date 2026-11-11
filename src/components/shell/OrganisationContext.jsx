@@ -4,7 +4,7 @@ import { getSelectedBranch, setSelectedBranch } from "../../axios/session";
 import { can, canAny } from "../../lib/permissions";
 import { normalisePolicy } from "../../lib/approvals";
 import { getOrganisationStatus } from "../../lib/organisationApi";
-import { orgCountry, orgCurrency, orgTimezone, setOrgLocale } from "../../utils/orgLocale";
+import { orgCountry, orgCurrency, orgTimezone, setOrgLocale, orgDateFormat } from "../../utils/orgLocale";
 
 // The signed-in organisation, loaded once for the shell: what its plan includes (so a screen the plan does not
 // have is not offered), where its subscription stands (so a notice can warn before anything is refused), and
@@ -101,8 +101,10 @@ export function OrganisationProvider({ children }) {
 
   // The organisation's own currency and time zone: set before the shell's children render, so money and dates are right on the
   // first paint after the status loads. (Idempotent: it only changes when the organisation's values differ from what is held.)
-  if (status?.organisation) setOrgLocale({ currency: status.organisation.baseCurrency, timezone: status.organisation.timezone, country: status.organisation.country });
-  const localeKey = `${orgCurrency()}|${orgTimezone()}|${orgCountry()}`; // the country decides the tax words (lib/taxTerms.js)
+  if (status?.organisation) setOrgLocale({ currency: status.organisation.baseCurrency, timezone: status.organisation.timezone, country: status.organisation.country, dateFormat: status.organisation.dateFormat });
+  // The country decides the tax words (lib/taxTerms.js); the date format is in the key too, so every
+  // screen showing a date redraws the moment someone changes it for the organisation.
+  const localeKey = `${orgCurrency()}|${orgTimezone()}|${orgCountry()}|${orgDateFormat()}`;
 
   const value = useMemo(
     () => ({
