@@ -6,7 +6,7 @@ import { applyAfterSave } from "../../lib/processTransaction";
 import { FIRST_APPROVAL_MESSAGE } from "../../lib/approvals";
 import { useOrganisation } from "../shell/OrganisationContext";
 import axiosInstance from "../../axios/axios";
-import LineItemsGrid from "./LineItemsGrid";
+import LineItemsGrid, { firstEditableKey } from "./LineItemsGrid";
 import QuickCreateDialog from "./QuickCreateDialog";
 import { QUICK_CREATE, MEASURE_TYPES } from "./quickCreate";
 import { buildPayload, columnsFor, recalcRow, rowFromReturnLine } from "./variants";
@@ -17,6 +17,7 @@ import { availabilityWarning } from "../../lib/salesDocuments";
 import { ITEM_TYPES, pickerLabel, rowIsService, stockedItemIds } from "../../lib/itemTypes";
 import { isReverseCharge, taxCodeLabel } from "../../lib/reverseCharge";
 import { cn } from "../../lib/utils";
+import { nextField } from "../../lib/fieldFlow";
 import { partyVat, vatAdvice } from "../../lib/partyVat";
 import { statusClasses } from "../../lib/status";
 
@@ -69,9 +70,14 @@ const uniqById = (list) => {
 
 const recalc = recalcRow;
 
+// One card, used by every panel on this form. Tight on purpose: the form was mostly padding.
+const CARD = "rounded-xl border border-border bg-card p-4 shadow-card sm:p-5";
+const CARD_TITLE = "mb-3 text-base font-bold text-foreground";
+
 const fieldCls = (invalid) =>
   cn(
-    "h-10 w-full rounded-lg border bg-card px-3 text-sm text-foreground outline-none transition-colors",
+    // 44px on touch, 40 from lg: the sweep fails a tap target under 40px, and a flat h-10 was under it.
+    "h-11 w-full rounded-lg border bg-card px-3 text-sm text-foreground outline-none transition-colors lg:h-10",
     "focus-visible:ring-2 focus-visible:ring-ring",
     invalid ? "border-status-danger" : "border-input"
   );
@@ -202,6 +208,12 @@ export default function OrderForm({
   const [pendingSelect, setPendingSelect] = useState(null);
   const [lookups, setLookups] = useState({ categories: [], units: [] });
   const [focusRequest, setFocusRequest] = useState(null);
+  const detailsRef = useRef(null); // the Details card, so Enter knows how far the header goes
+  // Enter picks a customer from the open list AND moves the cursor on, the way a quick typist
+  // expects; a mouse click only picks. Mirrors the open/close bookkeeping kit.jsx's SearchSelect
+  // keeps for Escape (listOpen), but for Enter instead.
+  const partyMenuOpen = useRef(false);
+  const partyPickedByKey = useRef(false);
   const [manualNumber, setManualNumber] = useState(false);
   // Whether THIS kind of document may have its number typed at all. It is the voucher type's own
   // setting (Accounting setup -> Numbering), off until somebody turns it on, so the box and the
@@ -402,7 +414,43 @@ export default function OrderForm({
   };
   const removeCharge = (i) => setCharges((c) => c.filter((_, j) => j !== i));
 
+  // The grid's own columns - computed once so Alt+N and the header's Enter know which column
+  // a new line's cursor belongs in without duplicating columnsFor's rules.
+  const columns = useMemo(() => columnsFor(V, { batches: !noBatches }), [V, noBatches]);
+
+  // ---- keyboard: one line of travel through the whole form ---------------------------
+  // Somebody with no mouse fills this in with Tab, typing and Enter. The lines are an ARIA grid
+  // that already drives itself (LineItemsGrid); what is added here is the header's own Enter and
+  // the hand-over between the two.
+  const focusLine = useCallback(
+    (row) => setFocusRequest({ row, colKey: firstEditableKey(columns), nonce: Date.now() }),
+    [columns]
+  );
+
+  // Enter in a header field goes to the next one - which can be a textarea (Notes, Terms, an
+  // address): landing there is fine, and its own Enter is left alone so a newline can still be
+  // typed; Tab leaves it for the next field as always. Notes is the last field on every variant,
+  // so there is in practice always a "next field" to land on; focusLine(0) is the fallback for a
+  // layout that one day has nothing after its last field.
+  const onHeaderKeyDown = (e) => {
+    // react-select has just taken this Enter to choose an option, or an editor handled it itself.
+    if (e.defaultPrevented) return;
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.tagName === "TEXTAREA" || e.target.tagName === "BUTTON") return;
+    e.preventDefault();
+    const next = nextField(detailsRef.current, e.target);
+    if (next) next.focus();
+    else focusLine(0);
+  };
+
   const addRow = useCallback(() => setRows((items) => [...items, freshRow()]), [freshRow, setRows]);
+
+  // Add a line and go to it. Adding one and leaving the cursor behind is no use without a mouse
+  // (the finance EntryGrid has always done both).
+  const addRowAndGo = useCallback(() => {
+    addRow();
+    focusLine(rows.length);
+  }, [addRow, focusLine, rows.length]);
 
   const removeRow = useCallback(
     (r) => {
@@ -412,17 +460,17 @@ export default function OrderForm({
     [setRows]
   );
 
-  // Alt+N adds a line from anywhere on the page.
+  // Alt+N adds a line from anywhere on the page, and puts the cursor in it.
   useEffect(() => {
     const onKey = (e) => {
       if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        addRow();
+        addRowAndGo();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addRow]);
+  }, [addRowAndGo]);
 
   // ---- validation and save -----------------------------------------------------------
   const validate = () => {
@@ -648,7 +696,7 @@ export default function OrderForm({
     : "Attachments (supplier invoice, delivery note, proof of delivery)";
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-[1400px] space-y-4">
       <header className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3 lg:items-center lg:gap-4">
           <button
@@ -673,12 +721,12 @@ export default function OrderForm({
               {editing ? V.title.edit : V.title.create}
             </h1>
             {/* keyboard only: there is no Ctrl key on a phone, and the sentence crowded the title out of the row */}
-            <p className="hidden text-sm text-muted-foreground lg:block">
-              Ctrl+S or Ctrl+Enter saves · Ctrl+Shift+S saves and opens a new one · Alt+N adds a line · ? lists every shortcut
+            <p className="hidden text-xs text-muted-foreground lg:block">
+              Enter moves to the next field and line · Alt+N adds a line · Ctrl+S saves · ? lists every shortcut
             </p>
           </div>
         </div>
-        <button type="submit" form={formId} disabled={saving} className="erp-btn-primary w-full disabled:opacity-60 lg:w-auto">
+        <button type="submit" form={formId} data-shortcut="save" disabled={saving} className="erp-btn-primary w-full disabled:opacity-60 lg:w-auto">
           <Save className="h-4 w-4" aria-hidden="true" />
           {saving ? "Saving…" : editing ? V.title.saveEdit : V.title.save}
         </button>
@@ -715,14 +763,20 @@ export default function OrderForm({
             save();
           }
         }}
-        className="space-y-6"
+        className="space-y-4"
       >
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section aria-labelledby={fid("details")} className="rounded-xl border border-border bg-card p-6 shadow-card">
-            <h2 id={fid("details")} className="mb-5 text-base font-bold text-foreground">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <section
+            aria-labelledby={fid("details")}
+            className={CARD}
+            // Enter walks to the next field; on the last one it hands over to the lines.
+            onKeyDown={onHeaderKeyDown}
+            ref={detailsRef}
+          >
+            <h2 id={fid("details")} className={CARD_TITLE}>
               Details
             </h2>
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
               <Field id={fid("transactionNo")} label={V.labels.doc}>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative min-w-[11rem] flex-1">
@@ -757,12 +811,20 @@ export default function OrderForm({
                 />
               </Field>
 
-              <Field id={fid("partyId")} label={V.labels.partyNoun} error={errors.partyId} className="sm:col-span-2">
+              <Field id={fid("partyId")} label={V.labels.partyNoun} error={errors.partyId} className="sm:col-span-2 xl:col-span-1">
                 <CreatableSelect
                   inputId={fid("partyId")}
+                  autoFocus={!editing}
                   options={partyOptions}
                   value={partyOptions.find((o) => o.value === formData.partyId) || null}
-                  onChange={(o) => setHeader("partyId", o ? o.value : "")}
+                  onChange={(o) => {
+                    setHeader("partyId", o ? o.value : "");
+                    if (partyPickedByKey.current) {
+                      partyPickedByKey.current = false;
+                      const next = nextField(detailsRef.current, document.getElementById(fid("partyId")));
+                      if (next) requestAnimationFrame(() => next.focus());
+                    }
+                  }}
                   onCreateOption={(text) =>
                     setQuick({ kind: partyKind, initial: { [partySpec.fields[0].name]: text } })
                   }
@@ -773,6 +835,9 @@ export default function OrderForm({
                   styles={selectStyles(Boolean(errors.partyId))}
                   menuPortalTarget={typeof document !== "undefined" ? document.body : null}
                   menuPosition="fixed"
+                  onMenuOpen={() => { partyMenuOpen.current = true; }}
+                  onMenuClose={() => { partyMenuOpen.current = false; }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && partyMenuOpen.current) partyPickedByKey.current = true; }}
                   aria-invalid={Boolean(errors.partyId) || undefined}
                 />
               </Field>
@@ -862,14 +927,14 @@ export default function OrderForm({
               )}
 
               {(V.priority || V.terms) && (
-                <Field id={fid("terms")} label="Terms" className="sm:col-span-2">
+                <Field id={fid("terms")} label="Terms" className="sm:col-span-2 xl:col-span-3">
                   <textarea id={fid("terms")} name="terms" rows={2} value={formData.terms || ""} onChange={(e) => setHeader("terms", e.target.value)} className={cn(fieldCls(false), "h-auto py-2")} />
                 </Field>
               )}
 
               {/* header fields only some documents have (a delivery note's vehicle, driver and address) */}
               {(V.extraFields || []).map((f) => (
-                <Field key={f.key} id={fid(f.key)} label={f.label} className={f.span === 2 ? "sm:col-span-2" : undefined}>
+                <Field key={f.key} id={fid(f.key)} label={f.label} className={f.span === 2 ? "sm:col-span-2 xl:col-span-3" : undefined}>
                   {f.type === "textarea" ? (
                     <textarea id={fid(f.key)} name={f.key} rows={2} value={formData[f.key] || ""} onChange={(e) => setHeader(f.key, e.target.value)} className={cn(fieldCls(false), "h-auto py-2")} />
                   ) : f.type === "phone" ? (
@@ -880,15 +945,16 @@ export default function OrderForm({
                 </Field>
               ))}
 
-              <Field id={fid("notes")} label="Notes" className="sm:col-span-2">
+              <Field id={fid("notes")} label="Notes" className="sm:col-span-2 xl:col-span-3">
                 <textarea id={fid("notes")} name="notes" rows={2} value={formData.notes || ""} onChange={(e) => setHeader("notes", e.target.value)} placeholder="Additional notes or special instructions" className={cn(fieldCls(false), "h-auto py-2")} />
               </Field>
             </div>
           </section>
 
-          <aside className="space-y-6">
-            <section aria-labelledby={fid("preview")} className="rounded-xl border border-border bg-card p-6 shadow-card">
-              <h2 id={fid("preview")} className="mb-4 text-base font-bold text-foreground">
+          {/* self-start, or the grid stretches the column and nothing can stick to the top of it */}
+          <aside className="space-y-4 self-start lg:sticky lg:top-4">
+            <section aria-labelledby={fid("preview")} className={CARD}>
+              <h2 id={fid("preview")} className={CARD_TITLE}>
                 {V.partyType === "Vendor" ? "Vendor" : "Customer"}
               </h2>
               {party ? (
@@ -914,9 +980,9 @@ export default function OrderForm({
               )}
             </section>
 
-            <section aria-labelledby={fid("summary")} className="rounded-xl border border-border bg-card p-6 shadow-card">
-              <h2 id={fid("summary")} className="mb-4 text-base font-bold text-foreground">Summary</h2>
-              <dl className="space-y-2.5 text-sm tabular-nums">
+            <section aria-labelledby={fid("summary")} className={CARD}>
+              <h2 id={fid("summary")} className={CARD_TITLE}>Summary</h2>
+              <dl className="space-y-2 text-sm tabular-nums">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Lines</dt><dd>{rows.filter((r) => r.itemId).length}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.subtotal))}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()}</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
@@ -945,7 +1011,7 @@ export default function OrderForm({
         <section aria-labelledby={fid("lines")} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id={fid("lines")} className="text-base font-bold text-foreground">{V.title.items}</h2>
-            <button type="button" onClick={addRow} className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button type="button" onClick={addRowAndGo} className="inline-flex h-9 items-center gap-2 rounded-lg border border-input bg-card px-3.5 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <Plus className="h-4 w-4" aria-hidden="true" />
               Add line
               <kbd className="ms-1 rounded border border-border bg-secondary px-1 text-[11px] font-semibold text-muted-foreground">Alt N</kbd>
@@ -956,7 +1022,7 @@ export default function OrderForm({
           )}
           <LineItemsGrid
             label={V.title.items}
-            columns={columnsFor(V, { batches: !noBatches })}
+            columns={columns}
             rows={rows}
             errors={errors}
             itemOptions={itemOptions}
@@ -979,7 +1045,7 @@ export default function OrderForm({
           )}
         </section>
 
-        <section aria-labelledby={fid("charges")} className="rounded-xl border border-border bg-card p-6 shadow-card">
+        <section aria-labelledby={fid("charges")} className={CARD}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id={fid("charges")} className="text-base font-bold text-foreground">Additional charges</h2>
@@ -1010,7 +1076,7 @@ export default function OrderForm({
 
         {/* attachments belong to transactions; a quotation or delivery note has none of its own yet */}
         {isTransaction && (
-          <section className="rounded-xl border border-border bg-card p-6 shadow-card">
+          <section className={CARD}>
             {selected?.id
               ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />
               : <AttachmentPanel value={files} onChange={setFiles} label={attachmentsLabel} />}

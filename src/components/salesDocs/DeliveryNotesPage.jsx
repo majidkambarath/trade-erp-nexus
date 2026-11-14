@@ -97,19 +97,21 @@ export default function DeliveryNotesPage() {
       )}
       {view === "edit" && !editing && <Spinner label="Loading the note" />}
       {(view === "create" || (view === "edit" && editing && !isOrderSourced(editing))) && (
-        <OrderForm
-          variant={VARIANTS.deliveryNote}
-          formData={form}
-          setFormData={setForm}
-          parties={customers}
-          stockItems={stockItems}
-          notify={notify}
-          selected={editing}
-          setActiveView={(v) => (v === "list" ? toList() : null)}
-          resetForm={() => setForm(newDeliveryNoteForm())}
-          onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
-          activeView={view === "edit" ? "edit" : "create"}
-        />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <OrderForm
+            variant={VARIANTS.deliveryNote}
+            formData={form}
+            setFormData={setForm}
+            parties={customers}
+            stockItems={stockItems}
+            notify={notify}
+            selected={editing}
+            setActiveView={(v) => (v === "list" ? toList() : null)}
+            resetForm={() => setForm(newDeliveryNoteForm())}
+            onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
+            activeView={view === "edit" ? "edit" : "create"}
+          />
+        </div>
       )}
 
       {choosing && (

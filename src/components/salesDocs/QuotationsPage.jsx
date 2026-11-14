@@ -52,19 +52,21 @@ export default function QuotationsPage() {
         <QuotationView id={route.recordId} notify={notify} onBack={toList} onEdit={edit} onOpenQuotation={(id) => route.open(id)} onChanged={bump} />
       )}
       {(view === "create" || view === "edit") && (
-        <OrderForm
-          variant={VARIANTS.quotation}
-          formData={form}
-          setFormData={setForm}
-          parties={customers}
-          stockItems={stockItems}
-          notify={notify}
-          selected={editing}
-          setActiveView={(v) => (v === "list" ? toList() : null)}
-          resetForm={() => setForm(newQuotationForm())}
-          onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
-          activeView={view}
-        />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <OrderForm
+            variant={VARIANTS.quotation}
+            formData={form}
+            setFormData={setForm}
+            parties={customers}
+            stockItems={stockItems}
+            notify={notify}
+            selected={editing}
+            setActiveView={(v) => (v === "list" ? toList() : null)}
+            resetForm={() => setForm(newQuotationForm())}
+            onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
+            activeView={view}
+          />
+        </div>
       )}
       {toastNode}
     </>

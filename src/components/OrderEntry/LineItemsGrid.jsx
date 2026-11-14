@@ -13,8 +13,11 @@ import { lineHint } from "../../lib/reverseCharge";
 // Keyboard model:
 //   Tab / Shift+Tab   enter and leave the grid as a single stop (roving tabindex: only the
 //                     active cell is in the tab order)
-//   Arrow keys        move between editable cells
-//   Enter             move down; on the last row, add a row
+//   Arrow keys        move between editable cells (Down/Up keep the column)
+//   Enter             the next field to fill in: across the row, then the first cell of the next
+//                     row, and on the last row it adds one - the same order as the finance
+//                     EntryGrid, and the order a line is actually typed in. The remove button is
+//                     skipped, so Enter never lands on a delete.
 //   Escape            cancel a pending row removal
 // An editor that handles a key itself (react-select opening its menu) calls preventDefault,
 // and the grid leaves that key alone. Text boxes keep Left/Right for the caret until the
@@ -22,6 +25,10 @@ import { lineHint } from "../../lib/reverseCharge";
 
 const EDITABLE = new Set(["item", "text", "number", "select", "date"]);
 const navigable = (c) => EDITABLE.has(c.kind) || c.kind === "remove";
+
+// The first cell a new line should land in. Exported so the form can send focus to a line it has
+// just added (Alt+N) without knowing how a document's columns are ordered.
+export const firstEditableKey = (columns = []) => (columns.find((c) => EDITABLE.has(c.kind)) || columns[0] || {}).key;
 
 const compactSelect = {
   control: (base, s) => ({
@@ -81,6 +88,12 @@ export default function LineItemsGrid({
     [columns]
   );
   const firstNav = navCols[0] ?? 0;
+  // Enter follows the cells you type into; the remove button is navigable but is not one of them.
+  const editCols = useMemo(
+    () => columns.map((c, i) => (EDITABLE.has(c.kind) ? i : -1)).filter((i) => i >= 0),
+    [columns]
+  );
+  const firstEdit = editCols[0] ?? firstNav;
   const [active, setActive] = useState({ row: 0, col: firstNav });
   const [armed, setArmed] = useState(null); // row awaiting the second click that removes it
   const [pending, setPending] = useState(null); // focus to apply after a row is added
@@ -153,16 +166,20 @@ export default function LineItemsGrid({
         e.preventDefault();
         move(row, colStep(colNearest(col), -1));
         break;
-      case "Enter":
+      case "Enter": {
+        // Ctrl/Meta+Enter saves the document and Shift+Enter is left to the editor, so only a
+        // plain Enter walks the line.
         if (e.shiftKey || e.ctrlKey || e.metaKey) return;
         e.preventDefault();
-        if (row >= rows.length - 1) {
+        const at = editCols.indexOf(col);
+        if (at >= 0 && at < editCols.length - 1) move(row, editCols[at + 1]);
+        else if (row < rows.length - 1) move(row + 1, firstEdit);
+        else {
           onAddRow();
-          setPending({ row: rows.length, col: firstNav });
-        } else {
-          move(row + 1, colNearest(col));
+          setPending({ row: rows.length, col: firstEdit });
         }
         break;
+      }
       case "Escape":
         if (armed !== null) {
           e.stopPropagation();

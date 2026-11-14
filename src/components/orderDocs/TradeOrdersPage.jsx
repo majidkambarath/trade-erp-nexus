@@ -50,19 +50,21 @@ export default function TradeOrdersPage({ kind }) {
       {view === "list" && <TradeOrderList kind={kind} onOpen={(id) => route.open(id)} onNew={create} onEdit={edit} notify={notify} reloadKey={reloadKey} />}
       {view === "view" && route.recordId && <TradeOrderView kind={kind} id={route.recordId} notify={notify} onBack={toList} onEdit={edit} onChanged={bump} />}
       {(view === "create" || view === "edit") && (
-        <OrderForm
-          variant={variant}
-          formData={form}
-          setFormData={setForm}
-          parties={parties}
-          stockItems={stockItems}
-          notify={notify}
-          selected={editing}
-          setActiveView={(v) => (v === "list" ? toList() : null)}
-          resetForm={() => setForm(newOrderForm(kind))}
-          onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
-          activeView={view}
-        />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <OrderForm
+            variant={variant}
+            formData={form}
+            setFormData={setForm}
+            parties={parties}
+            stockItems={stockItems}
+            notify={notify}
+            selected={editing}
+            setActiveView={(v) => (v === "list" ? toList() : null)}
+            resetForm={() => setForm(newOrderForm(kind))}
+            onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
+            activeView={view}
+          />
+        </div>
       )}
       {toastNode}
     </>
