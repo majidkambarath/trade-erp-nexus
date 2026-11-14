@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.10.0.0 — 14 November 2026
+
+The party master moved to the front of its module, and the order forms are denser and work end to
+end from the keyboard. Frontend and backend both at 2.10.0.0 (backend carries no change beyond the
+version itself, kept in lockstep).
+
+### Changed
+
+- **Customers and Vendors lead the Sales and Purchase tab rows.** They were near the end of each
+  (Sales: Quotations | Orders | Delivery notes | Invoices | Returns | Customers | Receivables;
+  Purchase: Orders | Goods received | Invoices | Returns | Vendors | Payables), although the party
+  master is the page people open most often. Since the first tab decides where the rail and
+  bottom-bar buttons land, Sales now opens on Customers and Purchase on Vendors.
+- **Every order form is denser.** The page no longer pads itself twice, one shared card class
+  replaces four copies of the same padding, Details becomes three columns on a wide screen instead
+  of two, and the right-hand rail is narrower and sticky so the running total stays on screen while
+  lines are typed.
+- **Every order form works without a mouse.** A new document opens with the cursor already in
+  Customer; Enter walks field to field through the header and, in the line grid, moves across the
+  row (skipping read-only cells) then down, adding a line at the end, the same model the Finance
+  journal grid already uses; Alt+N now focuses the line it just added instead of leaving the cursor
+  behind; picking a party with Enter advances the cursor, a mouse click does not; and the Save
+  button is found by a marker rather than guessed at. Reaches all eight document forms (sales and
+  purchase invoices, both returns, quotation, delivery note, sales and purchase orders, goods
+  received) through the one shared `OrderForm` component.
+
 ## 2.9.0.0 — 11 November 2026
 
 What a document is CALLED, who may raise one, and the cheque life cycle. Frontend and backend both at
