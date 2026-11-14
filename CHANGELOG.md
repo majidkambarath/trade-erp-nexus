@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.9.2.0 — 14 November 2026
+
+Orders without delivery notes, and the invoice pages. Frontend and backend both at 2.9.2.0.
+
+### Added
+
+- **Convert to invoice** beside View on a sales order row (and on the order's screen) when the organisation has
+  no delivery notes. The order reads Uninvoiced / Invoice drafted / Invoiced, the progress strip has no Delivered
+  step, and the invoice sheet prints "Sales order no.".
+- A spinner on the Approve / Confirm button while an approval runs; the list then refreshes in place.
+
+### Changed
+
+- Sales and purchase invoices and returns open on the list with the figure cards above it. "Recent ..." is gone
+  and the Status overview sits behind the Overview button.
+
+### Fixed
+
+- Row action icons never visibly highlighted (they hovered to the same colour as the hovered row); enabled
+  buttons now show a pointer cursor.
+
 ## 2.10.0.0 — 14 November 2026
 
 The party master moved to the front of its module, and the order forms are denser and work end to
