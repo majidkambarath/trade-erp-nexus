@@ -707,3 +707,9 @@ h4,
 .erp-btn-accent:hover {
   opacity: 0.92;
 }
+
+/* Tailwind's preflight resets buttons to the default arrow; an enabled button should read as clickable. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}

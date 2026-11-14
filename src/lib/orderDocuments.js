@@ -10,7 +10,7 @@ const round3 = (n) => Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
 // ---- who may do what ----------------------------------------------------------------------
 // The server says which actions the document's STATE allows (actions.confirm, actions.receive...); this narrows that to
 // what the person's ROLE may do. (The server refuses them either way.) An order belongs to sales or to purchase.
-const ORDER_PERMISSION = { edit: "edit", delete: "delete", confirm: "approve", cancel: "approve", close: "approve", reopen: "approve", receive: "create", invoice: "approve" };
+const ORDER_PERMISSION = { edit: "edit", delete: "delete", confirm: "approve", cancel: "approve", close: "approve", reopen: "approve", receive: "create", invoice: "approve", invoiceOrder: "approve" };
 
 // `opts.deliveryNotes: false` drops `receive` on a SALES order: delivering against one raises a delivery note, so with
 // that feature off the action leads to a screen the plan does not include. The server cannot help here - its own
@@ -23,6 +23,12 @@ export function allowOrderActions(actions, me, kind, opts = {}) {
   return Object.fromEntries(
     Object.entries(actions || {}).map(([name, on]) => {
       if (name === "receive" && noDelivery) return [name, false];
+      // No delivery notes: the order is invoiced whole, in one step (the server's `invoiceOrder`), which is the
+      // button the delivered-and-not-yet-invoiced `invoice` action would otherwise be.
+      if (name === "invoice" && noDelivery) {
+        const need = `${module}.approve`;
+        return [name, Boolean(actions.invoiceOrder) && (!Array.isArray(me?.grants) || me.grants.includes(need))];
+      }
       const need = ORDER_PERMISSION[name] ? `${module}.${ORDER_PERMISSION[name]}` : null;
       return [name, Boolean(on) && (!need || !Array.isArray(me?.grants) || me.grants.includes(need))];
     })
@@ -46,9 +52,23 @@ export const receiptStatusLabel = (s) => RECEIPT_STATUS_LABEL[s] || s || "";
 export const ORDER_TABS = [["", "All"], ["DRAFT", "Draft"], ["CONFIRMED", "Confirmed"], ["CLOSED", "Closed"], ["CANCELLED", "Cancelled"]];
 export const RECEIPT_TABS = [["", "All"], ["DRAFT", "Draft"], ["RECEIVED", "Received"], ["UNINVOICED", "Not invoiced"], ["CANCELLED", "Cancelled"]];
 
+// What an order's progress reads as. The server words it for delivery ("Not delivered"); an organisation without
+// delivery notes has nothing to deliver, so a sales order there is Uninvoiced / Invoice drafted / Invoiced.
+export function orderProgressLabel(order, opts = {}) {
+  const label = order?.progress?.label || "";
+  if (order?.kind !== "sales" || opts.deliveryNotes !== false) return label;
+  const lines = Object.values(order.progress?.lines || {});
+  const drafted = lines.reduce((t, l) => t + (Number(l.draftInvoice) || 0), 0);
+  const invoiced = Number(order.progress?.totals?.invoiced) || 0;
+  if (label === "Invoiced" || label === "Partly invoiced") return label;
+  if (drafted > 0 || invoiced > 0) return "Invoice drafted";
+  return "Uninvoiced";
+}
+
 // What an order's progress reads as, with the tone a pill takes.
 export function progressTone(label) {
   if (label === "Invoiced") return "success";
+  if (label === "Invoice drafted") return "info";
   if (/^Partly invoiced/.test(label) || /^Fully/.test(label)) return "info";
   if (/^Partly/.test(label)) return "warning";
   return "neutral";

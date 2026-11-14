@@ -1,4 +1,5 @@
 import React from "react";
+import ApproveButton from "../../lists/ApproveButton";
 import {
   ChevronUp,
   ChevronDown,
@@ -217,13 +218,13 @@ const TableView = ({
                     )}
                     {so.status === "DRAFT" && stateOf(so).canApprove && (
                       <Can permission="sales.approve">
-                        <button
+                        <ApproveButton id={so.id}
                           onClick={() => confirmSO(so.id)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Confirm"
                         >
                           <ConfirmIcon className="w-4 h-4" />
-                        </button>
+                        </ApproveButton>
                       </Can>
                     )}
                     <RowMenu

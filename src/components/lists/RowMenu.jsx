@@ -15,7 +15,7 @@ const MENU_ROOM = 200; // px: what a five-item menu needs below the button befor
 
 const MENU = "w-36 rounded-2xl border border-border bg-card py-1 shadow-lg";
 const BUTTON =
-  "grid min-h-10 min-w-10 place-items-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary lg:min-h-0 lg:min-w-0";
+  "grid min-h-10 min-w-10 place-items-center rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer lg:min-h-0 lg:min-w-0";
 
 // `buttonText` puts the words on the trigger instead of a bare ellipsis. A row has no room for them and
 // does not need them (the menu is beside an action cell people already know); a document header has both.

@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { trackApproval } from "../../lists/ApproveButton";
 import { useNavigate } from "react-router-dom";
 import { approveMany, processTransaction } from "../../../lib/processTransaction";
 import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
@@ -88,7 +89,7 @@ const SalesOrderManagement = () => {
   // button are both drawn only when this callback is given, so withholding it is the whole gate - and it closes the
   // card view too, which never received the callback and would otherwise have grown a live button the day it did.
   const deliveryNotes = featureOn("deliveryNotes");
-  const [activeView, setActiveView] = useState(() => (linkedSearch() ? "list" : "dashboard"));
+  const [activeView, setActiveView] = useState("list");
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
   const wide = useMediaQuery(WIDE);
@@ -232,9 +233,9 @@ const SalesOrderManagement = () => {
     }
   };
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async ({ quiet } = {}) => {
     const ask = ++listRequest.current;
-    setIsLoading(true);
+    if (quiet !== true) setIsLoading(true); // a refresh after an approval keeps the rows on screen
     try {
       // every page of the period (the server returns 20 unless asked, and 200 at most), not the newest twenty
       const { rows: transactions, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
@@ -287,6 +288,7 @@ const SalesOrderManagement = () => {
       discount: typeof t.discount === "number" ? t.discount : 0,
       // Set only when this invoice was raised from a garage job card; absent on every other invoice.
       jobCardRef: t.jobCardRef || null,
+      tradeOrderRef: t.tradeOrderRef || null,
     };
   })
 );
@@ -550,7 +552,7 @@ const SalesOrderManagement = () => {
       if (action === "confirm") {
         // Each order is judged on its own (its amount, who prepared it, who has approved it), so the answer says how many were
         // approved, how many wait for a second person and how many were refused - and why.
-        const outcome = summariseApprovals(await approveMany(selectedSOs, { docs: salesOrders, stateOf, me }));
+        const outcome = summariseApprovals(await trackApproval(selectedSOs, () => approveMany(selectedSOs, { docs: salesOrders, stateOf, me })));
         addNotification(outcome.text, outcome.tone);
       } else if (action === "delete") {
         // An approved document is deleted only by someone who holds sales.deletePosted (the server decides the same way by the
@@ -573,7 +575,7 @@ const SalesOrderManagement = () => {
             } catch (error) {
               addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
             }
-            fetchTransactions();
+            fetchTransactions({ quiet: action === "confirm" });
           },
         });
       } else if (action === "export") {
@@ -596,7 +598,7 @@ const SalesOrderManagement = () => {
         addNotification("Orders exported successfully", "success");
       }
       setSelectedSOs([]);
-      fetchTransactions();
+      fetchTransactions({ quiet: action === "confirm" });
     } catch (error) {
       addNotification(
         "Bulk action failed: " +
@@ -642,7 +644,8 @@ const SalesOrderManagement = () => {
     setFormErrors({});
   }, []);
 
-  const confirmSO = async (id) => {
+  const confirmSO = (id) => trackApproval(id, () => confirmSOBody(id));
+  const confirmSOBody = async (id) => {
     try {
       // Soft stock validation: warn for items exceeding stock but do not block approval
       const so = salesOrders.find((s) => s.id === id);
@@ -662,7 +665,7 @@ const SalesOrderManagement = () => {
       // Above the organisation's second-approver amount this only records the first approval: say so, not "approved"
       if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
       else addNotification("Sales invoice approved successfully", "success");
-      fetchTransactions();
+      fetchTransactions({ quiet: true });
     } catch (error) {
       addNotification(
         "Failed to approve: " +
@@ -751,12 +754,12 @@ const SalesOrderManagement = () => {
     </div>
   );
 
-  const Dashboard = () => (
-    <div className="space-y-6">
+  const Cards = () => (
+    <div className="mb-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         {/* the four cards are the period shown above (This month unless widened), never "the newest twenty" */}
         <StatCard
-          title="Total Orders"
+          title="Invoices"
           count={statistics.total}
           tone="teal"
           icon={<ShoppingCart />}
@@ -768,7 +771,7 @@ const SalesOrderManagement = () => {
           count={statistics.confirmed}
           tone="plum"
           icon={<CheckSquare />}
-          subText="Ready for dispatch"
+          subText="In the accounts"
         />
         <StatCard
           title="Total Value"
@@ -785,66 +788,12 @@ const SalesOrderManagement = () => {
           subText="Waiting for approval"
         />
       </div>
+    </div>
+  );
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
-        <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
-          <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Recent sales invoices</h3>
-            <span className="text-xs text-muted-foreground">
-              {periodRows.length} {period.all ? "in total" : `· ${period.label}`}
-            </span>
-          </header>
-          <div className="px-5">
-            {periodRows.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                {period.all ? "No sales invoices yet. Create one to see it here." : `No sales invoices in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {periodRows.slice(0, 5).map((so) => (
-                  <li key={so.id} className="flex items-center justify-between gap-4 py-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        aria-hidden="true"
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPriorityColor(so.priority)}`}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {so.transactionNo}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{so.customerName}</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm font-semibold tabular-nums text-foreground">
-                        {CURRENCY} {formatNumber(so.totalAmount)}
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
-                          so.status
-                        )}`}
-                      >
-                        {getStatusIcon(so.status)}
-                        <span className="ms-1">{so.status}</span>
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {periodRows.length > 0 && (
-            <footer className="border-t border-border px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setActiveView("list")}
-                className="-my-2.5 py-2.5 text-sm font-medium text-foreground hover:opacity-80"
-              >
-                View all invoices →
-              </button>
-            </footer>
-          )}
-        </section>
+const Dashboard = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:max-w-xl">
 
         <StatusOverview
           noun="order"
@@ -1069,6 +1018,7 @@ const SalesOrderManagement = () => {
           </div>
         ) : (
           <>
+            {(activeView === "dashboard" || activeView === "list") && <Cards />}
             {activeView === "dashboard" && <Dashboard />}
             {activeView === "list" && filteredSOs.length === 0 && (
               <ListEmpty

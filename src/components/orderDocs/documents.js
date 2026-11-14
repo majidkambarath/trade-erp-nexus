@@ -7,7 +7,7 @@ import { isReverseCharge } from "../../lib/reverseCharge";
 import { companyBlock } from "../PurchaseOrder/shared/invoiceModel";
 import { contactLines, dateOf, partyTrnFor, partyVatStatus, sheetFor } from "../PurchaseOrder/shared/invoiceDocuments";
 
-export const buildTradeOrderDocument = (order, party, company, currency) => {
+export const buildTradeOrderDocument = (order, party, company, currency, { deliveryNotes = true } = {}) => {
   const sales = order.kind === "sales";
   // invoiceLines reads `rate` as the line value after discount: on an order that is taxableAmount
   const items = (order.items || []).map((l) => ({ ...l, rate: l.taxableAmount }));
@@ -40,7 +40,7 @@ export const buildTradeOrderDocument = (order, party, company, currency) => {
       company,
       currency,
       notice: sales
-        ? `This is a sales order, not an invoice. The invoice is issued from what is delivered, and nothing is posted until it is approved.`
+        ? (deliveryNotes ? `This is a sales order, not an invoice. The invoice is issued from what is delivered, and nothing is posted until it is approved.` : `This is a sales order, not an invoice. The invoice is issued from this order, and nothing is posted until it is approved.`)
         : "This is a purchase order, not an invoice. Please deliver the goods listed and send your invoice with them.",
       receipt: false,
       reverseChargeSide: sales ? "supplier" : "recipient",

@@ -1,4 +1,5 @@
 import PayAction from "../../lists/PayAction";
+import ApproveButton from "../../lists/ApproveButton";
 import React from "react";
 import {
   Eye,
@@ -173,14 +174,14 @@ const GridView = ({
                     setSelectedPO(po);
                     setActiveView("invoice");
                   }}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <Eye className="w-4 h-4" />
                   <span className="text-sm">View</span>
                 </button>
                 <button
                   onClick={() => onShowAudit && onShowAudit(po)}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <History className="w-4 h-4" />
                   <span className="text-sm">Audit trail</span>
@@ -189,7 +190,7 @@ const GridView = ({
                   <Can permission="purchase.edit">
                     <button
                       onClick={() => editPO(po)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                     >
                       <Edit3 className="w-4 h-4" />
                       <span className="text-sm">Edit</span>
@@ -204,19 +205,19 @@ const GridView = ({
                   <>
                     {stateOf(po).canApprove && (
                       <Can permission="purchase.approve">
-                        <button
+                        <ApproveButton id={po.id}
                           onClick={() => approvePO(po.id)}
                           className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
                         >
                           <CheckSquare className="w-4 h-4" />
                           <span className="text-sm">Approve</span>
-                        </button>
+                        </ApproveButton>
                       </Can>
                     )}
                     <Can permission="purchase.approve">
                       <button
                         onClick={() => rejectPO(po.id)}
-                        className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                        className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                       >
                         <X className="w-4 h-4" />
                         <span className="text-sm">Reject</span>
@@ -228,7 +229,7 @@ const GridView = ({
                   <Can permission={deleteKey("purchase", po.status === "APPROVED")}>
                     <button
                       onClick={() => deletePO(po.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span className="text-sm">Delete</span>

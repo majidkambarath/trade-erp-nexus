@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { trackApproval } from "../../lists/ApproveButton";
 import { approveMany, processTransaction } from "../../../lib/processTransaction";
 import { FIRST_APPROVAL_MESSAGE, summariseApprovals, wasFirstApproval } from "../../../lib/approvals";
 import { useApproval } from "../../shell/Approval";
@@ -69,7 +70,7 @@ import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const PurchaseReturnOrderManagement = () => {
   const { canAny } = useOrganisation();
   const { stateOf, me } = useApproval();
-  const [activeView, setActiveView] = useState("dashboard"); // dashboard, list, create, edit, invoice
+  const [activeView, setActiveView] = useState("list"); // dashboard (status overview), list, create, edit, invoice
   // The table is the right list for a pointer and the cards for a thumb, so the default
   // follows the screen. Choosing a view by hand still wins, and holds until a reload.
   const wide = useMediaQuery(WIDE);
@@ -194,9 +195,9 @@ const PurchaseReturnOrderManagement = () => {
   };
 
   // Fetch transactions from backend
-  const fetchTransactions = async () => {
+  const fetchTransactions = async ({ quiet } = {}) => {
     const ask = ++listRequest.current;
-    setIsLoading(true);
+    if (quiet !== true) setIsLoading(true); // a refresh after an approval keeps the rows on screen
     try {
       const { rows: fetched, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
         type: "purchase_return",
@@ -413,9 +414,9 @@ const PurchaseReturnOrderManagement = () => {
     try {
       if (action === "approve") {
         // Each return is judged on its own (its amount, who prepared it, who has approved it): say how each came out.
-        const outcome = summariseApprovals(await approveMany(selectedPOs, { docs: purchaseOrders, stateOf, me }));
+        const outcome = summariseApprovals(await trackApproval(selectedPOs, () => approveMany(selectedPOs, { docs: purchaseOrders, stateOf, me })));
         addNotification(outcome.text, outcome.tone);
-        fetchTransactions();
+        fetchTransactions({ quiet: action === "confirm" });
       } else if (action === "delete") {
         // An approved document is deleted only by someone who holds purchase.deletePosted (the server decides the same way by the
         // stored status): the others are left out of the request and told so.
@@ -437,7 +438,7 @@ const PurchaseReturnOrderManagement = () => {
             } catch (error) {
               addNotification("Failed to delete: " + (error.response?.data?.message || error.message), "error");
             }
-            fetchTransactions();
+            fetchTransactions({ quiet: action === "confirm" });
           },
         });
       } else if (action === "export") {
@@ -488,8 +489,8 @@ const PurchaseReturnOrderManagement = () => {
   );
 
   // Dashboard Component
-  const Dashboard = () => (
-    <div className="space-y-6">
+  const Cards = () => (
+    <div className="mb-6">
       <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <StatCard
           title="Total Returns"
@@ -521,64 +522,12 @@ const PurchaseReturnOrderManagement = () => {
           subText="Sent back to vendors"
         />
       </div>
+    </div>
+  );
 
-      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-3">
-        <section className="rounded-xl border border-border bg-card shadow-card lg:col-span-2">
-          <header className="flex items-center justify-between gap-2 border-b border-border px-5 py-3.5">
-            <h3 className="text-sm font-semibold text-foreground">Recent purchase returns</h3>
-            <span className="text-xs text-muted-foreground">{periodRows.length} {period.all ? "in total" : `· ${period.label}`}</span>
-          </header>
-          <div className="px-5">
-            {periodRows.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted-foreground">
-                {period.all ? "No purchase returns yet. Create one to see it here." : `No purchase returns in ${period.label.toLowerCase()}. Widen the period above to see earlier ones.`}
-              </p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {periodRows.slice(0, 5).map((row) => (
-                  <li key={row.id} className="flex items-center justify-between gap-4 py-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        aria-hidden="true"
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${getPriorityColor(row.priority)}`}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {row.transactionNo}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{row.vendorName}</p>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm font-semibold tabular-nums text-foreground">
-                        {CURRENCY} {formatNumber(row.totalAmount)}
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getStatusColor(
-                          row.status
-                        )}`}
-                      >
-                        {getStatusIcon(row.status)}
-                        <span className="ms-1">{row.status}</span>
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {periodRows.length > 0 && (
-            <footer className="border-t border-border px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setActiveView("list")}
-                className="-my-2.5 py-2.5 text-sm font-medium text-foreground hover:opacity-80"
-              >
-                View all purchase returns →
-              </button>
-            </footer>
-          )}
-        </section>
+const Dashboard = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:max-w-xl">
 
         <section className="rounded-xl border border-border bg-card shadow-card">
           <header className="border-b border-border px-5 py-3.5">
@@ -665,13 +614,14 @@ const PurchaseReturnOrderManagement = () => {
   };
 
   // Approve PO
-  const approvePO = async (id) => {
+  const approvePO = (id) => trackApproval(id, () => approvePOBody(id));
+  const approvePOBody = async (id) => {
     try {
       const response = await processTransaction(id, "approve");
       // Above the organisation's second-approver amount this only records the first approval: say so, not "approved"
       if (wasFirstApproval(response)) addNotification(FIRST_APPROVAL_MESSAGE, "info");
       else addNotification("Purchase Return Order approved successfully", "success");
-      fetchTransactions();
+      fetchTransactions({ quiet: true });
     } catch (error) {
       console.error("Approve PO Error:", error);
       addNotification(
@@ -683,11 +633,12 @@ const PurchaseReturnOrderManagement = () => {
   };
 
   // Reject PO
-  const rejectPO = async (id) => {
+  const rejectPO = (id) => trackApproval(id, () => rejectPOBody(id));
+  const rejectPOBody = async (id) => {
     try {
       await processTransaction(id, "reject");
       addNotification("Purchase Return Order rejected successfully", "success");
-      fetchTransactions();
+      fetchTransactions({ quiet: true });
     } catch (error) {
       console.error("Reject PO Error:", error);
       addNotification(
@@ -930,6 +881,7 @@ const PurchaseReturnOrderManagement = () => {
           </div>
         ) : (
           <>
+            {(activeView === "dashboard" || activeView === "list") && <Cards />}
             {activeView === "dashboard" && <Dashboard />}
             {activeView === "list" && filteredPOs.length === 0 && (
               <ListEmpty

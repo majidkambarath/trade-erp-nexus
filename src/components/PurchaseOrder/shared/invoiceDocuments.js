@@ -154,6 +154,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         ["Doc no.", so.docNo ?? so.docno ?? ""],
         ["Serial no.", so.serialNo ?? ""],
         ["Payment terms", customer.paymentTerms || ""],
+        // Present only on an invoice converted from a sales order in one step (no delivery notes).
+        ...(so.tradeOrderRef?.orderNo ? [["Sales order no.", so.tradeOrderRef.orderNo]] : []),
         // Present only on an invoice raised from a garage job card (jobCardService.createInvoice).
         // Plate and chassis are separate rows: a car may be on file with only one of the two, and
         // `rowsWithValue` then drops the other instead of printing a half-empty combined string.
