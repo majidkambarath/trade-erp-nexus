@@ -96,19 +96,21 @@ export default function GoodsReceivedPage() {
       )}
       {view === "edit" && !editing && <Spinner label="Loading the receipt" />}
       {(view === "create" || (view === "edit" && editing && !isOrderSourced(editing))) && (
-        <OrderForm
-          variant={VARIANTS.goodsReceived}
-          formData={form}
-          setFormData={setForm}
-          parties={vendors}
-          stockItems={stockItems}
-          notify={notify}
-          selected={editing}
-          setActiveView={(v) => (v === "list" ? toList() : null)}
-          resetForm={() => setForm(newReceiptForm())}
-          onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
-          activeView={view === "edit" ? "edit" : "create"}
-        />
+        <div className="p-4 sm:p-6 lg:p-8">
+          <OrderForm
+            variant={VARIANTS.goodsReceived}
+            formData={form}
+            setFormData={setForm}
+            parties={vendors}
+            stockItems={stockItems}
+            notify={notify}
+            selected={editing}
+            setActiveView={(v) => (v === "list" ? toList() : null)}
+            resetForm={() => setForm(newReceiptForm())}
+            onSuccess={(doc) => { bump(); route.replace(doc.id || doc._id, "view"); }}
+            activeView={view === "edit" ? "edit" : "create"}
+          />
+        </div>
       )}
 
       {choosing && (
