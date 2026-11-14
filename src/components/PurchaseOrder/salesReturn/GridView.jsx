@@ -1,4 +1,5 @@
 import React from "react";
+import ApproveButton from "../../lists/ApproveButton";
 import {
   Eye,
   Edit3,
@@ -163,13 +164,13 @@ const GridView = ({
               <div className="flex flex-wrap gap-2">
                 {so.status === "DRAFT" && stateOf(so).canApprove && (
                   <Can permission="sales.approve">
-                    <button
+                    <ApproveButton id={so.id}
                       onClick={() => confirmSO(so.id)}
                       className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                     >
                       <CheckSquare className="w-4 h-4" />
                       <span className="text-sm">Confirm</span>
-                    </button>
+                    </ApproveButton>
                   </Can>
                 )}
                 {(so.status === "DRAFT" || so.status === "APPROVED") && (

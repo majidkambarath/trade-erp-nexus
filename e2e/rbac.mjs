@@ -200,7 +200,7 @@ try {
     while (Date.now() < until && !loaded) {
       loaded = await rowLoaded(page, 1500);
       if (loaded) break;
-      try { await click(page, /^View all invoices/); } catch { /* the page is still arriving */ }
+      // the invoice page opens on its list
       await sleep(800);
     }
     check(`${who}: the order LIST is open with a row on it (so "no such button" means something)`, loaded);

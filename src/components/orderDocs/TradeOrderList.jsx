@@ -1,14 +1,16 @@
 import React, { useState } from "react";
-import { Eye, FilePlus2, Pencil, Search, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Eye, FilePlus2, Pencil, ReceiptText, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { ConfirmDialog, DataTable, ErrorNote, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { tradeOrders } from "../../lib/orderDocumentsApi";
-import { ORDER_TABS, allowOrderActions, orderStatusLabel, progressTone } from "../../lib/orderDocuments";
+import { ORDER_TABS, allowOrderActions, orderProgressLabel, orderStatusLabel, progressTone } from "../../lib/orderDocuments";
 import { statusTone } from "../../lib/status";
 import { formatDate, formatNumber } from "../../utils/format";
 import { PillTabs } from "../salesDocs/parts";
 import { useDebounced } from "./hooks";
+import OrderInvoiceDialog from "./OrderInvoiceDialog";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { usePeriodFilter } from "../lists/usePeriodFilter";
 import { useClampPage, useServerPage } from "../lists/useServerPage";
@@ -21,6 +23,7 @@ const WORDS = {
   sales: {
     title: "Sales orders", noun: "sales orders", one: "sales order", party: "Customer", add: "New sales order", perm: "sales.create",
     description: "What customers have asked for. An order posts nothing: goods are delivered against it, and the invoice is made from what was delivered.",
+    descriptionNoNotes: "What customers have asked for. An order posts nothing: convert it to an invoice, then approve the invoice to update stock and the books.",
     search: "Number, customer, LPO or item…", empty: "Write down what a customer has ordered, then deliver against it and invoice what was delivered.",
   },
   purchase: {
@@ -34,9 +37,14 @@ const WORDS = {
 // document and every action on it; the list only finds it, so there is one place for each.
 export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, reloadKey }) {
   const w = WORDS[kind];
-  const { me, can } = useOrganisation();
+  const { me, can, featureOn } = useOrganisation();
+  const navigate = useNavigate();
   const mayAdd = can(w.perm);
-  const acts = (r) => allowOrderActions(r.actions, me, kind);
+  // No delivery notes: nothing is delivered against a sales order, so it is converted to its invoice whole.
+  const flow = { deliveryNotes: featureOn("deliveryNotes") };
+  const noNotes = kind === "sales" && !flow.deliveryNotes;
+  const acts = (r) => allowOrderActions(r.actions, me, kind, flow);
+  const [converting, setConverting] = useState(null);
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
   const [removing, setRemoving] = useState(null);
@@ -75,7 +83,7 @@ export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, re
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title={w.title}
-        description={w.description}
+        description={noNotes ? w.descriptionNoNotes : w.description}
         actions={mayAdd && <Button onClick={onNew}><FilePlus2 className="h-4 w-4" aria-hidden="true" />{w.add}</Button>}
       />
 
@@ -143,7 +151,7 @@ export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, re
                 cell: (r) => (
                   <span className="flex flex-col items-start gap-1">
                     <Pill tone={statusTone(r.status)}>{orderStatusLabel(r.status)}</Pill>
-                    {["CONFIRMED", "CLOSED"].includes(r.status) && <Pill tone={progressTone(r.progress.label)}>{r.progress.label}</Pill>}
+                    {["CONFIRMED", "CLOSED"].includes(r.status) && <Pill tone={progressTone(orderProgressLabel(r, flow))}>{orderProgressLabel(r, flow)}</Pill>}
                   </span>
                 ),
               },
@@ -152,6 +160,11 @@ export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, re
                 cell: (r) => (
                   <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button size="sm" variant="ghost" onClick={() => onOpen(r._id)}><Eye className="h-3.5 w-3.5" aria-hidden="true" />View</Button>
+                    {acts(r).invoice && (
+                      <Button size="sm" variant="ghost" aria-label={`Convert ${r.orderNo} to an invoice`} onClick={() => setConverting(r)}>
+                        <ReceiptText className="h-3.5 w-3.5" aria-hidden="true" />{noNotes ? "Convert to invoice" : "Create invoice"}
+                      </Button>
+                    )}
                     {acts(r).edit && <Button size="sm" variant="ghost" onClick={() => onEdit(r._id)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" />Edit</Button>}
                     {acts(r).delete && <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Delete</Button>}
                   </span>
@@ -171,6 +184,13 @@ export default function TradeOrderList({ kind, onOpen, onNew, onEdit, notify, re
           />
         )}
       </Panel>
+
+      {converting && (
+        <OrderInvoiceDialog
+          order={converting} kind={kind} whole={noNotes} notify={notify} onClose={() => setConverting(null)}
+          onDone={(r) => { setConverting(null); navigate(`${kind === "sales" ? "/sales-order" : "/purchase-order"}?search=${encodeURIComponent(r.invoice.transactionNo)}`); }}
+        />
+      )}
 
       {removing && (
         <ConfirmDialog

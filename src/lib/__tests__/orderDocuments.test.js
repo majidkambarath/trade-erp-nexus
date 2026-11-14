@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  allowOrderActions, allowReceiptActions, orderStatusLabel, receiptStatusLabel, progressTone, receiptInvoiceBlocker,
+  allowOrderActions, allowReceiptActions, orderProgressLabel, orderStatusLabel, receiptStatusLabel, progressTone, receiptInvoiceBlocker,
   receiveRows, validateReceive, receivePayload, newOrderForm, newReceiptForm, RECEIPT_TABS, ORDER_TABS,
 } from "../orderDocuments";
 
@@ -143,5 +143,27 @@ describe("blank forms", () => {
     const f = newReceiptForm();
     expect(f).toMatchObject({ partyType: "Vendor", vendorDeliveryNo: "", vehicleNo: "", driverName: "", items: [] });
     expect(f.date).toBeTruthy();
+  });
+});
+
+describe("an organisation without delivery notes", () => {
+  const actions = { confirm: false, receive: true, invoice: false, invoiceOrder: true };
+
+  it("offers the whole-order invoice as the invoice action, to a holder of sales.approve", () => {
+    expect(allowOrderActions(actions, grants("sales.approve"), "sales", { deliveryNotes: false })).toMatchObject({ receive: false, invoice: true });
+    expect(allowOrderActions(actions, grants("sales.view"), "sales", { deliveryNotes: false }).invoice).toBe(false);
+    // with delivery notes the server's own `invoice` (something delivered) still decides
+    expect(allowOrderActions(actions, grants("sales.approve"), "sales").invoice).toBe(false);
+  });
+
+  it("words a sales order's progress as Uninvoiced, Invoice drafted and Invoiced, never Not delivered", () => {
+    const order = (label, totals = {}, line = {}) => ({ kind: "sales", progress: { label, totals: { invoiced: 0, ...totals }, lines: { a: { draftInvoice: 0, ...line } } } });
+    const off = { deliveryNotes: false };
+    expect(orderProgressLabel(order("Not delivered"), off)).toBe("Uninvoiced");
+    expect(orderProgressLabel(order("Fully delivered", {}, { draftInvoice: 5 }), off)).toBe("Invoice drafted");
+    expect(orderProgressLabel(order("Invoiced", { invoiced: 5 }), off)).toBe("Invoiced");
+    expect(orderProgressLabel(order("Not delivered"))).toBe("Not delivered");
+    expect(orderProgressLabel({ ...order("Not received"), kind: "purchase" }, off)).toBe("Not received");
+    expect(progressTone("Invoice drafted")).toBe("info");
   });
 });

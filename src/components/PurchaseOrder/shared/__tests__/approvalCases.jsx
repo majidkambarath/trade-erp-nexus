@@ -135,7 +135,7 @@ export function approvalCases(config) {
     it("says it was approved when it was", async () => {
       await show(person(), [raw("a")]);
       await press("a");
-      expect(await screen.findByText(/(approved|confirmed) successfully/i)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/(approved|confirmed) successfully/i)).toBeInTheDocument()); // the list refreshes in place now, so wait on the assertion, not on one node
       expect(processed()).toEqual(["/transactions/transactions/a/process"]);
       expect(api.patch).toHaveBeenCalledWith("/transactions/transactions/a/process", { action: "approve" });
     });
@@ -146,7 +146,7 @@ export function approvalCases(config) {
       api.patch.mockResolvedValue(FIRST_OF_TWO);
       // the server now has the first approval; the list read after it shows the badge
       await press("big");
-      expect(await screen.findByText(FIRST_APPROVAL_MESSAGE)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(FIRST_APPROVAL_MESSAGE)).toBeInTheDocument()); // the list refreshes in place now, so wait on the assertion, not on one node
       expect(screen.queryByText(/(approved|confirmed) successfully/i)).toBeNull();
       await waitFor(() => expect(api.get.mock.calls.filter((c) => isList(c[0])).length).toBeGreaterThan(before));
     });
@@ -158,7 +158,7 @@ export function approvalCases(config) {
         return FIRST_OF_TWO;
       });
       await press("big");
-      expect(await screen.findByText(FIRST_APPROVAL_MESSAGE)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(FIRST_APPROVAL_MESSAGE)).toBeInTheDocument()); // the list refreshes in place now, so wait on the assertion, not on one node
       await waitFor(() => expect(badge("big", "table")).toBeInTheDocument());
       expect(confirmButton("big", "table")).toBeNull(); // they gave the first; a different person gives the second
     });

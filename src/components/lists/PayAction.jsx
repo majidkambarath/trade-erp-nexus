@@ -44,7 +44,7 @@ function Button({ doc, sales, partyId, variant = "icon", className, go: move }) 
       {variant === "card" ? (
         <button
           type="button" onClick={go} aria-label={`${label} for ${no}`}
-          className={cn("flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border", className)}
+          className={cn("flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border", className)}
         >
           <Wallet className="w-4 h-4" aria-hidden="true" />
           <span className="text-sm">{label}</span>
@@ -52,7 +52,7 @@ function Button({ doc, sales, partyId, variant = "icon", className, go: move }) 
       ) : (
         <button
           type="button" onClick={go} aria-label={`${label} for ${no}`} title={label}
-          className={cn("grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors", className)}
+          className={cn("grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors", className)}
         >
           <Wallet className="w-4 h-4" aria-hidden="true" />
         </button>

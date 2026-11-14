@@ -1,4 +1,5 @@
 import PayAction from "../../lists/PayAction";
+import ApproveButton from "../../lists/ApproveButton";
 import React from "react";
 import {
   ChevronUp,
@@ -142,21 +143,21 @@ const GridView = ({
                     setSelectedSO(so);
                     setActiveView("invoice");
                   }}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <Eye className="w-4 h-4" />
                   <span className="text-sm">View</span>
                 </button>
                 <button
                   onClick={() => onDownloadInternal && onDownloadInternal(so)}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">Download</span>
                 </button>
                 <button
                   onClick={() => onDownloadCustomer && onDownloadCustomer(so)}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <FileText className="w-4 h-4" />
                   <span className="text-sm">Customer copy</span>
@@ -166,7 +167,7 @@ const GridView = ({
                   <Can permission="sales.send" feature="messaging">
                     <button
                       type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                     >
                       <Send className="w-4 h-4" />
                       <span className="text-sm">Send</span>
@@ -175,7 +176,7 @@ const GridView = ({
                 )}
                 <button
                   onClick={() => onShowAudit && onShowAudit(so)}
-                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                  className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                 >
                   <History className="w-4 h-4" />
                   <span className="text-sm">Audit trail</span>
@@ -183,7 +184,7 @@ const GridView = ({
                 {onDeliveryNote && ["DRAFT", "APPROVED"].includes(so.status) && !so.isOpening && !so.closedShort && (
                   <button
                     onClick={() => onDeliveryNote(so)}
-                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                    className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                   >
                     <Truck className="w-4 h-4" />
                     <span className="text-sm">Delivery note</span>
@@ -193,7 +194,7 @@ const GridView = ({
                   <Can permission="sales.edit">
                     <button
                       onClick={() => editSO(so)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                     >
                       <Edit3 className="w-4 h-4" />
                       <span className="text-sm">Edit</span>
@@ -205,20 +206,20 @@ const GridView = ({
               <div className="flex flex-wrap gap-2">
                 {so.status === "DRAFT" && stateOf(so).canApprove && (
                   <Can permission="sales.approve">
-                    <button
+                    <ApproveButton id={so.id}
                       onClick={() => confirmSO(so.id)}
                       className="flex items-center space-x-1 px-3 py-2 bg-foreground text-background rounded-full hover:opacity-90 transition-colors"
                     >
                       <ConfirmIcon className="w-4 h-4" />
                       <span className="text-sm">Confirm</span>
-                    </button>
+                    </ApproveButton>
                   </Can>
                 )}
                 {(so.status === "DRAFT" || so.status === "APPROVED") && (
                   <Can permission={deleteKey("sales", so.status === "APPROVED")}>
                     <button
                       onClick={() => deleteSO(so.id)}
-                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-muted transition-colors border border-border"
+                      className="flex items-center space-x-1 px-3 py-2 bg-secondary text-foreground rounded-full hover:bg-accent transition-colors border border-border"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span className="text-sm">Delete</span>
