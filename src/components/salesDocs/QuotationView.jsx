@@ -138,7 +138,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
       {dialog === "accept" && (
         <ActionModal
           title={`${q.quotationNo} accepted`} confirmLabel="Record acceptance" busy={action.busy} problem={action.problem} onClose={close}
-          description="The customer said yes. You can then convert it to a sales order, or deliver first and invoice after."
+          description={featureOn("deliveryNotes") ? "The customer said yes. You can then convert it to a sales order, or deliver first and invoice after." : "The customer said yes. You can then convert it to a sales order or straight to an invoice."}
           onConfirm={() => finish(() => quotations.accept(q._id, { acceptedBy: form.acceptedBy }), `${q.quotationNo} accepted`)}
         >
           <Field label="Accepted by" hint="Who at the customer, or their LPO number. Optional.">
@@ -171,7 +171,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
           <Field label="Delivery date the customer asked for" hint="Optional.">
             <DateInput value={form.expectedDate} onChange={(e) => setForm({ ...form, expectedDate: e.target.value })} />
           </Field>
-          <Note>Confirm the order, then deliver against it in as many parts as you like. The invoice is raised from what was actually delivered.</Note>
+          <Note>{featureOn("deliveryNotes") ? "Confirm the order, then deliver against it in as many parts as you like. The invoice is raised from what was actually delivered." : "Confirm the order, then convert it to an invoice from the Orders list."}</Note>
         </ActionModal>
       )}
 
@@ -184,7 +184,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
           <Field label="Invoice date" hint="Priced at the tax rates in force on this date.">
             <DateInput value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
           </Field>
-          <Note>Nothing moves in stock or the ledger until you approve it, which is when it becomes the tax invoice. For goods going out in stages, convert the offer to a sales order instead.</Note>
+          <Note>Nothing moves in stock or the ledger until you approve it, which is when it becomes the tax invoice. {featureOn("deliveryNotes") ? "For goods going out in stages, convert the offer to a sales order instead." : "To keep a commitment before invoicing, convert the offer to a sales order instead."}</Note>
         </ActionModal>
       )}
 

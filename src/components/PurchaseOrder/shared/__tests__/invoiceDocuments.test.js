@@ -358,3 +358,14 @@ describe("the seller's own registration decides the heading", () => {
     expect(buildSalesDocument(sale, walkIn, { vatNumber: "100000000000003", vatRegistered: false }, "AED").sheet.title).toBe("Invoice");
   });
 });
+
+describe("the sales order an invoice was converted from", () => {
+  const cust = { customerId: "C1", customerName: "Ali Hassan" };
+  const base = { transactionNo: "SO-2026-0027", status: "DRAFT", date: "2026-11-12", items };
+
+  it("prints its number as Sales order no., and nothing on an invoice that was not converted", () => {
+    const d = buildSalesDocument({ ...base, tradeOrderRef: { orderNo: "SORD-2026-0001" } }, cust, company, "AED");
+    expect(d.sheet.meta).toContainEqual(["Sales order no.", "SORD-2026-0001"]);
+    expect(row(buildSalesDocument(base, cust, company, "AED").sheet.meta, "Sales order no.")).toBeUndefined();
+  });
+});

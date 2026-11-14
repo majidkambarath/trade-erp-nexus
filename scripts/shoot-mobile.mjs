@@ -282,10 +282,10 @@ const DEEP = {
   ],
   // The sales order list and the invoice behind a row. Send is a VISIBLE control on the row and the card, and
   // on the document screen; the dialog behind it is a form someone fills in on a phone.
-  // The page opens on its dashboard, so the first tap is "View all invoices". A row's View is the eye (labelled
+  // The page opens on its dashboard, so there is no tap first (it opens on the list). A row's View is the eye (labelled
   // with the number) on a wide screen and the word View on a card, so the match is "View" then a number or the end.
   "sales-invoices": [
-    { name: "list", page: true, clicks: ["^View all invoices"], settle: 1200 },
+    { name: "list", page: true, clicks: [], settle: 1200 },
     // Zarvia AI opens from the top bar on every screen, so it is measured on this one: the panel
     // with its suggestions, then a real exchange with its citation and its link button.
     { name: "assistant", clicks: ["^Ask Zarvia AI$"], settle: 900 },
@@ -293,33 +293,33 @@ const DEEP = {
     // double-quoted string "\?" collapses to "?", which the engine then reads as a quantifier - so the step
     // silently matched nothing and skipped. A character class cannot lose its meaning that way.
     { name: "assistant-answer", clicks: ["^Ask Zarvia AI$", "^How do I raise an invoice[?]$"], settle: 1100 },
-    { name: "document", page: true, clicks: ["^View all invoices", "^View( [A-Z0-9]|$)"], settle: 1600 },
-    { name: "send", clicks: ["^View all invoices", "^View( [A-Z0-9]|$)", "^Send$"], settle: 1800 },
-    { name: "send-row", clicks: ["^View all invoices", "^Send (SO|[0-9])"], settle: 1600 },
-    { name: "history", clicks: ["^View all invoices", "^View( [A-Z0-9]|$)", "^Send history$"], settle: 1500 },
+    { name: "document", page: true, clicks: ["^View( [A-Z0-9]|$)"], settle: 1600 },
+    { name: "send", clicks: ["^View( [A-Z0-9]|$)", "^Send$"], settle: 1800 },
+    { name: "send-row", clicks: ["^Send (SO|[0-9])"], settle: 1600 },
+    { name: "history", clicks: ["^View( [A-Z0-9]|$)", "^Send history$"], settle: 1500 },
     // the audit trail, from the button on a card
-    { name: "audit", cards: true, clicks: ["^View all invoices", "^Audit trail$"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^Audit trail$"], settle: 1600 },
     // the entry form behind the Add button, and a second line added on it: the form a phone has to fill in
     { name: "form", page: true, clicks: ["^New sales invoice"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New sales invoice", "^Add line"], settle: 1300 },
   ],
   // The other three order modules have the same dashboard-then-list shape, the same cards, and the same dialogs behind them.
   "purchase-invoices": [
-    { name: "list", page: true, clicks: ["^View all purchase invoices"], settle: 1200 },
-    { name: "document", cards: true, page: true, clicks: ["^View all purchase invoices", "^View( [A-Z0-9]|$)"], settle: 1600 },
-    { name: "audit", cards: true, clicks: ["^View all purchase invoices", "^Audit trail$"], settle: 1600 },
+    { name: "list", page: true, clicks: [], settle: 1200 },
+    { name: "document", cards: true, page: true, clicks: ["^View( [A-Z0-9]|$)"], settle: 1600 },
+    { name: "audit", cards: true, clicks: ["^Audit trail$"], settle: 1600 },
     { name: "form", page: true, clicks: ["^New purchase invoice"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New purchase invoice", "^Add line"], settle: 1300 },
   ],
   "sales-returns": [
-    { name: "list", page: true, clicks: ["^View all sales returns"], settle: 1200 },
-    { name: "audit", cards: true, clicks: ["^View all sales returns", "^Audit trail$"], settle: 1600 },
+    { name: "list", page: true, clicks: [], settle: 1200 },
+    { name: "audit", cards: true, clicks: ["^Audit trail$"], settle: 1600 },
     { name: "form", page: true, clicks: ["^New sales return"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New sales return", "^Add line"], settle: 1300 },
   ],
   "purchase-returns": [
-    { name: "list", page: true, clicks: ["^View all purchase returns"], settle: 1200 },
-    { name: "audit", cards: true, clicks: ["^View all purchase returns", "^Audit trail$"], settle: 1600 },
+    { name: "list", page: true, clicks: [], settle: 1200 },
+    { name: "audit", cards: true, clicks: ["^Audit trail$"], settle: 1600 },
     { name: "form", page: true, clicks: ["^New purchase return"], settle: 1600 },
     { name: "form-add-line", page: true, clicks: ["^New purchase return", "^Add line"], settle: 1300 },
   ],

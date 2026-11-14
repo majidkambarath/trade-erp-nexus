@@ -1,4 +1,5 @@
 import PayAction from "../../lists/PayAction";
+import ApproveButton from "../../lists/ApproveButton";
 import React from "react";
 import {
   ChevronUp,
@@ -241,7 +242,7 @@ const TableView = ({
                       <Can permission="sales.send" feature="messaging">
                         <button
                           type="button" onClick={() => onSendDocument(so)} aria-label={`Send ${so.transactionNo} to the customer`}
-                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Send to the customer"
                         >
                           <Send className="w-4 h-4" />
@@ -254,7 +255,7 @@ const TableView = ({
                         setSelectedSO(so);
                         setActiveView("invoice");
                       }}
-                      className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                      className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                       title="View Details"
                       aria-label={`View ${so.transactionNo}`}
                     >
@@ -264,7 +265,7 @@ const TableView = ({
                       <Can permission="sales.edit">
                         <button
                           onClick={() => editSO(so)}
-                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Edit"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -273,13 +274,13 @@ const TableView = ({
                     )}
                     {so.status === "DRAFT" && stateOf(so).canApprove && (
                       <Can permission="sales.approve">
-                        <button
+                        <ApproveButton id={so.id}
                           onClick={() => confirmSO(so.id)}
-                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Confirm"
                         >
                           <CheckSquare className="w-4 h-4" />
-                        </button>
+                        </ApproveButton>
                       </Can>
                     )}
                     <RowMenu>

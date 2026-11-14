@@ -5,7 +5,7 @@ import InvoiceScreen from "../PurchaseOrder/shared/InvoiceScreen";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { DateInput, ErrorNote, Field, Panel, Pill, Spinner, Textarea, TextInput, useAsync } from "../accounting/kit";
 import { tradeOrders } from "../../lib/orderDocumentsApi";
-import { allowOrderActions, orderStatusLabel, progressTone } from "../../lib/orderDocuments";
+import { allowOrderActions, orderProgressLabel, orderStatusLabel, progressTone } from "../../lib/orderDocuments";
 import { formatQty, todayInput } from "../../utils/format";
 import { buildTradeOrderDocument } from "./documents";
 import { ActionModal, ActivityList, Note } from "../salesDocs/parts";
@@ -13,8 +13,8 @@ import { useDocumentAction } from "./hooks";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { orgCurrency } from "../../utils/orgLocale";
 import { applyAfterSave } from "../../lib/processTransaction";
-import { createThenApprove, invoiceConfirmLabel, invoiceNote, orderSteps } from "../../lib/invoiceFlow";
-import ApproveNow from "./ApproveNow";
+import { orderSteps } from "../../lib/invoiceFlow";
+import OrderInvoiceDialog from "./OrderInvoiceDialog";
 import { payHref } from "../lists/PayAction";
 import OrderProgress from "./OrderProgress";
 import OrderInvoices from "./OrderInvoices";
@@ -35,6 +35,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   // out of the "what next" pick at once - the server cannot help, since its own actions.receive is true whatever
   // the plan. A purchase order receives through a goods receipt, which is not an optional feature.
   const flow = { deliveryNotes: featureOn("deliveryNotes") };
+  const noNotes = sales && !flow.deliveryNotes;
   const company = useCompanyProfile();
   const currency = orgCurrency();
   const { data: order, loading, error, reload } = useAsync(() => tradeOrders.get(id), [id]);
@@ -52,7 +53,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   const open = (name) => { setForm({ reason: "", date: todayInput(), vendorInvoiceNo: "", approveNow: true }); action.clear(); setDialog(name); };
   const close = () => { setDialog(null); action.clear(); };
 
-  const doc = useMemo(() => (order ? buildTradeOrderDocument(order, order.party || {}, company, currency) : null), [order, company, currency]);
+  const doc = useMemo(() => (order ? buildTradeOrderDocument(order, order.party || {}, company, currency, { deliveryNotes: !noNotes || !sales }) : null), [order, company, currency, noNotes, sales]);
 
   if (loading && !order) return <div className="p-8"><Spinner label="Loading order" /></div>;
   if (error) return <div className="mx-auto max-w-3xl p-6"><ErrorNote error={error} onRetry={reload} /></div>;
@@ -93,7 +94,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
       {A.confirm && btn("confirm", "Confirm order", Check, () => open("confirm"))}
       {A.receive && sales && btn("receive", "Create delivery note", Truck, () => navigate(`/delivery-notes?tradeOrder=${order._id}`))}
       {A.receive && !sales && btn("receive", "Receive goods", Truck, () => navigate(`/goods-received?order=${order._id}`))}
-      {A.invoice && btn("invoice", "Create invoice", FileText, () => open("invoice"))}
+      {A.invoice && btn("invoice", noNotes ? "Convert to invoice" : "Create invoice", FileText, () => open("invoice"))}
       {A.close && btn("close", "Close order", Lock, () => open("close"))}
       {A.reopen && btn("reopen", "Reopen", RotateCcw, () => open("reopen"))}
       {A.cancel && btn("cancel", "Cancel order", Ban, () => open("cancel"))}
@@ -104,14 +105,17 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   const p = order.progress;
   const lineRows = (order.items || []).map((l) => ({ line: l, p: p.lines[String(l._id)] || {} }));
   const got = sales ? "Delivered" : "Received";
+  const progressWord = orderProgressLabel(order, flow);
   const banner = (
     <div className="space-y-2">
       <OrderProgress model={model} />
       {order.status === "DRAFT" && <Note>A draft order posts nothing and cannot be {sales ? "delivered against" : "received against"} until it is confirmed.</Note>}
       {["CONFIRMED", "CLOSED"].includes(order.status) && (
         <Note>
-          <Pill tone={progressTone(p.label)} className="me-2">{p.label}</Pill>
-          Nothing is in the accounts yet: stock and the ledger move when the invoice made from what was {sales ? "delivered" : "received"} is approved.
+          <Pill tone={progressTone(progressWord)} className="me-2">{progressWord}</Pill>
+          {noNotes
+            ? "Nothing is in the accounts yet: stock and the ledger move when the invoice made from this order is approved."
+            : `Nothing is in the accounts yet: stock and the ledger move when the invoice made from what was ${sales ? "delivered" : "received"} is approved.`}
         </Note>
       )}
       {order.status === "CLOSED" && order.closeReason && <Note>Closed: {order.closeReason}</Note>}
@@ -122,7 +126,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
   const footer = (
     <div className="space-y-5">
       <OrderInvoices invoices={order.invoices} sales={sales} canApprove={mayApprove} approving={approving} onApprove={approveInvoice} onPay={payInvoice} />
-      {["CONFIRMED", "CLOSED"].includes(order.status) && (
+      {["CONFIRMED", "CLOSED"].includes(order.status) && !noNotes && (
         <Panel title="Progress" description={`What has been ${got.toLowerCase()} and invoiced against each line.`} bodyClassName="p-0">
           <div className="erp-scroll table-pin-first overflow-x-auto">
             <table className="w-full text-sm" aria-label="Progress by line">
@@ -180,30 +184,7 @@ export default function TradeOrderView({ kind, id, onBack, onEdit, onChanged, no
         />
       )}
       {dialog === "invoice" && (
-        <ActionModal
-          title={`Create the invoice for ${order.orderNo}?`} confirmLabel={invoiceConfirmLabel(form.approveNow)} busy={action.busy} problem={action.problem} onClose={close}
-          description={`One invoice for everything ${sales ? "delivered" : "received"} on this order and not yet invoiced.`}
-          onConfirm={() =>
-            finish(
-              () =>
-                createThenApprove(
-                  (body) => tradeOrders.invoice(order._id, body),
-                  { date: form.date, approveNow: form.approveNow, ...(sales ? {} : { vendorInvoiceNo: form.vendorInvoiceNo }) },
-                  (r) => r.invoice
-                ),
-              (r) => invoiceNote(r.invoice.transactionNo, order.orderNo, r.approval),
-              () => { onChanged?.(); refresh(); }
-            )
-          }
-        >
-          <Field label="Invoice date"><DateInput value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} /></Field>
-          {!sales && (
-            <Field label="Vendor's invoice number" hint="As printed on the vendor's invoice. It is kept on the purchase invoice as the vendor reference.">
-              <TextInput value={form.vendorInvoiceNo} onChange={(e) => setForm((f) => ({ ...f, vendorInvoiceNo: e.target.value }))} />
-            </Field>
-          )}
-          <ApproveNow value={form.approveNow} onChange={(approveNow) => setForm((f) => ({ ...f, approveNow }))} />
-        </ActionModal>
+        <OrderInvoiceDialog order={order} kind={kind} whole={noNotes} notify={notify} onClose={close} onDone={() => { close(); onChanged?.(); refresh(); }} />
       )}
       {(dialog === "close" || dialog === "cancel") && (
         <ActionModal

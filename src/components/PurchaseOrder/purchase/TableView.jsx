@@ -1,4 +1,5 @@
 import PayAction from "../../lists/PayAction";
+import ApproveButton from "../../lists/ApproveButton";
 import React from "react";
 import {
   Eye,
@@ -172,7 +173,7 @@ const TableView = ({
                         setSelectedPO(po);
                         setActiveView("invoice");
                       }}
-                      className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                      className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                       title="View Details"
                     >
                       <Eye className="w-4 h-4" />
@@ -182,7 +183,7 @@ const TableView = ({
                       <Can permission="purchase.edit">
                         <button
                           onClick={() => editPO(po)}
-                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-muted-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Edit"
                         >
                           <Edit3 className="w-4 h-4" />
@@ -193,13 +194,13 @@ const TableView = ({
                     {/* F15 (finance QA review, 1 Nov 2026): a document is created DRAFT - "PENDING" never occurs - so Approve never showed here */}
                     {po.status === "DRAFT" && stateOf(po).canApprove && (
                       <Can permission="purchase.approve">
-                        <button
+                        <ApproveButton id={po.id}
                           onClick={() => approvePO(po.id)}
-                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-secondary rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
+                          className="grid min-h-10 min-w-10 place-items-center p-1.5 text-foreground hover:bg-card hover:text-foreground hover:shadow-sm hover:ring-1 hover:ring-border cursor-pointer rounded-full lg:min-h-0 lg:min-w-0 transition-colors"
                           title="Approve"
                         >
                           <CheckSquare className="w-4 h-4" />
-                        </button>
+                        </ApproveButton>
                       </Can>
                     )}
 

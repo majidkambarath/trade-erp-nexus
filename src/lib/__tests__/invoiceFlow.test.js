@@ -104,3 +104,23 @@ describe("orderSteps", () => {
     expect(orderSteps(null)).toEqual({ steps: [], next: null });
   });
 });
+
+describe("orderSteps without delivery notes", () => {
+  const order = (over = {}) => ({ kind: "sales", status: "CONFIRMED", progress: { lines: { l1: { ordered: 10, received: 0 } } }, invoices: [], actions: { invoiceOrder: true }, ...over });
+  const off = { deliveryNotes: false };
+
+  it("has no Delivered step: Confirmed, Invoiced, Approved, Paid", () => {
+    expect(orderSteps(order(), off).steps.map((s) => s.key)).toEqual(["confirmed", "invoiced", "approved", "paid"]);
+    expect(orderSteps(order()).steps.map((s) => s.key)).toContain("got");
+  });
+
+  it("points a confirmed order at converting it to an invoice, then at approving the draft", () => {
+    expect(orderSteps(order(), off).next).toEqual({ key: "invoice", text: "Convert to invoice" });
+    const drafted = orderSteps(order({ actions: {}, invoices: [{ id: "i", no: "SO-9", status: "DRAFT" }] }), off);
+    expect(drafted.next).toEqual({ key: "approve", text: "Approve SO-9" });
+  });
+
+  it("a purchase order keeps its Received step", () => {
+    expect(orderSteps(order({ kind: "purchase" }), off).steps.map((s) => s.key)).toContain("got");
+  });
+});

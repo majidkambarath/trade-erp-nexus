@@ -1,4 +1,5 @@
 import React from "react";
+import ApproveButton from "../../lists/ApproveButton";
 import {
   ChevronUp,
   ChevronDown,
@@ -251,13 +252,13 @@ const TableView = ({
                     {/* F15 (finance QA review, 1 Nov 2026): a document is created DRAFT - "PENDING" never occurs - so Approve never showed here */}
                     {po.status === "DRAFT" && stateOf(po).canApprove && (
                       <Can permission="purchase.approve">
-                        <button
+                        <ApproveButton id={po.id}
                           onClick={() => approvePO(po.id)}
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="Approve"
                         >
                           <CheckSquare className="w-4 h-4" />
-                        </button>
+                        </ApproveButton>
                       </Can>
                     )}
                     <RowMenu

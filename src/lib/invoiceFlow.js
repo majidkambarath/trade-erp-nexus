@@ -40,12 +40,13 @@ export const invoiceConfirmLabel = (approveNow) => (approveNow ? "Create and app
 
 const TOL = 0.005;
 
-// `opts.deliveryNotes: false` leaves the "Delivered" STEP in place - the goods genuinely have not gone out, and the
-// Invoiced / Approved / Paid steps are read from it - and drops only the instruction nobody could follow, since
-// delivering against a sales order raises a delivery note.
+// `opts.deliveryNotes: false` removes the "Delivered" STEP altogether (an organisation without delivery notes has
+// nothing to deliver against) and the instruction to deliver; the order is invoiced whole instead.
 export function orderSteps(order, opts = {}) {
   if (!order) return { steps: [], next: null };
   const sales = order.kind === "sales";
+  // No delivery notes: there is no delivery to track, so a sales order goes Confirmed > Invoiced > Approved > Paid.
+  const noDelivery = sales && opts.deliveryNotes === false;
   const got = sales ? "Delivered" : "Received";
   const lines = Object.values(order.progress?.lines || {});
   const ordered = lines.reduce((t, l) => t + (Number(l.ordered) || 0), 0);
@@ -64,7 +65,7 @@ export function orderSteps(order, opts = {}) {
 
   const flags = [
     { key: "confirmed", label: "Confirmed", done: confirmed },
-    { key: "got", label: gotAll ? got : gotSome ? `Partly ${got.toLowerCase()}` : got, done: gotAll, part: gotSome && !gotAll },
+    ...(noDelivery ? [] : [{ key: "got", label: gotAll ? got : gotSome ? `Partly ${got.toLowerCase()}` : got, done: gotAll, part: gotSome && !gotAll }]),
     { key: "invoiced", label: "Invoiced", done: invoicedSome },
     { key: "approved", label: "Approved", done: allApproved, part: approved.length > 0 && draft.length > 0 },
     { key: "paid", label: "Paid", done: settled && allApproved, part: approved.some((i) => (Number(i.paidAmount) || 0) > TOL) && !settled },
@@ -79,7 +80,7 @@ export function orderSteps(order, opts = {}) {
     if (order.status === "DRAFT") next = { key: "confirm", text: "Confirm the order" };
     else if (draft.length) next = { key: "approve", text: draft.length === 1 ? `Approve ${draft[0].no}` : `Approve ${draft.length} draft invoices` };
     else if (!gotAll && order.status === "CONFIRMED" && !(sales && opts.deliveryNotes === false)) next = { key: "receive", text: sales ? "Deliver the goods" : "Receive the goods" };
-    if (!next && order.status === "CONFIRMED" && order.actions?.invoice) next = { key: "invoice", text: "Create the invoice" };
+    if (!next && order.status === "CONFIRMED" && (noDelivery ? order.actions?.invoiceOrder : order.actions?.invoice)) next = { key: "invoice", text: noDelivery ? "Convert to invoice" : "Create the invoice" };
     if (!next && approved.length && !settled) next = { key: "pay", text: sales ? "Receive payment" : "Make payment" };
   }
   return { steps, next, cancelled };
