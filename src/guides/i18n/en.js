@@ -7,6 +7,7 @@ import buy from "./buy/en";
 import stock from "./stock/en";
 import money from "./money/en";
 import accounts from "./accounts/en";
+import reports from "./reports/en";
 
 export default {
   ...sell,
@@ -14,6 +15,7 @@ export default {
   ...stock,
   ...money,
   ...accounts,
+  ...reports,
   reviewed: true,
 
   ui: {

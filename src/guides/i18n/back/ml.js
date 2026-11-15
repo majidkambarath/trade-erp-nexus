@@ -6,6 +6,7 @@ import buy from "./buy/ml";
 import stock from "./stock/ml";
 import money from "./money/ml";
 import accounts from "./accounts/ml";
+import reports from "./reports/ml";
 
 export default {
   ...sell,
@@ -13,6 +14,7 @@ export default {
   ...stock,
   ...money,
   ...accounts,
+  ...reports,
   "flow.add-customer": { title: "Add a customer", text: "The person or company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We have opened the page." },
   "add-customer.add": { title: "Add the customer", text: "Press [[Add Customer]]." },

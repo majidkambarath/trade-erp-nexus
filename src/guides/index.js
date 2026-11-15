@@ -1,5 +1,6 @@
 // The guides: which flows exist, which the person may run, and their words.
 import { addCustomer, addVendor, addItem } from "./flows/masters";
+import { readProfitAndLoss, readAgeing, customerStatement, readStockReports, readVatReturn, readLedgerAndDayBook, readPartyBalances, readTradeAnalysis, readDashboard } from "./flows/reports";
 import { addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour } from "./flows/accounts";
 import { recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation } from "./flows/money";
 import { recordMovement, writeOffStock, addCategory, addUnit } from "./flows/stock";
@@ -7,7 +8,7 @@ import { createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseIn
 import { createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment } from "./flows/sell";
 import en from "./i18n/en";
 
-export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn, recordMovement, writeOffStock, addCategory, addUnit, recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation, addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour];
+export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn, recordMovement, writeOffStock, addCategory, addUnit, recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation, addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour, readProfitAndLoss, readAgeing, customerStatement, readStockReports, readVatReturn, readLedgerAndDayBook, readPartyBalances, readTradeAnalysis, readDashboard];
 export const LANGS = [
   { code: "en", label: "English", short: "EN", dir: "ltr" },
   { code: "ar", label: "العربية", short: "AR", dir: "rtl" },
