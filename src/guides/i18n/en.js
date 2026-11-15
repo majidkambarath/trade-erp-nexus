@@ -8,6 +8,7 @@ import stock from "./stock/en";
 import money from "./money/en";
 import accounts from "./accounts/en";
 import reports from "./reports/en";
+import settings from "./settings/en";
 
 export default {
   ...sell,
@@ -16,6 +17,7 @@ export default {
   ...money,
   ...accounts,
   ...reports,
+  ...settings,
   reviewed: true,
 
   ui: {
@@ -55,6 +57,8 @@ export default {
     "groupHint.accounts": "Chart, set-up and closing",
     "group.reports": "Reports",
     "groupHint.reports": "Read and share your figures",
+    "group.settings": "Set up your company",
+    "groupHint.settings": "Settings, tax and your team",
     "group.other": "More guides",
     "groupHint.other": "Everything else",
   },

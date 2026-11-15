@@ -9,6 +9,7 @@ import stock from "./stock/hi";
 import money from "./money/hi";
 import accounts from "./accounts/hi";
 import reports from "./reports/hi";
+import settings from "./settings/hi";
 
 export default {
   ...sell,
@@ -17,6 +18,7 @@ export default {
   ...money,
   ...accounts,
   ...reports,
+  ...settings,
   reviewed: false,
 
   ui: {
@@ -56,6 +58,8 @@ export default {
     "groupHint.accounts": "चार्ट, सेट-अप और क्लोज़िंग",
     "group.reports": "रिपोर्ट",
     "groupHint.reports": "अपने आँकड़े पढ़ें और साझा करें",
+    "group.settings": "अपनी कंपनी सेट करें",
+    "groupHint.settings": "सेटिंग्स, टैक्स और आपकी टीम",
     "group.other": "और गाइड",
     "groupHint.other": "बाकी सब",
   },

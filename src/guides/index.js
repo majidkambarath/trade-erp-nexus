@@ -6,9 +6,10 @@ import { recordExpense, journalEntry, contraTransfer, creditDebitNote, followChe
 import { recordMovement, writeOffStock, addCategory, addUnit } from "./flows/stock";
 import { createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn } from "./flows/buy";
 import { createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment } from "./flows/sell";
+import { setUpCompany, taxIdentityTour, creditAndApprovalsTour, invoiceBankDetails, preferencesTour, securityTour, sendingSetupTour, branchesTour, addColleague, rolesTour } from "./flows/settings";
 import en from "./i18n/en";
 
-export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn, recordMovement, writeOffStock, addCategory, addUnit, recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation, addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour, readProfitAndLoss, readAgeing, customerStatement, readStockReports, readVatReturn, readLedgerAndDayBook, readPartyBalances, readTradeAnalysis, readDashboard];
+export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn, recordMovement, writeOffStock, addCategory, addUnit, recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation, addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour, readProfitAndLoss, readAgeing, customerStatement, readStockReports, readVatReturn, readLedgerAndDayBook, readPartyBalances, readTradeAnalysis, readDashboard, setUpCompany, taxIdentityTour, creditAndApprovalsTour, invoiceBankDetails, preferencesTour, securityTour, sendingSetupTour, branchesTour, addColleague, rolesTour];
 export const LANGS = [
   { code: "en", label: "English", short: "EN", dir: "ltr" },
   { code: "ar", label: "العربية", short: "AR", dir: "rtl" },

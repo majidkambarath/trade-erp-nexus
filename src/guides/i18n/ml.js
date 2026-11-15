@@ -9,6 +9,7 @@ import stock from "./stock/ml";
 import money from "./money/ml";
 import accounts from "./accounts/ml";
 import reports from "./reports/ml";
+import settings from "./settings/ml";
 
 export default {
   ...sell,
@@ -17,6 +18,7 @@ export default {
   ...money,
   ...accounts,
   ...reports,
+  ...settings,
   reviewed: false,
 
   ui: {
@@ -56,6 +58,8 @@ export default {
     "groupHint.accounts": "ചാർട്ട്, സെറ്റ്-അപ്പ്, ക്ലോസിംഗ്",
     "group.reports": "റിപ്പോർട്ടുകൾ",
     "groupHint.reports": "നിങ്ങളുടെ കണക്കുകൾ വായിക്കുക, പങ്കിടുക",
+    "group.settings": "നിങ്ങളുടെ കമ്പനി സജ്ജമാക്കുക",
+    "groupHint.settings": "സെറ്റിംഗ്സ്, ടാക്സ്, നിങ്ങളുടെ ടീം",
     "group.other": "കൂടുതൽ ഗൈഡുകൾ",
     "groupHint.other": "മറ്റെല്ലാം",
   },

@@ -9,6 +9,7 @@ import stock from "./stock/ar";
 import money from "./money/ar";
 import accounts from "./accounts/ar";
 import reports from "./reports/ar";
+import settings from "./settings/ar";
 
 export default {
   ...sell,
@@ -17,6 +18,7 @@ export default {
   ...money,
   ...accounts,
   ...reports,
+  ...settings,
   reviewed: false,
 
   ui: {
@@ -56,6 +58,8 @@ export default {
     "groupHint.accounts": "الدليل والإعداد والإقفال",
     "group.reports": "التقارير",
     "groupHint.reports": "اقرأ أرقامك وشاركها",
+    "group.settings": "إعداد شركتك",
+    "groupHint.settings": "الإعدادات والضريبة وفريقك",
     "group.other": "أدلة أخرى",
     "groupHint.other": "كل ما عدا ذلك",
   },
