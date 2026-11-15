@@ -92,6 +92,7 @@ const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.j
 const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
 const QuotationsPage = lazy(() => import("../components/salesDocs/QuotationsPage.jsx"));
 const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNotesPage.jsx"));
+const LearnPage = lazy(() => import("../components/learn/LearnPage.jsx"));
 const ApprovalsPage = lazy(() => import("../components/approvals/ApprovalsPage.jsx"));
 // The page a customer opens from an emailed link. Lazy, so no signed-in user pays for it, and outside both
 // the sign-in guard and the app shell, so it needs its own loading boundary (Layout owns the only other).
@@ -123,6 +124,7 @@ export default function AdminRouter() {
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/learn" element={<LearnPage />} />
         <Route path="/vendor-creation" element={<VendorCreation />} />
         <Route path="/customer-creation" element={<CustomerCreation />} />
         <Route path="/stock-item-creation" element={<StockCreation />} />

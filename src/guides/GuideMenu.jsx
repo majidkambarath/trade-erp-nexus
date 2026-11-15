@@ -1,7 +1,7 @@
 // "Guide me" in the top bar. A panel, not a flat list: the guides for the screen you are on first, a search box,
 // then every guide in its area with how many you have finished. The next unfinished guide is suggested.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Check, ChevronDown, LifeBuoy, Search, Sparkles, X } from "lucide-react";
 import { useGuides } from "./guideContext";
 import { ui, wording } from "./index";
@@ -154,6 +154,9 @@ export default function GuideMenu() {
               })}
             </>
           )}
+        </div>
+        <div className="border-t border-border p-1.5">
+          <Link to="/learn" onClick={() => setOpen(false)} className="block rounded-lg px-2.5 py-2 text-sm font-medium text-primary hover:bg-accent">{ui(table, "openLearn")}</Link>
         </div>
       </div>
     </div>

@@ -858,6 +858,9 @@ function stubFor(pathname, search = "") {
     return { items, counts: { total: items.length, unread: items.length }, capped: false };
   }
 
+  // The getting-started checklist (/learn): one step done, one still to do.
+  if (p.endsWith("/onboarding/checklist")) return { steps: [{ id: "customer", guide: "add-customer", done: true }, { id: "vendor", guide: "add-vendor", done: false }], complete: false };
+
   // The approvals list (/api/v1/approvals/waiting). The navigation badge asks the same route with ?countOnly=1 and reads `count`,
   // so the one answer carries both. Long names, a long narration and long reasons are the point: they are what clips on a card.
   if (p.endsWith("/approvals/waiting")) {
