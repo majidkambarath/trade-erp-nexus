@@ -10,6 +10,7 @@ import { useInstall } from "./InstallApp";
 import BranchSwitcher from "./BranchSwitcher";
 import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import NotificationBell from "./NotificationBell";
+import GuideMenu from "../../guides/GuideMenu";
 
 const isMac =
   typeof navigator !== "undefined" &&
@@ -143,6 +144,7 @@ export default function TopBar({ appName, profile, onLogout, onOpenSearch, onOpe
             <span className="sr-only">Ask Zarvia AI</span>
           </button>
         )}
+        <GuideMenu />
         <NotificationBell />
 
         <UserMenu profile={profile} onLogout={onLogout} />
