@@ -53,6 +53,7 @@ const read = () => page.evaluate(() => {
 });
 
 const log = [];
+const typed = new Set(); // a step is typed into once: a slow advance must not type it twice
 let last = null; let since = Date.now();
 for (let n = 0; n < 80; n += 1) {
   const s = await read();
@@ -71,7 +72,8 @@ for (let n = 0; n < 80; n += 1) {
     if (h) { await h.evaluate((e) => e.scrollIntoView({ block: "center" })); await wait(300); await h.click().catch(() => {}); await wait(700); }
   } else if (s.kind === "fill" && s.hasTarget) {
     const h = await page.$("[data-guide-current]");
-    if (h && s.sample) {
+    if (h && s.sample && !typed.has(s.step)) {
+      typed.add(s.step);
       if (s.tag === "SELECT") { const pick = await h.evaluate((e, want) => { const o = [...e.options].filter((x) => x.value); const hit = o.find((x) => want && (x.value.toLowerCase() === want.toLowerCase() || x.text.toLowerCase() === want.toLowerCase())); return (hit || o[0])?.value; }, s.sample); if (pick) await h.select(pick); }
       else if (s.tag === "INPUT" || s.tag === "TEXTAREA") {
         await h.click({ clickCount: 3 }).catch(() => {}); await h.type(s.sample, { delay: 15 }).catch(() => {});

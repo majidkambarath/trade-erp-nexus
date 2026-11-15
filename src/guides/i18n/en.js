@@ -5,11 +5,13 @@
 import sell from "./sell/en";
 import buy from "./buy/en";
 import stock from "./stock/en";
+import money from "./money/en";
 
 export default {
   ...sell,
   ...buy,
   ...stock,
+  ...money,
   reviewed: true,
 
   ui: {

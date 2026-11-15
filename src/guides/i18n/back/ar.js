@@ -4,11 +4,13 @@
 import sell from "./sell/ar";
 import buy from "./buy/ar";
 import stock from "./stock/ar";
+import money from "./money/ar";
 
 export default {
   ...sell,
   ...buy,
   ...stock,
+  ...money,
   "flow.add-customer": { title: "Adding a customer", text: "A person or a company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We opened the page for you." },
   "add-customer.add": { title: "Add the customer", text: "Press [[Add Customer]]." },
