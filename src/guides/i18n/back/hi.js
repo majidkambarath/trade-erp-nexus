@@ -1,7 +1,10 @@
 // What each Hindi line says, written back into English FROM THE HINDI (not copied from the English source), so
 // someone who reads no Hindi can compare the meaning. Same keys as en.js. An aid for reviewers, drafted by the same
 // AI that wrote the translation: it shows drift, it is not an independent native check.
+import sell from "./sell/hi";
+
 export default {
+  ...sell,
   "flow.add-customer": { title: "Add a customer", text: "The person or company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We have opened the page for you." },
   "add-customer.add": { title: "Add a customer", text: "Press [[Add Customer]]." },

@@ -2,7 +2,10 @@
 // A step: { title, text }. Keep a card to two short sentences: the person is looking at a screen, not a manual.
 // The other languages (ar.js, hi.js, ml.js) hold the SAME keys; guides.test.js fails when one is missing.
 
+import sell from "./sell/en";
+
 export default {
+  ...sell,
   reviewed: true,
 
   ui: {

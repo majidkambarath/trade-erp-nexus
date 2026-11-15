@@ -43,7 +43,7 @@ describe("the flows", () => {
 
   it("offer a person only what their role and plan allow", () => {
     const some = flowsFor({ mayUse: (p) => p === "sales.create" });
-    expect(some.map((f) => f.id)).toEqual(["add-customer"]);
+    expect(some.map((f) => f.id)).toEqual(["add-customer", "create-quotation", "create-sales-order"]);
     expect(flowsFor({ mayUse: () => false })).toEqual([]);
   });
 

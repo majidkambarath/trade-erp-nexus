@@ -3,7 +3,10 @@
 // and only the explanation is Arabic. Drafted with AI; `reviewed: false` makes the card say so until a native
 // speaker has read it and this is set to true.
 
+import sell from "./sell/ar";
+
 export default {
+  ...sell,
   reviewed: false,
 
   ui: {

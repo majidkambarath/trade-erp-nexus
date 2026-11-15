@@ -68,12 +68,19 @@ export function GuideProvider({ children }) {
     if (!step || !step.target) return undefined;
     let since = Date.now();
     let scrolled = false;
+    let skipped = false;
     const look = () => {
       const el = locate(document.body, step.target);
       if (elRef.current && elRef.current !== el) elRef.current.removeAttribute?.("data-guide-current");
       elRef.current = el;
       el?.setAttribute?.("data-guide-current", "");
-      if (!el) { setSpot(null); if (Date.now() - since > GIVE_UP_MS) setLost(true); return; }
+      if (!el) {
+        setSpot(null);
+        // `ifPresent`: a control that exists only in some states (Confirm order vanishes once confirmed): skip, never dead-end
+        if (step.ifPresent && Date.now() - since > 2500 && !skipped) { skipped = true; go(1); return; }
+        if (Date.now() - since > GIVE_UP_MS) setLost(true);
+        return;
+      }
       setLost(false);
       if (!scrolled) { scrolled = true; el.scrollIntoView?.({ block: "center", behavior: "smooth" }); }
       const next = spotRect(el);
@@ -82,14 +89,16 @@ export function GuideProvider({ children }) {
     look();
     const timer = window.setInterval(look, 200);
     return () => { window.clearInterval(timer); document.querySelectorAll("[data-guide-current]").forEach((n) => n.removeAttribute("data-guide-current")); };
-  }, [step]);
+  }, [step, go]);
 
   // click steps move on when the person clicks the target (the page gets a moment to react first)
   useEffect(() => {
     if (!step || step.kind !== "click") return undefined;
     const onClick = (e) => {
       const el = elRef.current;
-      if (el && (el === e.target || el.contains(e.target))) window.setTimeout(() => go(1), 250);
+      // `clickIn`: a click anywhere in that area counts (a list: the person opens THEIR row, not the one pointed at)
+      const inArea = step.clickIn && e.target.closest?.(step.clickIn);
+      if (inArea || (el && (el === e.target || el.contains(e.target)))) window.setTimeout(() => go(1), 250);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);

@@ -36,7 +36,7 @@ export const GLOSSARY = [
   { en: ["account statement", "statement"], ar: ["كشف حساب", "كشف الحساب"], hi: ["स्टेटमेंट"], ml: ["സ്റ്റേറ്റ്മെന്റ"] },
 
   { en: ["quotation", "quotations"], ar: ["عرض سعر", "عرض السعر", "عروض أسعار", "عروض الأسعار"], hi: ["कोटेशन"], ml: ["ക്വട്ടേഷ"] },
-  { en: ["invoice", "invoices"], ar: ["فاتورة", "فواتير", "الفاتورة", "الفواتير"], hi: ["इनवॉइस"], ml: ["ഇൻവോയ്സ"] },
+  { en: ["invoice", "invoices"], ar: ["فاتورة", "فواتير", "الفاتورة", "الفواتير", "فاتورت"], hi: ["इनवॉइस"], ml: ["ഇൻവോയ്സ"] },
   { en: ["customer", "customers"], ar: ["عميل", "عملاء"], hi: ["कस्टमर"], ml: ["കസ്റ്റമ"] },
   { en: ["vendor", "vendors", "supplier", "suppliers"], ar: ["مورد"], hi: ["वेंडर"], ml: ["വെണ്ട"] },
   { en: ["stock item", "stock items", "item", "items"], ar: ["صنف", "أصناف"], hi: ["आइटम"], ml: ["ഐറ്റ"] },

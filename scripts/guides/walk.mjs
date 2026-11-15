@@ -49,7 +49,7 @@ const read = () => page.evaluate(() => {
   const o = document.querySelector("[data-guide-overlay]");
   if (!o) return null;
   const cur = document.querySelector("[data-guide-current]");
-  return { step: o.dataset.guideStep, kind: o.dataset.guideKind, sample: o.dataset.guideSample, card: o.querySelector("[role=region]")?.innerText.replace(/\n+/g, " | "), hasTarget: Boolean(cur), tag: cur?.tagName };
+  return { step: o.dataset.guideStep, kind: o.dataset.guideKind, sample: o.dataset.guideSample, card: o.querySelector("[role=region]")?.innerText.replace(/\n+/g, " | "), hasTarget: Boolean(cur), tag: cur?.tagName, role: cur?.getAttribute("role") };
 });
 
 const log = [];
@@ -73,7 +73,10 @@ for (let n = 0; n < 80; n += 1) {
     const h = await page.$("[data-guide-current]");
     if (h && s.sample) {
       if (s.tag === "SELECT") { const pick = await h.evaluate((e, want) => { const o = [...e.options].filter((x) => x.value); const hit = o.find((x) => want && (x.value.toLowerCase() === want.toLowerCase() || x.text.toLowerCase() === want.toLowerCase())); return (hit || o[0])?.value; }, s.sample); if (pick) await h.select(pick); }
-      else if (s.tag === "INPUT" || s.tag === "TEXTAREA") { await h.click({ clickCount: 3 }).catch(() => {}); await h.type(s.sample, { delay: 15 }).catch(() => {}); }
+      else if (s.tag === "INPUT" || s.tag === "TEXTAREA") {
+        await h.click({ clickCount: 3 }).catch(() => {}); await h.type(s.sample, { delay: 15 }).catch(() => {});
+        if (s.role === "combobox") { await wait(900); await page.keyboard.press("Enter"); await wait(300); } // a searchable list: take the first match
+      }
     }
     await wait(300);
     await page.evaluate(() => [...document.querySelectorAll("[data-guide-overlay] button")].find((b) => /^(next|skip)/i.test(b.getAttribute("data-action") || ""))?.click());

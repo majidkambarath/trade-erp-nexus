@@ -1,7 +1,10 @@
 // What each Arabic line says, written back into English FROM THE ARABIC (not copied from the English source), so
 // someone who reads no Arabic can compare the meaning. Same keys as en.js. This is an aid for reviewers, drafted by
 // the same AI that wrote the translation: it shows drift, it is not an independent native check.
+import sell from "./sell/ar";
+
 export default {
+  ...sell,
   "flow.add-customer": { title: "Adding a customer", text: "A person or a company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We opened the page for you." },
   "add-customer.add": { title: "Add the customer", text: "Press [[Add Customer]]." },
