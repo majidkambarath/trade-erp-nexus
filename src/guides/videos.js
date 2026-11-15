@@ -3,10 +3,10 @@
 export const VIDEOS = {
 };
 
-// The video for a guide in a language, falling back to English; null when there is none.
+// The video for a guide in a language, falling back to English; null when there is none. The poster is the first card.
 export function videoUrl(id, lang) {
   const langs = VIDEOS[id];
   if (!langs) return null;
   const use = langs.includes(lang) ? lang : langs.includes("en") ? "en" : null;
-  return use ? { src: `/videos/${id}.${use}.mp4`, lang: use } : null;
+  return use ? { src: `/videos/${id}.${use}.mp4`, poster: `/videos/${id}.${use}.jpg`, lang: use } : null;
 }

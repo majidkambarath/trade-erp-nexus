@@ -9,13 +9,13 @@ vi.mock("../../../axios/axios", () => ({
 }));
 // two guides have videos: the vendor one in English and Malayalam, the dashboard one in English only
 vi.mock("../../../guides/videos", () => {
-  const VIDEOS = { "add-vendor": ["en", "ml"], "read-dashboard": ["en"] };
+  const VIDEOS = { "add-customer": ["en"], "add-vendor": ["en", "ml"], "read-dashboard": ["en"] };
   return {
     VIDEOS,
     videoUrl: (id, lang) => {
       const l = VIDEOS[id]; if (!l) return null;
       const use = l.includes(lang) ? lang : l.includes("en") ? "en" : null;
-      return use ? { src: `/videos/${id}.${use}.mp4`, lang: use } : null;
+      return use ? { src: `/videos/${id}.${use}.mp4`, poster: `/videos/${id}.${use}.jpg`, lang: use } : null;
     },
   };
 });
@@ -23,7 +23,7 @@ import LearnPage from "../LearnPage";
 
 const flow = (id) => ({ id, minutes: 2, steps: [] });
 const ctx = (over = {}) => ({
-  flows: [flow("add-customer"), flow("add-vendor"), flow("read-dashboard")],
+  flows: [flow("add-customer"), flow("add-vendor"), flow("add-item"), flow("read-dashboard")],
   start: vi.fn(), done: (id) => id === "add-customer", table: en, active: null, lang: "en", setLang: vi.fn(), ...over,
 });
 const view = (c) => render(<GuideContext.Provider value={c}><LearnPage /></GuideContext.Provider>);
@@ -31,7 +31,7 @@ const view = (c) => render(<GuideContext.Provider value={c}><LearnPage /></Guide
 describe("Learn page", () => {
   it("lists the guides by area with progress and starts one", () => {
     const c = ctx(); view(c);
-    expect(screen.getByText("1 of 3 done")).toBeTruthy();
+    expect(screen.getByText("1 of 4 done")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Start guide: Add a vendor/ }));
     expect(c.start).toHaveBeenCalledWith("add-vendor");
   });
@@ -53,7 +53,7 @@ describe("Learn page", () => {
   });
   it("offers Watch only for a guide with a video, and plays it in the chosen language", () => {
     const c = ctx({ lang: "ml" }); view(c);
-    expect(screen.queryByRole("button", { name: /Watch: Add a customer/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Watch: Add a stock item/ })).toBeNull(); // no video for it
     fireEvent.click(screen.getByRole("button", { name: /Watch: Add a vendor/ }));
     const video = document.querySelector("video");
     expect(video.getAttribute("src")).toBe("/videos/add-vendor.ml.mp4");
@@ -68,5 +68,26 @@ describe("Learn page", () => {
     fireEvent.click([...dialog.querySelectorAll("button")].find((b) => b.textContent === "Start guide"));
     expect(c.start).toHaveBeenCalledWith("read-dashboard");
     expect(document.querySelector("video")).toBeNull();
+  });
+  it("opens a video with its poster picture, and fetches only the next one's header in the background", () => {
+    view(ctx());
+    fireEvent.click(screen.getByRole("button", { name: /Watch: Add a customer/ }));
+    const [player, ahead] = document.querySelectorAll("video");
+    expect(player.getAttribute("poster")).toBe("/videos/add-customer.en.jpg");
+    expect(player.getAttribute("preload")).toBe("metadata");
+    expect(ahead.getAttribute("src")).toBe("/videos/add-vendor.en.mp4"); // the next in the page's order
+    expect(ahead.getAttribute("preload")).toBe("metadata");
+    expect(ahead.hasAttribute("controls")).toBe(false);
+  });
+  it("goes to the next video in the order the guides are listed, and has none after the last", () => {
+    view(ctx());
+    fireEvent.click(screen.getByRole("button", { name: /Watch: Add a customer/ }));
+    fireEvent.click(document.querySelector("[data-watch-next]"));
+    expect(document.querySelector("video").getAttribute("src")).toBe("/videos/add-vendor.en.mp4");
+    expect(screen.getByRole("dialog").textContent).toMatch(/Video: Add a vendor/);
+    fireEvent.click(document.querySelector("[data-watch-next]"));
+    expect(document.querySelector("video").getAttribute("src")).toBe("/videos/read-dashboard.en.mp4");
+    expect(document.querySelector("[data-watch-next]")).toBeNull();
+    expect(document.querySelectorAll("video").length).toBe(1); // nothing left to prepare
   });
 });
