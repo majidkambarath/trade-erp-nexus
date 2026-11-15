@@ -97,3 +97,39 @@ export const receivePayment = {
     { id: "done", kind: "done" },
   ],
 };
+
+// An invoice straight away, with no order or delivery in front of it: the counter sale.
+export const quickSalesInvoice = {
+  id: "quick-sales-invoice",
+  module: "sales",
+  permission: "sales.create",
+  minutes: 3,
+  steps: [
+    { id: "open", kind: "go", to: "/sales-order" },
+    { id: "new", kind: "click", target: { button: /^new sales invoice$/i } },
+    { id: "customer", kind: "fill", sample: "Al Madina", target: { field: /^customer/i, within: formOf("sales") } },
+    ...lineSteps(formOf("sales")),
+    { id: "status", kind: "info", ifPresent: true, target: { field: /^status/i, within: formOf("sales") } },
+    { id: "save", kind: "click", target: { selector: "button[form='order-sales']" } },
+    { id: "approve", kind: "info", ifPresent: true, permission: "sales.approve", target: { selector: "main table tbody tr [title='Confirm']" } },
+    { id: "done", kind: "done", next: "send-invoice" },
+  ],
+};
+
+// Email the approved invoice (PDF and a link), or hand it to WhatsApp.
+export const sendInvoice = {
+  id: "send-invoice",
+  module: "sales",
+  permission: "sales.send",
+  feature: "messaging",
+  minutes: 2,
+  steps: [
+    { id: "open", kind: "go", to: "/sales-order" },
+    { id: "send", kind: "click", target: { selector: "main table tbody tr [title='Send to the customer']" } },
+    { id: "how", kind: "info", target: { selector: "[role='dialog'] [aria-label='How to send']" } },
+    { id: "to", kind: "info", ifPresent: true, target: { field: /^to$/i, within: dialog } },
+    { id: "message", kind: "info", optional: true, ifPresent: true, target: { field: /^message/i, within: dialog } },
+    { id: "confirm", kind: "info", target: { button: /^(send email|open whatsapp|send anyway)$/i, within: dialog } }, // info, not click: the button is disabled until email is set up
+    { id: "done", kind: "done", next: "receive-payment" },
+  ],
+};

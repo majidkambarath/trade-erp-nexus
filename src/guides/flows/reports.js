@@ -135,3 +135,19 @@ export const readDashboard = {
     { id: "done", kind: "done" },
   ],
 };
+
+// The approvals list: every order and voucher waiting for a decision. A tour: it points and reads, it approves nothing.
+export const approvalsTour = {
+  id: "approvals-tour",
+  module: "reports",
+  permission: ["sales.approve", "purchase.approve", "finance.approve"],
+  minutes: 2,
+  steps: [
+    { id: "open", kind: "go", to: "/approvals" },
+    { id: "foryou", kind: "info", target: { text: /^waiting for you/i } },
+    { id: "row", kind: "info", ifPresent: true, target: { button: /^open /i } },
+    { id: "approve", kind: "info", ifPresent: true, target: { button: /^approve /i } },
+    { id: "others", kind: "info", ifPresent: true, target: { text: /^waiting, but not for you/i } },
+    { id: "done", kind: "done" },
+  ],
+};

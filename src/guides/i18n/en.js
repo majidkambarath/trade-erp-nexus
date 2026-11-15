@@ -9,6 +9,7 @@ import money from "./money/en";
 import accounts from "./accounts/en";
 import reports from "./reports/en";
 import settings from "./settings/en";
+import extra from "./extra/en";
 
 export default {
   ...sell,
@@ -18,6 +19,7 @@ export default {
   ...accounts,
   ...reports,
   ...settings,
+  ...extra,
   reviewed: true,
 
   ui: {

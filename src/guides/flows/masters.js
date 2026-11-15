@@ -68,6 +68,25 @@ export const addItem = {
     { id: "price", kind: "fill", sample: "12", target: { selector: "[role='dialog'] [name='salesPrice']" } },
     { id: "reorder", kind: "fill", optional: true, target: { selector: "[role='dialog'] [name='reorderLevel']" } },
     { id: "save", kind: "click", target: { button: /^add item$/i, within: dialog } },
+    { id: "done", kind: "done", next: "add-service-item" },
+  ],
+};
+
+// A service (delivery, installation, consulting) is an item with no stock: the same form, with Service chosen first.
+export const addServiceItem = {
+  id: "add-service-item",
+  module: "inventory",
+  permission: "inventory.create",
+  minutes: 2,
+  steps: [
+    { id: "open", kind: "go", to: "/stock-item-creation" },
+    { id: "add", kind: "click", target: { button: /^add stock item$/i } },
+    { id: "type", kind: "click", target: { selector: "[role='dialog'] [role='radiogroup'][aria-label='Item type'] [role='radio']:nth-child(2)" } },
+    { id: "name", kind: "fill", sample: "Walk Delivery", target: { selector: "[role='dialog'] [name='itemName']" } },
+    { id: "category", kind: "fill", target: { field: /^category/i, within: dialog } },
+    { id: "price", kind: "fill", sample: "50", target: { selector: "[role='dialog'] [name='salesPrice']" } },
+    { id: "accounts", kind: "info", optional: true, ifPresent: true, target: { field: /^income account/i, within: dialog } },
+    { id: "save", kind: "click", target: { button: /^add item$/i, within: dialog } },
     { id: "done", kind: "done" },
   ],
 };

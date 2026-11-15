@@ -10,6 +10,7 @@ import money from "./money/ar";
 import accounts from "./accounts/ar";
 import reports from "./reports/ar";
 import settings from "./settings/ar";
+import extra from "./extra/ar";
 
 export default {
   ...sell,
@@ -19,6 +20,7 @@ export default {
   ...accounts,
   ...reports,
   ...settings,
+  ...extra,
   reviewed: false,
 
   ui: {

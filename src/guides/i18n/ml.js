@@ -10,6 +10,7 @@ import money from "./money/ml";
 import accounts from "./accounts/ml";
 import reports from "./reports/ml";
 import settings from "./settings/ml";
+import extra from "./extra/ml";
 
 export default {
   ...sell,
@@ -19,6 +20,7 @@ export default {
   ...accounts,
   ...reports,
   ...settings,
+  ...extra,
   reviewed: false,
 
   ui: {
