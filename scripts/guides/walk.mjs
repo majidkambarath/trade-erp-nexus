@@ -34,7 +34,7 @@ await page.waitForSelector('[data-guide="guide-me"]', { timeout: 60000 });
 // start in the wanted language first (the choice is remembered per person), then start the guide
 await page.click('[data-guide="guide-me"]'); await wait(400);
 const started = await page.evaluate((id) => {
-  const items = [...document.querySelectorAll("[role=menuitem]")];
+  const items = [...document.querySelectorAll("[data-flow]")];
   const el = items.find((e) => e.getAttribute("data-flow") === id);
   if (!el) return false; el.click(); return true;
 }, flowId);

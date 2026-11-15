@@ -1,0 +1,23 @@
+// How the guides are grouped in the Guide me panel, in the order a new client should learn them.
+// The order inside a group is the order of FLOWS. A flow not named here is shown under "other" so it is never lost.
+export const GROUPS = [
+  { id: "start", ids: ["add-customer", "add-vendor", "add-item", "add-category", "add-unit"] },
+  { id: "sell", ids: ["create-quotation", "quotation-next-step", "create-sales-order", "deliver-and-invoice", "receive-payment", "sales-return"] },
+  { id: "buy", ids: ["create-purchase-order", "receive-and-bill-goods", "pay-supplier", "direct-purchase-invoice", "purchase-return"] },
+  { id: "stock", ids: ["record-movement", "write-off-stock"] },
+  { id: "money", ids: ["record-expense", "journal-entry", "contra-transfer", "credit-debit-note", "follow-cheque", "add-bank", "bank-reconciliation"] },
+  { id: "accounts", ids: ["add-account", "read-account-ledger", "accounting-setup-tour", "opening-balances-tour", "close-month"] },
+  { id: "reports", ids: ["read-profit-and-loss", "read-ageing", "customer-statement", "read-stock-reports", "read-vat-return", "read-ledger-and-day-book", "read-party-balances", "read-trade-analysis", "read-dashboard"] },
+];
+
+export const groupOf = (flowId) => GROUPS.find((g) => g.ids.includes(flowId))?.id || "other";
+
+// Split the flows the person may run into their groups, dropping empty ones.
+export function grouped(flows) {
+  const byId = new Map(flows.map((f) => [f.id, f]));
+  const out = GROUPS.map((g) => ({ id: g.id, flows: g.ids.map((i) => byId.get(i)).filter(Boolean) }));
+  const known = new Set(GROUPS.flatMap((g) => g.ids));
+  const rest = flows.filter((f) => !known.has(f.id));
+  if (rest.length) out.push({ id: "other", flows: rest });
+  return out.filter((g) => g.flows.length);
+}
