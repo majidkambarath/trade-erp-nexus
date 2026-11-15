@@ -29,7 +29,7 @@ export function visible(el) {
 }
 
 const esc = (s) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : String(s).replace(/[^a-zA-Z0-9_-]/g, "\\$&"));
-const nameOf = (el) => el.getAttribute("aria-label") || el.textContent || el.getAttribute("title") || "";
+const namesOf = (el) => [el.getAttribute("aria-label"), el.textContent, el.getAttribute("title")].filter(Boolean);
 const CLICKABLE = "button, a[href], [role='button'], [role='tab'], [role='menuitem'], [role='option']";
 
 export function locate(rootIn, target) {
@@ -47,7 +47,7 @@ export function locate(rootIn, target) {
   if (target.selector) return first([...root.querySelectorAll(target.selector)]);
 
   if (target.button) {
-    return first([...root.querySelectorAll(CLICKABLE)].filter((el) => matches(nameOf(el), target.button)));
+    return first([...root.querySelectorAll(CLICKABLE)].filter((el) => namesOf(el).some((n) => matches(n, target.button))));
   }
 
   if (target.field) {

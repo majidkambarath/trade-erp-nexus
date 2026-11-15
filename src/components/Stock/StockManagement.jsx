@@ -122,6 +122,7 @@ const FormSelect = ({
           className={`w-full px-4 py-3 border rounded-xl focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-transparent transition-all duration-200 ${
             error ? "border-red-300 bg-red-50" : "border-gray-300"
           } bg-white cursor-pointer flex items-center justify-between`}
+          data-guide={props.name ? `select-${props.name}` : undefined}
           onClick={() => setIsOpen(!isOpen)}
         >
           <span className="text-sm text-gray-900">

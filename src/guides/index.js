@@ -18,6 +18,13 @@ const LOADERS = {
 };
 export const loadLang = (code) => (LOADERS[code] || LOADERS.en)().catch(() => en);
 
+// A step may name the permission and plan feature it needs (e.g. the delivery-note steps): for a person without it
+// the step is left out of their run, never shown as a dead end. The first page and the last card always stay.
+export function stepsFor(flow, mayUse) {
+  if (!flow) return [];
+  return flow.steps.filter((s, i) => i === 0 || i === flow.steps.length - 1 || (!s.permission && !s.feature) || mayUse(s.permission, s.feature));
+}
+
 export const flowById = (id) => FLOWS.find((f) => f.id === id) || null;
 
 // What this person may run: their role holds the key AND the plan includes it (mayUse is the organisation's

@@ -71,3 +71,13 @@ describe("placeCard", () => {
     expect(placeCard({ top: 150, left: 400, width: 120, height: 480 }, card, view).side).toBe("edge");
   });
 });
+
+describe("locate: icon buttons", () => {
+  it("matches a button by aria-label, text or title, any of them", () => {
+    const root = (document.body.innerHTML = `<button aria-label="Edit Al Noor">✎</button><button title="Delete staff">x</button><button aria-label="View INV-1">View Details</button>`, document.body);
+    expect(locate(root, { button: /^edit al noor$/i })).not.toBeNull();
+    expect(locate(root, { button: "delete staff" })).not.toBeNull();
+    expect(locate(root, { button: /^view details$/i })).not.toBeNull(); // the words, though aria-label differs
+    expect(locate(root, { button: /^view inv-1$/i })).not.toBeNull();   // and the aria-label, though the words differ
+  });
+});

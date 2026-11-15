@@ -35,7 +35,7 @@ export default function GuideMenu() {
           {ordered.map((f) => {
             const w = wording(table, `flow.${f.id}`);
             return (
-              <DropdownMenu.Item key={f.id} className={item} onSelect={() => start(f.id)} disabled={Boolean(active)}>
+              <DropdownMenu.Item key={f.id} data-flow={f.id} className={item} onSelect={() => start(f.id)} disabled={Boolean(active)}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{w.title}</span>
                   <span className="block truncate text-xs text-muted-foreground">{ui(table, "minutes", f.minutes)}{here(f) ? ` · ${ui(table, "here")}` : ""}</span>

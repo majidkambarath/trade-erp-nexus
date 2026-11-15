@@ -9,9 +9,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { useOrganisation } from "../components/shell/OrganisationContext";
 import { prefsFor } from "../lib/userPrefs";
-import { LANGS, flowById, flowsFor, loadLang, ui, wording } from "./index";
+import { LANGS, flowById, flowsFor, loadLang, stepsFor, ui, wording } from "./index";
 import { locate, placeCard, spotRect } from "./locate";
 import { GuideContext } from "./guideContext";
+import RichText from "./RichText";
 
 
 const GIVE_UP_MS = 8000; // how long a target may be missing before the card says so instead of waiting for ever
@@ -33,7 +34,8 @@ export function GuideProvider({ children }) {
 
   const flows = useMemo(() => flowsFor({ mayUse: org.mayUse }), [org.mayUse, me?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const flow = run ? flowById(run.flowId) : null;
-  const step = flow ? flow.steps[run.i] : null;
+  const steps = useMemo(() => stepsFor(flow, org.mayUse), [flow, org.mayUse]);
+  const step = flow ? steps[run.i] : null;
   const elRef = useRef(null);
 
   useEffect(() => { let live = true; loadLang(lang).then((t) => { if (live) setTable(t); }); return () => { live = false; }; }, [lang]);
@@ -43,8 +45,8 @@ export function GuideProvider({ children }) {
   const start = useCallback((flowId) => { if (flowById(flowId)) { setSpot(null); setLost(false); setRun({ flowId, i: 0 }); } }, []);
   const go = useCallback((delta) => {
     setSpot(null); setLost(false); elRef.current = null;
-    setRun((r) => (r ? { ...r, i: Math.max(0, Math.min(r.i + delta, flowById(r.flowId).steps.length - 1)) } : r));
-  }, []);
+    setRun((r) => (r ? { ...r, i: Math.max(0, Math.min(r.i + delta, stepsFor(flowById(r.flowId), org.mayUse).length - 1)) } : r));
+  }, [org.mayUse]);
   const done = useCallback((id) => Boolean(prefs.get(`display.guideDone.${id}`, false)), [prefs, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // a guide belongs to one signed-in person: signing out (or a different person) ends it
@@ -68,7 +70,9 @@ export function GuideProvider({ children }) {
     let scrolled = false;
     const look = () => {
       const el = locate(document.body, step.target);
+      if (elRef.current && elRef.current !== el) elRef.current.removeAttribute?.("data-guide-current");
       elRef.current = el;
+      el?.setAttribute?.("data-guide-current", "");
       if (!el) { setSpot(null); if (Date.now() - since > GIVE_UP_MS) setLost(true); return; }
       setLost(false);
       if (!scrolled) { scrolled = true; el.scrollIntoView?.({ block: "center", behavior: "smooth" }); }
@@ -77,7 +81,7 @@ export function GuideProvider({ children }) {
     };
     look();
     const timer = window.setInterval(look, 200);
-    return () => window.clearInterval(timer);
+    return () => { window.clearInterval(timer); document.querySelectorAll("[data-guide-current]").forEach((n) => n.removeAttribute("data-guide-current")); };
   }, [step]);
 
   // click steps move on when the person clicks the target (the page gets a moment to react first)
@@ -96,19 +100,19 @@ export function GuideProvider({ children }) {
     <GuideContext.Provider value={value}>
       {children}
       {run && flow && step && (
-        <GuideOverlay {...{ flow, step, i: run.i, spot, lost, lang, setLang, table, go, stop, start, flows }} />
+        <GuideOverlay {...{ flow, steps, step, i: run.i, spot, lost, lang, setLang, table, go, stop, start, flows }} />
       )}
     </GuideContext.Provider>
   );
 }
 
-function GuideOverlay({ flow, step, i, spot, lost, lang, setLang, table, go, stop, start, flows }) {
+function GuideOverlay({ flow, steps, step, i, spot, lost, lang, setLang, table, go, stop, start, flows }) {
   const cardRef = useRef(null);
   const [pos, setPos] = useState(null);
   const text = wording(table, `${flow.id}.${step.id}`);
   const t = (k, ...a) => ui(table, k, ...a);
-  const total = flow.steps.filter((s) => s.kind !== "go").length;
-  const shown = flow.steps.slice(0, i + 1).filter((s) => s.kind !== "go").length;
+  const total = steps.filter((s) => s.kind !== "go").length;
+  const shown = steps.slice(0, i + 1).filter((s) => s.kind !== "go").length;
   const dir = LANGS.find((l) => l.code === lang)?.dir || "ltr";
   const isDone = step.kind === "done";
   const next = isDone && step.next && flows.some((f) => f.id === step.next) ? step.next : null;
@@ -125,7 +129,7 @@ function GuideOverlay({ flow, step, i, spot, lost, lang, setLang, table, go, sto
     : pos ? { top: pos.top, left: pos.left } : { top: 80, right: 24 }; // before the target is found, or for a card about nothing in particular
 
   return createPortal(
-    <div data-guide-overlay="" dir={dir} className="pointer-events-none fixed inset-0 z-[70]">
+    <div data-guide-overlay="" data-guide-step={`${flow.id}.${step.id}`} data-guide-kind={step.kind} data-guide-sample={step.sample || ""} dir={dir} className="pointer-events-none fixed inset-0 z-[70]">
       {spot && (
         <div
           aria-hidden="true"
@@ -145,11 +149,11 @@ function GuideOverlay({ flow, step, i, spot, lost, lang, setLang, table, go, sto
           <button type="button" onClick={stop} aria-label={t("stop")} className="rounded p-1 hover:bg-secondary"><X className="h-4 w-4" aria-hidden="true" /></button>
         </div>
         <p className="text-base font-semibold">{text.title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{lost ? t("lost") : text.text}</p>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{lost ? t("lost") : <RichText text={text.text} />}</p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {i > 0 && !isDone && (
-            <button type="button" onClick={() => go(-1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-secondary">
+            <button type="button" data-action="back" onClick={() => go(-1)} className="inline-flex h-9 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-secondary">
               <ArrowLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />{t("back")}
             </button>
           )}
@@ -161,12 +165,12 @@ function GuideOverlay({ flow, step, i, spot, lost, lang, setLang, table, go, sto
           ) : (
             <>
               {(step.kind === "fill" || step.kind === "info" || lost || step.optional) && (
-                <button type="button" onClick={() => go(1)} className="inline-flex h-9 items-center gap-1 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">
+                <button type="button" data-action={lost || (step.optional && step.kind === "click") ? "skip" : "next"} onClick={() => go(1)} className="inline-flex h-9 items-center gap-1 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground">
                   {lost || (step.optional && step.kind === "click") ? t("skip") : t("next")}<ArrowRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
                 </button>
               )}
               {step.kind === "click" && !lost && !step.optional && (
-                <button type="button" onClick={() => go(1)} className="ms-auto text-xs text-muted-foreground underline underline-offset-2">{t("skip")}</button>
+                <button type="button" data-action="skip-link" onClick={() => go(1)} className="ms-auto text-xs text-muted-foreground underline underline-offset-2">{t("skip")}</button>
               )}
             </>
           )}
@@ -176,6 +180,7 @@ function GuideOverlay({ flow, step, i, spot, lost, lang, setLang, table, go, sto
           {LANGS.map((l) => (
             <button
               key={l.code}
+              data-lang={l.code}
               type="button"
               onClick={() => setLang(l.code)}
               aria-pressed={lang === l.code}

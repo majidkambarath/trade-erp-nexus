@@ -47,7 +47,7 @@ describe("GuideProvider", () => {
     // the page is already the right one, so the go step is skipped and the first card is the Add button
     await screen.findByText("Add the customer");
     expect(screen.getByText(/Step 1 of/)).toBeTruthy();
-    fireEvent.click(screen.getByText("Add Customer")); // the person does it
+    fireEvent.click(screen.getByRole("button", { name: "Add Customer" })); // the person does it
     await waitFor(() => expect(screen.getByText("Their name")).toBeTruthy(), { timeout: 2000 });
   });
 
@@ -87,7 +87,7 @@ describe("GuideProvider", () => {
     expect(document.querySelector("[data-guide-overlay]").getAttribute("dir")).toBe("rtl");
     expect(await screen.findByText("الترجمة قيد المراجعة")).toBeTruthy();
     fireEvent.click(screen.getByTitle("മലയാളം"));
-    expect(await screen.findByText("ഉപഭോക്താവിനെ ചേർക്കുക")).toBeTruthy();
+    expect(await screen.findByText("കസ്റ്റമറെ ചേർക്കുക")).toBeTruthy();
     expect(document.querySelector("[data-guide-overlay]").getAttribute("dir")).toBe("ltr");
   });
 });
