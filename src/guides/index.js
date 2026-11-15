@@ -5,9 +5,9 @@ import en from "./i18n/en";
 export const FLOWS = [addCustomer, addVendor, addItem];
 export const LANGS = [
   { code: "en", label: "English", short: "EN", dir: "ltr" },
-  { code: "ar", label: "العربية", short: "ع", dir: "rtl" },
-  { code: "hi", label: "हिन्दी", short: "हि", dir: "ltr" },
-  { code: "ml", label: "മലയാളം", short: "മ", dir: "ltr" },
+  { code: "ar", label: "العربية", short: "AR", dir: "rtl" },
+  { code: "hi", label: "हिन्दी", short: "HI", dir: "ltr" },
+  { code: "ml", label: "മലയാളം", short: "ML", dir: "ltr" },
 ];
 // Languages other than English are loaded on demand, so a person who never switches pays nothing for them.
 const LOADERS = {

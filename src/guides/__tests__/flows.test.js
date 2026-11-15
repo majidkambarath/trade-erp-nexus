@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { FLOWS, LANGS, flowsFor, wording } from "../index";
 import en from "../i18n/en";
+import ar from "../i18n/ar";
+import hi from "../i18n/hi";
+import ml from "../i18n/ml";
 
 describe("the flows", () => {
   it("have unique ids and unique step ids", () => {
@@ -47,6 +50,30 @@ describe("the flows", () => {
   it("fall back to English a line at a time, never to a blank", () => {
     expect(wording({ reviewed: false }, "add-customer.name").title).toBe("Their name");
     expect(wording(null, "no.such.key")).toEqual({ title: "", text: "" });
+  });
+
+  // The rule that keeps the four languages whole: a line added to English without its translation fails here,
+  // so a client choosing Malayalam never meets an English card by accident.
+  describe.each([["ar", ar], ["hi", hi], ["ml", ml]])("%s", (code, table) => {
+    it("has every line English has, with a title and a text", () => {
+      const lines = Object.keys(en).filter((k) => k !== "reviewed" && k !== "ui");
+      for (const k of lines) {
+        expect(table[k]?.title, `${code} ${k} title`).toBeTruthy();
+        expect(table[k]?.text, `${code} ${k} text`).toBeTruthy();
+      }
+    });
+    it("has every interface string, with the same kind (text or function) and no stray ones", () => {
+      expect(Object.keys(table.ui).sort()).toEqual(Object.keys(en.ui).sort());
+      for (const k of Object.keys(en.ui)) expect(typeof table.ui[k], `${code} ui.${k}`).toBe(typeof en.ui[k]);
+      expect(String(table.ui.stepOf(2, 9))).toMatch(/2/);
+      expect(String(table.ui.stepOf(2, 9))).toMatch(/9/);
+    });
+    it("says so while it has not been reviewed by a native speaker", () => {
+      expect(typeof table.reviewed).toBe("boolean");
+    });
+    it("is a different text from English, not a copy", () => {
+      expect(table["add-customer.name"].text).not.toBe(en["add-customer.name"].text);
+    });
   });
 
   it("list the four languages, Arabic right to left", () => {

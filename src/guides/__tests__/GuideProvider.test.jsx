@@ -78,14 +78,17 @@ describe("GuideProvider", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("switches language; Arabic sets right-to-left and English words stay for lines not yet translated", async () => {
+  it("switches language: Arabic is right-to-left and the card is in Arabic, Malayalam in Malayalam", async () => {
     mount();
     fireEvent.click(screen.getByText("begin"));
     await screen.findByText("Add the customer");
     fireEvent.click(screen.getByTitle("العربية"));
-    await waitFor(() => expect(document.querySelector("[data-guide-overlay]").getAttribute("dir")).toBe("rtl"));
-    expect(screen.getByText("Add the customer")).toBeTruthy(); // not translated yet: falls back, never blank
-    expect(await screen.findByText("Translation in review")).toBeTruthy();
+    expect(await screen.findByText("أضف العميل")).toBeTruthy();
+    expect(document.querySelector("[data-guide-overlay]").getAttribute("dir")).toBe("rtl");
+    expect(await screen.findByText("الترجمة قيد المراجعة")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("മലയാളം"));
+    expect(await screen.findByText("ഉപഭോക്താവിനെ ചേർക്കുക")).toBeTruthy();
+    expect(document.querySelector("[data-guide-overlay]").getAttribute("dir")).toBe("ltr");
   });
 });
 

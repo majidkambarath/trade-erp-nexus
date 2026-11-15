@@ -1,3 +1,65 @@
-// hi wording for the guides: same keys as en.js. Until a native speaker has reviewed a table it says so on screen,
-// and any key missing here falls back to English, so a guide never shows a blank card.
-export default { reviewed: false };
+// Hindi wording of the guides: the same keys as en.js (guides.test.js fails when one is missing).
+// The screens themselves are in English, so a button is named as it is written on the screen (Add Customer),
+// and only the explanation is Hindi. Drafted with AI; `reviewed: false` makes the card say so until a native
+// speaker has read it and this is set to true.
+
+export default {
+  reviewed: false,
+
+  ui: {
+    guideMe: "मार्गदर्शन",
+    stepOf: (i, n) => `चरण ${i}/${n}`,
+    next: "आगे",
+    back: "पीछे",
+    skip: "यह चरण छोड़ें",
+    stop: "गाइड बंद करें",
+    optional: "वैकल्पिक",
+    lost: "यह आपकी स्क्रीन पर नहीं मिल रहा। हो सकता है यह किसी दूसरे टैब में हो, या आपके लिए उपलब्ध न हो।",
+    inReview: "अनुवाद समीक्षा में",
+    language: "भाषा",
+    menuTitle: "इस स्क्रीन के गाइड",
+    allGuides: "सभी गाइड",
+    noneHere: "इस स्क्रीन के लिए अभी कोई गाइड नहीं है।",
+    finished: "पूरा हुआ",
+    start: "गाइड शुरू करें",
+    minutes: (n) => `${n} मिनट`,
+    here: "यह स्क्रीन",
+  },
+
+  "flow.add-customer": { title: "ग्राहक जोड़ें", text: "वह व्यक्ति या कंपनी जिसे आप बेचते हैं। हर बिक्री दस्तावेज़ में आप इसे चुनेंगे।" },
+  "add-customer.open": { title: "ग्राहक", text: "ग्राहक Sales के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "add-customer.add": { title: "ग्राहक जोड़ें", text: "Add Customer दबाएँ।" },
+  "add-customer.name": { title: "उनका नाम", text: "कंपनी या व्यक्ति का नाम वैसा लिखें जैसा बिल पर छपना चाहिए, जैसे Al Madina Fresh Supermarket LLC।" },
+  "add-customer.contact": { title: "आप किससे बात करते हैं", text: "उनकी कंपनी में वह व्यक्ति जिससे आप बात करते हैं।" },
+  "add-customer.phone": { title: "फ़ोन", text: "ऐसा नंबर जिस पर आप उनसे संपर्क कर सकें। इसे बाद में भी भर सकते हैं।" },
+  "add-customer.address": { title: "बिलिंग पता", text: "जहाँ बिल भेजे जाते हैं। यह इस ग्राहक के हर बिल पर छपता है।" },
+  "add-customer.taxtab": { title: "कर विवरण", text: "यदि ग्राहक कर में पंजीकृत है तो यह टैब खोलें।" },
+  "add-customer.trn": { title: "कर पंजीकरण संख्या", text: "उनका TRN (भारत में GSTIN)। यह बिल पर छपता है और VAT रिटर्न के लिए ज़रूरी है।" },
+  "add-customer.credittab": { title: "क्रेडिट और शर्तें", text: "भुगतान के लिए उन्हें कितना समय मिलेगा, यह बताने के लिए यह टैब खोलें।" },
+  "add-customer.terms": { title: "भुगतान की शर्तें", text: "जैसे Net 30। रिपोर्ट इससे बताती हैं कि कोई बिल कब लेट हुआ।" },
+  "add-customer.save": { title: "सहेजें", text: "सहेजने के लिए Add Customer दबाएँ। कुछ भी बाद में बदल सकते हैं।" },
+  "add-customer.done": { title: "ग्राहक जुड़ गया", text: "अब आप कोटेशन या बिल में इस ग्राहक को चुन सकते हैं। अगला: वेंडर जोड़ें, यानी वह जिससे आप खरीदते हैं।" },
+
+  "flow.add-vendor": { title: "वेंडर जोड़ें", text: "वह जिससे आप खरीदते हैं। हर खरीद में आप इसे चुनेंगे।" },
+  "add-vendor.open": { title: "वेंडर", text: "वेंडर Purchase के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "add-vendor.add": { title: "वेंडर जोड़ें", text: "Add Vendor दबाएँ।" },
+  "add-vendor.name": { title: "उनका नाम", text: "सप्लायर की कंपनी का नाम, जैसे Gulf Grain Importers LLC।" },
+  "add-vendor.contact": { title: "आप किससे बात करते हैं", text: "सप्लायर के यहाँ आपका संपर्क व्यक्ति।" },
+  "add-vendor.address": { title: "पता", text: "सप्लायर का पता।" },
+  "add-vendor.taxtab": { title: "कर विवरण", text: "यदि सप्लायर कर में पंजीकृत है तो यह टैब खोलें।" },
+  "add-vendor.trn": { title: "कर पंजीकरण संख्या", text: "उनका TRN। उनके बिलों पर लगा VAT वापस लेने के लिए यह चाहिए।" },
+  "add-vendor.save": { title: "सहेजें", text: "सहेजने के लिए Add Vendor दबाएँ।" },
+  "add-vendor.done": { title: "वेंडर जुड़ गया", text: "अब आप इस वेंडर से खरीद सकते हैं। अगला: वे चीज़ें जोड़ें जिनका आप व्यापार करते हैं, यानी स्टॉक आइटम।" },
+
+  "flow.add-item": { title: "स्टॉक आइटम जोड़ें", text: "वह उत्पाद जिसे आप खरीदते और बेचते हैं। पहली खरीद से ही उसका स्टॉक और लागत ट्रैक होती है।" },
+  "add-item.open": { title: "स्टॉक आइटम", text: "आइटम Inventory के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "add-item.add": { title: "आइटम जोड़ें", text: "Add Stock Item दबाएँ।" },
+  "add-item.name": { title: "आइटम का नाम", text: "दस्तावेज़ों में आप जिस नाम से बुलाते हैं, जैसे Basmati Rice 40kg Bag।" },
+  "add-item.category": { title: "श्रेणी", text: "रिपोर्ट में मिलते-जुलते आइटम एक साथ रखती है। कोई श्रेणी चुनें, या नई लिखकर जोड़ें।" },
+  "add-item.unit": { title: "इकाई", text: "आप इसे कैसे गिनते हैं: बोरी, कार्टन, पीस, किलोग्राम।" },
+  "add-item.cost": { title: "खरीद मूल्य", text: "एक इकाई की आम तौर पर आपकी कितनी लागत आती है। पहली खरीद के बाद Zarvia औसत लागत खुद निकाल लेता है।" },
+  "add-item.price": { title: "बिक्री मूल्य", text: "एक इकाई के लिए आप आम तौर पर कितना लेते हैं। हर बिल पर इसे बदल सकते हैं।" },
+  "add-item.reorder": { title: "रीऑर्डर स्तर", text: "स्टॉक इस संख्या तक गिरने पर रीऑर्डर रिपोर्ट आपको और खरीदने को कहती है।" },
+  "add-item.save": { title: "सहेजें", text: "सहेजने के लिए Add Item दबाएँ।" },
+  "add-item.done": { title: "आइटम जुड़ गया", text: "यह बिना स्टॉक के शुरू होता है। स्टॉक तब आता है जब आप खरीद बिल मंज़ूर करते हैं।" },
+};
