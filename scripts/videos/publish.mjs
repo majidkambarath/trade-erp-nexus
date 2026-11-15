@@ -27,6 +27,13 @@ for (const f of made) {
   if (r.status !== 0) { console.error(`could not shrink ${f}: ${r.stderr}`); process.exitCode = 1; continue; }
   shrunk += 1;
 }
+// a small still of the first card: the player shows it at once, so a video never opens onto a black box while it loads
+for (const f of made) {
+  const poster = path.join(dest, f.replace(/\.mp4$/, ".jpg"));
+  if (fs.existsSync(poster) && fs.statSync(poster).mtimeMs >= fs.statSync(path.join(src, f)).mtimeMs) continue;
+  const r = spawnSync(ffmpeg, ["-y", "-v", "error", "-ss", "0.5", "-i", path.join(src, f), "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "7", poster], { encoding: "utf8" });
+  if (r.status !== 0) { console.error(`no poster for ${f}: ${r.stderr}`); process.exitCode = 1; }
+}
 
 // The list, from what is actually in public/videos (so a file removed by hand is no longer offered).
 const list = {};
@@ -41,12 +48,12 @@ export const VIDEOS = {
 ${body}
 };
 
-// The video for a guide in a language, falling back to English; null when there is none.
+// The video for a guide in a language, falling back to English; null when there is none. The poster is the first card.
 export function videoUrl(id, lang) {
   const langs = VIDEOS[id];
   if (!langs) return null;
   const use = langs.includes(lang) ? lang : langs.includes("en") ? "en" : null;
-  return use ? { src: \`/videos/\${id}.\${use}.mp4\`, lang: use } : null;
+  return use ? { src: \`/videos/\${id}.\${use}.mp4\`, poster: \`/videos/\${id}.\${use}.jpg\`, lang: use } : null;
 }
 `);
 const size = fs.readdirSync(dest).reduce((n, f) => n + fs.statSync(path.join(dest, f)).size, 0);
