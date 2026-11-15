@@ -140,6 +140,13 @@ export default function NewOrganisation() {
               <Field label="Code" hint="Optional. Lower-case letters, digits and hyphens; made from the name if left blank. It cannot be changed later." error={show("code")}>
                 <TextInput value={form.code} onChange={(e) => set("code")(e.target.value)} autoComplete="off" placeholder="gulf-fresh" />
               </Field>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-secondary/40 px-3 py-3 text-sm sm:col-span-2">
+                <input type="checkbox" className="mt-0.5" checked={Boolean(form.demo)} onChange={(e) => set("demo")(e.target.checked)} />
+                <span>
+                  <span className="font-medium text-foreground">Demonstration company</span>
+                  <span className="block text-muted-foreground">For the sales team. Nothing it sends leaves the system (emails are only recorded), and it may be wiped and rebuilt by the demo reset. Never tick this for a customer.</span>
+                </span>
+              </label>
               <Field label="Country" required hint="Decides the tax set, and suggests the time zone and currency below. Fixed once the organisation is set up." error={show("country")}>
                 <SearchSelect value={form.country} onChange={(v) => setForm((f) => withCountry(f, v, c))} options={countries} rankMatches />
               </Field>
