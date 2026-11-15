@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
-const src = path.join(here, "out");
+const src = process.env.VIDEOS_OUT || path.join(here, "out");
 const dest = path.join(root, "public", "videos");
 const ffmpeg = process.env.FFMPEG || "ffmpeg";
 fs.mkdirSync(dest, { recursive: true });

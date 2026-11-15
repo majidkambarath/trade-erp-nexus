@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Check, Search, Sparkles } from "lucide-react";
+import { Check, PlayCircle, Search, Sparkles } from "lucide-react";
 import { Button } from "../ui/button";
-import { PageHeader, Panel } from "../accounting/kit";
+import { Modal, PageHeader, Panel } from "../accounting/kit";
 import { useGuides } from "../../guides/guideContext";
 import { LANGS, ui, wording } from "../../guides";
 import axiosInstance from "../../axios/axios";
 import { grouped } from "../../guides/groups";
+import { videoUrl } from "../../guides/videos";
 
 // Every guide the person may run, by area, with what they have finished. The same list as the Guide me panel,
 // laid out as a page: somewhere to look around, choose the guide language and pick up where they left off.
@@ -14,6 +15,8 @@ const norm = (s) => String(s || "").toLowerCase();
 export default function LearnPage() {
   const { flows, start, done, table, active, lang, setLang } = useGuides();
   const [q, setQ] = useState("");
+  const [watching, setWatching] = useState(null); // { flow, src, poster, lang } of the video being played
+  const [ended, setEnded] = useState(false);
   const [steps, setSteps] = useState(null); // the books' own answer; null until it arrives, or if it cannot be read
   useEffect(() => {
     let live = true;
@@ -29,6 +32,10 @@ export default function LearnPage() {
   const shown = groups
     .map((g) => ({ ...g, flows: query ? g.flows.filter((f) => norm(title(f)).includes(query) || norm(blurb(f)).includes(query)) : g.flows }))
     .filter((g) => g.flows.length);
+  // the videos in the order the page lists the guides (the order to learn them in), for "Next video"
+  const playlist = useMemo(() => groups.flatMap((g) => g.flows).map((f) => ({ flow: f, ...videoUrl(f.id, lang) })).filter((v) => v.src), [groups, lang]);
+  const upNext = watching ? playlist[playlist.findIndex((v) => v.flow.id === watching.flow.id) + 1] || null : null;
+  const watch = (v) => { setEnded(false); setWatching(v); };
   const pct = flows.length ? Math.round((finished / flows.length) * 100) : 0;
 
   return (
@@ -100,6 +107,12 @@ export default function LearnPage() {
                       <span className="block truncate text-sm font-medium">{title(f)}</span>
                       <span className="block truncate text-xs text-muted-foreground">{ui(table, "minutes", f.minutes)}</span>
                     </span>
+                    {videoUrl(f.id, lang) && (
+                      <Button size="sm" variant="ghost" data-learn-watch={f.id} onClick={() => watch({ flow: f, ...videoUrl(f.id, lang) })}
+                        aria-label={`${ui(table, "watch")}: ${title(f)}`}>
+                        <PlayCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">{ui(table, "watch")}</span>
+                      </Button>
+                    )}
                     <Button size="sm" variant={done(f.id) ? "outline" : "default"} disabled={Boolean(active)} onClick={() => start(f.id)}
                       aria-label={`${ui(table, "start")}: ${title(f)}`}>{ui(table, "start")}</Button>
                   </li>
@@ -109,6 +122,25 @@ export default function LearnPage() {
           );
         })}
       </div>
+
+      {watching && (
+        <Modal size="lg" title={ui(table, "watchTitle", title(watching.flow))} onClose={() => setWatching(null)}
+          description={watching.lang !== lang ? ui(table, "videoLang", LANGS.find((l) => l.code === watching.lang)?.label || watching.lang) : undefined}>
+          {/* the walkthrough as recorded on the screens, with the card read aloud; the guide itself is Start */}
+          <video key={watching.src} src={watching.src} poster={watching.poster} controls autoPlay playsInline preload="metadata" onEnded={() => setEnded(true)}
+            className="aspect-[16/10] w-full rounded-lg bg-black" aria-label={ui(table, "watchTitle", title(watching.flow))} />
+          {/* the next video's first bytes are fetched quietly now (only its header, a few KB), so "Next video" starts at once */}
+          {upNext && <video src={upNext.src} preload="metadata" muted hidden aria-hidden="true" tabIndex={-1} />}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            {upNext ? (
+              <Button variant={ended ? "default" : "outline"} data-watch-next={upNext.flow.id} onClick={() => watch(upNext)}>
+                {ui(table, "watchNext", title(upNext.flow))}
+              </Button>
+            ) : <span />}
+            <Button variant={ended && !upNext ? "default" : "outline"} disabled={Boolean(active)} onClick={() => { const id = watching.flow.id; setWatching(null); start(id); }}>{ui(table, "start")}</Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

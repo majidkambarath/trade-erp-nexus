@@ -13,6 +13,7 @@ import { LANGS, flowById, flowsFor, loadLang, stepsFor, ui, wording } from "./in
 import { locate, placeCard, spotRect } from "./locate";
 import { GuideContext } from "./guideContext";
 import RichText from "./RichText";
+import WelcomeGuide from "./WelcomeGuide";
 
 
 const GIVE_UP_MS = 8000; // how long a target may be missing before the card says so instead of waiting for ever
@@ -31,6 +32,7 @@ export function GuideProvider({ children }) {
   const [spot, setSpot] = useState(null);
   const [lost, setLost] = useState(false);
   const [tick, setTick] = useState(0); // bumped when preferences change, so "finished" ticks re-read
+  const [welcome, setWelcome] = useState(false);
 
   const flows = useMemo(() => flowsFor({ mayUse: org.mayUse }), [org.mayUse, me?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const flow = run ? flowById(run.flowId) : null;
@@ -48,6 +50,16 @@ export function GuideProvider({ children }) {
     setRun((r) => (r ? { ...r, i: Math.max(0, Math.min(r.i + delta, stepsFor(flowById(r.flowId), org.mayUse).length - 1)) } : r));
   }, [org.mayUse]);
   const done = useCallback((id) => Boolean(prefs.get(`display.guideDone.${id}`, false)), [prefs, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The welcome: once per person, on their first sign-in (a person who has already finished a guide is not welcomed again),
+  // never while they must first change their password or set up two-factor, and only if there is a guide they may run.
+  const mayWelcome = Boolean(me && table && flows.length && !me.mustChangePassword && !me.twoFactorRequired);
+  useEffect(() => {
+    if (!mayWelcome) return;
+    if (!prefs.get("display.guideWelcomed", false) && !flows.some((f) => prefs.get(`display.guideDone.${f.id}`, false))) setWelcome(true);
+  }, [mayWelcome, prefs, flows]);
+  const closeWelcome = useCallback(() => { prefs.set("display.guideWelcomed", true); setWelcome(false); }, [prefs]);
+  const pickJourney = useCallback((flowId) => { closeWelcome(); start(flowId); }, [closeWelcome, start]);
 
   // a guide belongs to one signed-in person: signing out (or a different person) ends it
   useEffect(() => { if (!me) stop(); }, [me, stop]);
@@ -108,6 +120,9 @@ export function GuideProvider({ children }) {
   return (
     <GuideContext.Provider value={value}>
       {children}
+      {welcome && !run && mayWelcome && (
+        <WelcomeGuide flows={flows} table={table} lang={lang} setLang={setLang} onPick={pickJourney} onLater={closeWelcome} />
+      )}
       {run && flow && step && (
         <GuideOverlay {...{ flow, steps, step, i: run.i, spot, lost, lang, setLang, table, go, stop, start, flows }} />
       )}

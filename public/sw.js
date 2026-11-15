@@ -100,6 +100,10 @@ self.addEventListener("fetch", (event) => {
   // is deployed separately; the path check covers a same-origin deployment behind a proxy.
   if (url.pathname.startsWith("/api") || url.pathname.includes("/api/v1")) return;
 
+  // The guide videos: left to the browser. It asks for a video in ranges (206), which a cache cannot store, and
+  // a hundred of them must not fill the cache that holds the app's own shell.
+  if (url.pathname.startsWith("/videos/")) return;
+
   if (url.origin !== self.location.origin) {
     if (FONT_HOSTS.has(url.hostname)) {
       event.respondWith(staleWhileRevalidate(request, FONTS));
