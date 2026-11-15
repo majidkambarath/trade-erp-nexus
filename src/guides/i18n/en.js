@@ -4,10 +4,12 @@
 
 import sell from "./sell/en";
 import buy from "./buy/en";
+import stock from "./stock/en";
 
 export default {
   ...sell,
   ...buy,
+  ...stock,
   reviewed: true,
 
   ui: {

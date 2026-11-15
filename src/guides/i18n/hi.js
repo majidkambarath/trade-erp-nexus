@@ -5,10 +5,12 @@
 
 import sell from "./sell/hi";
 import buy from "./buy/hi";
+import stock from "./stock/hi";
 
 export default {
   ...sell,
   ...buy,
+  ...stock,
   reviewed: false,
 
   ui: {

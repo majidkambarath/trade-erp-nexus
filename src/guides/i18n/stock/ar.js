@@ -1,0 +1,35 @@
+// Arabic wording of the stock guides: same keys as stock/en.js. Terms follow glossary.js.
+export default {
+  "flow.record-movement": { title: "تسجيل حركة مخزون", text: "أضف مخزوناً أو أنقصه يدوياً، لتصحيح جرد أو لبضاعة تالفة أو لكمية افتتاحية." },
+  "record-movement.open": { title: "الحركات", text: "الحركات ضمن [[Inventory]]. فتحنا الصفحة لك." },
+  "record-movement.new": { title: "ابدأ حركة", text: "اضغط [[Record Movement]]." },
+  "record-movement.item": { title: "أي صنف؟", text: "اختر الصنف. اكتب بضعة أحرف من اسمه." },
+  "record-movement.qty": { title: "الكمية", text: "اكتب رقماً موجباً لإضافة مخزون، أو رقماً سالباً لسحب مخزون." },
+  "record-movement.event": { title: "ماذا حدث؟", text: "اختر السبب، مثل [[Stock Adjustment]] لتصحيح الجرد أو [[Damaged Stock]] للبضاعة التي لا يمكنك بيعها." },
+  "record-movement.reference": { title: "المرجع", text: "اكتب مرجعاً تجده لاحقاً، مثل {{ADJ-1}}. وهو مطلوب." },
+  "record-movement.save": { title: "حفظ", text: "اضغط [[Record Movement]] في المربع. يتغير رقم المخزون فوراً وتبقى الحركة مسجّلة." },
+  "record-movement.done": { title: "تم تسجيل الحركة", text: "يمكنك رؤيتها في القائمة وفي تقارير المخزون." },
+
+  "flow.write-off-stock": { title: "شطب مخزون", text: "أخرج المخزون المنتهي أو التالف من دفاترك، مع تسجيل السبب." },
+  "write-off-stock.open": { title: "الدفعات", text: "الدفعات ضمن [[Inventory]]. فتحنا الصفحة لك." },
+  "write-off-stock.row": { title: "اختر الدفعة", text: "اضغط [[Write off]] على الدفعة التي تريد شطبها." },
+  "write-off-stock.qty": { title: "كم؟", text: "اكتب الكمية المراد شطبها. لا يمكنك شطب أكثر مما تحتويه الدفعة." },
+  "write-off-stock.reason": { title: "لماذا؟", text: "اختر [[Expired]] أو [[Damaged or lost]]. ويمكنك إضافة ملاحظة أيضاً." },
+  "write-off-stock.save": { title: "اشطبه", text: "اضغط [[Write off]] في المربع. ينخفض المخزون وتُسجَّل تكلفة الخسارة في الحسابات." },
+  "write-off-stock.done": { title: "تم الشطب", text: "تعرض الدفعة كميتها الجديدة، والحركة في تقرير المخزون." },
+
+  "flow.add-category": { title: "إضافة فئة", text: "مجموعة تجمع الأصناف المتشابهة معاً في التقارير." },
+  "add-category.open": { title: "الفئات", text: "الفئات ضمن [[Inventory]]. فتحنا الصفحة لك." },
+  "add-category.new": { title: "أضف الفئة", text: "اضغط [[Add Category]]." },
+  "add-category.name": { title: "الاسم", text: "اكتب اسم الفئة، مثل {{Rice}}." },
+  "add-category.save": { title: "حفظ", text: "اضغط [[Create Category]]. يمكنك اختيارها في أي صنف." },
+  "add-category.done": { title: "تمت إضافة الفئة", text: "اخترها عند إضافة صنف مخزون أو تعديله." },
+
+  "flow.add-unit": { title: "إضافة وحدة", text: "كيف تعدّ الصنف: كيس، كرتون، قطعة، كيلوغرام." },
+  "add-unit.open": { title: "الوحدات", text: "الوحدات ضمن [[Inventory]]. فتحنا الصفحة لك." },
+  "add-unit.new": { title: "أضف الوحدة", text: "اضغط [[Add Unit]]." },
+  "add-unit.name": { title: "اسم الوحدة", text: "اكتب الاسم الكامل للوحدة، مثل {{Carton}}." },
+  "add-unit.code": { title: "الرمز المختصر", text: "اكتب رمزاً مختصراً، مثل {{CTN}}. يُطبع على المستندات." },
+  "add-unit.save": { title: "حفظ", text: "اضغط [[Create Unit]]." },
+  "add-unit.done": { title: "تمت إضافة الوحدة", text: "اخترها عند إضافة صنف مخزون أو تعديله." },
+};

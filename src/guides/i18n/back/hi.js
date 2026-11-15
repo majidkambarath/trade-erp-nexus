@@ -3,10 +3,12 @@
 // AI that wrote the translation: it shows drift, it is not an independent native check.
 import sell from "./sell/hi";
 import buy from "./buy/hi";
+import stock from "./stock/hi";
 
 export default {
   ...sell,
   ...buy,
+  ...stock,
   "flow.add-customer": { title: "Add a customer", text: "The person or company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We have opened the page for you." },
   "add-customer.add": { title: "Add a customer", text: "Press [[Add Customer]]." },
