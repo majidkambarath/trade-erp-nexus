@@ -13,11 +13,13 @@ const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) || `--${k}=${d}
 const lang = opt("lang", "en");
 const base = opt("base", "http://localhost:5173");
 const shots = opt("shots", "");
+const manifestPath = opt("manifest", ""); // for the video recorder: one entry per step with its screenshot and card wording
 const email = process.env.GUIDE_EMAIL || "test@gmail.com";
 const password = process.env.GUIDE_PASSWORD;
 if (!flowId) { console.error("usage: walk.mjs <flow id> [--lang=en]"); process.exit(2); }
 if (!password) { console.error("Set GUIDE_PASSWORD (and GUIDE_EMAIL) to a demo company's sign-in."); process.exit(2); }
-if (shots) fs.mkdirSync(shots, { recursive: true });
+if (shots || manifestPath) fs.mkdirSync(shots || ".", { recursive: true });
+const manifest = [];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"], defaultViewport: { width: 1440, height: 900 } });
@@ -30,6 +32,9 @@ await page.type('input[type="email"], input[name="email"]', email);
 await page.type('input[type="password"]', password);
 await Promise.all([page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 }).catch(() => {}), page.keyboard.press("Enter")]);
 await page.waitForSelector('[data-guide="guide-me"]', { timeout: 60000 });
+// a new person is welcomed with a choice of journeys (WelcomeGuide); the walker chooses the guide itself, so it says "not now"
+await wait(600);
+await page.evaluate(() => document.querySelector("[data-welcome-later]")?.click());
 
 // start in the wanted language first (the choice is remembered per person), then start the guide
 await page.click('[data-guide="guide-me"]'); await wait(400);
@@ -49,7 +54,10 @@ const read = () => page.evaluate(() => {
   const o = document.querySelector("[data-guide-overlay]");
   if (!o) return null;
   const cur = document.querySelector("[data-guide-current]");
-  return { step: o.dataset.guideStep, kind: o.dataset.guideKind, sample: o.dataset.guideSample, card: o.querySelector("[role=region]")?.innerText.replace(/\n+/g, " | "), hasTarget: Boolean(cur), tag: cur?.tagName, role: cur?.getAttribute("role") };
+  const region = o.querySelector("[role=region]");
+  const ps = region ? [...region.querySelectorAll("p")] : [];
+  const partsOf = (el) => (el ? [...el.childNodes].map((n) => ({ fixed: n.nodeType === 1 && n.hasAttribute("data-guide-fixed"), s: n.textContent })).filter((x) => x.s) : []);
+  return { title: ps.find((p) => p.className.includes("font-semibold"))?.textContent || "", parts: partsOf(ps.find((p) => p.className.includes("leading-relaxed"))), step: o.dataset.guideStep, kind: o.dataset.guideKind, sample: o.dataset.guideSample, card: o.querySelector("[role=region]")?.innerText.replace(/\n+/g, " | "), hasTarget: Boolean(cur), tag: cur?.tagName, role: cur?.getAttribute("role") };
 });
 
 const log = [];
@@ -62,7 +70,12 @@ for (let n = 0; n < 80; n += 1) {
     last = s.step; since = Date.now();
     log.push({ step: s.step, kind: s.kind, card: s.card });
     console.log(`${String(log.length).padStart(2)}. ${s.step}  [${s.kind}]  ${s.card?.slice(0, 90)}`);
-    if (shots) await page.screenshot({ path: `${shots}/${flowId}-${lang}-${String(log.length).padStart(2)}-${s.step.split(".")[1]}.png` });
+    if (shots || manifestPath) {
+      if (manifestPath) await wait(700); // let the spotlight settle before the picture is taken
+      const file = `${shots || "."}/${flowId}-${lang}-${String(log.length).padStart(2)}-${s.step.split(".")[1]}.png`;
+      await page.screenshot({ path: file });
+      manifest.push({ step: s.step, kind: s.kind, title: s.title, parts: s.parts, shot: file });
+    }
   }
   if (s.kind === "done") { console.log("DONE"); break; }
   if (Date.now() - since > 14000) { problems.push(`stuck on ${s.step} (${s.kind}): target ${s.hasTarget ? "found but the step did not advance" : "never found"}`); break; }
@@ -91,6 +104,7 @@ for (let n = 0; n < 80; n += 1) {
   } else { await wait(400); }
 }
 
+if (manifestPath) fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 1));
 await browser.close();
 if (problems.length) { console.error("\nFAILED:\n  " + problems.join("\n  ")); process.exit(1); }
 console.log(`\nwalked ${log.length} steps of ${flowId} in ${lang}: no problems`);
