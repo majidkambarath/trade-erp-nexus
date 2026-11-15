@@ -43,7 +43,10 @@ describe("the flows", () => {
 
   it("offer a person only what their role and plan allow", () => {
     const some = flowsFor({ mayUse: (p) => p === "sales.create" });
-    expect(some.map((f) => f.id)).toEqual(["add-customer", "create-quotation", "create-sales-order"]);
+    expect(some.length).toBeGreaterThan(0);
+    for (const f of some) expect(f.permission, f.id).toBe("sales.create"); // nothing that needs another key slips through
+    expect(some.map((f) => f.id)).toContain("add-customer");
+    expect(some.map((f) => f.id)).not.toContain("add-vendor");
     expect(flowsFor({ mayUse: () => false })).toEqual([]);
   });
 

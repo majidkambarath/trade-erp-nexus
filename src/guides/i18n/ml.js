@@ -4,9 +4,11 @@
 // native speaker has read it and this is set to true.
 
 import sell from "./sell/ml";
+import buy from "./buy/ml";
 
 export default {
   ...sell,
+  ...buy,
   reviewed: false,
 
   ui: {

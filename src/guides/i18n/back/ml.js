@@ -2,9 +2,11 @@
 // so someone who reads no Malayalam can compare the meaning. Same keys as en.js. An aid for reviewers, drafted by the
 // same AI that wrote the translation: it shows drift, it is not an independent native check.
 import sell from "./sell/ml";
+import buy from "./buy/ml";
 
 export default {
   ...sell,
+  ...buy,
   "flow.add-customer": { title: "Add a customer", text: "The person or company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We have opened the page." },
   "add-customer.add": { title: "Add the customer", text: "Press [[Add Customer]]." },

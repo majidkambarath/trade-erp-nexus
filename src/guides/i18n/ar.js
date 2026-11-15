@@ -4,9 +4,11 @@
 // speaker has read it and this is set to true.
 
 import sell from "./sell/ar";
+import buy from "./buy/ar";
 
 export default {
   ...sell,
+  ...buy,
   reviewed: false,
 
   ui: {

@@ -3,9 +3,11 @@
 // The other languages (ar.js, hi.js, ml.js) hold the SAME keys; guides.test.js fails when one is missing.
 
 import sell from "./sell/en";
+import buy from "./buy/en";
 
 export default {
   ...sell,
+  ...buy,
   reviewed: true,
 
   ui: {

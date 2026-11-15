@@ -1,9 +1,10 @@
 // The guides: which flows exist, which the person may run, and their words.
 import { addCustomer, addVendor, addItem } from "./flows/masters";
+import { createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn } from "./flows/buy";
 import { createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment } from "./flows/sell";
 import en from "./i18n/en";
 
-export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment];
+export const FLOWS = [addCustomer, addVendor, addItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, receivePayment, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn];
 export const LANGS = [
   { code: "en", label: "English", short: "EN", dir: "ltr" },
   { code: "ar", label: "العربية", short: "AR", dir: "rtl" },
