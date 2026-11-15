@@ -7,12 +7,14 @@ import sell from "./sell/ml";
 import buy from "./buy/ml";
 import stock from "./stock/ml";
 import money from "./money/ml";
+import accounts from "./accounts/ml";
 
 export default {
   ...sell,
   ...buy,
   ...stock,
   ...money,
+  ...accounts,
   reviewed: false,
 
   ui: {

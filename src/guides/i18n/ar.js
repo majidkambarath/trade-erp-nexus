@@ -7,12 +7,14 @@ import sell from "./sell/ar";
 import buy from "./buy/ar";
 import stock from "./stock/ar";
 import money from "./money/ar";
+import accounts from "./accounts/ar";
 
 export default {
   ...sell,
   ...buy,
   ...stock,
   ...money,
+  ...accounts,
   reviewed: false,
 
   ui: {

@@ -6,12 +6,14 @@ import sell from "./sell/en";
 import buy from "./buy/en";
 import stock from "./stock/en";
 import money from "./money/en";
+import accounts from "./accounts/en";
 
 export default {
   ...sell,
   ...buy,
   ...stock,
   ...money,
+  ...accounts,
   reviewed: true,
 
   ui: {
