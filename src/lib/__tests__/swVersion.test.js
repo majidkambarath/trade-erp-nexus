@@ -22,4 +22,13 @@ describe("service worker release", () => {
     expect(shell).not.toMatch(/\/d\//);
     expect(text).toMatch(/url\.pathname\.startsWith\("\/api"\) \|\| url\.pathname\.includes\("\/api\/v1"\)\) return;/);
   });
+
+  // A guide video is fetched in ranges (206 Partial Content), which Cache.put refuses, and there are a hundred of them.
+  it("leaves the guide videos to the browser, before any cache rule", () => {
+    const text = worker();
+    const skip = text.indexOf('if (url.pathname.startsWith("/videos/")) return;');
+    expect(skip).toBeGreaterThan(-1);
+    expect(skip).toBeLessThan(text.indexOf("staleWhileRevalidate(request, SHELL)"));
+    expect(skip).toBeLessThan(text.indexOf('request.mode === "navigate"'));
+  });
 });

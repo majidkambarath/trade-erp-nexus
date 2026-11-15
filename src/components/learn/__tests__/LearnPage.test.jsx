@@ -7,6 +7,18 @@ import en from "../../../guides/i18n/en";
 vi.mock("../../../axios/axios", () => ({
   default: { get: vi.fn(() => Promise.resolve({ data: { data: { steps: [{ id: "customer", guide: "add-customer", done: true }, { id: "vendor", guide: "add-vendor", done: false }] } } })) },
 }));
+// two guides have videos: the vendor one in English and Malayalam, the dashboard one in English only
+vi.mock("../../../guides/videos", () => {
+  const VIDEOS = { "add-vendor": ["en", "ml"], "read-dashboard": ["en"] };
+  return {
+    VIDEOS,
+    videoUrl: (id, lang) => {
+      const l = VIDEOS[id]; if (!l) return null;
+      const use = l.includes(lang) ? lang : l.includes("en") ? "en" : null;
+      return use ? { src: `/videos/${id}.${use}.mp4`, lang: use } : null;
+    },
+  };
+});
 import LearnPage from "../LearnPage";
 
 const flow = (id) => ({ id, minutes: 2, steps: [] });
@@ -38,5 +50,23 @@ describe("Learn page", () => {
     await waitFor(() => expect(screen.getByText("Your first steps")).toBeTruthy());
     const list = screen.getByText("Your first steps").closest("section");
     expect(list.querySelectorAll("button").length).toBe(1); // only the vendor step is still to do
+  });
+  it("offers Watch only for a guide with a video, and plays it in the chosen language", () => {
+    const c = ctx({ lang: "ml" }); view(c);
+    expect(screen.queryByRole("button", { name: /Watch: Add a customer/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Watch: Add a vendor/ }));
+    const video = document.querySelector("video");
+    expect(video.getAttribute("src")).toBe("/videos/add-vendor.ml.mp4");
+    expect(screen.queryByText(/no video in your language/)).toBeNull();
+  });
+  it("falls back to the English video and says so, and Start from the player starts the guide", () => {
+    const c = ctx({ lang: "ml" }); view(c);
+    fireEvent.click(screen.getByRole("button", { name: /Watch: Read your dashboard/ }));
+    expect(document.querySelector("video").getAttribute("src")).toBe("/videos/read-dashboard.en.mp4");
+    expect(screen.getByText(/so this one is in English/)).toBeTruthy();
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click([...dialog.querySelectorAll("button")].find((b) => b.textContent === "Start guide"));
+    expect(c.start).toHaveBeenCalledWith("read-dashboard");
+    expect(document.querySelector("video")).toBeNull();
   });
 });
