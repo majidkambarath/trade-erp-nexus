@@ -809,7 +809,21 @@ function stubFor(pathname, search = "") {
   }
   if (p.includes("/assistant/mine")) return [];
   if (p.includes("/assistant/usage")) return { days: [], totals: { questions: 0, costMicros: 0 }, unanswered: [], corpus: { topics: 128 } };
-  if (p.includes("/assistant/settings")) return { enabled: true, provider: "echo", model: "claude-opus-5-5", hasApiKey: false, models: ["claude-opus-5-5"], corpus: { topics: 128 } };
+  if (p.includes("/assistant/settings/test")) return { ok: true, provider: "openai", model: "openai/gpt-oss-120b", latencyMs: 640, toolCalling: true };
+  // An open model with its own address and a stored key: the fullest form the Zarvia AI tab draws.
+  if (p.includes("/assistant/settings")) return {
+    enabled: true, provider: "openai", model: "claude-opus-5-5", hasApiKey: false, usesOurKey: false, models: ["claude-opus-5-5", "claude-haiku-5-5"],
+    openBaseUrl: "https://api.groq.com/openai/v1", openModel: "openai/gpt-oss-120b", hasOpenApiKey: true, timeoutSeconds: 60,
+    installationOpen: { available: true, model: "openai/gpt-oss-120b", hasKey: true },
+    effective: { provider: "openai", model: "openai/gpt-oss-120b", baseUrl: "https://api.groq.com/openai/v1", source: "organisation" },
+    presets: [
+      { key: "groq", label: "Groq (free plan)", baseUrl: "https://api.groq.com/openai/v1", models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"], needsKey: true, note: "Free key from console.groq.com. The free plan has daily limits (about 1,000 questions a day per model). Very fast." },
+      { key: "openrouter", label: "OpenRouter (free models)", baseUrl: "https://openrouter.ai/api/v1", models: [], needsKey: true, note: "Free key from openrouter.ai." },
+      { key: "ollama", label: "Ollama (your own server)", baseUrl: "http://localhost:11434/v1", models: ["qwen3:8b"], needsKey: false, note: "Runs on a machine you control." },
+      { key: "custom", label: "Another OpenAI-compatible service", baseUrl: "", models: [], needsKey: false, note: "Any OpenAI-compatible service." },
+    ],
+    lastErrorCode: "", corpus: { topics: 128 },
+  };
 
   // The session is restored from a cookie, not from storage: src/axios/axios.js asks for a
   // token on every page load and sends the tab to sign-in when it does not get one. Without

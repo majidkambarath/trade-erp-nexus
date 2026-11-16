@@ -30,4 +30,6 @@ export const assistant = {
   usage: (from, to) => api.get("/assistant/usage", { from, to }),
   settings: () => api.get("/assistant/settings"),
   saveSettings: (body) => api.put("/assistant/settings", body),
+  // Tries the settings on the screen, saved or not, with one small question. Saves nothing.
+  testSettings: (body) => api.post("/assistant/settings/test", body),
 };
