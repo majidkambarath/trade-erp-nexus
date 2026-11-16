@@ -13,9 +13,9 @@ import en from "./i18n/en";
 export const FLOWS = [addCustomer, addVendor, addItem, addServiceItem, createQuotation, quotationNextStep, createSalesOrder, deliverAndInvoice, sendInvoice, receivePayment, quickSalesInvoice, createPurchaseOrder, receiveAndBillGoods, paySupplier, directPurchaseInvoice, salesReturn, purchaseReturn, recordMovement, writeOffStock, addCategory, addUnit, recordExpense, journalEntry, contraTransfer, creditDebitNote, followCheque, addBank, bankReconciliation, addAccount, readAccountLedger, accountingSetupTour, closeMonth, openingBalancesTour, readProfitAndLoss, readAgeing, customerStatement, readStockReports, readVatReturn, readLedgerAndDayBook, readPartyBalances, readTradeAnalysis, readDashboard, approvalsTour, setUpCompany, taxIdentityTour, creditAndApprovalsTour, invoiceBankDetails, preferencesTour, securityTour, sendingSetupTour, branchesTour, addColleague, rolesTour, ...GARAGE_FLOWS];
 export const LANGS = [
   { code: "en", label: "English", short: "EN", dir: "ltr" },
-  { code: "ar", label: "العربية", short: "AR", dir: "rtl" },
-  { code: "hi", label: "हिन्दी", short: "HI", dir: "ltr" },
   { code: "ml", label: "മലയാളം", short: "ML", dir: "ltr" },
+  { code: "hi", label: "हिन्दी", short: "HI", dir: "ltr" },
+  { code: "ar", label: "العربية", short: "AR", dir: "rtl" },
 ];
 // Languages other than English are loaded on demand, so a person who never switches pays nothing for them.
 const LOADERS = {

@@ -80,7 +80,7 @@ describe("the flows", () => {
   });
 
   it("list the four languages, Arabic right to left", () => {
-    expect(LANGS.map((l) => l.code)).toEqual(["en", "ar", "hi", "ml"]);
+    expect(LANGS.map((l) => l.code)).toEqual(["en", "ml", "hi", "ar"]);
     expect(LANGS.find((l) => l.code === "ar").dir).toBe("rtl");
   });
 });
