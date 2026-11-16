@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.2.0.0 — 16 November 2026
+
+Zarvia AI on a free open model, preparing documents, and Guide me from an answer. Frontend and backend both at 3.2.0.0.
+
+### Added
+
+- **Settings → Zarvia AI**: choose Claude, an open model (Groq, OpenRouter, your own Ollama) or test mode, with a
+  connection test, the last 30 days of use, and the switch for preparing documents.
+- **A card under an answer** when Zarvia AI prepared a payment, receipt, expense or draft invoice: check it, enter a
+  missing reference, press the button to save it through the normal screen's rules, or "Change details" to open the
+  normal form already filled in. Nothing is saved until the button is pressed.
+- **"Guide me" under an answer**: the step-by-step walkthrough the question names ("i need to purchase" offers
+  "Create a purchase order"), only from the guides the person may run.
+
 ## 3.1.0.0 — 16 November 2026
 
 Garage guides and videos. Frontend and backend both at 3.1.0.0.
