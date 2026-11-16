@@ -52,6 +52,7 @@ export default {
     watch: "Watch",
     watchTitle: (t) => `Video: ${t}`,
     watchNext: (t) => `Next video: ${t}`,
+    videoSpeed: "Speed",
     videoLang: (l) => `There is no video in your language yet, so this one is in ${l}.`,
     welcomeTitle: "Welcome! What do you want to do first?",
     welcomeText: "Pick one. Zarvia will show you each step on your own screen, one at a time.",

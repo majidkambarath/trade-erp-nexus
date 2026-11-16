@@ -53,6 +53,7 @@ export default {
     watch: "شاهد",
     watchTitle: (t) => `فيديو: ${t}`,
     watchNext: (t) => `الفيديو التالي: ${t}`,
+    videoSpeed: "السرعة",
     videoLang: (l) => `لا يوجد فيديو بلغتك بعد، لذا هذا الفيديو بـ ${l}.`,
     welcomeTitle: "أهلاً بك! ماذا تريد أن تفعل أولاً؟",
     welcomeText: "اختر واحداً. سيُريك Zarvia كل خطوة على شاشتك أنت، خطوة بعد خطوة.",

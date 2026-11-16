@@ -90,4 +90,18 @@ describe("Learn page", () => {
     expect(document.querySelector("[data-watch-next]")).toBeNull();
     expect(document.querySelectorAll("video").length).toBe(1); // nothing left to prepare
   });
+  it("plays at the speed they choose, keeps it for the next video, and remembers it", () => {
+    window.localStorage.removeItem("zarvia.videoSpeed");
+    view(ctx());
+    fireEvent.click(screen.getByRole("button", { name: /Watch: Add a customer/ }));
+    const first = document.querySelector("video[controls]");
+    fireEvent.click(document.querySelector('[data-speed="1.5"]'));
+    expect(first.playbackRate).toBe(1.5);
+    expect(document.querySelector('[data-speed="1.5"]').getAttribute("aria-pressed")).toBe("true");
+    expect(window.localStorage.getItem("zarvia.videoSpeed")).toBe("1.5");
+    fireEvent.click(document.querySelector("[data-watch-next]")); // the next video starts at the same speed
+    const next = document.querySelector("video[controls]");
+    fireEvent.loadedMetadata(next);
+    expect(next.playbackRate).toBe(1.5);
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, PlayCircle, Search, Sparkles } from "lucide-react";
 import { Button } from "../ui/button";
 import { Modal, PageHeader, Panel } from "../accounting/kit";
@@ -12,11 +12,19 @@ import { videoUrl } from "../../guides/videos";
 // laid out as a page: somewhere to look around, choose the guide language and pick up where they left off.
 const norm = (s) => String(s || "").toLowerCase();
 
+// How fast the videos play: remembered for the next video and the next visit (a per-person convenience, so it may fail quietly).
+const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const SPEED_KEY = "zarvia.videoSpeed";
+const savedSpeed = () => { try { const v = Number(window.localStorage.getItem(SPEED_KEY)); return SPEEDS.includes(v) ? v : 1; } catch { return 1; } };
+
 export default function LearnPage() {
   const { flows, start, done, table, active, lang, setLang } = useGuides();
   const [q, setQ] = useState("");
   const [watching, setWatching] = useState(null); // { flow, src, poster, lang } of the video being played
   const [ended, setEnded] = useState(false);
+  const [speed, setSpeedState] = useState(savedSpeed);
+  const player = useRef(null);
+  const setSpeed = (v) => { setSpeedState(v); if (player.current) player.current.playbackRate = v; try { window.localStorage.setItem(SPEED_KEY, String(v)); } catch { /* not remembered */ } };
   const [steps, setSteps] = useState(null); // the books' own answer; null until it arrives, or if it cannot be read
   useEffect(() => {
     let live = true;
@@ -128,7 +136,15 @@ export default function LearnPage() {
           description={watching.lang !== lang ? ui(table, "videoLang", LANGS.find((l) => l.code === watching.lang)?.label || watching.lang) : undefined}>
           {/* the walkthrough as recorded on the screens, with the card read aloud; the guide itself is Start */}
           <video key={watching.src} src={watching.src} poster={watching.poster} controls autoPlay playsInline preload="metadata" onEnded={() => setEnded(true)}
+            ref={player} onLoadedMetadata={(e) => { e.currentTarget.playbackRate = speed; }}
             className="aspect-[16/10] w-full rounded-lg bg-black" aria-label={ui(table, "watchTitle", title(watching.flow))} />
+          <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={ui(table, "videoSpeed")}>
+            <span className="me-1 text-xs text-muted-foreground">{ui(table, "videoSpeed")}</span>
+            {SPEEDS.map((v) => (
+              <button key={v} type="button" data-speed={v} aria-pressed={speed === v} onClick={() => setSpeed(v)}
+                className={`h-9 min-w-12 rounded-md border px-2 text-sm ${speed === v ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent"}`}>{v}×</button>
+            ))}
+          </div>
           {/* the next video's first bytes are fetched quietly now (only its header, a few KB), so "Next video" starts at once */}
           {upNext && <video src={upNext.src} preload="metadata" muted hidden aria-hidden="true" tabIndex={-1} />}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
