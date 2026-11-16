@@ -28,7 +28,7 @@ const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8")
 // ...and the address Google returns the browser to after a person connects their calendar, which is a machine
 // redirect rather than a page anybody opens. The employee self-service portal (D15, W5) is its own identity
 // and its own frame outside the product's shell too, like /platform - it has no entry in MODULES.
-const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/portal/*", "/forgot-password", "/reset-password", "/crm/google/callback"]);
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/portal/*", "/forgot-password", "/reset-password", "/crm/google/callback", "/learn"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));

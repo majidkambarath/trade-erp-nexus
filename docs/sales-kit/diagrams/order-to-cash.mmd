@@ -1,0 +1,12 @@
+flowchart LR
+  Q[Quotation] -->|customer says yes| O[Sales order]
+  O --> D[Delivery note<br/>signed for]
+  D -->|one click| I[Invoice approved]
+  I --> S[Sent by email<br/>or WhatsApp]
+  I --> P[Payment received]
+  P --> R[Customer's balance,<br/>ageing, dashboard up to date]
+
+  classDef quiet fill:#f4f2ee,stroke:#b9b2a5,color:#1d1b18;
+  classDef posts fill:#1d1b18,stroke:#1d1b18,color:#ffffff;
+  class Q,O,D,S,R quiet;
+  class I,P posts;

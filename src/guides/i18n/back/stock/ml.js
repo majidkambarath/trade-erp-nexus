@@ -1,0 +1,35 @@
+// What each Malayalam line of the stock guides says, written back into English FROM THE MALAYALAM. See back/ml.js.
+export default {
+  "flow.record-movement": { title: "Record a stock movement", text: "Increase or decrease stock by hand, to correct the count, for damaged goods, or for the opening quantity." },
+  "record-movement.open": { title: "Movements", text: "Movements are under [[Inventory]]. We have opened the page." },
+  "record-movement.new": { title: "Start a movement", text: "Press [[Record Movement]]." },
+  "record-movement.item": { title: "Which item?", text: "Select the item. Type a few letters of its name." },
+  "record-movement.qty": { title: "Quantity", text: "Type a positive number to increase stock and a negative number to decrease stock." },
+  "record-movement.event": { title: "What happened?", text: "Select the reason, for example [[Stock Adjustment]] to correct the count, or [[Damaged Stock]] for goods that cannot be sold." },
+  "record-movement.reference": { title: "Reference", text: "Type a reference that can be found later, for example {{ADJ-1}}. It is mandatory." },
+  "record-movement.save": { title: "Save", text: "Press [[Record Movement]] in the box. The stock number will change immediately, and the movement stays in the record." },
+  "record-movement.done": { title: "Movement recorded", text: "You can see it in the list and in the stock reports." },
+
+  "flow.write-off-stock": { title: "Write off stock", text: "Remove expired or damaged stock from your records, along with the reason." },
+  "write-off-stock.open": { title: "Batches", text: "Batches are under [[Inventory]]. We have opened the page." },
+  "write-off-stock.row": { title: "Select the batch", text: "Press [[Write off]] on the batch that has to be written off." },
+  "write-off-stock.qty": { title: "How much?", text: "Type the quantity to be written off. You cannot write off more than what is in the batch." },
+  "write-off-stock.reason": { title: "Why?", text: "Select [[Expired]] or [[Damaged or lost]]. A note can also be added." },
+  "write-off-stock.save": { title: "Write off", text: "Press [[Write off]] in the box. The stock will go down, and the cost of the loss will be posted in the accounts." },
+  "write-off-stock.done": { title: "Written off", text: "The batch will show its new quantity, and the movement is in the stock report." },
+
+  "flow.add-category": { title: "Add a category", text: "A group that keeps similar items together in reports." },
+  "add-category.open": { title: "Categories", text: "Categories are under [[Inventory]]. We have opened the page." },
+  "add-category.new": { title: "Add the category", text: "Press [[Add Category]]." },
+  "add-category.name": { title: "Name", text: "Type the category's name, for example {{Rice}}." },
+  "add-category.save": { title: "Save", text: "Press [[Create Category]]. You can select it on any item." },
+  "add-category.done": { title: "Category added", text: "Select it when adding or changing a stock item." },
+
+  "flow.add-unit": { title: "Add a unit", text: "How you count an item: bag, carton, piece, kilogram." },
+  "add-unit.open": { title: "Units", text: "Units are under [[Inventory]]. We have opened the page." },
+  "add-unit.new": { title: "Add the unit", text: "Press [[Add Unit]]." },
+  "add-unit.name": { title: "Unit name", text: "Type the full name of the unit, for example {{Carton}}." },
+  "add-unit.code": { title: "Short code", text: "Type a short code, for example {{CTN}}. It will be printed on documents." },
+  "add-unit.save": { title: "Save", text: "Press [[Create Unit]]." },
+  "add-unit.done": { title: "Unit added", text: "Select it when adding or changing a stock item." },
+};

@@ -1,0 +1,11 @@
+flowchart LR
+  L[Low stock<br/>reorder report] --> PO[Purchase order]
+  PO -->|truck arrives| G[Goods received<br/>short lines noted]
+  G -->|supplier's bill| B[Purchase invoice approved]
+  B --> C[Payment<br/>cash, transfer or cheque]
+  B --> A[Stock in at cost,<br/>average updated]
+
+  classDef quiet fill:#f4f2ee,stroke:#b9b2a5,color:#1d1b18;
+  classDef posts fill:#1d1b18,stroke:#1d1b18,color:#ffffff;
+  class L,PO,G,A quiet;
+  class B,C posts;

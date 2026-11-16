@@ -1,0 +1,35 @@
+// Hindi wording of the stock guides: same keys as stock/en.js. Terms follow glossary.js.
+export default {
+  "flow.record-movement": { title: "स्टॉक मूवमेंट दर्ज करें", text: "स्टॉक हाथ से बढ़ाएँ या घटाएँ, गिनती सुधारने, ख़राब माल या शुरुआती मात्रा के लिए।" },
+  "record-movement.open": { title: "मूवमेंट", text: "मूवमेंट [[Inventory]] के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "record-movement.new": { title: "मूवमेंट शुरू करें", text: "[[Record Movement]] दबाएँ।" },
+  "record-movement.item": { title: "कौन सा आइटम?", text: "आइटम चुनें। उसके नाम के कुछ अक्षर लिखें।" },
+  "record-movement.qty": { title: "मात्रा", text: "स्टॉक बढ़ाने के लिए धनात्मक संख्या लिखें, या स्टॉक घटाने के लिए ऋणात्मक संख्या।" },
+  "record-movement.event": { title: "क्या हुआ?", text: "कारण चुनें, जैसे गिनती सुधारने के लिए [[Stock Adjustment]] या जिस माल को आप बेच नहीं सकते उसके लिए [[Damaged Stock]]।" },
+  "record-movement.reference": { title: "रेफ़रेंस", text: "ऐसा रेफ़रेंस लिखें जिसे आप बाद में ढूँढ सकें, जैसे {{ADJ-1}}। यह ज़रूरी है।" },
+  "record-movement.save": { title: "सहेजें", text: "बॉक्स में [[Record Movement]] दबाएँ। स्टॉक की संख्या तुरंत बदलती है और मूवमेंट रिकॉर्ड में रहता है।" },
+  "record-movement.done": { title: "मूवमेंट दर्ज हुआ", text: "आप इसे सूची में और स्टॉक रिपोर्ट में देख सकते हैं।" },
+
+  "flow.write-off-stock": { title: "स्टॉक राइट-ऑफ़ करें", text: "एक्सपायर्ड या ख़राब स्टॉक को अपनी बुक्स से निकालें, कारण के साथ।" },
+  "write-off-stock.open": { title: "बैच", text: "बैच [[Inventory]] के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "write-off-stock.row": { title: "बैच चुनें", text: "जिस बैच को राइट-ऑफ़ करना है उस पर [[Write off]] दबाएँ।" },
+  "write-off-stock.qty": { title: "कितना?", text: "जितनी मात्रा राइट-ऑफ़ करनी है वह लिखें। बैच में जितना है उससे ज़्यादा राइट-ऑफ़ नहीं कर सकते।" },
+  "write-off-stock.reason": { title: "क्यों?", text: "[[Expired]] या [[Damaged or lost]] चुनें। आप नोट भी जोड़ सकते हैं।" },
+  "write-off-stock.save": { title: "राइट-ऑफ़ करें", text: "बॉक्स में [[Write off]] दबाएँ। स्टॉक घटता है और नुकसान की लागत अकाउंट्स में पोस्ट होती है।" },
+  "write-off-stock.done": { title: "राइट-ऑफ़ हो गया", text: "बैच अपनी नई मात्रा दिखाता है, और मूवमेंट स्टॉक रिपोर्ट में है।" },
+
+  "flow.add-category": { title: "कैटेगरी जोड़ें", text: "एक समूह जो रिपोर्ट में मिलते-जुलते आइटम को साथ रखता है।" },
+  "add-category.open": { title: "कैटेगरी", text: "कैटेगरी [[Inventory]] के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "add-category.new": { title: "कैटेगरी जोड़ें", text: "[[Add Category]] दबाएँ।" },
+  "add-category.name": { title: "नाम", text: "कैटेगरी का नाम लिखें, जैसे {{Rice}}।" },
+  "add-category.save": { title: "सहेजें", text: "[[Create Category]] दबाएँ। आप इसे किसी भी आइटम पर चुन सकते हैं।" },
+  "add-category.done": { title: "कैटेगरी जुड़ गई", text: "स्टॉक आइटम जोड़ते या बदलते समय इसे चुनें।" },
+
+  "flow.add-unit": { title: "यूनिट जोड़ें", text: "आप आइटम को कैसे गिनते हैं: बोरी, कार्टन, पीस, किलोग्राम।" },
+  "add-unit.open": { title: "यूनिट", text: "यूनिट [[Inventory]] के अंतर्गत हैं। हमने पेज आपके लिए खोल दिया है।" },
+  "add-unit.new": { title: "यूनिट जोड़ें", text: "[[Add Unit]] दबाएँ।" },
+  "add-unit.name": { title: "यूनिट का नाम", text: "यूनिट का पूरा नाम लिखें, जैसे {{Carton}}।" },
+  "add-unit.code": { title: "शॉर्ट कोड", text: "छोटा कोड लिखें, जैसे {{CTN}}। यह दस्तावेज़ों पर छपता है।" },
+  "add-unit.save": { title: "सहेजें", text: "[[Create Unit]] दबाएँ।" },
+  "add-unit.done": { title: "यूनिट जुड़ गई", text: "स्टॉक आइटम जोड़ते या बदलते समय इसे चुनें।" },
+};

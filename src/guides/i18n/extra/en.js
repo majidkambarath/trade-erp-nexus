@@ -1,0 +1,43 @@
+// English wording of the last four guides: a service item, a quick sales invoice, sending an invoice, and the
+// approvals list. Key = "<flow id>.<step id>". See en.js for the rules.
+export default {
+  "flow.add-service-item": { title: "Add a service", text: "Delivery, installation or consulting: something you sell that has no stock." },
+  "add-service-item.open": { title: "Stock items", text: "Services live with the items under [[Inventory]]. We have opened the page for you." },
+  "add-service-item.add": { title: "Add the service", text: "Press [[Add Stock Item]]." },
+  "add-service-item.type": { title: "Choose Service", text: "Press [[Service]]. The form then hides quantity, reorder level, batches and expiry." },
+  "add-service-item.name": { title: "Name", text: "What you call it on invoices, for example {{Delivery charge}}." },
+  "add-service-item.category": { title: "Category", text: "Choose one, or type a new one to add it." },
+  "add-service-item.price": { title: "Selling price", text: "What you usually charge for it. You can change it on each invoice." },
+  "add-service-item.accounts": { title: "Income account", text: "Leave it empty and its sales go to Sales revenue. Choose an account only to keep this income apart." },
+  "add-service-item.save": { title: "Save", text: "Press [[Add Item]] to save." },
+  "add-service-item.done": { title: "Service added", text: "Pick it on an invoice like any item. It never moves stock." },
+
+  "flow.quick-sales-invoice": { title: "Make a sales invoice straight away", text: "For a counter sale: no quotation, no order, no delivery note in front of it." },
+  "quick-sales-invoice.open": { title: "Sales invoices", text: "Invoices live under [[Sales]]. We have opened the page for you." },
+  "quick-sales-invoice.new": { title: "Start an invoice", text: "Press [[New sales invoice]]." },
+  "quick-sales-invoice.customer": { title: "Who is buying?", text: "Choose the customer. Type a few letters of their name to find them." },
+  "quick-sales-invoice.item": { title: "The first item", text: "Choose what you are selling. Type a few letters of the item's name." },
+  "quick-sales-invoice.qty": { title: "Quantity", text: "How many units you are selling." },
+  "quick-sales-invoice.price": { title: "Price", text: "The item's selling price is filled in. You can change it on this line. VAT is worked out for you." },
+  "quick-sales-invoice.status": { title: "Draft or approval", text: "Choose [[Draft]] to keep working on it, or [[Pending approval]] to send it for approval. Stock and the accounts move only when it is approved." },
+  "quick-sales-invoice.save": { title: "Save", text: "Press [[Save invoice]]." },
+  "quick-sales-invoice.approve": { title: "Approve it", text: "If you may approve, press [[Confirm]] on its row. Approving takes the stock out and shows what the customer owes you." },
+  "quick-sales-invoice.done": { title: "Invoice made", text: "Next: send the invoice to the customer." },
+
+  "flow.send-invoice": { title: "Send an invoice to the customer", text: "By email with the PDF and a link, or through WhatsApp with the link." },
+  "send-invoice.open": { title: "Sales invoices", text: "Invoices live under [[Sales]]. We have opened the page for you." },
+  "send-invoice.send": { title: "Send", text: "On an approved invoice's row, press the send button. A draft cannot be sent." },
+  "send-invoice.how": { title: "Email or WhatsApp", text: "Choose [[Email]] or [[WhatsApp]]. WhatsApp opens with the message ready, and you press send there." },
+  "send-invoice.to": { title: "To", text: "The customer's email address. Type another one and press Enter to add it." },
+  "send-invoice.message": { title: "Message", text: "A few words of your own under the greeting. You may leave it empty." },
+  "send-invoice.confirm": { title: "Send it", text: "Press [[Send email]], or [[Open WhatsApp]]." },
+  "send-invoice.done": { title: "Invoice sent", text: "Its row now says when it was sent. Next: receive the payment." },
+
+  "flow.approvals-tour": { title: "See what is waiting for approval", text: "Every order and voucher that needs a decision, in one list, the oldest first." },
+  "approvals-tour.open": { title: "Approvals", text: "Approvals live under [[Home]]. We have opened the page for you." },
+  "approvals-tour.foryou": { title: "Waiting for you", text: "What you may approve right now. A number beside the menu tells you when something new arrives." },
+  "approvals-tour.row": { title: "Look before you approve", text: "Press [[Open]] to see the document in full." },
+  "approvals-tour.approve": { title: "Approve", text: "Press [[Approve]] on a row when it is right. It does the same as approving on the document's own page." },
+  "approvals-tour.others": { title: "Waiting, but not for you", text: "Waiting for someone else, with the reason: above your limit, or you prepared it." },
+  "approvals-tour.done": { title: "Approvals read", text: "Look at this list every day so nothing waits too long." },
+};

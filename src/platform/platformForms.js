@@ -35,6 +35,7 @@ export const emptyOrganisation = () => ({
   baseCurrency: "AED",
   timezone: "Asia/Dubai",
   planCode: "standard",
+  demo: false,
   // module -> { choice, actions }: only what the developer changed; everything else follows the plan
   modules: {},
   // feature -> "default" | "on" | "off": likewise only what was changed
@@ -98,6 +99,7 @@ export function toCreatePayload(form, { plan = null, modules = [], features = []
     baseCurrency: form.baseCurrency,
     timezone: form.timezone,
     planCode: form.planCode,
+    ...(form.demo ? { demo: true } : {}),
     firstAdmin: { name: form.adminName.trim(), email: form.adminEmail.trim().toLowerCase(), password: form.adminPassword },
   };
 }

@@ -1,0 +1,10 @@
+flowchart LR
+  BK[Bank statement loaded<br/>and reconciled] --> CH[Cheques cleared<br/>or bounced]
+  CH --> V[VAT return checked<br/>against the books]
+  V --> M[Month checked<br/>and closed]
+  M --> F[Statements ready:<br/>P&L, balance sheet, ageing]
+
+  classDef quiet fill:#f4f2ee,stroke:#b9b2a5,color:#1d1b18;
+  classDef posts fill:#1d1b18,stroke:#1d1b18,color:#ffffff;
+  class BK,CH,V,F quiet;
+  class M posts;

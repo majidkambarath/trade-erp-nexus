@@ -28,6 +28,7 @@ import { tabOutOfPlan } from "../lib/organisation";
 import SubscriptionNotice from "./shell/SubscriptionNotice";
 import { NavBadgesProvider } from "./shell/NavBadges";
 import UnsavedWorkProvider from "./shell/UnsavedWorkProvider";
+import { GuideProvider } from "../guides/GuideProvider";
 import { subscriptionNotice } from "../lib/subscriptionText";
 
 // Shown while a page's own code is being fetched. Deliberately quiet - a spinner that fills
@@ -280,7 +281,10 @@ const Layout = () => (
     <NavBadgesProvider>
       {/* asks before a rail link, a tab or the Back button takes a half-typed form away */}
       <UnsavedWorkProvider>
-        <LayoutShell />
+        {/* in-app guides: points at real controls and waits while the person does each step (src/guides) */}
+        <GuideProvider>
+          <LayoutShell />
+        </GuideProvider>
       </UnsavedWorkProvider>
     </NavBadgesProvider>
   </OrganisationProvider>
