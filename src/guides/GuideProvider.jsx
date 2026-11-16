@@ -116,7 +116,22 @@ export function GuideProvider({ children }) {
     return () => document.removeEventListener("click", onClick, true);
   }, [step, go]);
 
-  const value = useMemo(() => ({ active: run, start, stop, flows, lang, setLang, done, table }), [run, start, stop, flows, lang, setLang, done, table]);
+  // Where the person stopped: kept per person, so closing the page or signing out does not lose their place. Finishing a
+  // guide clears it. It is offered (never started by itself) only while that guide is still unfinished and runnable.
+  useEffect(() => {
+    if (!run || !step) return;
+    prefs.set("display.guideRun", step.kind === "done" ? null : { flowId: run.flowId, i: run.i });
+  }, [run, step, prefs]);
+  const resumable = useMemo(() => {
+    const saved = prefs.get("display.guideRun", null);
+    const f = saved && flows.find((x) => x.id === saved.flowId);
+    if (!f || run || done(f.id) || !(saved.i > 0)) return null;
+    const n = stepsFor(f, org.mayUse).length;
+    return { flowId: f.id, i: Math.min(saved.i, n - 1), of: n };
+  }, [prefs, flows, run, done, org.mayUse, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resume = useCallback(() => { if (resumable) { setSpot(null); setLost(false); setRun({ flowId: resumable.flowId, i: resumable.i }); } }, [resumable]);
+
+  const value = useMemo(() => ({ active: run, start, stop, flows, lang, setLang, done, table, resumable, resume }), [run, start, stop, flows, lang, setLang, done, table, resumable, resume]);
   return (
     <GuideContext.Provider value={value}>
       {children}

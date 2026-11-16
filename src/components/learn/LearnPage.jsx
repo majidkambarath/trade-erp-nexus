@@ -18,7 +18,7 @@ const SPEED_KEY = "zarvia.videoSpeed";
 const savedSpeed = () => { try { const v = Number(window.localStorage.getItem(SPEED_KEY)); return SPEEDS.includes(v) ? v : 1; } catch { return 1; } };
 
 export default function LearnPage() {
-  const { flows, start, done, table, active, lang, setLang } = useGuides();
+  const { flows, start, done, table, active, lang, setLang, resumable, resume } = useGuides();
   const [q, setQ] = useState("");
   const [watching, setWatching] = useState(null); // { flow, src, poster, lang } of the video being played
   const [ended, setEnded] = useState(false);
@@ -35,7 +35,7 @@ export default function LearnPage() {
   const title = (f) => wording(table, `flow.${f.id}`).title;
   const blurb = (f) => wording(table, `flow.${f.id}`).text;
   const finished = flows.filter((f) => done(f.id)).length;
-  const next = flows.find((f) => !done(f.id)) || null;
+  const next = groups.flatMap((g) => g.flows).find((f) => !done(f.id) && f.id !== resumable?.flowId) || null; // in the order the page lists them
   const query = norm(q.trim());
   const shown = groups
     .map((g) => ({ ...g, flows: query ? g.flows.filter((f) => norm(title(f)).includes(query) || norm(blurb(f)).includes(query)) : g.flows }))
@@ -55,6 +55,15 @@ export default function LearnPage() {
           <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={flows.length} aria-valuenow={finished}>
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
           </div>
+          {resumable && (
+            <div className="mt-4 flex flex-wrap items-center gap-3" data-learn-resume={resumable.flowId}>
+              <span className="min-w-0 flex-1 text-sm">
+                <span className="block text-xs text-muted-foreground">{ui(table, "resumeTitle")}</span>
+                <span className="block truncate font-medium">{title({ id: resumable.flowId })} · {ui(table, "stepOf", resumable.i + 1, resumable.of)}</span>
+              </span>
+              <Button onClick={resume} disabled={Boolean(active)}>{ui(table, "resume")}</Button>
+            </div>
+          )}
           {next && (
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">

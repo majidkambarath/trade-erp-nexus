@@ -10,7 +10,7 @@ import { grouped } from "./groups";
 const norm = (s) => String(s || "").toLowerCase();
 
 export default function GuideMenu() {
-  const { flows, start, done, table, active } = useGuides();
+  const { flows, start, done, table, active, resumable, resume } = useGuides();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -38,7 +38,7 @@ export default function GuideMenu() {
   const total = flows.length;
   const finished = flows.filter((f) => done(f.id)).length;
   const onScreen = flows.filter(here);
-  const next = flows.find((f) => !done(f.id) && !here(f)) || null;
+  const next = groups.flatMap((g) => g.flows).find((f) => !done(f.id) && !here(f) && f.id !== resumable?.flowId) || null; // in the order the menu lists them
   const query = norm(q.trim());
   const matches = query ? flows.filter((f) => norm(title(f)).includes(query) || norm(wording(table, `flow.${f.id}`).text).includes(query)) : [];
 
@@ -120,6 +120,18 @@ export default function GuideMenu() {
                 <section className="mb-1.5 rounded-lg bg-accent/50 p-1">
                   <h3 className="px-2.5 pb-0.5 pt-1.5 text-xs font-medium text-muted-foreground">{ui(table, "menuTitle")}</h3>
                   {onScreen.map((f) => <Row key={f.id} f={f} />)}
+                </section>
+              )}
+              {resumable && (
+                <section className="mb-1.5 rounded-lg border border-primary/25 p-1" data-resume={resumable.flowId}>
+                  <h3 className="px-2.5 pb-0.5 pt-1.5 text-xs font-medium text-primary">{ui(table, "resumeTitle")}</h3>
+                  <button type="button" disabled={Boolean(active)} onClick={() => { setOpen(false); resume(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm outline-none hover:bg-accent focus-visible:bg-accent disabled:opacity-50">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-foreground">{title({ id: resumable.flowId })}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{ui(table, "stepOf", resumable.i + 1, resumable.of)}</span>
+                    </span>
+                    <span className="shrink-0 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground">{ui(table, "resume")}</span>
+                  </button>
                 </section>
               )}
               {next && (
