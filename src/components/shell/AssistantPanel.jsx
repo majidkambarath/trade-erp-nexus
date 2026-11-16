@@ -6,6 +6,7 @@ import { recentRefusal } from "../../lib/lastRefusal";
 import { canSend, openingTip, toExchange, whyNotSend, MAX_QUESTION } from "../../lib/assistant";
 import { formatAnswer, plainAnswer } from "../../lib/answerFormat";
 import { pageSession } from "../../lib/pageSession";
+import AssistantProposal from "./AssistantProposal";
 import { findActive } from "../../config/navigation";
 
 // Zarvia AI, docked rather than drawn as a dialog in the middle of the page.
@@ -64,6 +65,8 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   // null until the screen answers: "covered" is whether the documentation has ANY topic about this
   // screen, which is not the same as whether those topics happen to carry question phrasings.
   const [covered, setCovered] = useState(null);
+  // Can Zarvia AI prepare payments and invoices for this person? Decides whether examples are offered.
+  const [acting, setActing] = useState(false);
   const [failed, setFailed] = useState("");
   const [copied, setCopied] = useState("");
   const endRef = useRef(null);
@@ -80,6 +83,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
         const topics = data?.topics || [];
         setTip(openingTip(screen, topics));
         setSuggested(Array.isArray(data?.suggestions) ? data.suggestions : []);
+        setActing(data?.actions === true);
         // Either signal means the documentation knows this screen.
         setCovered(topics.length > 0 || (data?.suggestions || []).length > 0);
       })
@@ -165,6 +169,14 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
     session.remove("exchanges");
   };
 
+  // The card changed (saved, or its result): keep it in the exchange, so the panel's own memory has it too.
+  const updateProposal = (exchangeId, proposalId, patch) =>
+    setExchanges((xs) => xs.map((x) => (x.id === exchangeId ? { ...x, proposals: (x.proposals || []).map((p) => (p.id === proposalId ? { ...p, ...patch } : p)) } : x)));
+  // "Change details": the normal form, opened already filled in from the prepared document.
+  const openForm = (target) => {
+    navigate(target.path, { state: target.state });
+    onClose?.();
+  };
   const go = (path) => {
     navigate(path);
     onClose?.();
@@ -255,8 +267,16 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
             )}
 
             <p className="border-t pt-3 text-xs text-muted-foreground">
-              Your own figures - what a customer owes, why a total looks wrong - are{" "}
-              <span className="font-medium">coming soon</span>.
+              {acting ? (
+                <>
+                  I can prepare a payment, a receipt, an expense or a draft invoice for you to check. Try: <span className="font-medium">pay Al Noor 5,000 by bank transfer</span>. I never save anything until you press the button.
+                </>
+              ) : (
+                <>
+                  Your own figures - what a customer owes, why a total looks wrong - are{" "}
+                  <span className="font-medium">coming soon</span>.
+                </>
+              )}
             </p>
           </div>
         )}
@@ -275,6 +295,16 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
                 {Boolean(x.citations.length) && (
                   <p className="text-xs text-muted-foreground">From: {x.citations.join(" and ")}</p>
                 )}
+                {(x.proposals || []).map((p) => (
+                  <AssistantProposal
+                    key={p.id}
+                    proposal={p}
+                    messageId={x.id}
+                    onChange={(proposalId, patch) => updateProposal(x.id, proposalId, patch)}
+                    onOpenForm={openForm}
+                    onOpenPath={go}
+                  />
+                ))}
                 {Boolean(x.links.length) && (
                   <div className="flex flex-wrap gap-2">
                     {x.links.map((l) => (

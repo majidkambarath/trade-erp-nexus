@@ -795,7 +795,7 @@ function stubFor(pathname, search = "") {
 
   // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
   // citations and a link, so the deep step below measures a real exchange rather than an empty box.
-  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }] };
+  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }], actions: true };
   if (p.includes("/assistant/ask")) {
     return {
       conversationId: "c1",
@@ -803,6 +803,15 @@ function stubFor(pathname, search = "") {
       answer: "Save the order as a draft first, then press Approve on it. Approving is what moves stock and posts the books, which is why it is its own step.",
       citations: [{ id: "guide-4-5", title: "Order to cash" }],
       links: [{ path: "/accounting-setup", label: "Open Accounting setup" }],
+      // A document Zarvia AI prepared: the card under the answer, with a long vendor name, several rows, a warning and a
+      // missing reference, which is the widest and tallest thing the card can draw. Nothing in it is saved by the sweep.
+      proposals: [{
+        id: "p1", kind: "payment", endpoint: "voucher", title: "Payment", confirm: "Pay AED 25,000.00 to Al Noor Steel Fabrication & Trading Company LLC",
+        lines: [["Pay", "Al Noor Steel Fabrication & Trading Company LLC"], ["Amount", "AED 25,000.00"], ["How", "Bank transfer"], ["Account", "Emirates NBD Current Account"], ["Date", "2026-11-16"], ["Settles", "PO-2026-0001 (12,500.00), PO-2026-0002 (12,500.00)"]],
+        body: { voucherType: "payment", vendorId: "v1", totalAmount: 25000, paymentMode: "transfer", paymentDetails: { accountId: "bk1" } },
+        missing: ["reference"], warnings: ["AED 1,000.00 is more than they have open, so it would go on account."],
+        prefill: { partyId: "v1", amount: 25000, mode: "transfer", accountId: "bk1", reference: "" },
+      }],
       outcome: "answered",
       canEscalate: false,
     };
@@ -2884,6 +2893,7 @@ if (!(await waitForServer(`http://localhost:${WEB_PORT}/`))) {
 
 const browser = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
 const results = [];
+let coldStart = true; // see the first page.goto below
 
 for (const vp of VIEWPORTS) {
   if (process.env.SHOT_VIEWPORT && process.env.SHOT_VIEWPORT !== vp.name) continue;
@@ -2899,6 +2909,10 @@ for (const vp of VIEWPORTS) {
     sessionStorage.setItem("user", JSON.stringify({ name: "Super Admin", email: "admin@test.uae", role: "Admin" }));
     // the developer console keeps its own sign-in (see src/platform/platformSession.js)
     sessionStorage.setItem("zarvia.console", JSON.stringify({ token: "stub-console-token", user: { email: "dev@zarvia.test", name: "Dev One" } }));
+    // The learning-mode welcome ("What do you want to do first?") covers a first-time person's screen, and every deep step
+    // then skips with "dialogs=2" instead of opening its own dialog. This is what pressing "Not now" writes (GuideProvider's
+    // closeWelcome), under the stub person's id: the sweep measures the screens, not the welcome.
+    localStorage.setItem("zarvia.prefs.a1", JSON.stringify({ display: { guideWelcomed: true } }));
   });
 
   // A blank screenshot is almost always a thrown render, so the console is part of the check.
@@ -2930,7 +2944,11 @@ for (const vp of VIEWPORTS) {
     const file = join(OUT, `${name}-${vp.name}.png`);
     problems.length = 0;
     try {
-      await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: 30000 });
+      // The very first page of a run waits for Vite to compile what it needs on demand, which can take well over 30 seconds
+      // on a cold start: that was reported as "Navigation timeout" for the first viewport of every run, a failure about the
+      // machine and not the page. Only the first load is given the allowance; every later one is held to 30 seconds.
+      await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: coldStart ? 180000 : 30000 });
+      coldStart = false;
       await drawn(page); // the page itself, before the settle below is spent waiting for it
       await wait(900); // let charts and async loaders settle
       // Anything wider than the window is the defect this harness is really looking for.

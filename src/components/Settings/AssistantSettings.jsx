@@ -27,7 +27,12 @@ export default function AssistantSettings({ notify }) {
   if (settings.error && !s) return <ErrorNote error={settings.error} onRetry={settings.reload} />;
   return (
     <div className="space-y-5">
-      <Panel title="Zarvia AI" description="The assistant answers questions about how Zarvia works, from Zarvia's own help guides. It reads no invoices, balances or other business records.">
+      <Panel
+        title="Zarvia AI"
+        description={s.actionsEnabled
+          ? "The assistant answers questions about how Zarvia works, from Zarvia's own help guides, and can prepare payments, receipts, expenses and draft invoices for a person to check. It never saves anything itself."
+          : "The assistant answers questions about how Zarvia works, from Zarvia's own help guides. It reads no invoices, balances or other business records."}
+      >
         <div className="flex flex-wrap items-center gap-3">
           {s.effective?.provider === "echo" ? <Pill tone="warning">Test mode</Pill> : <Pill tone="success">Answering</Pill>}
           <span className="text-sm text-muted-foreground" data-testid="answering-now">{answeringNow(s)}</span>
@@ -35,6 +40,7 @@ export default function AssistantSettings({ notify }) {
       </Panel>
       <Guarded permission="settings.manage" what="which AI answers questions">
         <Connection key={s.openBaseUrl + s.provider + s.openModel} settings={s} notify={notify} onSaved={() => Promise.all([settings.reload(), usage.reload()])} />
+        <PrepareDocuments settings={s} notify={notify} onSaved={settings.reload} />
       </Guarded>
       <Usage usage={usage} />
     </div>
@@ -154,7 +160,10 @@ function Connection({ settings, notify, onSaved }) {
               </p>
             )}
             <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              Free plans have daily limits and may keep what is sent to them. Zarvia AI sends the question, the person&apos;s name and role, your organisation&apos;s name and the help guides it found, never your invoices or accounts.
+              Free plans have daily limits and may keep what is sent to them. Zarvia AI sends the question, the person&apos;s name and role, your organisation&apos;s name and the help guides it found.{" "}
+              {settings.actionsEnabled
+                ? "Because preparing documents is on, it also sends the names and amounts of the vendors, customers, items and bills a question is about."
+                : "It never sends your invoices or accounts."}
             </p>
           </div>
         )}
@@ -219,5 +228,44 @@ function Stat({ label, value }) {
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-xl font-semibold tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+// Off until an administrator switches it on: with it on, the names and amounts of the vendors, customers, items and
+// bills a question is about are sent to the AI service, which a free plan may keep. The assistant still saves nothing:
+// every document it prepares waits on a card for the person to check and confirm.
+function PrepareDocuments({ settings, notify, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const on = Boolean(settings.actionsEnabled);
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await assistant.saveSettings({ actionsEnabled: !on });
+      notify(on ? "Zarvia AI will no longer prepare documents" : "Zarvia AI can now prepare documents");
+      await onSaved();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel title="Prepare payments and invoices" description="Let people ask Zarvia AI in plain words, for example pay Al Noor 5,000 by bank transfer. It prepares the document on a card; the person checks it and presses the button.">
+      <div className="flex flex-wrap items-center gap-3">
+        {on ? <Pill tone="success">On</Pill> : <Pill tone="neutral">Off</Pill>}
+        <span className="min-w-0 flex-1 text-sm text-muted-foreground">
+          Payments to vendors, receipts from customers, expenses and draft sales invoices. It saves nothing itself, and each person can prepare only what their own role lets them save.
+        </span>
+        <Button type="button" variant={on ? "outline" : "default"} disabled={busy} onClick={toggle}>{on ? "Switch off" : "Switch on"}</Button>
+      </div>
+      {!on && (
+        <p className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Switching this on sends the names and amounts of the vendors, customers, items and bills a question is about to the AI service chosen above. A free plan may keep what it receives.
+        </p>
+      )}
+      {error && <div className="mt-3"><ErrorNote error={new Error(errorMessage(error))} /></div>}
+    </Panel>
   );
 }

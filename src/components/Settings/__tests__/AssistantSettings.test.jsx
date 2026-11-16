@@ -47,7 +47,7 @@ describe("Settings, Zarvia AI", () => {
     expect(screen.getByRole("combobox", { name: "Where the model runs" })).toHaveValue("groq");
     expect(screen.getByLabelText("Address")).toHaveValue("https://api.groq.com/openai/v1");
     expect(screen.getByLabelText("Model")).toHaveValue("openai/gpt-oss-120b");
-    expect(screen.getByText(/never your invoices or accounts/)).toBeInTheDocument();
+    expect(screen.getByText(/never sends your invoices or accounts/)).toBeInTheDocument();
   });
 
   it("saves the open model with the typed key, then says so", async () => {
@@ -110,6 +110,25 @@ describe("Settings, Zarvia AI", () => {
     expect(screen.queryByLabelText("Address")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ provider: "openai", openBaseUrl: "", openModel: "" }));
+  });
+
+  it("preparing documents is off until switched on, says what that sends, and switches on with one press", async () => {
+    show();
+    expect(await screen.findByText("Prepare payments and invoices")).toBeInTheDocument();
+    expect(screen.getByText(/sends the names and amounts of the vendors, customers, items and bills/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Switch on" }));
+    await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ actionsEnabled: true }));
+    expect(notify).toHaveBeenCalledWith("Zarvia AI can now prepare documents");
+  });
+
+  it("when it is on, the privacy sentence and the description say so, and it can be switched off", async () => {
+    assistant.settings.mockResolvedValue({ ...BASE, provider: "openai", openBaseUrl: "https://api.groq.com/openai/v1", openModel: "openai/gpt-oss-120b", actionsEnabled: true, effective: { provider: "openai", model: "openai/gpt-oss-120b", baseUrl: "https://api.groq.com/openai/v1", source: "organisation" } });
+    show();
+    expect(await screen.findByText(/can prepare payments, receipts, expenses and draft invoices for a person to check/)).toBeInTheDocument();
+    expect(screen.getByText(/it also sends the names and amounts/)).toBeInTheDocument();
+    expect(screen.queryByText(/It never sends your invoices or accounts/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Switch off" }));
+    await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ actionsEnabled: false }));
   });
 
   it("shows the last 30 days, and a free model costs nothing", async () => {

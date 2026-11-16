@@ -1,4 +1,6 @@
+import axiosInstance from "../axios/axios";
 import { api } from "./accountingApi";
+import { bodyToSend, saveUrl } from "./assistantProposals";
 import { recentRefusal } from "./lastRefusal";
 
 // Zarvia AI (GET/POST /assistant/...). The assistant reads no business data: it answers from the
@@ -30,6 +32,13 @@ export const assistant = {
   usage: (from, to) => api.get("/assistant/usage", { from, to }),
   settings: () => api.get("/assistant/settings"),
   saveSettings: (body) => api.put("/assistant/settings", body),
+  // Save a document Zarvia AI PREPARED, through the product's own route with the person's own sign-in, so every rule
+  // that applies to a typed document applies to this one. `X-Prepared-By` is only a label on the audit trail. Answers the
+  // route's whole body ({ data, approval? }): a voucher held for approval is saved but posts nothing, and the card says so.
+  saveProposal: (proposal, filled) =>
+    axiosInstance.post(saveUrl(proposal), bodyToSend(proposal, filled), { headers: { "X-Prepared-By": "zarvia-ai" } }).then((r) => r.data),
+  // Remember, on the person's own answer, that this prepared document was confirmed, so a reopened panel never offers it twice.
+  proposalSaved: (messageId, proposalId, number) => api.post(`/assistant/messages/${messageId}/proposals/${proposalId}/saved`, { number }),
   // Tries the settings on the screen, saved or not, with one small question. Saves nothing.
   testSettings: (body) => api.post("/assistant/settings/test", body),
 };

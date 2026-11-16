@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { Copy, Eye, Pencil, Plus } from "lucide-react";
 import { Button } from "../ui/button";
@@ -8,6 +9,7 @@ import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useChartAccounts, useVoucherList } from "./shared";
 import { accounting } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
+import { expensePrefillFromAssistant } from "../../lib/assistantProposals";
 import { describePayment, emptyPayment, expenseCopy, idOf, money, paymentFromVoucher, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { CURRENCY, formatDateGB } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
@@ -21,7 +23,19 @@ const EXPENSE_ONLY = { categories: ["EXPENSE"] };
 export default function ExpenseVouchers() {
   const list = useVoucherList("expense");
   const { notify, toastNode } = useToasts();
-  const [form, setForm] = useState(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [form, setForm] = useState(() => {
+    const p = expensePrefillFromAssistant(location.state, todayInput());
+    return p ? { prefill: p } : null;
+  });
+  // Already on this screen when "Change details" was pressed: open now, and clear the state so a reload does not reopen it.
+  useEffect(() => {
+    const p = expensePrefillFromAssistant(location.state, todayInput());
+    if (!p) return;
+    setForm({ prefill: p });
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const [viewing, setViewing] = useState(null);
 
   return (
@@ -52,21 +66,21 @@ export default function ExpenseVouchers() {
           />
         </ListBody>
       </Panel>
-      {form && <ExpenseForm voucher={form._id ? form : null} copyOf={form.copy} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
+      {form && <ExpenseForm voucher={form._id ? form : null} copyOf={form.copy} prefill={form.prefill} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); notify(msg); list.reload(); }} />}
       {viewing && <VoucherView id={viewing} onChanged={list.reload}title="Expense voucher" onClose={() => setViewing(null)} onDeleted={() => { setViewing(null); notify("Expense deleted and reversed"); list.reload(); }} />}
       {toastNode}
     </div>
   );
 }
 
-export function ExpenseForm({ voucher, copyOf, onClose, onSaved }) {
+export function ExpenseForm({ voucher, copyOf, prefill = null, onClose, onSaved }) {
   const { options: expenseOptions, loading: loadingAccounts, error: accountsError } = useChartAccounts(EXPENSE_ONLY);
   const { data: opts, error: optsError } = useBankingOptions();
   const taxes = useAsync(() => accounting.taxCodes(), []);
   const vendors = useAsync(() => axiosInstance.get("/vendors/vendors").then((r) => r.data?.data || []), []);
   // A copy is a new voucher that starts with an old one's figures - today's date, no number, and the
   // payment instrument cleared (see expenseCopy).
-  const [copied] = useState(() => (copyOf ? expenseCopy(copyOf, todayInput()) : null));
+  const [copied] = useState(() => (copyOf ? expenseCopy(copyOf, todayInput()) : prefill));
   const [f, setF] = useState(copied?.fields || {
     date: voucher ? new Date(voucher.date).toISOString().slice(0, 10) : todayInput(),
     expenseAccountId: idOf(voucher?.expenseAccountId), description: voucher?.description || "",
