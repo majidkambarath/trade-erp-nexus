@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.0.0 — 16 November 2026
+
+Learning mode: guided lessons and walkthrough videos on the client's own screens. Frontend and backend both at 3.0.0.0.
+
+### Added
+
+- **53 guides** on the real screens (Guide me, and the Learn page), covering masters, sell, buy, stock, money, accounts,
+  reports and settings, in English, Arabic, Hindi and Malayalam. Each guide points at the control, waits for the person to
+  do the step and uses their own data; on-screen names are never translated.
+- **A welcome on first sign-in** that asks what to do first (set up, sell, buy, stock, money and reports) and starts that
+  journey of guides, offering only what the person's plan and role allow. Shown once.
+- **Walkthrough videos** for every guide in English and Malayalam, played from the Learn page (Watch), with a preview
+  picture, Next video in learning order and a speed choice (0.75x to 2x).
+- **First steps checklist** on the Learn page, read from the books by a new endpoint.
+
+### Changed
+
+- The service worker leaves `/videos/` to the browser.
+
 ## 2.9.2.0 — 14 November 2026
 
 Orders without delivery notes, and the invoice pages. Frontend and backend both at 2.9.2.0.
