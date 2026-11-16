@@ -1,5 +1,6 @@
 // Zarvia AI, as the panel needs it. No React, no requests - so every rule is a test.
 import { MODULES } from "../config/navigation.js";
+import { normaliseProposals } from "./assistantProposals";
 
 export const MAX_QUESTION = 2000;
 
@@ -65,6 +66,8 @@ export function toExchange(question, answer) {
     answer: String(answer?.answer || ""),
     citations: (answer?.citations || []).map((c) => c.title).filter(Boolean),
     links: safeLinks(answer?.links),
+    // Documents the assistant PREPARED: a card under the answer, confirmed by the person. Never saved by the assistant.
+    proposals: normaliseProposals(answer?.proposals),
     outcome: answer?.outcome || "answered",
     canEscalate: Boolean(answer?.canEscalate),
     escalated: Boolean(answer?.escalated || answer?.supportRequestId),

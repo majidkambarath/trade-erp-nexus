@@ -12,18 +12,24 @@ const ask = vi.fn();
 const helpful = vi.fn().mockResolvedValue({});
 const escalate = vi.fn().mockResolvedValue({ supportRequestId: "s1" });
 const screenTip = vi.fn().mockResolvedValue({ topics: [{ title: "Order to cash" }] });
+const saveProposal = vi.fn();
+const proposalSaved = vi.fn().mockResolvedValue({});
 vi.mock("../../../lib/assistantApi", () => ({
   assistant: {
     ask: (...a) => ask(...a),
     helpful: (...a) => helpful(...a),
     escalate: (...a) => escalate(...a),
     screen: (...a) => screenTip(...a),
+    saveProposal: (...a) => saveProposal(...a),
+    proposalSaved: (...a) => proposalSaved(...a),
   },
 }));
 
 import { clearPageSessions } from "../../../lib/pageSession";
 import { clearRefusal, noteRefusal } from "../../../lib/lastRefusal";
 import AssistantPanel from "../AssistantPanel";
+import { GuideContext } from "../../../guides/guideContext";
+import { FLOWS } from "../../../guides/index";
 
 const draw = (onClose = vi.fn()) =>
   render(
@@ -263,5 +269,97 @@ describe("the panel itself", () => {
   it("says which screen it is looking at, so the answers have a context you can see", async () => {
     draw();
     expect(await screen.findByText("Looking at Invoices")).toBeInTheDocument();
+  });
+
+  describe("preparing documents", () => {
+    const proposal = {
+      id: "p1", kind: "payment", endpoint: "voucher", title: "Payment", confirm: "Pay AED 500.00 to Gulf Packaging",
+      lines: [["Pay", "Gulf Packaging"], ["Amount", "AED 500.00"]],
+      body: { voucherType: "payment", vendorId: "v1", totalAmount: 500, paymentMode: "cash", paymentDetails: {} },
+      missing: [], warnings: [], prefill: { partyId: "v1", amount: 500, mode: "cash", accountId: "", reference: "" },
+    };
+    const prepared = () =>
+      ask.mockResolvedValue({ messageId: "m7", conversationId: "c1", answer: "I have prepared it below. Please check and confirm.", citations: [], links: [], proposals: [proposal], outcome: "answered" });
+    const send = async () => {
+      draw();
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: "pay Gulf Packaging 500 cash" } });
+      fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    };
+
+    it("draws a card under the answer, and nothing is saved until its button is pressed", async () => {
+      prepared();
+      await send();
+      expect(await screen.findByRole("button", { name: "Pay AED 500.00 to Gulf Packaging" })).toBeInTheDocument();
+      expect(saveProposal).not.toHaveBeenCalled();
+    });
+
+    it("confirming saves through the person's own route and remembers it on the answer", async () => {
+      prepared();
+      saveProposal.mockResolvedValue({ data: { voucherNo: "PV-2026-0003", status: "approved" } });
+      await send();
+      fireEvent.click(await screen.findByRole("button", { name: "Pay AED 500.00 to Gulf Packaging" }));
+      expect(await screen.findByText(/Payment PV-2026-0003 is recorded/)).toBeInTheDocument();
+      expect(proposalSaved).toHaveBeenCalledWith("m7", "p1", "PV-2026-0003");
+    });
+
+    it("Change details opens the normal payment screen already filled in, and closes the panel", async () => {
+      prepared();
+      const onClose = vi.fn();
+      draw(onClose);
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: "pay Gulf Packaging 500 cash" } });
+      fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+      fireEvent.click(await screen.findByRole("button", { name: /Change details/ }));
+      expect(navigate).toHaveBeenCalledWith("/payment-voucher", { state: { assistantPrefill: expect.objectContaining({ kind: "payment", partyId: "v1", amount: 500 }) } });
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("offers examples only where the server says this person can prepare documents", async () => {
+      screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }], actions: true });
+      draw();
+      expect(await screen.findByText(/pay Al Noor 5,000 by bank transfer/)).toBeInTheDocument();
+      expect(screen.queryByText(/coming soon/)).toBeNull();
+    });
+
+    it("without it, the empty state is as it was", async () => {
+      draw();
+      expect(await screen.findByText(/coming soon/)).toBeInTheDocument();
+      expect(screen.queryByText(/pay Al Noor/)).toBeNull();
+    });
+  });
+
+  describe("Guide me under an answer", () => {
+    const withGuides = (start, flows = FLOWS, onClose = vi.fn()) => {
+      render(
+        <MemoryRouter initialEntries={["/sales-order"]}>
+          <GuideContext.Provider value={{ flows, start, table: null }}>
+            <AssistantPanel onClose={onClose} />
+          </GuideContext.Provider>
+        </MemoryRouter>
+      );
+      return onClose;
+    };
+    const askIt = async (question) => {
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: question } });
+      fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    };
+
+    it("offers the walkthrough the question names, even when the answer could not help, and starts it", async () => {
+      ask.mockResolvedValue({ messageId: "m9", conversationId: "c1", answer: "I do not have anything reliable to tell you about that.", citations: [], links: [], outcome: "no_answer", canEscalate: true });
+      const start = vi.fn();
+      const onClose = withGuides(start);
+      await askIt("i need to purcahse");
+      const button = await screen.findByRole("button", { name: "Guide me: Create a purchase order" });
+      fireEvent.click(button);
+      expect(start).toHaveBeenCalledWith("create-purchase-order");
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("offers nothing when no guide fits, or the person may run none", async () => {
+      ask.mockResolvedValue({ messageId: "m10", conversationId: "c1", answer: "Here is how.", citations: [], links: [], outcome: "answered" });
+      withGuides(vi.fn(), []);
+      await askIt("i need to purchase");
+      await screen.findByText("Here is how.");
+      expect(screen.queryByRole("button", { name: /^Guide me:/ })).toBeNull();
+    });
   });
 });

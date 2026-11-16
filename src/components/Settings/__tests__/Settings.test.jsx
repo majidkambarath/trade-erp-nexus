@@ -40,7 +40,7 @@ describe("settings page", () => {
   it("shows only the tabs that do something, and none of the removed dummy sections", async () => {
     at();
     expect(await screen.findByRole("tab", { name: "Company", selected: true })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Zarvia AI", "Preferences", "Security"]);
     for (const gone of [/Taxation/i, /Email Server/i, /Document Numbering/i, /Currency Settings/i, /Two-Factor/i, /Session Timeout/i]) {
       expect(screen.queryByText(gone)).toBeNull();
     }
@@ -308,7 +308,7 @@ describe("an organisation that bought the CRM alone", () => {
   it("is offered the tabs that mean something to it, and no link to the books' setup", async () => {
     atSolo();
     await screen.findByRole("tab", { name: "Company", selected: true });
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Sending", "Preferences", "Security"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Sending", "Zarvia AI", "Preferences", "Security"]);
     expect(screen.queryByRole("link", { name: "Tax codes and numbering" })).toBeNull();
     expect(screen.getByText(/Your company profile, how the app looks for you, and your account password/)).toBeInTheDocument();
   });
@@ -324,7 +324,7 @@ describe("an organisation that bought the CRM alone", () => {
   it("changes nothing for an organisation that has the trade, however little of it", async () => {
     atSolo(undefined, { ...MODULES, sales: on(["view"]) });
     await screen.findByRole("tab", { name: "Company", selected: true });
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Preferences", "Security"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Company", "Branches", "Business rules", "Invoice bank details", "Sending", "Zarvia AI", "Preferences", "Security"]);
     expect(screen.getByRole("link", { name: "Tax codes and numbering" })).toBeInTheDocument();
   });
 });

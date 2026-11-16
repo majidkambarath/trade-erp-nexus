@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axiosInstance from "../../axios/axios";
 import { AlertTriangle, Copy, Eye, Plus, Wand2, X } from "lucide-react";
 import { Button } from "../ui/button";
@@ -7,6 +8,7 @@ import { DataTable, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill
 import PaymentModeFields from "./PaymentModeFields";
 import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useBankingOptions, useVoucherList } from "./shared";
 import { vouchers } from "../../lib/bankingApi";
+import { partyPrefillFromAssistant } from "../../lib/assistantProposals";
 import { currencies } from "../../lib/currencyApi";
 import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
 import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, partyVoucherCopy, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
@@ -46,8 +48,17 @@ function PartyVouchers({ direction }) {
   const cfg = CONFIG[direction];
   const list = useVoucherList(cfg.voucherType);
   const { notify, toastNode } = useToasts();
-  const [initial] = useState(prefillFromAddress);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [initial] = useState(() => partyPrefillFromAssistant(location.state, direction) || prefillFromAddress());
   const [form, setForm] = useState(initial ? {} : null); // {} for a new one, { copy, initial } to start from a saved one
+  // Already on this screen when "Change details" was pressed: the form opens now, and the state is cleared so a reload does not reopen it.
+  useEffect(() => {
+    const fromCard = partyPrefillFromAssistant(location.state, direction);
+    if (!fromCard) return;
+    setForm({ initial: fromCard });
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const [viewing, setViewing] = useState(null);
 
   return (
@@ -147,6 +158,15 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
     const take = asked > 0 ? Math.min(asked, owed) : owed;
     setAmount(String(fromCents(take)));
     setAlloc({ [inv._id]: String(fromCents(take)) });
+  }, [invoices.data, initial]);
+
+  // Opened from a prepared document: settle the oldest bills first, as the card said, once they have loaded.
+  const spread = useRef(false);
+  useEffect(() => {
+    if (spread.current || !initial?.spread || !invoices.data) return;
+    spread.current = true;
+    const cents = toCents(initial.amount || "0");
+    if (cents > 0) setAlloc(allocateOldestFirst(invoices.data, cents));
   }, [invoices.data, initial]);
 
   // Foreign currency. The ledger, the invoices and the allocation below stay in the base currency: a foreign

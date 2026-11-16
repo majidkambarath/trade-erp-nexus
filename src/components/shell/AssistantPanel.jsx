@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bot, Check, Copy, ExternalLink, LifeBuoy, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Bot, Check, Compass, Copy, ExternalLink, LifeBuoy, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { assistant } from "../../lib/assistantApi";
 import { recentRefusal } from "../../lib/lastRefusal";
 import { canSend, openingTip, toExchange, whyNotSend, MAX_QUESTION } from "../../lib/assistant";
 import { formatAnswer, plainAnswer } from "../../lib/answerFormat";
 import { pageSession } from "../../lib/pageSession";
+import AssistantProposal from "./AssistantProposal";
+import { useGuides } from "../../guides/guideContext";
+import { wording } from "../../guides/index";
+import { suggestGuides } from "../../lib/assistantGuides";
 import { findActive } from "../../config/navigation";
 
 // Zarvia AI, docked rather than drawn as a dialog in the middle of the page.
@@ -52,6 +56,14 @@ function Answer({ text }) {
 export default function AssistantPanel({ onClose, initialExchanges = null }) {
   const location = useLocation();
   const navigate = useNavigate();
+  // The step-by-step walkthroughs this person may run (their role and plan decide). Offered under an answer when
+  // the question names one: the help explains, the guide shows how on the real screen.
+  const guides = useGuides();
+  const guidesFor = (question) => suggestGuides(question, guides.flows, (f) => wording(guides.table, `flow.${f.id}`));
+  const startGuide = (id) => {
+    guides.start(id);
+    onClose?.();
+  };
   const active = findActive(location.pathname);
   const screen = active?.tab?.to || location.pathname;
   const screenName = active?.tab?.label || "";
@@ -64,6 +76,8 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
   // null until the screen answers: "covered" is whether the documentation has ANY topic about this
   // screen, which is not the same as whether those topics happen to carry question phrasings.
   const [covered, setCovered] = useState(null);
+  // Can Zarvia AI prepare payments and invoices for this person? Decides whether examples are offered.
+  const [acting, setActing] = useState(false);
   const [failed, setFailed] = useState("");
   const [copied, setCopied] = useState("");
   const endRef = useRef(null);
@@ -80,6 +94,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
         const topics = data?.topics || [];
         setTip(openingTip(screen, topics));
         setSuggested(Array.isArray(data?.suggestions) ? data.suggestions : []);
+        setActing(data?.actions === true);
         // Either signal means the documentation knows this screen.
         setCovered(topics.length > 0 || (data?.suggestions || []).length > 0);
       })
@@ -165,6 +180,14 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
     session.remove("exchanges");
   };
 
+  // The card changed (saved, or its result): keep it in the exchange, so the panel's own memory has it too.
+  const updateProposal = (exchangeId, proposalId, patch) =>
+    setExchanges((xs) => xs.map((x) => (x.id === exchangeId ? { ...x, proposals: (x.proposals || []).map((p) => (p.id === proposalId ? { ...p, ...patch } : p)) } : x)));
+  // "Change details": the normal form, opened already filled in from the prepared document.
+  const openForm = (target) => {
+    navigate(target.path, { state: target.state });
+    onClose?.();
+  };
   const go = (path) => {
     navigate(path);
     onClose?.();
@@ -255,8 +278,16 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
             )}
 
             <p className="border-t pt-3 text-xs text-muted-foreground">
-              Your own figures - what a customer owes, why a total looks wrong - are{" "}
-              <span className="font-medium">coming soon</span>.
+              {acting ? (
+                <>
+                  I can prepare a payment, a receipt, an expense or a draft invoice for you to check. Try: <span className="font-medium">pay Al Noor 5,000 by bank transfer</span>. I never save anything until you press the button.
+                </>
+              ) : (
+                <>
+                  Your own figures - what a customer owes, why a total looks wrong - are{" "}
+                  <span className="font-medium">coming soon</span>.
+                </>
+              )}
             </p>
           </div>
         )}
@@ -275,6 +306,17 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
                 {Boolean(x.citations.length) && (
                   <p className="text-xs text-muted-foreground">From: {x.citations.join(" and ")}</p>
                 )}
+                {(x.proposals || []).map((p) => (
+                  <AssistantProposal
+                    key={p.id}
+                    proposal={p}
+                    messageId={x.id}
+                    onChange={(proposalId, patch) => updateProposal(x.id, proposalId, patch)}
+                    onOpenForm={openForm}
+                    onOpenPath={go}
+                  />
+                ))}
+                <GuideButtons guides={guidesFor(x.question)} onStart={startGuide} />
                 {Boolean(x.links.length) && (
                   <div className="flex flex-wrap gap-2">
                     {x.links.map((l) => (
@@ -356,6 +398,21 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
         </div>
         {Boolean(reason) && <p className="mt-1 text-xs text-muted-foreground">{reason}</p>}
       </form>
+    </div>
+  );
+}
+
+// "Guide me: Create a purchase order" under an answer: starts the step-by-step walkthrough on the real screen.
+function GuideButtons({ guides, onStart }) {
+  if (!guides.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {guides.map((g) => (
+        <button key={g.id} type="button" onClick={() => onStart(g.id)} className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-start text-xs font-medium hover:bg-accent">
+          <Compass className="size-3.5 shrink-0" aria-hidden="true" />
+          Guide me: {g.title}
+        </button>
+      ))}
     </div>
   );
 }

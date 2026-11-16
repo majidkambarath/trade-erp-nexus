@@ -16,6 +16,7 @@ import { orgCurrency, orgTimezone, setOrgLocale } from "../../utils/orgLocale";
 import { passwordHint, validatePasswordChange } from "../../lib/passwordForms";
 import BusinessRules from "./BusinessRules";
 import SendingSettings from "./SendingSettings";
+import AssistantSettings from "./AssistantSettings";
 import BranchSettings from "./BranchSettings";
 import TwoFactorSection from "./TwoFactorSection";
 import { ErrorNote, Field, PageHeader, Panel, PhoneInput, Pill, SearchSelect, Select, Spinner, TextInput, useToasts } from "../accounting/kit";
@@ -34,6 +35,8 @@ const TABS = [
   { id: "rules", label: "Business rules", trade: true },
   { id: "bank", label: "Invoice bank details", trade: true },
   { id: "sending", label: "Sending" },
+  // `feature`: drawn only where the plan has it. Reading it needs settings.view (the server's rule).
+  { id: "assistant", label: "Zarvia AI", feature: "assistant", permission: ["settings.view", "settings.manage"] },
   { id: "preferences", label: "Preferences" },
   { id: "security", label: "Security" },
 ];
@@ -85,14 +88,14 @@ function fromProfile(info) {
 export default function SettingsModule() {
   const [params, setParams] = useSearchParams();
   const { notify, toastNode } = useToasts();
-  const { can, status } = useOrganisation();
+  const { can, canAny, featureOn, status } = useOrganisation();
   // The letterhead is the company's, not the person's: anyone reads it, only someone who may change settings edits it.
   const canEdit = can("settings.manage");
   const trade = hasErpModules(status);
   // The Google connection is only meaningful where the CRM was bought and this person can open it; judged strictly
   // (grants known AND holding crm.view), the same way the CRM's other cross-module touches are.
   const crmHeld = Array.isArray(status?.me?.grants) && can("crm.view") && status?.modules?.crm?.on !== false;
-  const tabs = TABS.filter((t) => trade || !t.trade);
+  const tabs = TABS.filter((t) => (trade || !t.trade) && (!t.feature || featureOn(t.feature)) && (!t.permission || canAny(t.permission)));
   const active = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "company";
 
   const [loading, setLoading] = useState(true);
@@ -289,6 +292,12 @@ export default function SettingsModule() {
           <TabsContent value="sending">
             <SendingSettings notify={notify} />
           </TabsContent>
+
+          {tabs.some((t) => t.id === "assistant") && (
+            <TabsContent value="assistant">
+              <AssistantSettings notify={notify} />
+            </TabsContent>
+          )}
 
           {trade && (
           <TabsContent value="bank" className="space-y-5">
