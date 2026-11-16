@@ -28,6 +28,8 @@ vi.mock("../../../lib/assistantApi", () => ({
 import { clearPageSessions } from "../../../lib/pageSession";
 import { clearRefusal, noteRefusal } from "../../../lib/lastRefusal";
 import AssistantPanel from "../AssistantPanel";
+import { GuideContext } from "../../../guides/guideContext";
+import { FLOWS } from "../../../guides/index";
 
 const draw = (onClose = vi.fn()) =>
   render(
@@ -322,6 +324,42 @@ describe("the panel itself", () => {
       draw();
       expect(await screen.findByText(/coming soon/)).toBeInTheDocument();
       expect(screen.queryByText(/pay Al Noor/)).toBeNull();
+    });
+  });
+
+  describe("Guide me under an answer", () => {
+    const withGuides = (start, flows = FLOWS, onClose = vi.fn()) => {
+      render(
+        <MemoryRouter initialEntries={["/sales-order"]}>
+          <GuideContext.Provider value={{ flows, start, table: null }}>
+            <AssistantPanel onClose={onClose} />
+          </GuideContext.Provider>
+        </MemoryRouter>
+      );
+      return onClose;
+    };
+    const askIt = async (question) => {
+      fireEvent.change(await screen.findByRole("textbox"), { target: { value: question } });
+      fireEvent.click(screen.getByRole("button", { name: /Ask/ }));
+    };
+
+    it("offers the walkthrough the question names, even when the answer could not help, and starts it", async () => {
+      ask.mockResolvedValue({ messageId: "m9", conversationId: "c1", answer: "I do not have anything reliable to tell you about that.", citations: [], links: [], outcome: "no_answer", canEscalate: true });
+      const start = vi.fn();
+      const onClose = withGuides(start);
+      await askIt("i need to purcahse");
+      const button = await screen.findByRole("button", { name: "Guide me: Create a purchase order" });
+      fireEvent.click(button);
+      expect(start).toHaveBeenCalledWith("create-purchase-order");
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("offers nothing when no guide fits, or the person may run none", async () => {
+      ask.mockResolvedValue({ messageId: "m10", conversationId: "c1", answer: "Here is how.", citations: [], links: [], outcome: "answered" });
+      withGuides(vi.fn(), []);
+      await askIt("i need to purchase");
+      await screen.findByText("Here is how.");
+      expect(screen.queryByRole("button", { name: /^Guide me:/ })).toBeNull();
     });
   });
 });

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bot, Check, Copy, ExternalLink, LifeBuoy, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Bot, Check, Compass, Copy, ExternalLink, LifeBuoy, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { assistant } from "../../lib/assistantApi";
 import { recentRefusal } from "../../lib/lastRefusal";
 import { canSend, openingTip, toExchange, whyNotSend, MAX_QUESTION } from "../../lib/assistant";
 import { formatAnswer, plainAnswer } from "../../lib/answerFormat";
 import { pageSession } from "../../lib/pageSession";
 import AssistantProposal from "./AssistantProposal";
+import { useGuides } from "../../guides/guideContext";
+import { wording } from "../../guides/index";
+import { suggestGuides } from "../../lib/assistantGuides";
 import { findActive } from "../../config/navigation";
 
 // Zarvia AI, docked rather than drawn as a dialog in the middle of the page.
@@ -53,6 +56,14 @@ function Answer({ text }) {
 export default function AssistantPanel({ onClose, initialExchanges = null }) {
   const location = useLocation();
   const navigate = useNavigate();
+  // The step-by-step walkthroughs this person may run (their role and plan decide). Offered under an answer when
+  // the question names one: the help explains, the guide shows how on the real screen.
+  const guides = useGuides();
+  const guidesFor = (question) => suggestGuides(question, guides.flows, (f) => wording(guides.table, `flow.${f.id}`));
+  const startGuide = (id) => {
+    guides.start(id);
+    onClose?.();
+  };
   const active = findActive(location.pathname);
   const screen = active?.tab?.to || location.pathname;
   const screenName = active?.tab?.label || "";
@@ -305,6 +316,7 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
                     onOpenPath={go}
                   />
                 ))}
+                <GuideButtons guides={guidesFor(x.question)} onStart={startGuide} />
                 {Boolean(x.links.length) && (
                   <div className="flex flex-wrap gap-2">
                     {x.links.map((l) => (
@@ -386,6 +398,21 @@ export default function AssistantPanel({ onClose, initialExchanges = null }) {
         </div>
         {Boolean(reason) && <p className="mt-1 text-xs text-muted-foreground">{reason}</p>}
       </form>
+    </div>
+  );
+}
+
+// "Guide me: Create a purchase order" under an answer: starts the step-by-step walkthrough on the real screen.
+function GuideButtons({ guides, onStart }) {
+  if (!guides.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {guides.map((g) => (
+        <button key={g.id} type="button" onClick={() => onStart(g.id)} className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-start text-xs font-medium hover:bg-accent">
+          <Compass className="size-3.5 shrink-0" aria-hidden="true" />
+          Guide me: {g.title}
+        </button>
+      ))}
     </div>
   );
 }
