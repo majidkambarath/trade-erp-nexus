@@ -7,6 +7,29 @@
 // dangerouslySetInnerHTML anywhere near text that came from a model - which is the house rule, and
 // the one that matters most when the text is generated rather than written.
 
+/**
+ * What a model sometimes writes that is not for a reader: a pretend `<button>` (the real buttons are drawn under
+ * the answer from its links, so a pretend one is only noise), other HTML tags, and Markdown links. The text inside
+ * a tag or a link is kept; a button goes whole. Nothing here is ever rendered as HTML - this only tidies the words.
+ */
+export function withoutMarkup(text) {
+  return String(text || "")
+    .replace(/<button\b[^>]*>[\s\S]*?<\/button>/gi, "")
+    // a tool call the model wrote out as text, for example {{open_screen({"path":"/x"})}}: the real button is drawn from the call
+    .replace(/\{\{[\s\S]*?\}\}/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?(p|div|li|ul|ol)\b[^>]*>/gi, "\n")
+    .replace(/<\/?[a-z][a-z0-9-]*\b[^>]*>/gi, "")
+    .replace(/\[([^\]\n]+)\]\((?:[^)\s]+)\)/g, "$1")
+    // "(Topic used: Profit and loss)": the panel already says where an answer came from, under it
+    .replace(/^[ \t]*\(?\s*\**\s*(?:help )?topics? used\s*:[^\n]*$/gim, "")
+    // *italic* (one asterisk each side) loses its asterisks; **bold** is left for the formatter
+    .replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*(?!\*)/g, "$1$2")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const BOLD = /\*\*([^*]+)\*\*/g;
 
 /** A line split into plain and bold runs. Anything we do not understand stays as text. */
@@ -33,7 +56,7 @@ const BULLET = /^\s*[-*•]\s+(.*)$/;
  * somebody following instructions cannot afford.
  */
 export function formatAnswer(text) {
-  const lines = String(text || "").split("\n");
+  const lines = withoutMarkup(text).split("\n");
   const blocks = [];
   let para = [];
   const flushPara = () => {

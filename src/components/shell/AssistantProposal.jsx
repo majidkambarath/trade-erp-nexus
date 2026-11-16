@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { CheckCircle2, FilePenLine } from "lucide-react";
 import { assistant } from "../../lib/assistantApi";
-import { canSave, formTarget, refusalText, savedResult, stillNeeded } from "../../lib/assistantProposals";
+import { canSave, formTarget, MISSING_LABEL, refusalText, savedResult, stillNeeded } from "../../lib/assistantProposals";
 import { Button } from "../ui/button";
 
 // A document Zarvia AI PREPARED, drawn under its answer. The assistant has saved nothing: the person checks
@@ -51,7 +51,7 @@ export default function AssistantProposal({ proposal: p, messageId, onChange, on
         </p>
         {outcome?.open && (
           <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => onOpenPath?.(outcome.open)}>
-            Open the draft
+            {outcome.openLabel || "Open the draft"}
           </Button>
         )}
       </div>
@@ -74,19 +74,19 @@ export default function AssistantProposal({ proposal: p, messageId, onChange, on
         <p key={w} className="mt-2 rounded-md border border-status-warning/25 bg-status-warning-soft px-2.5 py-1.5 text-xs text-status-warning">{w}</p>
       ))}
 
-      {p.missing.includes("reference") && (
-        <label className="mt-3 block text-xs font-medium">
-          Reference (the transfer or deposit slip number)
+      {p.missing.map((key) => (
+        <label key={key} className="mt-3 block text-xs font-medium">
+          {MISSING_LABEL[key] || key}
           <input
             type="text"
-            value={filled.reference || ""}
-            onChange={(e) => setFilled((f) => ({ ...f, reference: e.target.value }))}
-            maxLength={60}
+            value={filled[key] || ""}
+            onChange={(e) => setFilled((f) => ({ ...f, [key]: e.target.value }))}
+            maxLength={key === "reference" ? 60 : 500}
             autoComplete="off"
             className="mt-1 block h-11 w-full rounded-lg border border-input bg-background px-3 text-base sm:h-9 sm:text-sm"
           />
         </label>
-      )}
+      ))}
 
       {error && <p role="alert" className="mt-2 text-xs font-medium text-destructive">{error}</p>}
 

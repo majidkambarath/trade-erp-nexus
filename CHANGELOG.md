@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.3.0.0 — 16 November 2026
+
+A new look for Zarvia AI, with tables from your books, kept chats and new example questions. Frontend and backend both at 3.3.0.0.
+
+### Added
+
+- **Zarvia AI redesigned**: gold avatar, graphite question bubbles, typing dots, suggestion cards and a rounded input.
+- **Tables under an answer** from your own books, with headline tiles (net profit or loss, revenue, assets and so on) and a
+  button to the full report. "Open payables ageing" opens Payables.
+- **Earlier chats**: a History button, "Recent chats" on the empty screen, delete, and New chat.
+- **Cards for a new customer or vendor**, with a box for a missing address.
+- Settings -> Zarvia AI -> **Answer from your books** switch.
+
 ## 3.2.0.0 — 16 November 2026
 
 Zarvia AI on a free open model, preparing documents, and Guide me from an answer. Frontend and backend both at 3.2.0.0.
