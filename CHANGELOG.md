@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.1.0.0 — 16 November 2026
+
+Garage guides and videos. Frontend and backend both at 3.1.0.0.
+
+### Added
+
+- **Ten Garage guides** on the real screens, in English, Arabic, Hindi and Malayalam: the board, adding a vehicle, opening a
+  job card, getting the estimate approved, doing the work, invoicing and handing the vehicle back, an insurance claim, a
+  standard job, a bay and the reports. They are grouped in five numbered stages and shown first for a workshop.
+- **Twenty videos** (English and Malayalam) for them, played from the Learn page in the same order.
+- **Pick up where you left off:** a guide left halfway is offered again in Guide me and on the Learn page.
+
+### Changed
+
+- Guide me shows a guide only when the organisation bought its module, not only when the person's role allows it.
+- "Next up" follows the order the menu lists the guides.
+
 ## 3.0.0.0 — 16 November 2026
 
 Learning mode: guided lessons and walkthrough videos on the client's own screens. Frontend and backend both at 3.0.0.0.
