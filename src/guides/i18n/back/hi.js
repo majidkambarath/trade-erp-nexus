@@ -9,6 +9,7 @@ import accounts from "./accounts/hi";
 import reports from "./reports/hi";
 import settings from "./settings/hi";
 import extra from "./extra/hi";
+import garage from "./garage/hi";
 
 export default {
   ...sell,
@@ -19,6 +20,7 @@ export default {
   ...reports,
   ...settings,
   ...extra,
+  ...garage,
   "flow.add-customer": { title: "Add a customer", text: "The person or company you sell to. You will choose them in every sales document." },
   "add-customer.open": { title: "Customers", text: "Customers are under [[Sales]]. We have opened the page for you." },
   "add-customer.add": { title: "Add a customer", text: "Press [[Add Customer]]." },

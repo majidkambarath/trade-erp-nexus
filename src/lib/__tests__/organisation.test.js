@@ -346,3 +346,14 @@ describe("modules the organisation bought", () => {
     expect(moduleLabel("whatever")).toBe("whatever");
   });
 });
+
+describe("mayUse and a module the organisation did not buy", () => {
+  const me = { grants: ["garage.view", "sales.view"] };
+  it("hides what the organisation's modules leave out, even for a role that holds the key", async () => {
+    const { mayUse } = await import("../organisation");
+    const status = { me, modules: { garage: { on: false, actions: [] }, sales: { on: true, actions: ["view"] } } };
+    expect(mayUse(status, "garage.view")).toBe(false);
+    expect(mayUse(status, "sales.view")).toBe(true);
+    expect(mayUse({ me }, "garage.view")).toBe(true); // nothing known yet: fails open, the server refuses
+  });
+});

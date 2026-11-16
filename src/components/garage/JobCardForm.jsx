@@ -160,7 +160,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Vehicle" required error={!form.vehicleId ? "Choose the vehicle" : undefined}>
               <div className="flex gap-2">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1" data-guide="garage-vehicle">
                   <SearchSelect value={form.vehicleId} onChange={set("vehicleId")} options={vehicleOptions} loading={vehiclesList.loading} placeholder="Plate or chassis…" />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => setAddingVehicle(true)} aria-label="New vehicle"><Plus className="h-4 w-4" /></Button>
@@ -209,7 +209,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
               {form.complaints.map((c, i) => (
                 <div key={i} className="grid gap-1.5 rounded-lg border p-2">
                   <div className="flex gap-2">
-                    <TextInput value={c.concern} onChange={(e) => setRow("complaints", i, { concern: e.target.value })} placeholder="Concern - in their own words…" className="flex-1" />
+                    <TextInput value={c.concern} onChange={(e) => setRow("complaints", i, { concern: e.target.value })} placeholder="Concern - in their own words…" className="flex-1" data-guide={i === 0 ? "garage-concern" : undefined} />
                     {form.complaints.length > 1 && <Button type="button" variant="outline" size="sm" onClick={() => removeRow("complaints", i)} aria-label="Remove"><X className="h-4 w-4" /></Button>}
                   </div>
                   {editing && (
@@ -245,8 +245,9 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
               {form.lines.map((l, i) => {
                 const options = STOCKED_KINDS.has(l.kind) ? m.partOptions : m.serviceOptions;
                 return (
-                  <div key={i} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_5rem_2.5rem] items-start gap-2 rounded-lg border p-2">
+                  <div key={i} data-guide={i === 0 ? "garage-line" : undefined} className="grid grid-cols-[6.5rem_minmax(0,1fr)_5rem_6rem_5rem_2.5rem] items-start gap-2 rounded-lg border p-2">
                     <Select value={l.kind} onChange={(e) => setRow("lines", i, { kind: e.target.value, itemId: "" })}>{LINE_KINDS.map(([v, lab]) => <option key={v} value={v}>{lab}</option>)}</Select>
+<div className="min-w-0" data-guide={i === 0 ? "garage-line-item" : undefined}>
                     <SearchSelect
                       value={l.itemId}
                       onChange={(v) => setRow("lines", i, { itemId: v, price: m.itemsById.get(v)?.salesPrice != null ? String(m.itemsById.get(v).salesPrice) : l.price })}
@@ -255,6 +256,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
                       placeholder="Choose the item…"
                       compact
                     />
+</div>
                     <AmountInput value={l.qty} onChange={(e) => setRow("lines", i, { qty: e.target.value })} min="0" placeholder="Qty" aria-label="Quantity" />
                     <AmountInput value={l.price} onChange={(e) => setRow("lines", i, { price: e.target.value })} min="0" placeholder="Price" aria-label="Price" />
                     <AmountInput value={l.discountPercent} onChange={(e) => setRow("lines", i, { discountPercent: e.target.value })} min="0" max="100" placeholder="Disc %" aria-label="Discount percent" />
@@ -276,7 +278,7 @@ export default function JobCardForm({ jobCard, onClose, onSaved }) {
             <div className="grid gap-2">
               {form.tasks.map((t, i) => (
                 <div key={i} className="grid grid-cols-[minmax(0,1fr)_6rem_4rem_6rem_2.5rem] items-start gap-2 rounded-lg border p-2">
-                  <TextInput value={t.name} onChange={(e) => setRow("tasks", i, { name: e.target.value })} placeholder="Replace brake pads…" />
+                  <TextInput value={t.name} onChange={(e) => setRow("tasks", i, { name: e.target.value })} placeholder="Replace brake pads…" data-guide={i === 0 ? "garage-task-name" : undefined} />
                   <Select value={t.mode} onChange={(e) => setRow("tasks", i, { mode: e.target.value })}>
                     <option value="in_house">In-house</option>
                     <option value="sublet">Sent out</option>

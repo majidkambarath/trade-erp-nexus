@@ -74,7 +74,8 @@ export const featureOn = (status, key) => !key || status?.features?.[key] !== fa
  * either way.
  */
 export const mayUse = (status, permission, feature) =>
-  featureOn(status, feature) && (permission ? canAny(status?.me, permission) : true);
+  featureOn(status, feature) &&
+  (permission ? canAny(status?.me, permission) && [].concat(permission).some((k) => moduleHolds(status, k)) : true);
 
 // The modules that ARE the ERP: what an organisation buys when it buys the trade and the books. An organisation holding none of
 // them has bought the CRM and nothing else (the `crm` plan, utils/plans.js on the server). Users, Settings, Reports and the pick
