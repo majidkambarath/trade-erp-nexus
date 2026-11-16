@@ -10,6 +10,8 @@ Voices (environment):
              come from AZURE_SPEECH_KEY / AZURE_SPEECH_REGION, or from scripts/videos/azure.env (two lines, git-ignored).
              The text is sent to Microsoft. Or "parler:Anjali" (default; AI4Bharat Indic Parler-TTS, Apache 2.0, needs a Hugging Face login that has
              accepted the model's terms) or "parler:Harish", or a Piper voice in voices/ such as ml_IN-meera-medium.
+  Either     "elevenlabs:<voice id>": an ElevenLabs voice (paid account; Malayalam needs model eleven_v4 or eleven_v3).
+             Key and model from ELEVENLABS_API_KEY / ELEVENLABS_MODEL, or scripts/videos/elevenlabs.env (git-ignored).
 Parler is about 10x slower than the speech it makes on a laptop CPU, so each spoken sentence is kept in
 voices/.cache and spoken only once, whatever guide it appears in.
 Everything is written at 22,050 Hz mono 16-bit."""
@@ -142,13 +144,47 @@ def speak_azure(voice, text):
     return to_pcm(resample(x, 24000))
 
 
+def env_file(name, keys):
+    """Values from the environment, else from a git-ignored KEY=value file beside this script."""
+    found = {k: os.environ.get(k) for k in keys}
+    f = here / name
+    if f.exists():
+        for line in f.read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() in found and not found[k.strip()]:
+                found[k.strip()] = v.strip()
+    return found
+
+
+def speak_elevenlabs(voice, text, lang):
+    """An ElevenLabs voice over its official API. Raw 16-bit mono PCM at 22,050 Hz comes back, so no decoding or
+    resampling. language_code forces the language (Malayalam is only in eleven_v4 / eleven_v3)."""
+    import urllib.request, urllib.error
+    cfg = env_file("elevenlabs.env", ["ELEVENLABS_API_KEY", "ELEVENLABS_MODEL"])
+    key = cfg["ELEVENLABS_API_KEY"]
+    if not key:
+        sys.exit("No ElevenLabs key: put ELEVENLABS_API_KEY=... in scripts/videos/elevenlabs.env")
+    body = json.dumps({"text": text, "model_id": cfg["ELEVENLABS_MODEL"] or "eleven_v4", "language_code": lang}).encode("utf-8")
+    req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{voice}?output_format=pcm_{RATE}", data=body, method="POST",
+                                 headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/pcm"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        detail = e.read()[:300]
+        why = {401: "the key was refused", 402: "the account has no credits left", 404: "that voice id does not exist",
+               422: "the request was refused (model or language)", 429: "too many requests or the plan's limit"}.get(e.code, "it failed")
+        sys.exit(f"ElevenLabs: {why} ({e.code}): {detail!r}")
+
+
 def speak(lang, text):
     voice = VOICE_EN if lang == "en" else VOICE_ML
     key = hashlib.sha1(f"v2|{lang}|{voice}|{text}".encode("utf-8")).hexdigest()
     cached = cache_dir / f"{key}.pcm"
     if cached.exists():
         return cached.read_bytes()
-    if voice.startswith("azure:"): pcm = speak_azure(voice.split(":", 1)[1], text)
+    if voice.startswith("elevenlabs:"): pcm = speak_elevenlabs(voice.split(":", 1)[1], text, lang)
+    elif voice.startswith("azure:"): pcm = speak_azure(voice.split(":", 1)[1], text)
     elif voice.startswith("parler:"): pcm = speak_parler(voice.split(":", 1)[1], text)
     else: pcm = speak_piper(voice, text)
     cached.write_bytes(pcm)
