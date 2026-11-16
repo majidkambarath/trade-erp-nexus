@@ -29,9 +29,11 @@ export default function AssistantSettings({ notify }) {
     <div className="space-y-5">
       <Panel
         title="Zarvia AI"
-        description={s.actionsEnabled
-          ? "The assistant answers questions about how Zarvia works, from Zarvia's own help guides, and can prepare payments, receipts, expenses and draft invoices for a person to check. It never saves anything itself."
-          : "The assistant answers questions about how Zarvia works, from Zarvia's own help guides. It reads no invoices, balances or other business records."}
+        description={[
+          "The assistant answers questions about how Zarvia works, from Zarvia's own help guides.",
+          s.lookupsEnabled !== false ? "It can look up who is unpaid, stock, cash and bank balances and sales, showing each person only what their role lets them see." : "",
+          s.actionsEnabled ? "It can prepare payments, receipts, expenses and draft invoices for a person to check, and never saves anything itself." : "",
+        ].filter(Boolean).join(" ")}
       >
         <div className="flex flex-wrap items-center gap-3">
           {s.effective?.provider === "echo" ? <Pill tone="warning">Test mode</Pill> : <Pill tone="success">Answering</Pill>}
@@ -40,6 +42,7 @@ export default function AssistantSettings({ notify }) {
       </Panel>
       <Guarded permission="settings.manage" what="which AI answers questions">
         <Connection key={s.openBaseUrl + s.provider + s.openModel} settings={s} notify={notify} onSaved={() => Promise.all([settings.reload(), usage.reload()])} />
+        <LookUpBooks settings={s} notify={notify} onSaved={settings.reload} />
         <PrepareDocuments settings={s} notify={notify} onSaved={settings.reload} />
       </Guarded>
       <Usage usage={usage} />
@@ -228,6 +231,42 @@ function Stat({ label, value }) {
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-xl font-semibold tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+// On by default, because the figures never leave our server: the AI service is told only which lookup to run and
+// with what words, and Zarvia writes the answer and the table from the books itself.
+function LookUpBooks({ settings, notify, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const on = settings.lookupsEnabled !== false;
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await assistant.saveSettings({ lookupsEnabled: !on });
+      notify(on ? "Zarvia AI will no longer look things up in your books" : "Zarvia AI can now look things up in your books");
+      await onSaved();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel title="Answer from your books" description="Let people ask, for example list unpaid vendors, what is running low, or sales this month. The answer comes with a small table and a button to the full report.">
+      <div className="flex flex-wrap items-center gap-3">
+        {on ? <Pill tone="success">On</Pill> : <Pill tone="neutral">Off</Pill>}
+        <span className="min-w-0 flex-1 text-sm text-muted-foreground">
+          Unpaid vendors and customers, stock on hand, cash and bank balances, and sales or purchases for a period. Each person sees only what their own role lets them see.
+        </span>
+        <Button type="button" variant={on ? "outline" : "default"} disabled={busy} onClick={toggle} aria-label={on ? "Switch off answers from your books" : "Switch on answers from your books"}>{on ? "Switch off" : "Switch on"}</Button>
+      </div>
+      <p className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        The figures stay on Zarvia&apos;s server. The AI service is sent the question only; Zarvia reads the books and writes the answer itself.
+      </p>
+      {error && <div className="mt-3"><ErrorNote error={new Error(errorMessage(error))} /></div>}
+    </Panel>
   );
 }
 

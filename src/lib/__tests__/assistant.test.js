@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { canSend, knownPaths, openingTip, safeLinks, toExchange, whyNotSend, MAX_QUESTION } from "../assistant";
-import { formatAnswer, plainAnswer } from "../answerFormat";
+import { canSend, knownPaths, normaliseTables, openingTip, safeLinks, toExchange, whyNotSend, MAX_QUESTION } from "../assistant";
+import { formatAnswer, plainAnswer, withoutMarkup } from "../answerFormat";
 import { clearRefusal, noteRefusal, recentRefusal } from "../lastRefusal";
 
 const MODULES = [
@@ -77,6 +77,24 @@ describe("an exchange as the panel draws it", () => {
   });
 });
 
+describe("a lookup's table", () => {
+  const t = { title: "Unpaid vendors", rows: [{ label: "Gulf", sub: "2 bills", value: "AED 945.00", tone: "danger" }], total: { label: "Total", value: "AED 945.00" }, more: 2, link: { path: "/ageing?type=payable", label: "Open payables ageing" } };
+
+  it("is kept on the exchange as the server wrote it", () => {
+    const x = toExchange("list unpaid vendors", { answer: "a", tables: [t] });
+    expect(x.tables).toEqual([{ ...t, stats: [] }]);
+    expect(toExchange("q", {}).tables).toEqual([]);
+  });
+
+  it("only links to a screen the app knows, query and all, and drops what is not a table", () => {
+    expect(normaliseTables([{ ...t, link: { path: "https://evil.example", label: "x" } }])[0].link).toBeNull();
+    expect(normaliseTables([{ ...t, link: { path: "//evil.example/ageing", label: "x" } }])[0].link).toBeNull();
+    expect(normaliseTables([{ ...t, link: { path: "/no-such-screen", label: "x" } }])[0].link).toBeNull();
+    expect(normaliseTables([null, "x", { title: "no rows" }, t])).toHaveLength(1);
+    expect(normaliseTables([{ ...t, rows: [{ label: "a", value: 1, tone: "<script>" }] }])[0].rows[0]).toEqual({ label: "a", sub: "", value: "1", tone: "" });
+  });
+});
+
 describe("the refusal it explains", () => {
   beforeEach(() => clearRefusal());
 
@@ -98,6 +116,24 @@ describe("the refusal it explains", () => {
     expect(recentRefusal()).not.toBeNull();
     clearRefusal();
     expect(recentRefusal()).toBeNull();
+  });
+});
+
+describe("markup a model writes that is not for a reader", () => {
+  it("drops a pretend button: the real button is drawn under the answer", () => {
+    expect(withoutMarkup("You can view the audit trail in the Ledger Reports screen.\n<button>Open Audit Trail</button>")).toBe("You can view the audit trail in the Ledger Reports screen.");
+    expect(plainAnswer('Go there. <button class="x" onclick="evil()">Open</button>')).toBe("Go there.");
+  });
+
+  it("keeps the words inside other tags and Markdown links, and the lines they made", () => {
+    expect(withoutMarkup("<p>One</p><p>Two <b>bold</b></p>")).toBe("One\n\nTwo bold");
+    expect(withoutMarkup("Line<br>next<br/>last")).toBe("Line\nnext\nlast");
+    expect(withoutMarkup("Open [Payments](/payment-voucher) to pay.")).toBe("Open Payments to pay.");
+  });
+
+  it("leaves ordinary text alone, including a less-than sign that is not a tag", () => {
+    expect(withoutMarkup("Stock < 10 means reorder. **Bold** stays.")).toBe("Stock < 10 means reorder. **Bold** stays.");
+    expect(formatAnswer("1. First\n2. Second")[0].type).toBe("ol");
   });
 });
 
@@ -124,9 +160,9 @@ describe("an answer turned into something readable", () => {
       { text: "Sales", bold: true },
       { text: ", then Orders.", bold: false },
     ]);
-    // nothing that could be injected survives as anything but text
-    const [risky] = formatAnswer("<img src=x onerror=alert(1)>");
-    expect(risky.spans[0].text).toBe("<img src=x onerror=alert(1)>");
+    // nothing that could be injected survives: a tag is taken out of the words, and what is left is only ever text
+    const [risky] = formatAnswer("Hi <img src=x onerror=alert(1)> there");
+    expect(risky.spans.map((s) => s.text).join("")).toBe("Hi  there");
     expect(risky.spans[0].bold).toBe(false);
   });
 
@@ -139,5 +175,11 @@ describe("an answer turned into something readable", () => {
   it("gives back plain text for the clipboard", () => {
     expect(plainAnswer("Do this:\n1. Open **Sales**.\n2. Approve.")).toBe("Do this:\n\n1. Open Sales.\n2. Approve.");
     expect(plainAnswer("")).toBe("");
+  });
+});
+
+describe("a tool call written out as text", () => {
+  it("is taken out of the words", () => {
+    expect(withoutMarkup('Open it. {{open_screen({"path":"/financial-statements"})}}')).toBe("Open it.");
   });
 });

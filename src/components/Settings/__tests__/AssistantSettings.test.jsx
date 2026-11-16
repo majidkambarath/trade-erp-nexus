@@ -131,6 +131,24 @@ describe("Settings, Zarvia AI", () => {
     await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ actionsEnabled: false }));
   });
 
+  it("answering from the books is on by default, says the figures stay on our server, and can be switched off", async () => {
+    show();
+    expect(await screen.findByText("Answer from your books")).toBeInTheDocument();
+    expect(screen.getByText(/The figures stay on Zarvia's server/)).toBeInTheDocument();
+    expect(screen.getByText(/It can look up who is unpaid/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Switch off answers from your books" }));
+    await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ lookupsEnabled: false }));
+    expect(notify).toHaveBeenCalledWith("Zarvia AI will no longer look things up in your books");
+  });
+
+  it("switched off, it says so and switches back on", async () => {
+    assistant.settings.mockResolvedValue({ ...BASE, lookupsEnabled: false });
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Switch on answers from your books" }));
+    await waitFor(() => expect(assistant.saveSettings).toHaveBeenCalledWith({ lookupsEnabled: true }));
+    expect(screen.queryByText(/It can look up who is unpaid/)).toBeNull();
+  });
+
   it("shows the last 30 days, and a free model costs nothing", async () => {
     show();
     expect(await screen.findByText("42")).toBeInTheDocument();

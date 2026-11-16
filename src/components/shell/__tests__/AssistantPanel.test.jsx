@@ -13,6 +13,9 @@ const helpful = vi.fn().mockResolvedValue({});
 const escalate = vi.fn().mockResolvedValue({ supportRequestId: "s1" });
 const screenTip = vi.fn().mockResolvedValue({ topics: [{ title: "Order to cash" }] });
 const saveProposal = vi.fn();
+const conversations = vi.fn().mockResolvedValue([]);
+const conversation = vi.fn().mockResolvedValue([]);
+const forgetConversation = vi.fn().mockResolvedValue({ deleted: true });
 const proposalSaved = vi.fn().mockResolvedValue({});
 vi.mock("../../../lib/assistantApi", () => ({
   assistant: {
@@ -21,6 +24,9 @@ vi.mock("../../../lib/assistantApi", () => ({
     escalate: (...a) => escalate(...a),
     screen: (...a) => screenTip(...a),
     saveProposal: (...a) => saveProposal(...a),
+    conversations: (...a) => conversations(...a),
+    conversation: (...a) => conversation(...a),
+    forgetConversation: (...a) => forgetConversation(...a),
     proposalSaved: (...a) => proposalSaved(...a),
   },
 }));
@@ -246,10 +252,117 @@ describe("what it offers before anybody has asked", () => {
     expect(chips[1]).toHaveAccessibleName("How do I sell something?");
   });
 
-  it("says plainly that asking about their own figures is not built yet", async () => {
+  it("with nothing switched on for this person, it says what it can do and promises nothing more", async () => {
     draw();
-    expect(await screen.findByText(/Your own figures/)).toBeInTheDocument();
-    expect(screen.getByText("coming soon")).toBeInTheDocument();
+    expect(await screen.findByText(/Ask me how to do something in Zarvia/)).toBeInTheDocument();
+    expect(screen.queryByText(/coming soon/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "List unpaid vendors" })).toBeNull();
+  });
+});
+
+describe("earlier chats", () => {
+  const list = [
+    { id: "c1", title: "list unpaid vendors", questions: 2, lastAskedAt: "2026-11-14T10:00:00Z" },
+    { id: "c2", title: "how do I raise an invoice", questions: 1, lastAskedAt: "2026-11-13T10:00:00Z" },
+  ];
+
+  it("lists them, and opening one brings back its messages and tables to carry on", async () => {
+    conversations.mockResolvedValue(list);
+    conversation.mockResolvedValue([{ _id: "m1", question: "list unpaid vendors", answer: "2 vendors are unpaid.", citations: [], links: [], tables: [{ title: "Unpaid vendors", rows: [{ label: "Gulf", value: "AED 1.00" }] }], outcome: "answered" }]);
+    draw();
+    fireEvent.click(await screen.findByRole("button", { name: "Earlier chats" }));
+    expect(await screen.findByText("2 questions", { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("how do I raise an invoice").closest("button"));
+    expect(await screen.findByText("2 vendors are unpaid.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Unpaid vendors" })).toBeInTheDocument();
+    expect(conversation).toHaveBeenCalledWith("c2");
+    ask.mockResolvedValue({ messageId: "m2", conversationId: "c2", answer: "More.", citations: [], links: [], outcome: "answered" });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "and now?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(ask).toHaveBeenCalledWith(expect.objectContaining({ conversationId: "c2" })));
+  });
+
+  it("deletes one from the list, and says so when there are none", async () => {
+    conversations.mockResolvedValue([list[0]]);
+    draw();
+    fireEvent.click(await screen.findByRole("button", { name: "Earlier chats" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete chat: list unpaid vendors" }));
+    await waitFor(() => expect(forgetConversation).toHaveBeenCalledWith("c1"));
+    expect(await screen.findByText(/No earlier chats yet/)).toBeInTheDocument();
+  });
+
+  it("the empty state offers the most recent ones", async () => {
+    conversations.mockResolvedValue(list);
+    draw();
+    expect(await screen.findByText("Recent chats")).toBeInTheDocument();
+  });
+});
+
+describe("looking things up in the books", () => {
+  const table = {
+    title: "Unpaid vendors",
+    rows: [
+      { label: "Gulf Packaging", sub: "2 bills · AED 315.00 overdue, oldest 10 days", value: "AED 945.00", tone: "danger" },
+      { label: "Al Noor Steel", sub: "1 bill · not yet due", value: "AED 110.25", tone: "" },
+    ],
+    total: { label: "Total", value: "AED 1,055.25" },
+    more: 0,
+    link: { path: "/ageing?type=payable", label: "Open payables ageing" },
+  };
+
+  it("offers the lookups this person may ask for, and only those", async () => {
+    screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }], lookups: ["unpaid_bills", "stock_levels"] });
+    draw();
+    expect(await screen.findByRole("button", { name: "List unpaid vendors" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "What is running low?" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "How much is in the bank?" })).toBeNull();
+    expect(screen.getByText(/I can look things up in your books/)).toBeInTheDocument();
+  });
+
+  it("draws the server's table under the answer, and its button opens the full report and closes the panel", async () => {
+    const onClose = vi.fn();
+    ask.mockResolvedValue({ messageId: "m9", conversationId: "c1", answer: "2 vendors are unpaid: AED 1,055.25 on 3 bills.", citations: [], links: [], tables: [table], outcome: "answered" });
+    draw(onClose);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "list unpaid vendors" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const section = await screen.findByRole("region", { name: "Unpaid vendors" });
+    expect(section).toHaveTextContent("Gulf Packaging");
+    expect(section).toHaveTextContent("AED 945.00");
+    expect(section).toHaveTextContent("AED 1,055.25");
+    expect(screen.getByText("AED 945.00")).toHaveClass("text-destructive");
+    fireEvent.click(screen.getByRole("button", { name: "Open payables ageing" }));
+    expect(navigate).toHaveBeenCalledWith("/ageing?type=payable");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("a statement's headline tiles are drawn above its lines, a loss in red with the word loss", async () => {
+    const pl = { title: "Profit and loss, 1 Nov 2026 to 16 Nov 2026", stats: [{ label: "Net loss", value: "AED 80.00", tone: "danger" }, { label: "Revenue", value: "AED 1,000.00" }], rows: [{ label: "Revenue", value: "AED 1,000.00" }], link: { path: "/financial-statements", label: "Open financial statements" } };
+    ask.mockResolvedValue({ messageId: "m11", answer: "For this month you have a loss.", citations: [], links: [], tables: [pl], outcome: "answered" });
+    draw();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "profit this month" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    const region = await screen.findByRole("region", { name: pl.title });
+    expect(region).toHaveTextContent("Net loss");
+    expect(screen.getByText("AED 80.00")).toHaveClass("text-destructive");
+    fireEvent.click(screen.getByRole("button", { name: "Open financial statements" }));
+    expect(navigate).toHaveBeenCalledWith("/financial-statements");
+  });
+
+  it("offers the position questions first, from the lookups this person holds", async () => {
+    screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }], lookups: ["profit_and_loss", "balance_sheet", "stock_alerts", "business_snapshot"] });
+    draw();
+    for (const name of ["How are we doing?", "Profit this month", "Balance sheet", "Stock alerts"]) {
+      expect(await screen.findByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("a table pointing somewhere the app does not know gets no button", async () => {
+    ask.mockResolvedValue({ messageId: "m10", answer: "x", citations: [], links: [], tables: [{ ...table, link: { path: "https://evil.example/x", label: "Go" } }], outcome: "answered" });
+    draw();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "list unpaid vendors" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByRole("region", { name: "Unpaid vendors" });
+    expect(screen.queryByRole("button", { name: "Go" })).toBeNull();
   });
 });
 
@@ -317,12 +430,11 @@ describe("the panel itself", () => {
       screenTip.mockResolvedValue({ topics: [{ title: "Order to cash" }], actions: true });
       draw();
       expect(await screen.findByText(/pay Al Noor 5,000 by bank transfer/)).toBeInTheDocument();
-      expect(screen.queryByText(/coming soon/)).toBeNull();
     });
 
-    it("without it, the empty state is as it was", async () => {
+    it("without it, no prepare example is offered", async () => {
       draw();
-      expect(await screen.findByText(/coming soon/)).toBeInTheDocument();
+      expect(await screen.findByText(/Ask me how to do something/)).toBeInTheDocument();
       expect(screen.queryByText(/pay Al Noor/)).toBeNull();
     });
   });

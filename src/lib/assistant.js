@@ -36,6 +36,30 @@ export function safeLinks(links = [], modules = MODULES) {
     .map((l) => ({ path: l.path, label: String(l.label || "Open").slice(0, 40) }));
 }
 
+/**
+ * What a lookup showed ("list unpaid vendors"): the server's own table, written from the books. Taken as data and
+ * cut to a sane size; its button goes only to a screen the app knows (the part before "?" must be a real path).
+ */
+export function normaliseTables(tables = [], modules = MODULES) {
+  const known = knownPaths(modules);
+  const text = (v, max = 120) => (v === null || v === undefined ? "" : String(v).slice(0, max));
+  return (Array.isArray(tables) ? tables : [])
+    .filter((t) => t && typeof t === "object" && Array.isArray(t.rows))
+    .slice(0, 3)
+    .map((t) => {
+      const path = typeof t.link?.path === "string" ? t.link.path : "";
+      const linkOk = path.startsWith("/") && !path.startsWith("//") && known.has(path.split("?")[0]);
+      return {
+        title: text(t.title, 80),
+        rows: t.rows.slice(0, 25).map((r) => ({ label: text(r?.label), sub: text(r?.sub, 160), value: text(r?.value, 40), tone: r?.tone === "danger" ? "danger" : "" })),
+        stats: (Array.isArray(t.stats) ? t.stats : []).slice(0, 4).map((x) => ({ label: text(x?.label, 30), value: text(x?.value, 40), tone: x?.tone === "danger" ? "danger" : x?.tone === "good" ? "good" : "" })),
+        total: t.total && t.total.value !== undefined ? { label: text(t.total.label || "Total", 40), value: text(t.total.value, 40) } : null,
+        more: Math.max(0, Number(t.more) || 0),
+        link: linkOk ? { path, label: text(t.link.label || "Open", 40) } : null,
+      };
+    });
+}
+
 /** What the panel shows before anybody has asked anything. */
 export function openingTip(screen, topics = []) {
   const titles = (topics || []).map((t) => t.title).filter(Boolean);
@@ -68,6 +92,8 @@ export function toExchange(question, answer) {
     links: safeLinks(answer?.links),
     // Documents the assistant PREPARED: a card under the answer, confirmed by the person. Never saved by the assistant.
     proposals: normaliseProposals(answer?.proposals),
+    // What a lookup in the person's own books showed: a small table under the answer, written by the server.
+    tables: normaliseTables(answer?.tables),
     outcome: answer?.outcome || "answered",
     canEscalate: Boolean(answer?.canEscalate),
     escalated: Boolean(answer?.escalated || answer?.supportRequestId),

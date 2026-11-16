@@ -120,3 +120,19 @@ describe("the normal form opened from a card", () => {
     expect(expensePrefillFromAssistant(state("payment"), "2026-11-20")).toBe(null);
   });
 });
+
+describe("a new customer or vendor", () => {
+  const vendor = { id: "p1", kind: "vendor", endpoint: "party", confirm: "Add", body: { vendorName: "Desert Steel", contactPerson: "Desert Steel" }, missing: ["address"] };
+
+  it("is kept, saved to its own route, and the address typed on the card goes into the body", async () => {
+    const { normaliseProposals, saveUrl, bodyToSend, canSave } = await import("../assistantProposals");
+    const [p] = normaliseProposals([vendor]);
+    expect(p.kind).toBe("vendor");
+    expect(saveUrl(p)).toBe("/vendors/vendors");
+    expect(saveUrl({ kind: "customer", endpoint: "party" })).toBe("/customers");
+    expect(canSave(p, {})).toBe(false);
+    expect(bodyToSend(p, { address: "  Industrial Area 3 " })).toEqual({ vendorName: "Desert Steel", contactPerson: "Desert Steel", address: "Industrial Area 3" });
+    expect(canSave(p, { address: "x" })).toBe(true);
+    expect(normaliseProposals([{ ...vendor, endpoint: "elsewhere" }])).toEqual([]);
+  });
+});

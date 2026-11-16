@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { CURRENCY, downloadCSV, formatDateGB, formatNumber, todayInput } from "../../utils/format";
@@ -19,7 +19,9 @@ const UNAPPLIED_LABEL = "Returns, credit notes and balances on account not set a
 const BUCKET_TONE = { current: "", d1_30: "", d31_60: "text-status-warning", d61_90: "text-status-warning", d90plus: "text-status-danger" };
 
 export default function AgeingReport() {
-  const [type, setType] = useState("receivable");
+  // ?type=payable opens on Payables (Zarvia AI's "Open payables ageing" button lands here)
+  const [params] = useSearchParams();
+  const [type, setType] = useState(() => (params.get("type") === "payable" ? "payable" : "receivable"));
   const [asOf, setAsOf] = useState(todayInput());
   const [open, setOpen] = useState({});
   const { data, loading, error, reload } = useAsync(() => accounting.ageing({ type, asOf }), [type, asOf]);

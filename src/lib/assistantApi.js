@@ -25,6 +25,10 @@ export const assistant = {
   },
   // What this screen is about, for the line the panel opens with
   screen: (screen) => api.get("/assistant/screen", { screen }),
+  // The person's own earlier chats: the list, one chat's messages, and deleting one
+  conversations: () => api.get("/assistant/conversations"),
+  conversation: (id) => api.get(`/assistant/conversations/${id}`),
+  forgetConversation: (id) => api.del(`/assistant/conversations/${id}`),
   mine: (limit) => api.get("/assistant/mine", limit ? { limit } : undefined),
   helpful: (id, helpful) => api.post(`/assistant/messages/${id}/helpful`, { helpful }),
   // The button a person presses when the answer did not help

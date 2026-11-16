@@ -117,3 +117,29 @@ describe("a prepared document's card", () => {
     expect(screen.queryByRole("button", { name: cash.confirm })).toBeNull();
   });
 });
+
+describe("a new customer or vendor", () => {
+  const [vendor] = normaliseProposals([{ id: "p3", kind: "vendor", endpoint: "party", title: "New vendor", confirm: "Add vendor Desert Steel", lines: [["Vendor", "Desert Steel"], ["Contact person", "Desert Steel"]], body: { vendorName: "Desert Steel", contactPerson: "Desert Steel" }, missing: ["address"], warnings: ["Similar names already exist: Desert Steel Trading. Check this is not a duplicate."], prefill: null }]);
+  const [customer] = normaliseProposals([{ id: "p4", kind: "customer", endpoint: "party", title: "New customer", confirm: "Add customer Blue Sea", lines: [["Customer", "Blue Sea"]], body: { customerName: "Blue Sea", contactPerson: "Blue Sea" }, missing: [], warnings: [], prefill: null }]);
+
+  it("a vendor waits for its address, then sends it with the rest", async () => {
+    saveProposal.mockResolvedValue({ data: { vendorId: "VEND2026001", vendorName: "Desert Steel" } });
+    show(vendor);
+    expect(screen.getByText(/Similar names already exist/)).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Add vendor Desert Steel" });
+    expect(button).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Address"), { target: { value: "Industrial Area 3" } });
+    fireEvent.click(button);
+    await waitFor(() => expect(saveProposal).toHaveBeenCalledWith(expect.objectContaining({ id: "p3" }), { address: "Industrial Area 3" }));
+    expect(await screen.findByText(/Vendor Desert Steel is added \(VEND2026001\)/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open vendors" })).toBeInTheDocument();
+  });
+
+  it("a customer with nothing missing can be added at once, and has no Change details", async () => {
+    saveProposal.mockResolvedValue({ data: { customerId: "CUST2026001", customerName: "Blue Sea" } });
+    show(customer);
+    expect(screen.queryByRole("button", { name: /Change details/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add customer Blue Sea" }));
+    expect(await screen.findByText(/Customer Blue Sea is added/)).toBeInTheDocument();
+  });
+});

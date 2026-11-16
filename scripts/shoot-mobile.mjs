@@ -18,6 +18,9 @@ import { POSITION_REGROUPED as POSITION, PROFIT_WITH_DISCOUNTS as PROFIT, EQUITY
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = process.env.SHOT_DIR || join(ROOT, ".shots");
+// Every load after the first is held to this. SHOT_NAV_TIMEOUT (ms) raises it on a machine short of memory, where a page
+// that is fine still takes longer than 30 seconds to compile and draw: a timeout there is about the machine, not the page.
+const NAV_TIMEOUT = Number(process.env.SHOT_NAV_TIMEOUT) || 30000;
 // The order lists open on the current calendar month and cut to it in the browser, so the stub's order rows are dated in it
 // (a fixed October date would leave an empty list - and no row to open - in any other month).
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
@@ -795,7 +798,7 @@ function stubFor(pathname, search = "") {
 
   // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
   // citations and a link, so the deep step below measures a real exchange rather than an empty box.
-  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }], actions: true };
+  if (p.includes("/assistant/screen")) return { screen: p, topics: [{ id: "guide-4-5", title: "Order to cash", screens: ["/sales-order"] }], actions: true, lookups: ["unpaid_bills", "unpaid_invoices", "stock_levels", "cash_and_bank", "trade_totals"] };
   if (p.includes("/assistant/ask")) {
     return {
       conversationId: "c1",
@@ -811,6 +814,17 @@ function stubFor(pathname, search = "") {
         body: { voucherType: "payment", vendorId: "v1", totalAmount: 25000, paymentMode: "transfer", paymentDetails: { accountId: "bk1" } },
         missing: ["reference"], warnings: ["AED 1,000.00 is more than they have open, so it would go on account."],
         prefill: { partyId: "v1", amount: 25000, mode: "transfer", accountId: "bk1", reference: "" },
+      }],
+      // A lookup's table under the answer, with the longest name, the widest figure and "and N more": what a phone must fit.
+      tables: [{
+        title: "Unpaid vendors",
+        rows: [
+          { label: "Al Noor Steel Fabrication & Trading Company LLC", sub: "4 bills · AED 12,500.00 overdue, oldest 63 days", value: "AED 1,234,567.89", tone: "danger" },
+          { label: "Gulf Packaging", sub: "1 bill · not yet due", value: "AED 110.25", tone: "" },
+        ],
+        total: { label: "Total", value: "AED 1,234,678.14" },
+        more: 6,
+        link: { path: "/ageing?type=payable", label: "Open payables ageing" },
       }],
       outcome: "answered",
       canEscalate: false,
@@ -2947,7 +2961,7 @@ for (const vp of VIEWPORTS) {
       // The very first page of a run waits for Vite to compile what it needs on demand, which can take well over 30 seconds
       // on a cold start: that was reported as "Navigation timeout" for the first viewport of every run, a failure about the
       // machine and not the page. Only the first load is given the allowance; every later one is held to 30 seconds.
-      await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: coldStart ? 180000 : 30000 });
+      await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: coldStart ? 180000 : NAV_TIMEOUT });
       coldStart = false;
       await drawn(page); // the page itself, before the settle below is spent waiting for it
       await wait(900); // let charts and async loaders settle
@@ -3176,7 +3190,7 @@ for (const vp of VIEWPORTS) {
           console.log(`SKIP   ${vp.name.padEnd(8)} ${`${name}>${step.name}`.padEnd(26)} ${err.message}`);
         }
         // back to a clean page for the next step
-        await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: 30000 });
+        await page.goto(`http://localhost:${WEB_PORT}${path}`, { waitUntil: "networkidle2", timeout: NAV_TIMEOUT });
         await drawn(page); // or the next step hunts for a control on a page that has not drawn yet
         await wait(700);
       }
