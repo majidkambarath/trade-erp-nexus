@@ -4,4 +4,4 @@ import { createContext, useContext } from "react";
 
 export const GuideContext = createContext(null);
 export const useGuides = () =>
-  useContext(GuideContext) || { active: null, start: () => {}, stop: () => {}, flows: [], lang: "en", setLang: () => {}, done: () => false, table: null };
+  useContext(GuideContext) || { active: null, start: () => {}, stop: () => {}, flows: [], lang: "en", setLang: () => {}, done: () => false, table: null, resumable: null, resume: () => {} };
