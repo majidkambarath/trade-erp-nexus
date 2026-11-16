@@ -83,7 +83,7 @@ export default function GuideMenu() {
         role="dialog"
         aria-label={label}
         hidden={!open}
-        className="absolute end-0 top-full z-[60] mt-2 flex max-h-[min(34rem,calc(100dvh-5rem))] w-[22rem] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-lg"
+        className="fixed inset-x-2 top-14 z-[60] mt-2 flex max-h-[min(34rem,calc(100dvh-8rem))] flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-lg sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:max-h-[min(34rem,calc(100dvh-5rem))] sm:w-[22rem] sm:max-w-[calc(100vw-1rem)]"
       >
         <div className="border-b border-border px-3.5 pb-3 pt-3">
           <div className="flex items-center justify-between">
