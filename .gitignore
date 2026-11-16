@@ -42,3 +42,4 @@ scripts/videos/samples/
 scripts/videos/.venv-parler/
 scripts/videos/azure.env
 scripts/videos/elevenlabs.env
+__pycache__/
