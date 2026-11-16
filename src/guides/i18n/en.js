@@ -10,6 +10,7 @@ import accounts from "./accounts/en";
 import reports from "./reports/en";
 import settings from "./settings/en";
 import extra from "./extra/en";
+import garage from "./garage/en";
 
 export default {
   ...sell,
@@ -20,6 +21,7 @@ export default {
   ...reports,
   ...settings,
   ...extra,
+  ...garage,
   reviewed: true,
 
   ui: {
@@ -92,6 +94,10 @@ export default {
     "groupHint.reports": "Read and share your figures",
     "group.settings": "Set up your company",
     "groupHint.settings": "Settings, tax and your team",
+    "group.garage": "Garage",
+    "groupHint.garage": "Vehicles, job cards, claims",
+    "journey.garage": "Run the workshop",
+    "journeyHint.garage": "Vehicles, job cards and estimate approval.",
     "group.other": "More guides",
     "groupHint.other": "Everything else",
   },

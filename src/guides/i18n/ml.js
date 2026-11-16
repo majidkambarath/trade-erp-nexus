@@ -11,6 +11,7 @@ import accounts from "./accounts/ml";
 import reports from "./reports/ml";
 import settings from "./settings/ml";
 import extra from "./extra/ml";
+import garage from "./garage/ml";
 
 export default {
   ...sell,
@@ -21,6 +22,7 @@ export default {
   ...reports,
   ...settings,
   ...extra,
+  ...garage,
   reviewed: false,
 
   ui: {
@@ -93,6 +95,10 @@ export default {
     "groupHint.reports": "നിങ്ങളുടെ കണക്കുകൾ വായിക്കുക, പങ്കിടുക",
     "group.settings": "നിങ്ങളുടെ കമ്പനി സജ്ജമാക്കുക",
     "groupHint.settings": "സെറ്റിംഗ്സ്, ടാക്സ്, നിങ്ങളുടെ ടീം",
+    "group.garage": "ഗാരേജ്",
+    "groupHint.garage": "വെഹിക്കിൾ, ജോബ് കാർഡ്, ക്ലെയിം",
+    "journey.garage": "വർക്ക്ഷോപ്പ് നടത്തുക",
+    "journeyHint.garage": "വെഹിക്കിൾ, ജോബ് കാർഡ്, എസ്റ്റിമേറ്റ് അപ്രൂവൽ.",
     "group.other": "കൂടുതൽ ഗൈഡുകൾ",
     "groupHint.other": "മറ്റെല്ലാം",
   },

@@ -7,6 +7,7 @@ export const JOURNEYS = [
   { id: "buy", guides: ["create-purchase-order", "receive-and-bill-goods", "pay-supplier"] },
   { id: "stock", guides: ["add-item", "record-movement", "write-off-stock", "read-stock-reports"] },
   { id: "books", guides: ["record-expense", "add-bank", "read-profit-and-loss", "read-ageing"] },
+  { id: "garage", guides: ["garage-board-tour", "add-vehicle", "new-job-card", "garage-estimate-approval"] },
 ];
 
 // The journeys this person can run: each with the guides they may run (in order), where it starts and how long it takes.

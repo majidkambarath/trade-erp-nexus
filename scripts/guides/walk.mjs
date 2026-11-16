@@ -88,9 +88,12 @@ for (let n = 0; n < 80; n += 1) {
     if (h && s.sample && !typed.has(s.step)) {
       typed.add(s.step);
       if (s.tag === "SELECT") { const pick = await h.evaluate((e, want) => { const o = [...e.options].filter((x) => x.value); const hit = o.find((x) => want && (x.value.toLowerCase() === want.toLowerCase() || x.text.toLowerCase() === want.toLowerCase())); return (hit || o[0])?.value; }, s.sample); if (pick) await h.select(pick); }
-      else if (s.tag === "INPUT" || s.tag === "TEXTAREA") {
-        await h.click({ clickCount: 3 }).catch(() => {}); await h.type(s.sample, { delay: 15 }).catch(() => {});
-        if (s.role === "combobox") { await wait(900); await page.keyboard.press("Enter"); await wait(300); } // a searchable list: take the first match
+      else if (s.tag === "INPUT" || s.tag === "TEXTAREA" || (await h.$("input:not([type=hidden])"))) {
+        // a guide may highlight the box around a searchable list: type into the input inside it
+        const box = s.tag === "INPUT" || s.tag === "TEXTAREA" ? h : await h.$("input:not([type=hidden])");
+        const combo = s.role === "combobox" || s.tag !== "INPUT" && s.tag !== "TEXTAREA";
+        await box.click({ clickCount: 3 }).catch(() => {}); await box.type(s.sample, { delay: 15 }).catch(() => {});
+        if (combo) { await wait(600); await page.waitForFunction(() => document.querySelector("[role=option]") && !/loading/i.test(document.querySelector("[class*=menu], [role=listbox]")?.textContent || ""), { timeout: 8000 }).catch(() => {}); await wait(300); await page.keyboard.press("Enter"); await wait(300); } // a searchable list: take the first match
       }
     }
     await wait(300);

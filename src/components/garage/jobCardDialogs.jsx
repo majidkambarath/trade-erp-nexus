@@ -65,7 +65,7 @@ function ApprovalDialog({ card, onClose, onDone }) {
           </Field>
         </div>
         <Field label="Which lines"><span /></Field>
-        <ul className="grid gap-2 rounded-lg border p-2">
+        <ul data-guide="garage-approval-lines" className="grid gap-2 rounded-lg border p-2">
           {candidates.map((l) => (
             <li key={l._id} className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={picked.has(String(l._id))} onChange={() => toggle(String(l._id))} />
@@ -359,7 +359,7 @@ function NewClaimDialog({ jobCardId, masters, onClose, onDone }) {
       <div className="grid gap-4">
         {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
         <Field label="Insurer" required error={!insurerId ? "Choose the insurer" : undefined}>
-          <SearchSelect value={insurerId} onChange={setInsurerId} options={masters.insurerOptions} loading={masters.loading} placeholder="Choose the insurer…" />
+          <div data-guide="garage-insurer"><SearchSelect value={insurerId} onChange={setInsurerId} options={masters.insurerOptions} loading={masters.loading} placeholder="Choose the insurer…" /></div>
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Policy number" required error={!policyNo.trim() ? "Required" : undefined}><TextInput value={policyNo} onChange={(e) => setPolicyNo(e.target.value)} autoFocus /></Field>

@@ -11,6 +11,7 @@ import accounts from "./accounts/hi";
 import reports from "./reports/hi";
 import settings from "./settings/hi";
 import extra from "./extra/hi";
+import garage from "./garage/hi";
 
 export default {
   ...sell,
@@ -21,6 +22,7 @@ export default {
   ...reports,
   ...settings,
   ...extra,
+  ...garage,
   reviewed: false,
 
   ui: {
@@ -93,6 +95,10 @@ export default {
     "groupHint.reports": "अपने आँकड़े पढ़ें और साझा करें",
     "group.settings": "अपनी कंपनी सेट करें",
     "groupHint.settings": "सेटिंग्स, टैक्स और आपकी टीम",
+    "group.garage": "गैराज",
+    "groupHint.garage": "व्हीकल, जॉब कार्ड, क्लेम",
+    "journey.garage": "वर्कशॉप चलाएँ",
+    "journeyHint.garage": "व्हीकल, जॉब कार्ड और एस्टीमेट अप्रूवल।",
     "group.other": "और गाइड",
     "groupHint.other": "बाकी सब",
   },

@@ -11,6 +11,7 @@ import accounts from "./accounts/ar";
 import reports from "./reports/ar";
 import settings from "./settings/ar";
 import extra from "./extra/ar";
+import garage from "./garage/ar";
 
 export default {
   ...sell,
@@ -21,6 +22,7 @@ export default {
   ...reports,
   ...settings,
   ...extra,
+  ...garage,
   reviewed: false,
 
   ui: {
@@ -93,6 +95,10 @@ export default {
     "groupHint.reports": "اقرأ أرقامك وشاركها",
     "group.settings": "إعداد شركتك",
     "groupHint.settings": "الإعدادات والضريبة وفريقك",
+    "group.garage": "الكراج",
+    "groupHint.garage": "المركبات وبطاقات العمل والمطالبات",
+    "journey.garage": "إدارة الورشة",
+    "journeyHint.garage": "المركبات وبطاقات العمل واعتماد التقدير.",
     "group.other": "أدلة أخرى",
     "groupHint.other": "كل ما عدا ذلك",
   },

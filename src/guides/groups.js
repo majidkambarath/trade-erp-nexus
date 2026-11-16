@@ -9,6 +9,7 @@ export const GROUPS = [
   { id: "money", ids: ["record-expense", "journal-entry", "contra-transfer", "credit-debit-note", "follow-cheque", "add-bank", "bank-reconciliation"] },
   { id: "accounts", ids: ["add-account", "read-account-ledger", "accounting-setup-tour", "opening-balances-tour", "close-month"] },
   { id: "reports", ids: ["read-profit-and-loss", "read-ageing", "customer-statement", "read-stock-reports", "read-vat-return", "read-ledger-and-day-book", "read-party-balances", "read-trade-analysis", "read-dashboard", "approvals-tour"] },
+  { id: "garage", ids: ["garage-board-tour", "add-vehicle", "new-job-card", "garage-estimate-approval", "garage-do-the-work", "garage-invoice-release", "garage-insurance-claim", "garage-standard-job", "garage-bay", "garage-reports-tour"] },
 ];
 
 export const groupOf = (flowId) => GROUPS.find((g) => g.ids.includes(flowId))?.id || "other";
@@ -20,5 +21,9 @@ export function grouped(flows) {
   const known = new Set(GROUPS.flatMap((g) => g.ids));
   const rest = flows.filter((f) => !known.has(f.id));
   if (rest.length) out.push({ id: "other", flows: rest });
-  return out.filter((g) => g.flows.length);
+  const shown = out.filter((g) => g.flows.length);
+  // An organisation that bought the Garage module is a workshop: its own guides come first, in the order the work
+  // happens (vehicle in, estimate, work, invoice, claim), then the general ones.
+  const garage = shown.find((g) => g.id === "garage");
+  return garage ? [garage, ...shown.filter((g) => g !== garage)] : shown;
 }
