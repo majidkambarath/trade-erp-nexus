@@ -76,8 +76,23 @@ export const reverseChargeNote = (lines, totals, side, currency) => {
   };
 };
 
+// Prepared by / Approved by / Received by. The preparer is the name the server resolved from createdBy; the approver is the
+// last approval recorded on the document (name and day) and stays blank on a draft. "Received by" is left for a hand.
+export const signatureBoxes = (doc) => {
+  const approvals = Array.isArray(doc?.approvals) ? doc.approvals : [];
+  const last = INVOICED.includes(doc?.status) ? approvals[approvals.length - 1] : null;
+  return [
+    { title: "Prepared by", name: doc?.createdByName || "" },
+    { title: "Approved by", name: last?.name || "", date: last?.at ? formatDateGB(last.at) : "" },
+    { title: "Received by", name: "" },
+  ];
+};
+
+// A file-name part: runs of anything but letters and digits become one underscore.
+export const fileSlug = (text) => String(text ?? "").trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
 // The sheet fields every document shares: what is printed, from which saved document.
-export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, terms, reverseChargeSide }) => {
+export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, signatures, terms, reverseChargeSide }) => {
   const lines = invoiceLines(doc.items);
   const totals = documentTotals(doc);
   return {
@@ -97,6 +112,7 @@ export const sheetFor = (doc, { title, numberLabel, number, party, meta, company
     // already passed it; these four now do too.
     terms,
     receipt,
+    signatures,
     reverseCharge: reverseChargeNote(lines, totals, reverseChargeSide, currency),
   };
 };
@@ -118,9 +134,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   const kind = companyRegistered ? "Tax invoice" : "Invoice";
   const taxInvoice = invoiced && companyRegistered; // an ISSUED tax invoice (what sending and the e-invoice look at)
   const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
-  const noun = kind.toLowerCase();
   return {
-    fileName: `${invoiced ? "" : "Draft-"}${kind.replace(/ /g, "-")}_${number}`,
+    fileName: [number, fileSlug(customer.customerName || so.customerName), companyRegistered ? "Tax_Invoice" : "Invoice"].filter(Boolean).join("_"),
     status: so.status,
     // a registered customer getting a plain invoice, and the screen says why
     missingTrn: customerRegistered && !companyRegistered,
@@ -149,7 +164,6 @@ export const buildSalesDocument = (so, customer, company, currency) => {
         // invoice would print nothing. `dueDateOf` is the rule the lists, the registers and the ageing
         // report already share - stored date, else the party's terms - so the four cannot disagree.
         ["Due date", dateOf(dueDateOf({ ...so, paymentTerms: customer.paymentTerms }))],
-        ["Delivery date", dateOf(so.deliveryDate)],
         ["LPO / reference", so.refNo ?? so.lpono ?? ""],
         ["Doc no.", so.docNo ?? so.docno ?? ""],
         ["Serial no.", so.serialNo ?? ""],
@@ -166,10 +180,8 @@ export const buildSalesDocument = (so, customer, company, currency) => {
       company,
       currency,
       terms: so.terms || "",
-      notice: invoiced
-        ? `This is a computer-generated ${noun}. No signature is required.`
-        : `This is a draft ${noun}. Nothing is posted and no stock moves until it is approved.`,
-      receipt: !invoiced,
+      notice: "",
+      signatures: signatureBoxes(so),
       reverseChargeSide: "supplier",
     }),
   };
@@ -184,7 +196,6 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
   const vendorTrn = partyTrnFor(vendor, vendor.trnNO || vendor.vat?.trn);
   const vatStatus = partyVatStatus(vendor, vendorTrn);
   const registered = vatStatus === "Registered";
-  const kind = registered ? "tax invoice" : "purchase invoice";
   return {
   fileName: `${invoiced ? "" : "Draft-"}${registered ? "Tax-invoice" : "Purchase-invoice"}_${po.transactionNo}`,
   status: po.status,
@@ -213,10 +224,8 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
     company,
     currency,
     terms: po.terms || "",
-    notice: `${invoiced ? "This is a computer-generated" : "This is a draft"} ${kind}, recorded from the supplier's invoice.${
-      registered ? "" : ` The supplier is not ${taxWord()}-registered, so no input ${taxWord()} can be recovered on it.`
-    }${invoiced ? " No signature is required." : " Nothing is posted and no stock comes in until it is approved."}`,
-    receipt: true,
+    notice: registered ? "" : `The supplier is not ${taxWord()}-registered, so no input ${taxWord()} can be recovered on it.`,
+    signatures: signatureBoxes(po),
     reverseChargeSide: "recipient",
   }),
   };
@@ -231,7 +240,6 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
   const vatStatus = partyVatStatus(customer, trn);
   const registered = isTaxInvoice(company);
   const original = so.returnOf?.transactionNo || so.refNo || so.lpono || "";
-  const issued = INVOICED.includes(so.status);
   return {
     fileName: `${registered ? "Tax-credit-note" : "Credit-note"}_${so.transactionNo}`,
     status: so.status,
@@ -259,8 +267,8 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
       company,
       currency,
       terms: so.terms || "",
-      notice: `${issued ? "This is a computer-generated" : "This is a draft"} ${registered ? "tax credit note" : "credit note"}. It credits the goods returned${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
-      receipt: true,
+      notice: original ? `It credits the goods returned against ${original}.` : "",
+      signatures: signatureBoxes(so),
       reverseChargeSide: "supplier",
     }),
   };
@@ -273,7 +281,6 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
   const trn = partyTrnFor(vendor, vendor.trnNO || vendor.vat?.trn);
   const vatStatus = partyVatStatus(vendor, trn);
   const original = po.returnOf?.transactionNo || "";
-  const issued = INVOICED.includes(po.status);
   return {
     fileName: `Debit-note_${po.transactionNo}`,
     status: po.status,
@@ -301,8 +308,8 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
       company,
       currency,
       terms: po.terms || "",
-      notice: `${issued ? "This is a computer-generated" : "This is a draft"} debit note. It records the goods sent back to the vendor${original ? ` against ${original}` : ""}.${issued ? "" : " Nothing is posted and no stock moves until it is approved."}`,
-      receipt: true,
+      notice: original ? `It records the goods sent back to the vendor against ${original}.` : "",
+      signatures: signatureBoxes(po),
       reverseChargeSide: "recipient",
     }),
   };
