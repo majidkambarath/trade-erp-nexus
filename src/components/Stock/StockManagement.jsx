@@ -198,6 +198,8 @@ const StockManagement = () => {
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
+  // the item stores its unit as an id; the list shows the unit's name, and nothing at all when it cannot be found (never the raw id)
+  const unitNameOf = (id) => units.find((u) => u._id === (id?._id || id))?.unitName || "";
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editItemId, setEditItemId] = useState(null);
@@ -297,6 +299,11 @@ const StockManagement = () => {
       setUnits([]);
     }
   }, [showToastMessage]);
+
+  // the list names each item's unit, so the units are read once when the screen opens (silently: the form reads them again)
+  useEffect(() => {
+    axiosInstance.get("/uom/units").then((r) => setUnits(Array.isArray(r.data.data) ? r.data.data : [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (showModal) {
@@ -1084,7 +1091,7 @@ const StockManagement = () => {
                             {isService(item) && <span className="ms-2 inline-block rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 align-middle text-xs font-medium text-indigo-700">Service</span>}
                           </p>
                           <p className="text-xs font-normal text-gray-500">SKU: {item.sku}</p>
-                          <p className="text-xs font-normal text-gray-500">ID: {item.itemId || item._id}</p>
+                          {item.itemId && <p className="text-xs font-normal text-gray-500">ID: {item.itemId}</p>}
                         </div>
                       </div>
                     ),
@@ -1100,7 +1107,7 @@ const StockManagement = () => {
                         >
                           {item.category?.name?.toUpperCase() || "N/A"}
                         </span>
-                        <span className="block text-xs text-gray-500">{item.unitOfMeasure}</span>
+                        <span className="block text-xs text-gray-500">{unitNameOf(item.unitOfMeasure)}</span>
                       </span>
                     ),
                   },
