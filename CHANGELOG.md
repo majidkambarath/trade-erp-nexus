@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.4.2.0 — 17 November 2026
+
+Van sales: Trips and Board redesigned to match My van. Frontend and backend both at 3.4.2.0.
+
+### Changed
+
+- **Trips**: tiles for Out on the road, Loading, To settle and Settled that filter the list when tapped; a van badge on each row.
+- **A trip**: opens on the same trip card as My van (route progress, next shop); loads and history as timelines; count differences as coloured badges; the settlement as tiles.
+- **Board**: tiles with icons that count up; each van card has a coloured edge for what needs a look, a route progress bar, cash against its limit and the flags as chips.
+- Gentle motion (GSAP) on all three, played once (not on the two-minute refresh) and switched off for reduced motion.
+
 ## 3.4.1.0 — 17 November 2026
 
 Van sales: a redesigned My van screen. Frontend and backend both at 3.4.1.0.
