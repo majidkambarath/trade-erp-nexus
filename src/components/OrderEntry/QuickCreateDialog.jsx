@@ -79,9 +79,9 @@ export default function QuickCreateDialog({
           onCloseAutoFocus={(e) => {
             if (onCloseFocus?.()) e.preventDefault();
           }}
-          className="fixed start-1/2 top-[18dvh] z-[60] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
+          className="fixed start-1/2 top-[max(1rem,6dvh)] z-[60] flex max-h-[calc(100dvh-2rem)] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 flex-col rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
         >
-          <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="mb-5 flex shrink-0 items-start justify-between gap-4">
             <Dialog.Title className="text-lg font-bold tracking-tight">{spec.title}</Dialog.Title>
             <Dialog.Close
               aria-label="Close"
@@ -91,7 +91,8 @@ export default function QuickCreateDialog({
             </Dialog.Close>
           </div>
 
-          <form onSubmit={submit} noValidate className="space-y-4">
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+            <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 pb-1">
             {spec.fields.map((f) => {
               // A field can depend on another: the tax number appears only once the box is ticked.
               if (!isShown(f, values)) return null;
@@ -177,13 +178,15 @@ export default function QuickCreateDialog({
               );
             })}
 
+            </div>
+
             {error && (
-              <p role="alert" className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm font-semibold text-status-danger">
+              <p role="alert" className="mt-3 shrink-0 rounded-lg bg-status-danger-soft px-3 py-2 text-sm font-semibold text-status-danger">
                 {error}
               </p>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="mt-4 flex shrink-0 justify-end gap-2 border-t border-border pt-4">
               <Dialog.Close className="h-10 rounded-lg border border-input bg-card px-4 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 Cancel
               </Dialog.Close>
