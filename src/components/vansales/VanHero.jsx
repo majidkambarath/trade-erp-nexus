@@ -14,7 +14,7 @@ import { tripTitle, tripWhen } from "./printSale";
 // mode. The bar grows in once (GSAP, never under reduced motion); its width in the markup is always the real one.
 // Today's targets, when the van has any: what it should sell and how many customers it should call on, each as a
 // bar with what is done and what is left. Reaching one says so in words; no target, nothing is drawn.
-function TargetBars({ progress }) {
+function TargetBars({ progress, waiting = 0 }) {
   const rows = [
     progress?.sales && { key: "sales", label: "Sales", done: formatCurrencyAED(progress.sales.done), goal: formatCurrencyAED(progress.sales.target), left: formatCurrencyAED(progress.sales.toGo), p: progress.sales },
     progress?.calls && { key: "calls", label: "Customers called on", done: String(progress.calls.done), goal: String(progress.calls.target), left: String(progress.calls.toGo), p: progress.calls },
@@ -37,11 +37,12 @@ function TargetBars({ progress }) {
           </div>
         ))}
       </div>
+      {waiting > 0 && <p role="status" className="text-xs text-muted-foreground">Not counting the {waiting} sale{waiting === 1 ? "" : "s"} done on the phone and waiting to send.</p>}
     </div>
   );
 }
 
-export function VanHero({ trip, detail, heading = false }) {
+export function VanHero({ trip, detail, heading = false, waiting = 0 }) {
   const route = trip.route || [];
   const done = route.filter(stopDone).length;
   const next = route.find((c) => !stopDone(c));
@@ -76,7 +77,7 @@ export function VanHero({ trip, detail, heading = false }) {
             </div>
           </div>
         )}
-        <TargetBars progress={trip.totals?.progress} />
+        <TargetBars progress={trip.totals?.progress} waiting={waiting} />
         <p className="text-sm text-muted-foreground">{nextStep(trip)}</p>
       </div>
     </section>

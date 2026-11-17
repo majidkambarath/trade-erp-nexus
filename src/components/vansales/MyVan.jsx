@@ -89,7 +89,7 @@ export default function MyVan() {
       )}
       {trip && (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5">
-          <VanHero trip={trip} />
+          <VanHero trip={trip} waiting={off.active ? off.view.waiting : 0} />
           {trip.totals?.cashOverLimit && <p role="status" className="rounded-lg border border-status-danger px-3 py-2 text-sm text-status-danger">The van is carrying more cash than its limit. Hand some in at the depot.</p>}
           <TripTiles trip={trip} />
           <div data-reveal="" className="rounded-xl border border-border bg-card p-3 shadow-sm">
