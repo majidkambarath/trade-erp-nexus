@@ -262,3 +262,32 @@ describe("the tax number follows the organisation's country", () => {
     expect(taxIdRule().label).toBe("GSTIN");
   });
 });
+
+describe("the address's country and emirate", () => {
+  it("a new party starts in the UAE, in Abu Dhabi, and sends both", () => {
+    const f = emptyParty("customer");
+    expect([f.country, f.emirate]).toEqual(["AE", "Abu Dhabi"]);
+    expect(formToPayload("customer", filled("customer"))).toMatchObject({ country: "AE", emirate: "Abu Dhabi" });
+    expect(formToPayload("vendor", filled("vendor", { emirate: "Fujairah" }))).toMatchObject({ country: "AE", emirate: "Fujairah" });
+  });
+
+  it("the UAE needs an emirate; any other country has none and sends none", () => {
+    expect(validateParty("customer", filled("customer", { emirate: "" }))).toMatchObject({ emirate: "Choose an emirate" });
+    expect(validateParty("customer", filled("customer", { country: "IN", emirate: "" })).emirate).toBeUndefined();
+    expect(formToPayload("customer", filled("customer", { country: "IN", emirate: "Dubai" }))).toMatchObject({ country: "IN", emirate: "" });
+    expect(sectionOf("emirate")).toBe("basic");
+  });
+
+  it("an older record with no country opens on the UAE with no emirate chosen, and an unrelated edit stamps nothing on it", () => {
+    const f = partyToForm("customer", { customerName: "Old", billingAddress: "Deira" });
+    expect([f.country, f.emirate, f.addressLegacy]).toEqual(["AE", "", true]);
+    expect(validateParty("customer", { ...f, contactPerson: "" }).emirate).toBeUndefined();
+    const body = formToPayload("customer", f);
+    expect(body).not.toHaveProperty("country");
+    expect(body).not.toHaveProperty("emirate");
+    // once an emirate is chosen it is sent like any other
+    expect(formToPayload("customer", { ...f, emirate: "Dubai", addressLegacy: false })).toMatchObject({ country: "AE", emirate: "Dubai" });
+    // and a record that has them keeps them
+    expect(partyToForm("vendor", { vendorName: "V", country: "IN", emirate: null })).toMatchObject({ country: "IN", emirate: "", addressLegacy: false });
+  });
+});

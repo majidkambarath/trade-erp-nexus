@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X } from "lucide-react";
 import { invalidField, isRequired, isShown, missingRequired } from "./quickCreate";
 import { cn } from "../../lib/utils";
+import { SearchSelect } from "../accounting/kit";
 
 // One dialog for every quick create. The field list comes from quickCreate.js, so the
 // required fields are the same ones the management screens enforce.
@@ -27,10 +28,11 @@ export default function QuickCreateDialog({
 
   useEffect(() => {
     if (open) {
-      setValues({ ...(initial || {}) });
+      setValues({ ...(spec?.defaults || {}), ...(initial || {}) });
       setError("");
       setBusy(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
   useEffect(() => {
@@ -41,7 +43,8 @@ export default function QuickCreateDialog({
 
   if (!spec) return null;
 
-  const set = (name, value) => setValues((v) => ({ ...v, [name]: value }));
+  // a field can say what else changes with it (the country decides the emirate)
+  const set = (name, value) => setValues((v) => ({ ...v, [name]: value, ...(spec.onChange?.(name, value, v) || {}) }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -98,7 +101,7 @@ export default function QuickCreateDialog({
               if (!isShown(f, values)) return null;
               const id = `${uid}-${f.name}`;
               const isSelect = Boolean(f.select);
-              const opts = isSelect ? options[f.select] || [] : [];
+              const opts = isSelect ? (f.optionsList ? f.optionsList() : options[f.select] || []) : [];
               const required = isRequired(f, values); // some fields depend on others (origin and brand are not asked of a service)
               // A tick is its own row: the label sits beside the box, not above it.
               if (f.checkbox) {
@@ -123,7 +126,17 @@ export default function QuickCreateDialog({
                     {f.label}
                     {required && <span className="ms-1 text-status-danger" aria-hidden="true">*</span>}
                   </label>
-                  {isSelect ? (
+                  {isSelect && f.search ? (
+                    <SearchSelect
+                      id={id}
+                      aria-label={f.label}
+                      value={values[f.name] || ""}
+                      options={opts}
+                      rankMatches
+                      onChange={(v) => set(f.name, v)}
+                      invalid={false}
+                    />
+                  ) : isSelect ? (
                     <div className="flex gap-2">
                       <select
                         id={id}

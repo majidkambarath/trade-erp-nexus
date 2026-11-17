@@ -212,6 +212,7 @@ export const buildPurchaseDocument = (po, vendor, company, currency) => {
       contact: contactLines(vendor),
       trn: vendorTrn,
       vatStatus,
+      locality: localityOf(vendor),
     },
     meta: [
       ["Date", dateOf(po.date)],
@@ -297,6 +298,7 @@ export const buildPurchaseReturnDocument = (po, vendor, company, currency) => {
         contact: contactLines(vendor),
         trn,
         vatStatus,
+        locality: localityOf(vendor),
       },
       meta: [
         ["Date", dateOf(po.date)],

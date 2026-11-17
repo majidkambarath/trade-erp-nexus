@@ -294,8 +294,9 @@ describe("the due date, and where the customer is", () => {
 
   // A vendor record has no structured locality at all, so the purchase side must pass none rather
   // than reach for a field that does not exist.
-  it("claims no locality for a vendor, or for a customer whose address is one blob", () => {
-    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf" }, company, "AED").sheet.party.locality).toBeUndefined();
+  it("claims no locality for a vendor with no country on file, prints one that has, and for a customer whose address is one blob", () => {
+    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf" }, company, "AED").sheet.party.locality).toBe("");
+    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf", country: "AE", emirate: "Ajman" }, company, "AED").sheet.party.locality).toBe("Ajman, United Arab Emirates");
     expect(buildSalesDocument(base, { customerId: "C1", customerName: "S" }, company, "AED").sheet.party.locality).toBe("");
   });
 
