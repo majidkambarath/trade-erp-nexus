@@ -90,7 +90,7 @@ describe("the page a customer opens", () => {
     vi.stubGlobal("fetch", reply(200, { success: true, data: SNAPSHOT }));
     open();
     fireEvent.click(await screen.findByRole("button", { name: /download pdf/i }));
-    await waitFor(() => expect(pdfs[0]?.save).toHaveBeenCalledWith("Tax-invoice_INV-2026-0042.pdf"));
+    await waitFor(() => expect(pdfs[0]?.save).toHaveBeenCalledWith("INV-2026-0042_Al_Noor_Trading_Tax_Invoice.pdf"));
     expect(pdfs).toHaveLength(1);
     expect(pdfs[0].addPage).not.toHaveBeenCalled();
     expect(screen.queryByText(/internal copy/i)).toBeNull();
@@ -160,7 +160,7 @@ describe("the sheet is built from the frozen copy", () => {
     const built = buildFromShare(SNAPSHOT);
     expect(built.title).toBe("Tax invoice");
     expect(built.number).toBe("INV-2026-0042");
-    expect(built.fileName).toBe("Tax-invoice_INV-2026-0042");
+    expect(built.fileName).toBe("INV-2026-0042_Al_Noor_Trading_Tax_Invoice");
     expect(built.copies).toEqual(["Customer copy"]);
     expect(built.sheet.totals.grandTotal).toBe(210);
     expect(built.sheet.company.nameEn).toBe("Harbour Trading LLC");

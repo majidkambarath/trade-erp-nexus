@@ -1,6 +1,7 @@
 // The sales and purchase documents as the sheet shows them. Pure: the rules behind the printed
 // page (which title, which number, which rows, which warnings) are testable without rendering.
 
+import { registeredFor } from "../../../lib/vatRegistration";
 import { documentTotals } from "../../../utils/documentTotals";
 import { formatDateGB, formatNumber } from "../../../utils/format";
 import { recipientStatement, supplierStatement } from "../../../lib/reverseCharge";
@@ -36,8 +37,9 @@ const INVOICED = ["APPROVED", "INVOICED"];
 // An ABSENT flag reads as registered, the way featureOn does: only an explicit false changes the
 // answer, so a document built from an older server - or from a share snapshot taken before the flag
 // was carried - reads exactly as it did.
-export const isTaxInvoice = (company) =>
-  Boolean(String(company?.vatNumber ?? "").trim()) && company?.vatRegistered !== false;
+// The document's own date and stamp make it a question about THAT day: an organisation that registered in March issued plain invoices in
+// January (lib/vatRegistration.js). With neither, it answers as it always did.
+export const isTaxInvoice = (company, date, stamp) => registeredFor(company, date, stamp);
 
 // How a customer's or vendor's VAT registration reads on a document. ONLY A POSITIVE CLASSIFICATION IS PRINTED: a party nobody
 // classified, and a party explicitly recorded as not registered, both say nothing at all. "Unregistered" used to be printed for
@@ -130,7 +132,7 @@ export const buildSalesDocument = (so, customer, company, currency) => {
   // thing it is not: the non-posting sales order is its own document, under Orders. The customer's status is still printed under
   // their name, and is what decides whether their own tax number is expected.
   const customerRegistered = vatStatus === "Registered";
-  const companyRegistered = isTaxInvoice(company);
+  const companyRegistered = isTaxInvoice(company, so.date, so.vatRegistered);
   const kind = companyRegistered ? "Tax invoice" : "Invoice";
   const taxInvoice = invoiced && companyRegistered; // an ISSUED tax invoice (what sending and the e-invoice look at)
   const number = invoiced ? so.invoiceNumber || so.transactionNo : so.transactionNo;
@@ -239,7 +241,7 @@ export const buildSalesReturnDocument = (so, customer, company, currency) => {
   const trn = partyTrnFor(customer, customer.trnNumber || customer.vat?.trn);
   const name = customer.customerName || so.customerName || "";
   const vatStatus = partyVatStatus(customer, trn);
-  const registered = isTaxInvoice(company);
+  const registered = isTaxInvoice(company, so.date, so.vatRegistered);
   const original = so.returnOf?.transactionNo || so.refNo || so.lpono || "";
   return {
     fileName: `${registered ? "Tax-credit-note" : "Credit-note"}_${so.transactionNo}`,

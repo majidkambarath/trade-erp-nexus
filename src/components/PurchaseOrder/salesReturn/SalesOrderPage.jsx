@@ -231,6 +231,7 @@ const SalesReturnOrderManagement = () => {
             notes: transaction.notes,
             createdBy: transaction.createdBy,
             createdByName: transaction.createdByName || "",
+            vatRegistered: transaction.vatRegistered,
             // who has approved it so far: a first of two shows as "Awaiting second approval"
             approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
             createdAt: transaction.createdAt,

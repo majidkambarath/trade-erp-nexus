@@ -236,10 +236,6 @@ describe("the empty states", () => {
 describe("a half-filled new item is kept", () => {
   const openAdd = () => fireEvent.click(screen.getByRole("button", { name: /add stock item/i }));
   const nameField = () => screen.getByPlaceholderText("Enter item name");
-  const pick = async (selectText, optionText) => {
-    fireEvent.click(await screen.findByText(selectText));
-    fireEvent.click(await screen.findByText(optionText));
-  };
   // Category is a QuickAddSelect (kit.jsx) now, not the old hand-rolled FormSelect - scoped to the open
   // dialog because the filter row behind it has its own combobox of the same name ("Category").
   const pickCategory = async (optionText) => {
