@@ -233,6 +233,7 @@ const PurchaseReturnOrderManagement = () => {
           terms: transaction.terms,
           notes: transaction.notes,
           createdBy: transaction.createdBy,
+          createdByName: transaction.createdByName || "",
           // who has approved it so far: a first of two shows as "Awaiting second approval"
           approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
           createdAt: transaction.createdAt,

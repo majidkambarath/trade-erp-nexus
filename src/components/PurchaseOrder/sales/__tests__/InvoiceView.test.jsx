@@ -124,7 +124,7 @@ describe('SaleInvoiceView', () => {
     expect(screen.getByText(/Your TRN is not set, so this prints as an Invoice/)).toBeInTheDocument();
     expect(screen.getByText('Invoice', { selector: 'div' })).toBeInTheDocument();
     expect(screen.queryByText('Tax invoice', { selector: 'div' })).toBeNull();
-    expect(screen.getByText(/computer-generated invoice/)).toBeInTheDocument();
+    expect(screen.queryByText(/computer-generated/)).toBeNull(); // the sheet carries signature boxes, not a notice
   });
 
   it('an invoice from a VAT-registered company is a tax invoice, with no warning', () => {
@@ -132,7 +132,7 @@ describe('SaleInvoiceView', () => {
     renderView({ ...baseProps, createdSO: { ...baseProps.createdSO, status: 'APPROVED' } });
     expect(screen.getByText('Tax invoice', { selector: 'div' })).toBeInTheDocument();
     expect(screen.queryByText(/Your TRN is not set/)).toBeNull();
-    expect(screen.getByText(/computer-generated tax invoice/)).toBeInTheDocument();
+    expect(screen.queryByText(/computer-generated/)).toBeNull();
   });
 
   // The other way to be unregistered, and the one the tick box in Settings is for. Telling this person
@@ -204,7 +204,7 @@ describe('SaleInvoiceView', () => {
     fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
 
     await waitFor(() => expect(jsPDF).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Draft-Invoice_SO-1234.pdf'));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith(expect.stringMatching(/^SO-1234_.*Invoice\.pdf$/)));
     // one copy drawn, not every copy: the switch decides what the file holds, as it does for Print
     expect(html2canvas).toHaveBeenCalledTimes(1);
     expect(drawn[0]).toContain('Customer copy');
@@ -218,7 +218,7 @@ describe('SaleInvoiceView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Internal copy' }));
     fireEvent.click(screen.getByRole('button', { name: /download pdf/i }));
 
-    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith('Draft-Invoice_SO-1234.pdf'));
+    await waitFor(() => expect(pdfInstances[0].save).toHaveBeenCalledWith(expect.stringMatching(/^SO-1234_.*Invoice\.pdf$/)));
     expect(html2canvas).toHaveBeenCalledTimes(1);
     expect(drawn[0]).toContain('Internal copy');
   });
@@ -243,13 +243,12 @@ describe('buildSalesDocument', () => {
   it('a company with no TRN gives a registered customer a plain invoice, not a tax invoice', () => {
     const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '' }, 'AED');
     expect(approved.sheet.title).toBe('Invoice');
-    expect(approved.fileName).toBe('Invoice_SO-1');
+    expect(approved.fileName).toBe('SO-1_Acme_Invoice');
     expect(approved.taxInvoice).toBe(false);
-    expect(approved.sheet.notice).toMatch(/invoice/);
-    expect(approved.sheet.notice).not.toMatch(/tax invoice/);
-    // the draft's notice does not promise a tax invoice it will not issue
+    expect(approved.sheet.notice).toBe(''); // no draft or computer-generated wording on the paper
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, { vatNumber: '' }, 'AED');
-    expect(draft.sheet.notice).toBe('This is a draft invoice. Nothing is posted and no stock moves until it is approved.');
+    expect(draft.sheet.notice).toBe('');
+    expect(draft.sheet.signatures.map((b) => b.title)).toEqual(['Prepared by', 'Approved by', 'Received by']);
     expect(draft.sheet.title).toBe('Invoice');
     // a blank or spaces-only TRN is no TRN
     expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, { vatNumber: '   ' }, 'AED').sheet.title).toBe('Invoice');
@@ -261,9 +260,8 @@ describe('buildSalesDocument', () => {
     const approved = buildSalesDocument({ transactionNo: 'SO-2', status: 'APPROVED', items: [] }, walkIn, company, 'AED');
     expect(approved.sheet.title).toBe('Tax invoice');
     expect(approved.sheet.number).toEqual({ label: 'Invoice no.', value: 'SO-2' });
-    expect(approved.fileName).toBe('Tax-invoice_SO-2');
+    expect(approved.fileName).toBe('SO-2_Walk_in_Tax_Invoice');
     expect(approved.taxInvoice).toBe(true);
-    expect(approved.sheet.notice).toMatch(/computer-generated tax invoice/);
     expect(approved.sheet.party.vatStatus).toBe(''); // a customer who is not registered is not described on the paper
     expect(approved.missingTrn).toBe(false);
     const draft = buildSalesDocument({ transactionNo: 'SO-2', status: 'DRAFT', items: [] }, walkIn, company, 'AED');
@@ -276,7 +274,7 @@ describe('buildSalesDocument', () => {
     const doc = buildSalesDocument({ transactionNo: 'SO-3', status: 'APPROVED', items: [] }, walkIn, { companyName: 'Brivox' }, 'AED');
     expect(doc.sheet.title).toBe('Invoice');
     expect(doc.sheet.number.label).toBe('Invoice no.');
-    expect(doc.fileName).toBe('Invoice_SO-3');
+    expect(doc.fileName).toBe('SO-3_Walk_in_Invoice');
     expect(doc.taxInvoice).toBe(false);
     expect(doc.sheet.notice).not.toMatch(/order/);
     expect(doc.missingTrn).toBe(false); // an unregistered customer is not expecting our tax number
@@ -308,17 +306,21 @@ describe('buildSalesDocument', () => {
     const approved = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED');
     expect(draft.sheet.title).toBe('Tax invoice');
     expect(draft.sheet.number.label).toBe('Draft invoice no.');
-    expect(draft.fileName).toBe('Draft-Tax-invoice_SO-1');
+    expect(draft.fileName).toBe('SO-1_Acme_Tax_Invoice');
     expect(draft.taxInvoice).toBe(false); // not issued yet: sending and e-invoicing look at this
     expect(approved.sheet.title).toBe('Tax invoice');
     expect(approved.sheet.number).toEqual({ label: 'Invoice no.', value: 'SO-1' });
-    expect(approved.fileName).toBe('Tax-invoice_SO-1');
+    expect(approved.fileName).toBe('SO-1_Acme_Tax_Invoice');
     expect(approved.taxInvoice).toBe(true);
   });
 
-  it('shows the receipt block only on the order, not on the tax invoice', () => {
-    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [] }, customer, company, 'AED').sheet.receipt).toBe(true);
-    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED').sheet.receipt).toBe(false);
+  it('draws Prepared by / Approved by / Received by; the approver is blank on a draft', () => {
+    const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [], createdByName: 'Asha', approvals: [{ name: 'Ravi', at: '2026-11-01T08:00:00Z' }] }, customer, company, 'AED').sheet.signatures;
+    expect(draft).toEqual([{ title: 'Prepared by', name: 'Asha' }, { title: 'Approved by', name: '', date: '' }, { title: 'Received by', name: '' }]);
+    const issued = buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [], createdByName: 'Asha', approvals: [{ name: 'Ravi', at: '2026-11-01T08:00:00Z' }] }, customer, company, 'AED').sheet.signatures;
+    expect(issued[1].name).toBe('Ravi');
+    expect(issued[1].date).not.toBe('');
+    expect(buildSalesDocument({ transactionNo: 'SO-1', status: 'APPROVED', items: [] }, customer, company, 'AED').sheet.meta.map((r) => r[0])).not.toContain('Delivery date');
   });
 
   it('prints a zero-rated line as 0%', () => {

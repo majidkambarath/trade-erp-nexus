@@ -50,6 +50,7 @@ export default function InvoiceSheet({
   accent,
   notice,
   receipt,
+  signatures,
   terms,
   acceptance,
   reverseCharge,
@@ -289,7 +290,21 @@ export default function InvoiceSheet({
             </div>
           </div>
         )}
-        {receipt && (
+        {/* Prepared by / Approved by / Received by: three boxes of one height, names filled in where known */}
+        {signatures && (
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            {signatures.map((b) => (
+              <div key={b.title} style={{ flex: 1, textAlign: "center", fontSize: 10.5 }}>
+                <div style={{ border: `1px solid ${INK}`, height: 56, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 6px 4px", fontSize: 10 }}>
+                  {b.name && <div style={{ fontWeight: 600 }}>{b.name}</div>}
+                  {b.date && <div style={{ color: MUTED }}>{b.date}</div>}
+                </div>
+                <div style={{ ...label, marginTop: 4 }}>{b.title}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {receipt && !signatures && (
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
             <div style={{ width: "40%", textAlign: "center", fontSize: 10.5 }}>
               <div>Received the above goods in good order and condition</div>
@@ -298,9 +313,11 @@ export default function InvoiceSheet({
             </div>
           </div>
         )}
-        <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 8, fontSize: 9.5, color: MUTED }}>
-          {notice}
-        </div>
+        {notice && (
+          <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 8, fontSize: 9.5, color: MUTED }}>
+            {notice}
+          </div>
+        )}
       </div>
     </div>
   );

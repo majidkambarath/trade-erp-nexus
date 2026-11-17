@@ -293,6 +293,7 @@ const PurchaseOrderManagement = () => {
           terms: t.terms || "",
           notes: t.notes || "",
           createdBy: t.createdBy || "System",
+          createdByName: t.createdByName || "",
           // who has approved it so far: a first of two shows as "Awaiting second approval"
           approvals: Array.isArray(t.approvals) ? t.approvals : [],
           createdAt: t.createdAt,
