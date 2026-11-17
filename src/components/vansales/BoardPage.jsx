@@ -19,10 +19,8 @@ function VanCard({ row }) {
   const pct = row.total ? Math.round((row.done / row.total) * 100) : 0;
   const cash = t.cashInHand ?? t.cash ?? 0;
   const cashPct = t.cashLimit ? Math.max(0, Math.min(100, Math.round((cash / t.cashLimit) * 100))) : null;
-  const worry = t.cashOverLimit ? "danger" : row.quiet || row.far.length ? "warning" : null;
-  const edge = worry === "danger" ? "before:bg-status-danger" : worry === "warning" ? "before:bg-status-warning" : "before:bg-accent-teal";
   return (
-    <li data-reveal="" className={`relative grid grid-cols-1 gap-4 overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 shadow-sm transition-shadow before:absolute before:inset-y-0 before:left-0 before:w-1 hover:shadow-md ${edge}`}>
+    <li data-reveal="" className={`relative grid grid-cols-1 gap-4 overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span data-truck="" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-on-soft"><Truck className="h-5 w-5" aria-hidden="true" /></span>
