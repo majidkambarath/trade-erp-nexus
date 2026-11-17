@@ -314,6 +314,15 @@ describe('buildSalesDocument', () => {
     expect(approved.taxInvoice).toBe(true);
   });
 
+  it('a stamp from the server and the registration day decide the heading and the file name', () => {
+    const sale = { transactionNo: 'SO-7', status: 'APPROVED', items: [], date: '2026-02-10' };
+    const registeredLater = { ...company, vatRegisteredFrom: '2026-03-01' };
+    expect(buildSalesDocument(sale, customer, registeredLater, 'AED').sheet.title).toBe('Invoice'); // dated before it registered
+    expect(buildSalesDocument(sale, customer, registeredLater, 'AED').fileName).toBe('SO-7_Acme_Invoice');
+    expect(buildSalesDocument({ ...sale, date: '2026-03-02' }, customer, registeredLater, 'AED').fileName).toBe('SO-7_Acme_Tax_Invoice');
+    expect(buildSalesDocument({ ...sale, vatRegistered: false }, customer, company, 'AED').sheet.title).toBe('Invoice'); // stamped as made unregistered
+  });
+
   it('draws Prepared by / Approved by / Received by; the approver is blank on a draft', () => {
     const draft = buildSalesDocument({ transactionNo: 'SO-1', status: 'DRAFT', items: [], createdByName: 'Asha', approvals: [{ name: 'Ravi', at: '2026-11-01T08:00:00Z' }] }, customer, company, 'AED').sheet.signatures;
     expect(draft).toEqual([{ title: 'Prepared by', name: 'Asha' }, { title: 'Approved by', name: '', date: '' }, { title: 'Received by', name: '' }]);

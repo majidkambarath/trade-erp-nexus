@@ -272,6 +272,8 @@ const SalesOrderManagement = () => {
       notes: t.notes || "",
       createdBy: t.createdBy,
       createdByName: t.createdByName || "",
+      // whether the organisation was registered for VAT when this was made (decides tax invoice or plain invoice); absent on an older document
+      vatRegistered: t.vatRegistered,
       // who has approved it so far: a first of two shows as "Awaiting second approval"
       approvals: Array.isArray(t.approvals) ? t.approvals : [],
       createdAt: t.createdAt,
