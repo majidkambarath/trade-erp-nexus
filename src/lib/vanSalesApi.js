@@ -41,6 +41,18 @@ export const trips = {
   unload: (id, body) => api.post(`/van-sales/trips/${id}/unload`, body),
   settlement: (id, params) => api.get(`/van-sales/trips/${id}/settlement`, params),
   settle: (id, body) => api.post(`/van-sales/trips/${id}/settle`, body),
+  prices: (id, customerId) => api.get(`/van-sales/trips/${id}/prices`, { customerId }),
+  visits: (id) => api.get(`/van-sales/trips/${id}/visits`),
+  visit: (id, body) => api.post(`/van-sales/trips/${id}/visits`, body),
+  transfer: (id, body) => api.post(`/van-sales/trips/${id}/transfer`, body),
+  whatsapp: (id, invoiceId, body) => api.post(`/van-sales/trips/${id}/invoices/${invoiceId}/whatsapp`, body),
+};
+
+export const priceLists = {
+  list: (params) => api.get("/van-sales/price-lists", params),
+  get: (id) => api.get(`/van-sales/price-lists/${id}`),
+  create: (body) => api.post("/van-sales/price-lists", body),
+  update: (id, body) => api.put(`/van-sales/price-lists/${id}`, body),
 };
 
 export const reports = {

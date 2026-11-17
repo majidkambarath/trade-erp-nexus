@@ -6,25 +6,29 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({
   mine: vi.fn(), list: vi.fn(), get: vi.fn(), activity: vi.fn(), sell: vi.fn(), collect: vi.fn(), settlement: vi.fn(), settle: vi.fn(),
   customers: vi.fn(), payment: vi.fn(), position: vi.fn(), apiGet: vi.fn(), print: vi.fn(), depart: vi.fn(),
+  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), open: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
 }));
 
 vi.mock("../../../lib/vanSalesApi", () => ({
-  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: vi.fn(), cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn() },
+  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: vi.fn(), cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn() },
   choices: { customers: m.customers, payment: m.payment, position: m.position, assignees: vi.fn(() => Promise.resolve([])), returnable: vi.fn() },
-  vans: { list: vi.fn(() => Promise.resolve([])) },
-  routes: {},
+  vans: { list: m.vansList },
+  routes: { list: m.routesList },
+  priceLists: { list: m.plList, create: vi.fn(), update: vi.fn() },
   reports: {},
 }));
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet } }));
 vi.mock("../../shell/OrganisationContext", () => ({
-  useOrganisation: () => ({ can: () => true, canAny: () => true, me: { id: "u1", name: "Rashid" } }),
+  useOrganisation: () => ({ can: () => m.canManage.value, canAny: () => m.canManage.value, me: { id: "u1", name: "Rashid" } }),
 }));
 vi.mock("../../PurchaseOrder/shared/useCompanyProfile", () => ({ useCompanyProfile: () => ({ companyName: "Gulf Foods", vatNumber: "100123456700003", vatRegistered: true }) }));
 vi.mock("../../PurchaseOrder/shared/documentPdf.jsx", () => ({ printMarkup: m.print }));
+vi.mock("../../../lib/geo", () => ({ currentLocation: () => Promise.resolve({ lat: 25.2, lng: 55.3, accuracy: 15 }) }));
 
 import MyVan from "../MyVan";
 import TripsPage from "../TripsPage";
 import SettlementPage from "../SettlementPage";
+import VansSetupPage from "../VansSetupPage";
 
 const wrap = (ui, entries = ["/van-sales/my-van"]) => render(<MemoryRouter initialEntries={entries}>{ui}</MemoryRouter>);
 
@@ -50,6 +54,11 @@ beforeEach(() => {
   m.customers.mockResolvedValue([{ id: "c1", name: "Al Noor Grocery", code: "C1" }, { id: "c2", name: "Bin Zayed Market", code: "C2" }]);
   m.payment.mockResolvedValue({ cheque: true, bankAccounts: [{ id: "b1", name: "Main Bank" }] });
   m.apiGet.mockResolvedValue({ stocks: [] });
+  m.prices.mockResolvedValue([{ stockId: "rice", price: 17, source: "customer", listName: "Al Noor deal" }]);
+  m.vansList.mockResolvedValue([{ id: "v1", code: "VAN-1", name: "Van One", active: true, openTrip: null, cashLimit: 5000 }]);
+  m.routesList.mockResolvedValue([]);
+  m.plList.mockResolvedValue([{ id: "p1", name: "Al Noor deal", lines: [{ stockId: "rice", price: 17, minQty: 1 }], customerIds: ["c1"], active: true }]);
+  m.canManage.value = true;
 });
 
 describe("My van", () => {
@@ -114,7 +123,8 @@ describe("My van", () => {
     const [id, body] = m.sell.mock.calls[0];
     expect(id).toBe("t1");
     expect(body.customerId).toBe("c1");
-    expect(body.items).toEqual([{ itemId: "rice", qty: 10, price: 20 }]);
+    expect(body.items).toEqual([{ itemId: "rice", qty: 10, price: 17 }]);
+    expect(m.prices).toHaveBeenCalledWith("t1", "c1");
     expect(body.payNow).toEqual({ mode: "cash", full: true });
     const done = await screen.findByText(/SO-2026-0007/);
     expect(done).toBeInTheDocument();
@@ -136,6 +146,66 @@ describe("My van", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Sell" }));
     expect(await within(dialog).findByText("Credit warning")).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/Sell anyway/)).toBeInTheDocument();
+  });
+});
+
+describe("My van, phase 2", () => {
+  it("a stop without a sale is recorded with its reason and where the phone was", async () => {
+    m.visit.mockResolvedValue({ visit: { _id: "x" } });
+    wrap(<MyVan />);
+    await screen.findByText(/VTR-2026-0001/);
+    fireEvent.click(screen.getByRole("button", { name: "No sale at Al Noor Grocery" }));
+    const dialog = await screen.findByRole("dialog");
+    const record = within(dialog).getByRole("button", { name: "Record visit" });
+    expect(record).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText("Still has stock"));
+    fireEvent.click(record);
+    await waitFor(() => expect(m.visit).toHaveBeenCalled());
+    expect(m.visit.mock.calls[0]).toEqual(["t1", { customerId: "c1", reason: "has_stock", note: "", location: { lat: 25.2, lng: 55.3, accuracy: 15 } }]);
+  });
+
+  it("a stop already visited without a sale says why, and a van past its cash limit is told to hand cash in", async () => {
+    m.mine.mockResolvedValue([{ ...trip, route: [{ ...trip.route[0], visit: { reason: "closed" } }], totals: { ...trip.totals, cash: 6000, cashLimit: 5000, cashOverLimit: true } }]);
+    wrap(<MyVan />);
+    expect(await screen.findByText("No sale: Shop closed")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(/more cash than its limit/);
+  });
+
+  it("after a sale the invoice can be handed to the customer on WhatsApp, to a number typed at the door", async () => {
+    m.sell.mockResolvedValue({ invoice: { _id: "inv1", transactionNo: "SO-2026-0009", totalAmount: 21, items: [] }, receipt: null });
+    m.whatsapp.mockResolvedValue({ waUrl: "https://wa.me/971501112222?text=x" });
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    wrap(<MyVan />);
+    await screen.findByText(/VTR-2026-0001/);
+    fireEvent.click(screen.getByRole("button", { name: "Sell to Al Noor Grocery" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.querySelector(".search-select__single-value")).toHaveTextContent("Al Noor Grocery"));
+    choose(dialog.querySelectorAll("input[role='combobox']")[1], "Rice 5kg (30 on van)");
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sell" }));
+    await screen.findByText(/SO-2026-0009/);
+    fireEvent.change(screen.getByPlaceholderText(/\+971/), { target: { value: "+971 50 111 2222" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send on WhatsApp/ }));
+    await waitFor(() => expect(m.whatsapp).toHaveBeenCalledWith("t1", "inv1", { phone: "+971 50 111 2222" }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith("https://wa.me/971501112222?text=x", "_blank", "noopener"));
+    open.mockRestore();
+  });
+});
+
+describe("Vans and routes", () => {
+  it("has a price lists tab, and a person who cannot manage is not offered the edit dialog", async () => {
+    wrap(<VansSetupPage />, ["/van-sales/setup"]);
+    fireEvent.click(await screen.findByRole("tab", { name: "Price lists" }));
+    expect(await screen.findByRole("table", { name: "Price lists" })).toBeInTheDocument();
+    m.canManage.value = false;
+  });
+
+  it("without manage rights, clicking a van opens nothing", async () => {
+    m.canManage.value = false;
+    wrap(<VansSetupPage />, ["/van-sales/setup"]);
+    const table = await screen.findByRole("table", { name: "Vans" });
+    fireEvent.click(within(table).getByText("Van One"));
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

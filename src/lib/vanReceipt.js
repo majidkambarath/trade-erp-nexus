@@ -5,6 +5,18 @@
 // when the company has a tax number and is registered on that day, else "Invoice". The customer's tax number is
 // printed when they have one, which is what a registered buyer needs from a document over the simplified-invoice limit.
 
+/**
+ * Which kind of slip a sale needs. In the UAE a registered seller may give a SIMPLIFIED tax invoice unless the buyer is
+ * registered and the supply is over AED 10,000 (Executive Regulation Art. 59(6)-(7)); a full one then also shows the
+ * VAT on each line and the buyer's tax number. Outside the UAE every tax invoice is printed in full. Verify the
+ * current rule before quoting it as advice.
+ */
+export function slipKind({ taxInvoice, uae = true, customerTrn = "", total = 0, threshold = 10000 }) {
+  if (!taxInvoice) return "invoice";
+  if (!uae) return "full";
+  return customerTrn && Number(total) > threshold ? "full" : "simplified";
+}
+
 const esc = (v) =>
   String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -23,7 +35,8 @@ const money = (n) => (Number(n) || 0).toLocaleString("en-US", { minimumFractionD
  * @param {string} [p.taxWord]     VAT / GST / Tax
  * @param {string} [p.currency]
  */
-export function vanReceiptMarkup({ company = {}, invoice = {}, customerName = "", customerTrn = "", tripNo = "", salesmanName = "", paid = 0, taxInvoice = false, taxWord = "VAT", currency = "AED" }) {
+export function vanReceiptMarkup({ company = {}, invoice = {}, customerName = "", customerTrn = "", tripNo = "", salesmanName = "", paid = 0, taxInvoice = false, taxWord = "VAT", currency = "AED", uae = true }) {
+  const kind = slipKind({ taxInvoice, uae, customerTrn, total: invoice.totalAmount });
   const items = invoice.items || [];
   const vat = items.reduce((t, l) => t + (Number(l.vatAmount) || 0), 0);
   const total = Number(invoice.totalAmount) || 0;
@@ -32,7 +45,7 @@ export function vanReceiptMarkup({ company = {}, invoice = {}, customerName = ""
   const row = (left, right, bold) => `<tr><td${bold ? ' class="b"' : ""}>${esc(left)}</td><td class="r${bold ? " b" : ""}">${esc(right)}</td></tr>`;
   const lines = items
     .map(
-      (l) => `<tr><td colspan="2" class="item">${esc(l.description)}</td></tr><tr><td class="sub">${esc(l.qty)} x ${money(l.price)}</td><td class="r">${money(l.lineTotal)}</td></tr>`
+      (l) => `<tr><td colspan="2" class="item">${esc(l.description)}</td></tr><tr><td class="sub">${esc(l.qty)} x ${money(l.price)}${kind === "full" ? ` · ${esc(taxWord)} ${esc(l.vatPercent ?? 0)}% ${money(l.vatAmount)}` : ""}</td><td class="r">${money(l.lineTotal)}</td></tr>`
     )
     .join("");
   return `<style>

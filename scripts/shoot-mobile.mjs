@@ -382,6 +382,7 @@ const DEEP = {
     { name: "my-van-collect", clicks: ["^Collect money$"], settle: 1200 },
     { name: "my-van-return", clicks: ["^Take goods back$"], settle: 1200 },
     { name: "my-van-count", clicks: ["Count the van back in"], settle: 1200 },
+    { name: "my-van-no-sale", clicks: ["^No sale at Al Noor"], settle: 1000 },
   ],
   "vansales-trips": [
     { name: "trips", page: true, clicks: [], settle: 1000 },
@@ -390,6 +391,7 @@ const DEEP = {
   "vansales-trip": [
     { name: "trip", page: true, clicks: [], settle: 1200 },
     { name: "trip-topup", clicks: ["^Top up$"], settle: 1200 },
+    { name: "trip-transfer", clicks: ["Hand goods to another van"], settle: 1200 },
   ],
   "vansales-settlement": [
     { name: "settlement", page: true, clicks: [], settle: 1000 },
@@ -399,6 +401,7 @@ const DEEP = {
   "vansales-vans-and-routes": [
     { name: "vans", page: true, clicks: [], settle: 1000 },
     { name: "van-new", clicks: ["^New van"], settle: 1200 },
+    { name: "price-list-new", clicks: ["^Price lists$", "^New price list"], settle: 1200 },
   ],
   "garage-claims": [{ name: "claims", page: true, clicks: [], settle: 1000 }],
   "garage-setup": [{ name: "setup", page: true, clicks: [], settle: 1000 }],
@@ -880,6 +883,8 @@ function stubFor(pathname, search = "") {
     if (p.endsWith("/van-sales/routes")) {
       return [{ id: "r1", _id: "r1", name: "Sharjah North", days: [1, 3], active: true, customers: [{ customerId: "c1", name: longCustomer, seq: 0 }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1 }] }];
     }
+    if (p.endsWith("/van-sales/price-lists")) return [{ id: "p1", _id: "p1", name: "Al Noor Grocery wholesale deal", validFrom: "2026-11-01", validTo: "", active: true, customerIds: ["c1"], lines: [{ stockId: "s1", itemName: longRice, price: 17, minQty: 1 }, { stockId: "s1", itemName: longRice, price: 15, minQty: 10 }] }];
+    if (/\/van-sales\/trips\/[^/]+\/prices$/.test(p)) return [{ stockId: "s1", price: 17, source: "customer", listName: "Al Noor Grocery wholesale deal" }, { stockId: "s2", price: 30, source: "item", listName: "" }];
     if (p.endsWith("/van-sales/assignees")) return [{ id: "a1", name: "Rashid Al Mansoori" }, { id: "a2", name: "Maya Khan" }];
     if (p.endsWith("/van-sales/customers")) {
       return [{ id: "c1", name: longCustomer, code: "C1", phone: "", terms: "Cash", active: true }, { id: "c2", name: "Bin Zayed Mini Market", code: "C2", phone: "", terms: "Net 30", active: true }];

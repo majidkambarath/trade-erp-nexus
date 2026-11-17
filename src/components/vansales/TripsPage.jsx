@@ -46,7 +46,7 @@ export function TripView({ id, notify, onClose, onChanged }) {
                 <ul className="divide-y divide-border">
                   {t.loads.map((l) => (
                     <li key={l.no} className="px-4 py-2.5 text-sm">
-                      <p className="font-medium">{l.no === 1 ? "First load" : `Top-up ${l.no - 1}`} <span className="font-normal text-muted-foreground">· {formatDateTime(l.at)}</span></p>
+                      <p className="font-medium">{l.kind === "transfer_in" ? `From ${l.peerTripNo}` : l.kind === "transfer_out" ? `To ${l.peerTripNo}` : l.no === 1 ? "First load" : "Top-up"} <span className="font-normal text-muted-foreground">· {formatDateTime(l.at)}</span></p>
                       <p className="text-muted-foreground">{l.lines.map((x) => `${x.itemName} ${x.qty}`).join(", ")}</p>
                     </li>
                   ))}

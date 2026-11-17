@@ -1,13 +1,13 @@
 import { printMarkup } from "../PurchaseOrder/shared/documentPdf.jsx";
 import { isTaxInvoice } from "../PurchaseOrder/shared/invoiceDocuments";
 import { vanReceiptMarkup } from "../../lib/vanReceipt";
-import { taxWord } from "../../lib/taxTerms";
+import { isUae, taxWord } from "../../lib/taxTerms";
 import { formatDate } from "../../utils/format";
 
 /** Prints the slip for a sale made from the van. */
-export function printSale({ company, invoice, customerName, trip, paid }) {
+export function printSale({ company, invoice, customerName, customerTrn, trip, paid }) {
   const markup = vanReceiptMarkup({
-    company, invoice, customerName, tripNo: trip?.tripNo, salesmanName: trip?.salesmanName, paid,
+    company, invoice, customerName, customerTrn, uae: isUae(), tripNo: trip?.tripNo, salesmanName: trip?.salesmanName, paid,
     taxInvoice: isTaxInvoice(company, invoice?.date, invoice?.vatRegistered), taxWord: taxWord(),
   });
   return printMarkup(markup);

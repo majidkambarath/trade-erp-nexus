@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, Select, SearchSelect, Spinner, TextInput, useAsync } from "../accounting/kit.jsx";
 import { api } from "../../lib/accountingApi";
 import { choices, trips, vans } from "../../lib/vanSalesApi";
-import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, round2, saleLines, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
+import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, priceSourceLabel, round2, saleLines, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
 import { formatCurrencyAED } from "../../utils/format";
 import { useOrganisation } from "../shell/OrganisationContext";
 
@@ -113,15 +113,18 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone })
   const [acknowledged, setAcknowledged] = useState(false);
   const [warning, setWarning] = useState(null);
   const { busy, error, run } = useAct();
-  const onVan = trip.sellable || [];
+  const onVan = useMemo(() => trip.sellable || [], [trip.sellable]);
+  const listed = useAsync(() => (customerId ? trips.prices(trip.id, customerId) : Promise.resolve([])), [trip.id, customerId]);
+  const priceOf = useMemo(() => new Map((listed.data || []).map((p) => [p.stockId, p])), [listed.data]);
+  const pricedVan = useMemo(() => onVan.map((l) => (priceOf.has(l.stockId) ? { ...l, salesPrice: priceOf.get(l.stockId).price } : l)), [onVan, priceOf]);
   const options = vanItems(trip);
   const problem = saleProblem({ customerId, rows }, onVan);
-  const lines = saleLines(rows, onVan);
+  const lines = saleLines(rows, pricedVan);
   const canOverride = org.canAny?.(["sales.creditOverride", "vansales.manage"]);
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   function pick(i, id) {
-    const l = onVan.find((x) => x.stockId === id);
+    const l = pricedVan.find((x) => x.stockId === id);
     set(i, { itemId: id, price: l ? String(l.salesPrice || "") : "" });
   }
 
@@ -130,7 +133,8 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone })
     if (mode === "cash") body.payNow = { mode: "cash", full: true };
     if (mode === "cheque") body.payNow = { mode: "cheque", full: true, details: { chequeNo: chq.chequeNo, chequeDate: chq.chequeDate, accountId: chq.accountId || undefined } };
     const r = await run(async () => trips.sell(trip.id, body));
-    if (r) onDone({ ...r, customerName: (customers.data || []).find((c) => c.id === customerId)?.name });
+    const c = (customers.data || []).find((x) => x.id === customerId);
+    if (r) onDone({ ...r, customerName: c?.name, customerTrn: c?.trn || "" });
   }
 
   useEffect(() => {
@@ -158,7 +162,7 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone })
           <div key={i} className="grid grid-cols-[1fr_5.5rem_6.5rem_auto] items-end gap-2">
             <Field label={i === 0 ? "Item" : undefined}><SearchSelect value={r.itemId} onChange={(v) => pick(i, v)} options={options} placeholder="On the van…" /></Field>
             <Field label={i === 0 ? "Qty" : undefined}><AmountInput value={r.qty} onChange={(e) => set(i, { qty: e.target.value })} inputMode="decimal" aria-label="Quantity" /></Field>
-            <Field label={i === 0 ? "Price" : undefined}><AmountInput value={r.price} onChange={(e) => set(i, { price: e.target.value })} inputMode="decimal" aria-label="Price" /></Field>
+            <Field label={i === 0 ? "Price" : undefined} hint={r.itemId && priceOf.get(r.itemId) ? priceSourceLabel(priceOf.get(r.itemId)) : undefined}><AmountInput value={r.price} onChange={(e) => set(i, { price: e.target.value })} inputMode="decimal" aria-label="Price" /></Field>
             <button type="button" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}

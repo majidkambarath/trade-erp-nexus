@@ -107,6 +107,33 @@ export function cashPlan(expected, handed) {
   return { expected: e, handed: h, short: h < e ? round2(e - h) : 0, over: h > e ? round2(h - e) : 0, variance: round2(h - e) };
 }
 
+// Why a stop ended without a sale: the reasons the server accepts, in the words the salesman taps.
+export const VISIT_REASONS = [
+  ["closed", "Shop closed"],
+  ["no_money", "No money today"],
+  ["has_stock", "Still has stock"],
+  ["refused", "Did not want to buy"],
+  ["not_reached", "Could not reach"],
+  ["other", "Something else"],
+];
+export const visitReasonLabel = (r) => (VISIT_REASONS.find(([k]) => k === r) || [r, r])[1];
+
+/** Where a price came from, in a word for the sell screen. */
+export const priceSourceLabel = (p) => (p?.source === "customer" ? p.listName || "Customer price" : p?.source === "route" ? p.listName || "Route price" : "List price");
+
+/** The strike rate as text: "66.7%", or a dash when nobody was called on. */
+export const strikeText = (r) => (r === null || r === undefined ? "–" : `${r}%`);
+
+/** A price list form -> the body the server takes. */
+export function priceListBody(f) {
+  return {
+    name: String(f.name || "").trim(), validFrom: f.validFrom || "", validTo: f.validTo || "",
+    customerIds: (f.customers || []).map((c) => c.id),
+    lines: (f.lines || []).filter((l) => l.stockId && l.price !== "").map((l) => ({ stockId: l.stockId, price: Number(l.price), minQty: l.minQty === "" ? 1 : Number(l.minQty) })),
+    ...(typeof f.active === "boolean" ? { active: f.active } : {}),
+  };
+}
+
 const WORDS = {
   VAN_STOCK_SHORT: (e) => {
     const s = e.details?.short?.[0];
@@ -122,6 +149,12 @@ const WORDS = {
   TRIP_HAS_ACTIVITY: () => "Something has been sold or collected on this trip, so it cannot be cancelled. Count the van back in and settle it.",
   RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED: (e) => e.message,
   MODULE_NOT_IN_PLAN: () => "Van sales is not included in this organisation's plan.",
+  PRICE_BELOW_LIST: (e) => e.message,
+  VAN_TRIP_SETTLED: () => "This trip has been counted back in, so what was done on it stays. Correct it with a new return or receipt.",
+  VISIT_REASON_REQUIRED: () => "Say why there was no sale.",
+  INVOICE_NOT_ON_TRIP: () => "That invoice was not raised on this trip.",
+  TRANSFER_TARGET_CLOSED: (e) => e.message,
+  NO_PHONE: () => "This customer has no phone number saved. Type the WhatsApp number.",
 };
 export const vanErrorText = (err) => (err ? (WORDS[err.code] ? WORDS[err.code](err) : err.message || "Something went wrong") : "");
 

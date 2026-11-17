@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Banknote, Check, ShoppingCart } from "lucide-react";
 import { EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import { trips } from "../../lib/vanSalesApi";
-import { nextStep } from "../../lib/vanSales";
+import { nextStep, visitReasonLabel } from "../../lib/vanSales";
 import TripDialogHost from "./TripDialogHost";
 import { OnVanList, StatusPill, TripActions, TripTiles } from "./vanShared";
 import { tripTitle, tripWhen } from "./printSale";
@@ -39,6 +39,7 @@ export default function MyVan() {
             <StatusPill status={trip.status} />
           </div>
           <p className="text-sm text-muted-foreground">{nextStep(trip)}</p>
+          {trip.totals?.cashOverLimit && <p role="status" className="rounded-lg border border-status-danger px-3 py-2 text-sm text-status-danger">The van is carrying more cash than its limit. Hand some in at the depot.</p>}
           <TripTiles trip={trip} />
           <TripActions trip={trip} ask={ask} mine />
 
@@ -50,10 +51,14 @@ export default function MyVan() {
                 {trip.route.map((c) => (
                   <li key={c.customerId} className="flex items-center gap-2 px-4 py-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs">{c.sold || c.collected ? <Check className="h-3.5 w-3.5 text-status-success" aria-label="Visited" /> : c.seq + 1}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{c.name}</span>
+                      {c.visit && !c.sold && <span className="block truncate text-xs text-muted-foreground">No sale: {visitReasonLabel(c.visit.reason)}</span>}
+                    </span>
                     {trip.status === "ON_ROUTE" && (
                       <div className="flex shrink-0 gap-1.5">
                         <button type="button" aria-label={`Sell to ${c.name}`} onClick={() => ask("sell", { customerId: c.customerId, customerName: c.name })} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-muted"><ShoppingCart className="h-4 w-4" aria-hidden="true" /> Sell</button>
+                        <button type="button" aria-label={`No sale at ${c.name}`} onClick={() => ask("visit", { customerId: c.customerId, customerName: c.name })} className="inline-flex h-10 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">No sale</button>
                         <button type="button" aria-label={`Collect from ${c.name}`} onClick={() => ask("collect", { customerId: c.customerId })} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-muted"><Banknote className="h-4 w-4" aria-hidden="true" /> Collect</button>
                       </div>
                     )}

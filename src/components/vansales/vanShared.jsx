@@ -1,5 +1,5 @@
 import React from "react";
-import { Banknote, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
 import { Pill } from "../accounting/kit.jsx";
 import Can from "../shell/Can.jsx";
 import { statusOf } from "../../lib/vanSales";
@@ -13,12 +13,12 @@ export const StatusPill = ({ status }) => {
   return <Pill tone={s.tone}>{s.label}</Pill>;
 };
 
-export function Tile({ label, value, sub }) {
+export function Tile({ label, value, sub, warn = false }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className={`rounded-xl border bg-card p-3 ${warn ? "border-status-danger" : "border-border"}`}>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-0.5 whitespace-nowrap text-lg font-semibold">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      {sub && <p className={`text-xs ${warn ? "font-medium text-status-danger" : "text-muted-foreground"}`}>{sub}</p>}
     </div>
   );
 }
@@ -28,7 +28,7 @@ export function TripTiles({ trip }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Tile label="Sold" value={formatCurrencyAED(t.sales || 0)} sub={`${t.invoices || 0} invoice${t.invoices === 1 ? "" : "s"}`} />
-      <Tile label="Cash taken" value={formatCurrencyAED(t.cash || 0)} />
+      <Tile label="Cash taken" value={formatCurrencyAED(t.cash || 0)} sub={t.cashLimit != null ? (t.cashOverLimit ? `Over the ${formatCurrencyAED(t.cashLimit)} limit` : `Limit ${formatCurrencyAED(t.cashLimit)}`) : undefined} warn={t.cashOverLimit} />
       <Tile label="Cheques" value={formatCurrencyAED(t.cheques || 0)} />
       <Tile label="Returned" value={formatCurrencyAED(t.returned || 0)} sub={`${t.returns || 0} return${t.returns === 1 ? "" : "s"}`} />
     </div>
@@ -79,6 +79,11 @@ export function TripActions({ trip, ask, mine = false }) {
       {["LOADING", "ON_ROUTE"].includes(s) && !mine && (
         <Can permission="vansales.load">
           <button type="button" className={btn} onClick={() => ask("load")}><PackagePlus className="h-4 w-4" aria-hidden="true" /> {trip.loads?.length ? "Top up" : "Load the van"}</button>
+        </Can>
+      )}
+      {s === "ON_ROUTE" && !mine && (
+        <Can permission="vansales.load">
+          <button type="button" className={btn} onClick={() => ask("transfer")}><ArrowLeftRight className="h-4 w-4" aria-hidden="true" /> Hand goods to another van</button>
         </Can>
       )}
       {s === "LOADING" && !mine && (

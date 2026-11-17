@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import { reports } from "../../lib/vanSalesApi";
-import { vanErrorText } from "../../lib/vanSales";
+import { strikeText, vanErrorText } from "../../lib/vanSales";
 import { formatCurrencyAED, formatDate } from "../../utils/format";
 import { StatusPill, Tile } from "./vanShared";
 
@@ -25,6 +25,7 @@ export default function VanReports() {
     { key: "cash", header: "Cash", align: "end", card: "meta", cell: (r) => money(r.cash) },
     { key: "cheques", header: "Cheques", align: "end", card: "meta", cell: (r) => money(r.cheques) },
     { key: "var", header: "Cash difference", align: "end", card: "meta", cell: (r) => <span className={r.cashVariance < 0 ? "text-red-600" : ""}>{money(r.cashVariance)}</span> },
+    { key: "strike", header: "Strike rate", align: "end", card: "meta", cell: (r) => <span title={`${r.productive} of ${r.calls} customers called on bought`}>{strikeText(r.strikeRate)}</span> },
   ];
   const tripCols = [
     { key: "no", header: "Trip", card: "primary", cell: (r) => <span className="whitespace-nowrap font-medium">{r.tripNo}</span> },
@@ -34,6 +35,7 @@ export default function VanReports() {
     { key: "status", header: "Status", card: "badge", cell: (r) => <StatusPill status={r.status} /> },
     { key: "sales", header: "Sales", align: "end", card: "amount", cell: (r) => money(r.sales) },
     { key: "cash", header: "Cash", align: "end", card: "meta", cell: (r) => money(r.cash) },
+    { key: "strike", header: "Strike rate", align: "end", card: "meta", cell: (r) => strikeText(r.strikeRate) },
     { key: "var", header: "Cash difference", align: "end", card: "meta", cell: (r) => (r.cashVariance == null ? "–" : <span className={r.cashVariance < 0 ? "text-red-600" : ""}>{money(r.cashVariance)}</span>) },
   ];
 

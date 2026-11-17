@@ -3,7 +3,8 @@ import {
   cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, nextStep, saleLines, saleProblem, saleSubtotal,
   statusOf, unloadBody, vanErrorText, vanItems,
 } from "../vanSales";
-import { vanReceiptMarkup } from "../vanReceipt";
+import { slipKind, vanReceiptMarkup } from "../vanReceipt";
+import { VISIT_REASONS, priceListBody, priceSourceLabel, strikeText, visitReasonLabel } from "../vanSales";
 
 const trip = {
   status: "ON_ROUTE",
@@ -81,6 +82,36 @@ describe("what a refusal says", () => {
     expect(vanErrorText({ code: "SOMETHING_ELSE", message: "the server said so" })).toBe("the server said so");
     expect(vanErrorText(null)).toBe("");
     expect(isCreditWarning({ code: "RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED" })).toBe(true);
+  });
+});
+
+describe("which slip a sale needs", () => {
+  it("is simplified in the UAE unless a registered buyer takes more than AED 10,000; elsewhere a tax invoice is always full", () => {
+    expect(slipKind({ taxInvoice: false })).toBe("invoice");
+    expect(slipKind({ taxInvoice: true, customerTrn: "", total: 50000 })).toBe("simplified");
+    expect(slipKind({ taxInvoice: true, customerTrn: "100123456700003", total: 10000 })).toBe("simplified");
+    expect(slipKind({ taxInvoice: true, customerTrn: "100123456700003", total: 10000.01 })).toBe("full");
+    expect(slipKind({ taxInvoice: true, uae: false, total: 5 })).toBe("full");
+  });
+  it("a full one shows the tax on each line", () => {
+    const invoice = { transactionNo: "SO-1", totalAmount: 21000, items: [{ description: "Rice", qty: 1000, price: 20, vatPercent: 5, vatAmount: 1000, lineTotal: 21000 }] };
+    expect(vanReceiptMarkup({ company: {}, invoice, customerName: "x", customerTrn: "100", taxInvoice: true })).toContain("VAT 5% 1,000.00");
+    expect(vanReceiptMarkup({ company: {}, invoice, customerName: "x", customerTrn: "", taxInvoice: true })).not.toContain("VAT 5%");
+  });
+});
+
+describe("phase 2 words and forms", () => {
+  it("names the reasons, the price's source and the strike rate", () => {
+    expect(VISIT_REASONS.map(([k]) => k)).toEqual(["closed", "no_money", "has_stock", "refused", "not_reached", "other"]);
+    expect(visitReasonLabel("has_stock")).toBe("Still has stock");
+    expect(priceSourceLabel({ source: "customer", listName: "Al Noor deal" })).toBe("Al Noor deal");
+    expect(priceSourceLabel({ source: "item" })).toBe("List price");
+    expect(strikeText(66.7)).toBe("66.7%");
+    expect(strikeText(null)).toBe("–");
+  });
+  it("a price list form sends complete lines and the customers' ids", () => {
+    const body = priceListBody({ name: " Deal ", customers: [{ id: "c1" }], lines: [{ stockId: "a", price: "17", minQty: "" }, { stockId: "", price: "1", minQty: "1" }, { stockId: "b", price: "", minQty: "1" }] });
+    expect(body).toEqual({ name: "Deal", validFrom: "", validTo: "", customerIds: ["c1"], lines: [{ stockId: "a", price: 17, minQty: 1 }] });
   });
 });
 
