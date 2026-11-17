@@ -141,8 +141,8 @@ const PurchaseReturnOrderManagement = () => {
   }, [searchTerm, statusFilter, vendorFilter, period.key]);
 
   // Fetch vendors from backend
-  const fetchVendors = async () => {
-    setIsLoading(true);
+  const fetchVendors = async ({ quiet } = {}) => {
+    if (quiet !== true) setIsLoading(true);
     try {
       const response = await axiosInstance.get("/vendors/vendors");
       console.log("Vendors Response:", response.data); // Debug
@@ -233,6 +233,7 @@ const PurchaseReturnOrderManagement = () => {
           terms: transaction.terms,
           notes: transaction.notes,
           createdBy: transaction.createdBy,
+          createdByName: transaction.createdByName || "",
           // who has approved it so far: a first of two shows as "Awaiting second approval"
           approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
           createdAt: transaction.createdAt,
@@ -277,6 +278,9 @@ const PurchaseReturnOrderManagement = () => {
 
   // Handle successful PO save
   const handlePOSuccess = (newPO) => {
+    // A party quick-added from the form is not in the list loaded when this page opened, so the invoice's Bill to / Supplier
+    // block would be empty until the page was reopened: read the list again, quietly, when the saved document's party is missing.
+    if (newPO?.vendorId && !vendors.some((v) => v._id === newPO.vendorId)) fetchVendors({ quiet: true });
     setCreatedPO(newPO);
     setSelectedPO(newPO);
     setActiveView("invoice");

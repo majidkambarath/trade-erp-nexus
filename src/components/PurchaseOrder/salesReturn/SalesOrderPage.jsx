@@ -141,8 +141,8 @@ const SalesReturnOrderManagement = () => {
   }, [searchTerm, statusFilter, customerFilter, period.key]);
 
   // Fetch customers from backend
-  const fetchCustomers = async () => {
-    setIsLoading(true);
+  const fetchCustomers = async ({ quiet } = {}) => {
+    if (quiet !== true) setIsLoading(true);
     try {
       const response = await axiosInstance.get("/customers/customers");
       console.log("Customers Response:", response.data); // Debug
@@ -230,6 +230,8 @@ const SalesReturnOrderManagement = () => {
             terms: transaction.terms,
             notes: transaction.notes,
             createdBy: transaction.createdBy,
+            createdByName: transaction.createdByName || "",
+            vatRegistered: transaction.vatRegistered,
             // who has approved it so far: a first of two shows as "Awaiting second approval"
             approvals: Array.isArray(transaction.approvals) ? transaction.approvals : [],
             createdAt: transaction.createdAt,
@@ -275,6 +277,9 @@ const SalesReturnOrderManagement = () => {
 
   // Handle successful sales return order save
   const handleSOSuccess = (newSO) => {
+    // A party quick-added from the form is not in the list loaded when this page opened, so the invoice's Bill to / Supplier
+    // block would be empty until the page was reopened: read the list again, quietly, when the saved document's party is missing.
+    if (newSO?.customerId && !customers.some((c) => c._id === newSO.customerId)) fetchCustomers({ quiet: true });
     setCreatedSO(newSO);
     setSelectedSO(newSO);
     setActiveView("invoice");

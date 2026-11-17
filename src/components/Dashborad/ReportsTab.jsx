@@ -11,6 +11,7 @@ import { DECREASE, gold, ink, monthLabel, monthYearLabel, mutedInk, compactAmoun
 import { quarterOf } from "@/lib/calendarDays";
 import { trailing } from "@/lib/dashboardPeriod";
 import { taxWord } from "../../lib/taxTerms";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 const cardClass = "rounded-[1.75rem] border-0 shadow-[var(--shadow-card)]";
 const VOUCHERS = [
@@ -27,6 +28,7 @@ const VOUCHERS = [
 export default function ReportsTab({ state, scope }) {
   const d = state.data;
   const { at, current } = scope;
+  const { featureOn } = useOrganisation();
   const trail = (n, unit) => trailing(scope, n, unit, formatDate);
   const vatQuarter = `Q${quarterOf(scope.to)} ${scope.to.slice(0, 4)}`;
   const span = (from, to) => (from === to ? formatDate(from) : `${formatDate(from)} to ${formatDate(to)}`);
@@ -43,6 +45,7 @@ export default function ReportsTab({ state, scope }) {
         { name: `Input ${taxWord()}`, value: vat.recoverableVat, fill: gold },
       ]
     : [];
+  // the VAT tile opens the VAT return, which an organisation not registered for VAT does not have
   const tiles = d && [
     { label: "Gross profit", value: formatCurrencyAED(d.grossProfit), icon: Wallet, to: "/financial-statements?tab=pl", note: span(d.period.from, d.period.to) },
     {
@@ -53,7 +56,7 @@ export default function ReportsTab({ state, scope }) {
       note: `${current ? "Quarter so far" : vatQuarter}, ${formatDate(vat.from)} to ${formatDate(vat.to)}`,
     },
     { label: "Net profit", value: formatCurrencyAED(d.netProfit), icon: TrendingUp, to: "/financial-statements?tab=pl", note: span(d.period.from, d.period.to) },
-  ];
+  ].filter((t) => t.to !== "/vat-reports" || featureOn("vatReturn"));
 
   return (
     <div className="space-y-5">

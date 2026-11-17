@@ -152,8 +152,8 @@ describe("the party form: credit and terms", () => {
     openTab("Credit and terms");
     fireEvent.change(screen.getByLabelText(/Credit limit/), { target: { value: "25000" } });
     expect(latest.creditLimit).toBe("25000");
-    expect(screen.getByLabelText("Payment terms")).toHaveValue("Net 30");
-    expect(screen.getByLabelText("Credit days")).toHaveValue(30);
+    expect(screen.getByLabelText("Payment terms")).toHaveValue("Cash"); // a new party starts on Cash: due on the invoice date
+    expect(screen.getByLabelText("Credit days")).toHaveValue(0);
 
     fireEvent.change(screen.getByLabelText("Payment terms"), { target: { value: "Net 60" } });
     expect(screen.getByLabelText("Credit days")).toHaveValue(60);
@@ -369,7 +369,7 @@ describe("the add / edit dialog", () => {
     render(<PartyModal kind="customer" onClose={() => {}} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Add customer" }));
     expect(await screen.findByText("Customer name is required")).toBeInTheDocument();
-    expect(screen.getByText("Contact person is required")).toBeInTheDocument();
+    expect(screen.queryByText("Contact person is required")).toBeNull(); // optional now
     expect(screen.getByText("Billing address is required")).toBeInTheDocument();
     expect(mocks.save).not.toHaveBeenCalled();
 
@@ -392,7 +392,7 @@ describe("the add / edit dialog", () => {
     expect(await screen.findByText("Customer name is required")).toBeInTheDocument();
     fill(/Customer name/, "Al Noor");
     expect(screen.queryByText("Customer name is required")).toBeNull();
-    expect(screen.getByText("Contact person is required")).toBeInTheDocument();
+    expect(screen.getByText("Billing address is required")).toBeInTheDocument();
   });
 
   it("sends the customer in the API's shape and reports it saved", async () => {

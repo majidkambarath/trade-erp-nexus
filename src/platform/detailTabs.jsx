@@ -327,10 +327,10 @@ export function CompanyTab({ detail, catalog, run, busy }) {
   const org = detail.organisation;
   const profile = useMemo(() => detail.profile || {}, [detail.profile]);
   const [form, setForm] = useState({});
-  const [vatRegistered, setVatRegistered] = useState(Boolean(profile.vatRegistered));
+  const [vatRegistered, setVatRegistered] = useState(profile.vatRegistered !== false);
   useEffect(() => {
     setForm(Object.fromEntries(PROFILE_FIELDS.map(([key]) => [key, profile[key] ?? ""])));
-    setVatRegistered(Boolean(profile.vatRegistered));
+    setVatRegistered(profile.vatRegistered !== false);
   }, [profile]);
 
   const save = () => run(() => platform.saveProfile(org.code, { ...form, vatRegistered }), "Company details saved");

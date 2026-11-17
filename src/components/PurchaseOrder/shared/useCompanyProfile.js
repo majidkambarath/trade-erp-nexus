@@ -17,6 +17,7 @@ const EMPTY = {
   // registered until the profile says otherwise; the empty number above already makes the answer
   // before the fetch lands "Invoice", so nothing claims a tax invoice it has not read yet
   vatRegistered: true,
+  vatRegisteredFrom: "",
   logo: null,
   bankName: "",
   accountNumber: "",
@@ -60,6 +61,7 @@ export const useCompanyProfile = () => {
           website: c.website || "",
           vatNumber: c.vatNumber || "",
           vatRegistered: c.vatRegistered !== false,
+          vatRegisteredFrom: c.vatRegisteredFrom || "",
           logo: c.companyLogo?.url || null,
           bankName: bank.bankName || "",
           accountNumber: bank.accountNumber || "",

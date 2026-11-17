@@ -213,7 +213,7 @@ const CustomerManagement = () => {
               </div>
             ),
           },
-          { key: "contactPerson", header: "Contact Person", sortable: true, card: "title", cell: (c) => c.contactPerson },
+          { key: "contactPerson", header: "Contact Person", sortable: true, card: "title", cell: (c) => c.contactPerson || "-" },
           { key: "salesPerson", header: "Sales Person", sortable: true, card: "hidden", cell: (c) => (c.salesPerson ? <span className="font-medium text-gray-900">{c.salesPerson}</span> : <span className="text-sm text-gray-400">&mdash;</span>) },
           { key: "email", header: "Email", sortable: true, cell: (c) => <a href={`mailto:${c.email}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.email}</a> },
           { key: "phone", header: "Phone", sortable: true, cell: (c) => <a href={`tel:${c.phone}`} className="text-purple-600 hover:text-purple-800 transition-colors">{c.phone}</a> },
