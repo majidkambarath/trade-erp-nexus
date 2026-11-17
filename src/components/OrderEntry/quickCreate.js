@@ -1,5 +1,6 @@
 import { isValidTrn, normalizeTrn, taxIdRule } from "../../lib/partyForms";
 import { taxWord } from "../../lib/taxTerms";
+import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, emirateOptions } from "../../lib/countries";
 
 // Create a master record from inside an order without leaving the page.
 //
@@ -44,6 +45,18 @@ const vatFields = () => [
   },
 ];
 
+// The address's country (searchable, every country; the UAE first chosen) and, only for the UAE, which emirate. Both parties ask the
+// same two questions, so both specs take them from here.
+const addressFields = () => [
+  { name: "country", label: "Country", required: true, select: "countries", optionsList: countryOptions, search: true, noNew: true },
+  { name: "emirate", label: "Emirate", required: (v) => v.country === DEFAULT_COUNTRY, when: (v) => v.country === DEFAULT_COUNTRY, select: "emirates", optionsList: emirateOptions, noNew: true },
+];
+const addressDefaults = { country: DEFAULT_COUNTRY, emirate: DEFAULT_EMIRATE };
+// choosing the UAE offers Abu Dhabi until another is picked; any other country has no emirate
+const addressChanged = (name, value, values) =>
+  name === "country" ? { emirate: value === DEFAULT_COUNTRY ? values.emirate || DEFAULT_EMIRATE : "" } : null;
+const addressPayload = (v) => ({ country: v.country || DEFAULT_COUNTRY, emirate: (v.country || DEFAULT_COUNTRY) === DEFAULT_COUNTRY ? text(v.emirate) : "" });
+
 // Sent inside `vat`, never as a top-level trnNumber/trnNO: the create services take an explicit
 // whitelist and would drop an unknown key, while PartyMasterService.prepare reads `vat` and writes
 // both it and the legacy field. An unticked box is exactly what was sent before.
@@ -63,12 +76,16 @@ export const QUICK_CREATE = {
       { name: "vendorName", label: "Vendor name", required: true },
       { name: "contactPerson", label: "Contact person" },
       { name: "address", label: "Address", required: true, multiline: true },
+      ...addressFields(),
       ...vatFields(),
     ],
+    defaults: addressDefaults,
+    onChange: addressChanged,
     payload: (v) => ({
       vendorName: text(v.vendorName),
       contactPerson: text(v.contactPerson),
       address: text(v.address),
+      ...addressPayload(v),
       phone: "",
       email: "",
       paymentTerms: QUICK_TERMS,
@@ -87,13 +104,17 @@ export const QUICK_CREATE = {
       { name: "customerName", label: "Customer name", required: true },
       { name: "contactPerson", label: "Contact person" },
       { name: "billingAddress", label: "Billing address", required: true, multiline: true },
+      ...addressFields(),
       ...vatFields(),
     ],
+    defaults: addressDefaults,
+    onChange: addressChanged,
     // contactPerson and phone are trimmed by the backend route; they must never be undefined.
     payload: (v) => ({
       customerName: text(v.customerName),
       contactPerson: text(v.contactPerson),
       billingAddress: text(v.billingAddress),
+      ...addressPayload(v),
       shippingAddress: "",
       email: "",
       phone: "",

@@ -4,6 +4,7 @@
 import { amountInWords, decimalAdd, decimalRound, lineValueOf } from "../../../utils/format";
 import { orgCurrency } from "../../../utils/orgLocale";
 import { isReverseCharge } from "../../../lib/reverseCharge";
+import { countryLabel } from "../../../lib/countries";
 
 const num = (v) => parseFloat(v) || 0;
 
@@ -119,6 +120,11 @@ export const addressLines = (p = {}) => {
 // every customer has one whether anybody filled it in or not - printing the country on its own would
 // put a bare "AE" under every customer on every invoice, which is noise dressed as information.
 export const localityOf = (party = {}) => {
+  // A country CHOSEN on the address (party.country, which has no default) is printed whole: "Dubai, United Arab Emirates", or just the
+  // country name for one with no emirate. Only the older e-invoice fields need the city to be worth printing.
+  if (String(party?.country ?? "").trim()) {
+    return [String(party?.emirate ?? "").trim() || String(party?.eInvoice?.city ?? "").trim(), countryLabel(party.country)].filter(Boolean).join(", ");
+  }
   const city = String(party?.eInvoice?.city ?? "").trim();
   if (!city) return "";
   const country = String(party?.eInvoice?.countryCode ?? "").trim();

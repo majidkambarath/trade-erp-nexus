@@ -2,6 +2,7 @@ import { isValidIban, normalizeIban } from "./iban";
 import { orgCountry } from "../utils/orgLocale";
 import { toInputDate, todayInput } from "../utils/format";
 import { taxWord } from "./taxTerms";
+import { DEFAULT_COUNTRY, DEFAULT_EMIRATE } from "./countries";
 
 // Pure logic of the customer / vendor form: the rules the server applies (so a mistake is caught
 // before the request), and the two translations between the API record and the form fields.
@@ -183,6 +184,8 @@ export function emptyParty(kind) {
   return {
     name: "", contactPerson: "", phone: "", email: "", website: "", salesPerson: "", isInsurer: false,
     billingAddress: "", shippingAddress: "", address: "",
+    // the address's country and, in the UAE, emirate; a NEW party starts in the UAE, Abu Dhabi
+    country: DEFAULT_COUNTRY, emirate: DEFAULT_EMIRATE, addressLegacy: false,
     status: kind === "vendor" ? "Compliant" : "Active",
     vatStatus: "unregistered", trn: "", tradeLicenseNo: "",
     creditLimit: "", paymentTerms: DEFAULT_TERMS[kind], creditDays: String(termsToDays(DEFAULT_TERMS[kind])),
@@ -205,6 +208,11 @@ export function partyToForm(kind, record) {
     contactPerson: r.contactPerson || "", phone: r.phone || "", email: r.email || "", website: r.website || "",
     salesPerson: r.salesPerson || "", isInsurer: Boolean(r.isInsurer),
     billingAddress: r.billingAddress || "", shippingAddress: r.shippingAddress || "", address: r.address || "",
+    // A record saved before the address had a country shows the UAE with NO emirate chosen, and is not made to choose one until
+    // somebody touches the address: an unrelated edit must never stamp "Abu Dhabi" on a customer in Dubai.
+    ...(r.country
+      ? { country: r.country, emirate: r.emirate || "", addressLegacy: false }
+      : { country: DEFAULT_COUNTRY, emirate: "", addressLegacy: true }),
     status: r.status || base.status,
     vatStatus: r.vat?.status || (trn ? "registered" : "unregistered"),
     trn, tradeLicenseNo: r.vat?.tradeLicenseNo || "",
@@ -243,6 +251,12 @@ export function formToPayload(kind, form) {
       issueDate: d.issueDate || "", expiryDate: d.expiryDate || "", attachmentId: d.attachmentId || null, fileName: d.fileName || "", isVerified: Boolean(d.isVerified),
     })),
   };
+  // country and emirate travel together; an old record whose emirate was never chosen sends neither, so nothing is stamped on it
+  const country = String(form.country || "").toUpperCase();
+  const address = form.addressLegacy && country === DEFAULT_COUNTRY && !trimmed(form.emirate)
+    ? {}
+    : { country, emirate: country === DEFAULT_COUNTRY ? trimmed(form.emirate) : "" };
+  Object.assign(body, address);
   if (kind === "vendor") return { vendorName: trimmed(form.name), address: trimmed(form.address), ...body };
   return {
     customerName: trimmed(form.name), billingAddress: trimmed(form.billingAddress), shippingAddress: trimmed(form.shippingAddress),
@@ -267,6 +281,7 @@ export function validateParty(kind, form, { documentTypes = [], strict = true } 
   if (strict) {
     if (kind === "vendor" && blank(form.address)) e.address = "Address is required";
     if (kind === "customer" && blank(form.billingAddress)) e.billingAddress = "Billing address is required";
+    if (form.country === DEFAULT_COUNTRY && blank(form.emirate) && !form.addressLegacy) e.emirate = "Choose an emirate";
   }
 
   // VAT
