@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, Gift, Plus, Route as RouteIcon, Tag, Trash2, Truck, Users } from "lucide-react";
 import { Button } from "../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
@@ -10,7 +10,9 @@ import { PromotionDialog } from "./phase4Dialogs";
 import { AmountInput, Select } from "../accounting/kit.jsx";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { PriceListDialog } from "./phase2Dialogs";
-import { formatDate } from "../../utils/format";
+import { formatCurrencyAED, formatDate } from "../../utils/format";
+import { useVanMotion } from "./useVanMotion";
+import { Tile } from "./vanShared";
 
 // Van sales > Vans and routes: the two masters. A van gets its own cash account when it is made (what the van takes
 // is that account's balance); a route is the customers a van calls on, in the order it calls, and the days it runs.
@@ -19,7 +21,7 @@ const primaryBtn = "inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary 
 
 function VanDialog({ van, people, routeList, onClose, onSaved }) {
   const editing = Boolean(van?.id);
-  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), offlineBlock: String(van?.offlineBlock ?? 0), active: van?.active !== false });
+  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), dailySalesTarget: van?.dailySalesTarget == null ? "" : String(van.dailySalesTarget), dailyCallsTarget: van?.dailyCallsTarget == null ? "" : String(van.dailyCallsTarget), offlineBlock: String(van?.offlineBlock ?? 0), active: van?.active !== false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
@@ -43,6 +45,10 @@ function VanDialog({ van, people, routeList, onClose, onSaved }) {
         <Field label="Name" required><TextInput value={f.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} /></Field>
         <Field label="Usual salesman"><SearchSelect value={f.salesmanId} onChange={(v) => set({ salesmanId: v })} clearable options={people.map((p) => ({ value: p.id, label: p.name }))} placeholder="Choose…" /></Field>
         <Field label="Cash limit" hint="The most cash the van should carry. The screen warns past it; nothing is refused. Blank for none."><AmountInput value={f.cashLimit} onChange={(e) => set({ cashLimit: e.target.value })} inputMode="decimal" /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Daily sales target" hint="What the van should sell in a day. Shown on My van and the Board. Blank for none."><AmountInput value={f.dailySalesTarget} onChange={(e) => set({ dailySalesTarget: e.target.value })} inputMode="decimal" /></Field>
+          <Field label="Daily calls target" hint="How many customers it should call on in a day. Blank for none."><AmountInput value={f.dailyCallsTarget} onChange={(e) => set({ dailyCallsTarget: e.target.value })} inputMode="numeric" /></Field>
+        </div>
         <Field label="Invoice numbers for offline sales" hint="Numbers the van takes out each trip, so a sale made with no signal prints its final number. 0 if the van always has signal; unused ones are retired with a reason when it comes back."><AmountInput value={f.offlineBlock} onChange={(e) => set({ offlineBlock: e.target.value })} inputMode="numeric" /></Field>
         <Field label="Usual route"><SearchSelect value={f.defaultRouteId} onChange={(v) => set({ defaultRouteId: v })} clearable options={routeList.map((r) => ({ value: r.id, label: r.name }))} placeholder="Choose…" /></Field>
         {editing && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.active} onChange={(e) => set({ active: e.target.checked })} /> Active</label>}
@@ -112,6 +118,26 @@ function RouteDialog({ route, lists = [], onClose, onSaved }) {
   );
 }
 
+// A coloured square badge with an icon, in front of a row's name.
+function Badge({ icon, tone }) {
+  const Icon = icon;
+  return <span className={`hidden h-9 w-9 shrink-0 place-items-center rounded-lg md:grid ${tone}`}><Icon className="h-4 w-4" aria-hidden="true" /></span>;
+}
+
+// The seven days as small chips, the ones the route runs on filled in; no day ticked means any day.
+function DayChips({ days }) {
+  if (!days?.length) return <span className="text-muted-foreground">Any day</span>;
+  return (
+    <span className="inline-flex flex-wrap gap-1" aria-label={DAYS.filter(([d]) => days.includes(d)).map(([, l]) => l).join(", ")}>
+      {DAYS.map(([d, l]) => <span key={d} aria-hidden="true" className={`grid h-6 w-8 place-items-center rounded-md text-[11px] font-medium ${days.includes(d) ? "bg-accent-teal-soft text-accent-teal-on-soft" : "bg-muted text-muted-foreground/60"}`}>{l.slice(0, 2)}</span>)}
+    </span>
+  );
+}
+
+const KIND_TONE = { slab: "bg-accent-teal-soft text-accent-teal-on-soft", bxgy: "bg-accent-plum-soft text-accent-plum-on-soft", basket: "bg-brand-soft text-brand-on-soft" };
+const goodFor = (r) => (r.validFrom || r.validTo ? `${r.validFrom ? formatDate(r.validFrom) : "…"} to ${r.validTo ? formatDate(r.validTo) : "…"}` : "Always");
+const count = (n) => String(Math.round(n));
+
 export default function VansSetupPage() {
   const [tab, setTab] = useState("vans");
   const vanList = useAsync(() => vans.list({ all: 1 }), []);
@@ -123,43 +149,69 @@ export default function VansSetupPage() {
   const mayManage = canAny?.("vansales.manage") !== false;
   const { notify, toastNode } = useToasts();
   const [dialog, setDialog] = useState(null);
+  const scope = useRef(null);
+  useVanMotion(scope, vanList.data ? "setup" : null);
+  const routeName = useMemo(() => new Map((routeList.data || []).map((r) => [String(r.id), r.name])), [routeList.data]);
+  const n = (rows, keep = (r) => r.active !== false) => (Array.isArray(rows) ? rows.filter(keep).length : 0);
+  const out = n(vanList.data, (r) => r.openTrip);
+  const stops = new Set((routeList.data || []).flatMap((r) => (r.customers || []).map((c) => String(c.customerId)))).size;
   const done = (message) => { setDialog(null); notify(message); vanList.reload(); routeList.reload(); lists.reload(); promos.reload(); };
   const newLabel = { vans: "New van", routes: "New route", lists: "New price list", promos: "New promotion" }[tab];
   const newKind = { vans: "van", routes: "route", lists: "list", promos: "promo" }[tab];
   const promoCols = [
-    { key: "name", header: "Promotion", card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
-    { key: "kind", header: "Kind", card: "meta", cell: (r) => promotionKindLabel(r.kind) },
+    { key: "name", header: "Promotion", card: "primary", cell: (r) => <div className="flex min-w-0 items-center gap-2.5"><Badge icon={Gift} tone={KIND_TONE[r.kind] || KIND_TONE.basket} /><span className="truncate font-medium">{r.name}</span></div> },
+    { key: "kind", header: "Kind", card: "meta", cell: (r) => <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${KIND_TONE[r.kind] || "bg-muted"}`}>{promotionKindLabel(r.kind)}</span> },
     { key: "what", header: "Gives", card: "meta", cell: (r) => promotionText(r) },
-    { key: "when", header: "Good for", card: "meta", cell: (r) => (r.validFrom || r.validTo ? `${r.validFrom ? formatDate(r.validFrom) : "…"} to ${r.validTo ? formatDate(r.validTo) : "…"}` : "Always") },
-    { key: "active", header: "", card: "badge", cell: (r) => (r.active ? null : <Pill tone="neutral">Inactive</Pill>) },
+    { key: "when", header: "Good for", card: "meta", cell: goodFor },
+    { key: "active", header: "", card: "badge", cell: (r) => (r.active ? <Pill tone="success">Live</Pill> : <Pill tone="neutral">Inactive</Pill>) },
   ];
   const listCols = [
-    { key: "name", header: "Price list", card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
+    { key: "name", header: "Price list", card: "primary", cell: (r) => <div className="flex min-w-0 items-center gap-2.5"><Badge icon={Tag} tone="bg-accent-olive-soft text-accent-olive-on-soft" /><span className="truncate font-medium">{r.name}</span></div> },
     { key: "lines", header: "Prices", card: "meta", cell: (r) => `${r.lines?.length || 0}` },
     { key: "customers", header: "Customers", card: "meta", cell: (r) => `${r.customerIds?.length || 0}` },
-    { key: "when", header: "Good for", card: "meta", cell: (r) => (r.validFrom || r.validTo ? `${r.validFrom ? formatDate(r.validFrom) : "…"} to ${r.validTo ? formatDate(r.validTo) : "…"}` : "Always") },
+    { key: "when", header: "Good for", card: "meta", cell: goodFor },
     { key: "active", header: "", card: "badge", cell: (r) => (r.active ? null : <Pill tone="neutral">Inactive</Pill>) },
   ];
 
   const vanCols = [
-    { key: "code", header: "Van", card: "primary", cell: (r) => <span className="whitespace-nowrap font-medium">{r.code}</span> },
-    { key: "name", header: "Name", card: "title", cell: (r) => <div className="min-w-0"><p className="truncate font-medium">{r.name}</p><p className="truncate text-xs text-muted-foreground">{r.plate}</p></div> },
+    { key: "code", header: "Van", card: "primary", cell: (r) => <div className="flex items-center gap-2.5"><Badge icon={Truck} tone="bg-brand-soft text-brand-on-soft" /><span className="whitespace-nowrap font-medium">{r.code}</span></div> },
+    { key: "name", header: "Name", card: "title", cell: (r) => <div className="min-w-0"><p className="truncate font-medium">{r.name}</p>{r.plate && <p className="truncate text-xs text-muted-foreground">{r.plate}</p>}</div> },
     { key: "salesman", header: "Usual salesman", card: "meta", cell: (r) => r.salesmanName || "–" },
+    { key: "route", header: "Usual route", card: "meta", cell: (r) => (r.defaultRouteId ? routeName.get(String(r.defaultRouteId)) || "–" : "–") },
+    { key: "target", header: "Daily target", card: "meta", cell: (r) => (r.dailySalesTarget == null && r.dailyCallsTarget == null ? "None" : [r.dailySalesTarget != null && formatCurrencyAED(r.dailySalesTarget), r.dailyCallsTarget != null && `${r.dailyCallsTarget} calls`].filter(Boolean).join(" · ")) },
+    { key: "limit", header: "Cash limit", align: "end", card: "meta", cell: (r) => (r.cashLimit == null ? "None" : <span className="whitespace-nowrap">{formatCurrencyAED(r.cashLimit)}</span>) },
     { key: "out", header: "Now", card: "badge", cell: (r) => (r.openTrip ? <Pill tone="success">{r.openTrip.tripNo}</Pill> : r.active ? <Pill tone="neutral">At the depot</Pill> : <Pill tone="neutral">Inactive</Pill>) },
   ];
   const routeCols = [
-    { key: "name", header: "Route", card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
-    { key: "stops", header: "Customers", card: "meta", cell: (r) => `${r.customers?.length || 0}` },
-    { key: "days", header: "Days", card: "meta", cell: (r) => (r.days?.length ? DAYS.filter(([d]) => r.days.includes(d)).map(([, l]) => l).join(", ") : "Any day") },
+    { key: "name", header: "Route", card: "primary", cell: (r) => <div className="flex min-w-0 items-center gap-2.5"><Badge icon={RouteIcon} tone="bg-accent-teal-soft text-accent-teal-on-soft" /><span className="truncate font-medium">{r.name}</span></div> },
+    { key: "stops", header: "Customers", card: "meta", cell: (r) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><Users className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />{r.customers?.length || 0}</span> },
+    { key: "days", header: "Days", card: "meta", cell: (r) => <DayChips days={r.days} /> },
+    { key: "list", header: "Price list", card: "meta", cell: (r) => (r.priceListId ? (lists.data || []).find((l) => String(l.id) === String(r.priceListId))?.name || "–" : "Item prices") },
     { key: "active", header: "", card: "badge", cell: (r) => (r.active ? null : <Pill tone="neutral">Inactive</Pill>) },
+  ];
+  const TILES = [
+    { tab: "vans", label: "Vans", icon: Truck, tone: "brand", value: n(vanList.data), sub: out ? `${out} out on a trip now` : "All at the depot" },
+    { tab: "routes", label: "Routes", icon: RouteIcon, tone: "teal", value: n(routeList.data), sub: `${stops} customer${stops === 1 ? "" : "s"} called on` },
+    { tab: "lists", label: "Price lists", icon: Tag, tone: "olive", value: n(lists.data), sub: "In use" },
+    { tab: "promos", label: "Promotions", icon: Gift, tone: "plum", value: n(promos.data), sub: "Live on every sale they fit" },
   ];
 
   return (
-    <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Vans and routes" description="The vans, who drives them, and the customers each one calls on."
         actions={<Can permission="vansales.manage"><button type="button" data-shortcut="new" className={primaryBtn} onClick={() => setDialog({ kind: newKind })}><Plus className="h-4 w-4" aria-hidden="true" /> {newLabel}</button></Can>} />
-      <div className="mt-6"><PillTabs label="Vans and routes" tabs={[["vans", "Vans"], ["routes", "Routes"], ["lists", "Price lists"], ["promos", "Promotions"]]} value={tab} onChange={setTab} /></div>
-      <div className="mt-4">
+      {vanList.data && (
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          {TILES.map((x) => (
+            <button key={x.tab} type="button" aria-pressed={tab === x.tab} onClick={() => setTab(x.tab)}
+              className={`rounded-xl text-left outline-none transition focus-visible:ring-2 focus-visible:ring-ring ${tab === x.tab ? "ring-2 ring-brand" : ""}`}>
+              <Tile label={x.label} icon={x.icon} tone={x.tone} amount={x.value} format={count} value={count(x.value)} sub={x.sub} />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-4"><PillTabs label="Vans and routes" tabs={[["vans", "Vans"], ["routes", "Routes"], ["lists", "Price lists"], ["promos", "Promotions"]]} value={tab} onChange={setTab} /></div>
+      <div data-reveal="" className="mt-4">
         <Panel bodyClassName="p-0">
           {tab === "vans" && (
             <>

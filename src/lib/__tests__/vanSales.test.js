@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addSuggestedRow, cutText, repeatRows, stepQty,
   cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, nextStep, saleLines, saleProblem, saleSubtotal,
   statusOf, unloadBody, vanErrorText, vanItems,
 } from "../vanSales";
@@ -139,5 +140,29 @@ describe("the slip printed on the road", () => {
   it("prints no balance line for a credit sale's nothing-received case beyond the total", () => {
     const html = vanReceiptMarkup({ company: {}, invoice, customerName: "x", paid: 0 });
     expect(html).not.toContain("Balance due");
+  });
+});
+
+describe("at the door", () => {
+  const onVan = [{ stockId: "rice", itemName: "Rice", qty: 30 }, { stockId: "oil", itemName: "Oil", qty: 4 }];
+  it("repeat last order holds each line to what the van carries and names the cuts", () => {
+    const r = repeatRows({ lines: [{ stockId: "rice", name: "Rice", qty: 40 }, { stockId: "oil", name: "Oil", qty: 2 }, { stockId: "salt", name: "Salt", qty: 1 }] }, onVan);
+    expect(r.rows).toEqual([{ itemId: "rice", qty: "30", price: "" }, { itemId: "oil", qty: "2", price: "" }]);
+    expect(r.cut).toEqual([{ name: "Rice", wanted: 40, got: 30 }, { name: "Salt", wanted: 1, got: 0 }]);
+    expect(cutText(r.cut)).toBe("Rice: 30 of 40 (all the van has); Salt: none on the van");
+    expect(repeatRows(null, onVan)).toEqual({ rows: [], cut: [] });
+  });
+  it("a suggested item fills the first empty row, adds to a line already there, and never passes the van", () => {
+    const blank = [{ itemId: "", qty: "", price: "" }];
+    expect(addSuggestedRow(blank, { stockId: "oil", avgQty: 3 }, onVan)).toEqual([{ itemId: "oil", qty: "3", price: "" }]);
+    expect(addSuggestedRow([{ itemId: "oil", qty: "3", price: "" }], { stockId: "oil", avgQty: 3 }, onVan)[0].qty).toBe("4");
+    expect(addSuggestedRow([{ itemId: "rice", qty: "5", price: "9" }], { stockId: "oil", avgQty: 2 }, onVan)).toHaveLength(2);
+    expect(addSuggestedRow(blank, { stockId: "salt", avgQty: 2 }, onVan)).toBe(blank);
+  });
+  it("the phone's steppers move one at a time between nothing and what the van holds", () => {
+    expect(stepQty({ itemId: "oil", qty: "3" }, 1, onVan).qty).toBe("4");
+    expect(stepQty({ itemId: "oil", qty: "4" }, 1, onVan).qty).toBe("4");
+    expect(stepQty({ itemId: "oil", qty: "1" }, -1, onVan).qty).toBe("");
+    expect(stepQty({ itemId: "oil", qty: "" }, -1, onVan).qty).toBe("");
   });
 });

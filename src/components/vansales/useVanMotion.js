@@ -15,6 +15,7 @@ export function useVanMotion(scope, key) {
     if (!key || !root || !motionOK()) return undefined;
     const ctx = gsap.context(() => {
       gsap.fromTo("[data-meter]", { scaleX: 0 }, { scaleX: 1, duration: 0.9, delay: 0.25, ease: "power3.out", stagger: 0.05, clearProps: "transform" });
+      gsap.fromTo("[data-grow]", { scaleY: 0 }, { scaleY: 1, duration: 0.7, delay: 0.3, ease: "power3.out", stagger: { amount: 0.4 }, clearProps: "transform" });
       gsap.fromTo("[data-truck]", { x: -18, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "back.out(1.7)", stagger: 0.06, clearProps: "opacity,transform" });
     }, root);
     return () => ctx.revert();

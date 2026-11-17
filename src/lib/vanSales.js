@@ -251,3 +251,43 @@ export const vanItems = (trip) => (trip?.sellable || []).map((l) => ({ value: l.
 export function stopDone(c) {
   return Boolean(c?.sold || c?.collected || c?.visit);
 }
+
+// ---- at the customer's door (phase 7) ---------------------------------------------------------------------------
+
+/**
+ * "Repeat last order": the last order's lines as sale rows, each held to what the van carries now. A line the van
+ * has none of is left out, and every cut is named so the salesman is never surprised by a smaller basket.
+ */
+export function repeatRows(lastOrder, onVan = []) {
+  const have = new Map((onVan || []).map((l) => [l.stockId, num(l.qty)]));
+  const rows = [];
+  const cut = [];
+  for (const l of lastOrder?.lines || []) {
+    const avail = have.get(l.stockId) || 0;
+    const qty = Math.min(num(l.qty), avail);
+    if (qty < num(l.qty)) cut.push({ name: l.name, wanted: num(l.qty), got: qty > 0 ? qty : 0 });
+    if (qty > 0) rows.push({ itemId: l.stockId, qty: String(qty), price: "" });
+  }
+  return { rows, cut };
+}
+
+/** One suggested item added to the rows: more of a line already there, else the first empty row, else a new one; never above the van. */
+export function addSuggestedRow(rows, item, onVan = []) {
+  const avail = num((onVan || []).find((l) => l.stockId === item.stockId)?.qty);
+  if (!(avail > 0)) return rows;
+  const at = rows.findIndex((r) => r.itemId === item.stockId);
+  if (at >= 0) return rows.map((r, i) => (i === at ? { ...r, qty: String(Math.min(avail, round3(num(r.qty) + num(item.avgQty) || 1))) } : r));
+  const row = { itemId: item.stockId, qty: String(Math.min(avail, num(item.avgQty) || 1)), price: "" };
+  const blank = rows.findIndex((r) => !r.itemId && !num(r.qty));
+  return blank >= 0 ? rows.map((r, i) => (i === blank ? row : r)) : [...rows, row];
+}
+
+/** A line's quantity moved by one step (the phone's - and + buttons), never below zero nor above what the van holds. */
+export function stepQty(row, delta, onVan = []) {
+  const avail = row.itemId ? num((onVan || []).find((l) => l.stockId === row.itemId)?.qty) : Infinity;
+  const next = Math.max(0, Math.min(avail, round3(num(row.qty) + delta)));
+  return { ...row, qty: next === 0 ? "" : String(next) };
+}
+
+/** The cuts "Repeat last order" had to make, in words. */
+export const cutText = (cut = []) => cut.map((c) => (c.got > 0 ? `${c.name}: ${c.got} of ${c.wanted} (all the van has)` : `${c.name}: none on the van`)).join("; ");

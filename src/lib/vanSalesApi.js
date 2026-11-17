@@ -42,6 +42,7 @@ export const trips = {
   settlement: (id, params) => api.get(`/van-sales/trips/${id}/settlement`, params),
   settle: (id, body) => api.post(`/van-sales/trips/${id}/settle`, body),
   prices: (id, customerId) => api.get(`/van-sales/trips/${id}/prices`, { customerId }),
+  insight: (id, customerId) => api.get(`/van-sales/trips/${id}/customers/${customerId}/insight`),
   visits: (id) => api.get(`/van-sales/trips/${id}/visits`),
   visit: (id, body) => api.post(`/van-sales/trips/${id}/visits`, body),
   transfer: (id, body) => api.post(`/van-sales/trips/${id}/transfer`, body),

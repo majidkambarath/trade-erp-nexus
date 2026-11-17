@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ClipboardCheck, Clock, MapPin, Navigation, Receipt, Truck, Wallet } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Clock, MapPin, Navigation, Receipt, Target, Truck, Wallet } from "lucide-react";
 import { EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit.jsx";
 import { fleet } from "../../lib/vanSalesApi";
 import { distanceText, quietText, vanErrorText } from "../../lib/vanSales";
@@ -19,10 +19,8 @@ function VanCard({ row }) {
   const pct = row.total ? Math.round((row.done / row.total) * 100) : 0;
   const cash = t.cashInHand ?? t.cash ?? 0;
   const cashPct = t.cashLimit ? Math.max(0, Math.min(100, Math.round((cash / t.cashLimit) * 100))) : null;
-  const worry = t.cashOverLimit ? "danger" : row.quiet || row.far.length ? "warning" : null;
-  const edge = worry === "danger" ? "before:bg-status-danger" : worry === "warning" ? "before:bg-status-warning" : "before:bg-accent-teal";
   return (
-    <li data-reveal="" className={`relative grid grid-cols-1 gap-4 overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 shadow-sm transition-shadow before:absolute before:inset-y-0 before:left-0 before:w-1 hover:shadow-md ${edge}`}>
+    <li data-reveal="" className={`relative grid grid-cols-1 gap-4 overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <span data-truck="" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-on-soft"><Truck className="h-5 w-5" aria-hidden="true" /></span>
@@ -60,6 +58,7 @@ function VanCard({ row }) {
         </div>
       </div>
       <ul className="grid grid-cols-1 gap-1.5 text-xs">
+        {t.progress?.sales && <li className={`flex items-center gap-1.5 ${t.progress.sales.hit ? "font-medium text-status-success" : "text-muted-foreground"}`}><Target className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{t.progress.sales.hit ? `Sales target reached (${t.progress.sales.pct}%)` : `${t.progress.sales.pct}% of today's sales target`}</li>}
         <li className="flex items-center gap-1.5 text-muted-foreground"><Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{row.lastAt ? `Last activity ${formatTime(row.lastAt)}` : "Nothing done yet"}</li>
         {row.quiet && <li className="flex items-center gap-1.5 rounded-md bg-status-warning/10 px-2 py-1 font-medium text-status-warning"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Quiet for {quietText(row.quietMinutes)} with stops to go</li>}
         {t.cashOverLimit && <li className="flex items-center gap-1.5 rounded-md bg-status-danger-soft px-2 py-1 font-medium text-status-danger"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Carrying more cash than its {formatCurrencyAED(t.cashLimit)} limit</li>}

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Banknote, ClipboardList, MapPin, ShoppingCart } from "lucide-react";
+import { Banknote, ClipboardList, MapPin, Search, ShoppingCart } from "lucide-react";
 import { StopBadge, VanHero } from "./VanHero";
 import { useVanMotion } from "./useVanMotion";
 import { currentLocation } from "../../lib/geo";
@@ -52,6 +52,7 @@ export default function MyVan() {
   const trip = off.active ? { ...off.pack.trip, sellable: off.view.sellable } : live || (off.pack && !off.online ? off.pack.trip : undefined);
   const ask = (kind, extra = {}) => setDialog({ kind, ...extra });
   const scope = useRef(null);
+  const [find, setFind] = useState("");
   useVanMotion(scope, trip?.id);
   // orders customers gave for this visit: delivered by selling against them (online only: the order is closed by the sale)
   const preorders = useAsync(() => (trip?.id && trip.routeId && !off.active ? trips.preorders(trip.id).catch(() => []) : Promise.resolve([])), [trip?.id, off.active]);
@@ -73,8 +74,10 @@ export default function MyVan() {
     }
   }
 
+  const nextStop = trip?.route?.find((c) => !stopDone(c));
+  const shown = (trip?.route || []).filter((c) => !find.trim() || c.name.toLowerCase().includes(find.trim().toLowerCase()));
   return (
-    <div ref={scope} className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className={`mx-auto max-w-6xl p-4 sm:p-6 lg:p-8 ${nextStop && trip?.status === "ON_ROUTE" ? "pb-32 lg:pb-8" : ""}`}>
       <PageHeader title="My van" description="Today's trip: what is on the van, who to call on, what has been sold and collected." />
       {mine.loading && !mine.data && <Spinner label="Reading your trip" />}
       {mine.error && !trip && <ErrorNote error={mine.error} onRetry={mine.reload} />}
@@ -96,12 +99,22 @@ export default function MyVan() {
           <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
           {trip.route?.length > 0 ? (
             <Panel title="Your route" description="In the order you call." bodyClassName="p-0">
+              {trip.route.length > 6 && (
+                <div className="border-b border-border p-3">
+                  <label className="relative block">
+                    <span className="sr-only">Find a customer on your route</span>
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                    <input type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find a customer on your route…" className="h-11 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-base sm:text-sm" />
+                  </label>
+                </div>
+              )}
+              {shown.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">No customer on this route matches “{find}”.</p>}
               <ol className="relative">
-                {trip.route.map((c, i) => {
+                {shown.map((c, i) => {
                   const isNext = trip.route.find((x) => !stopDone(x))?.customerId === c.customerId;
                   return (
                   <li key={c.customerId} data-reveal="" className={`relative flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors ${isNext ? "bg-brand-soft/40" : "hover:bg-muted/40"}`}>
-                    {i < trip.route.length - 1 && <span aria-hidden="true" className="absolute left-8 top-11 h-[calc(100%-1.75rem)] w-px bg-border" />}
+                    {i < shown.length - 1 && <span aria-hidden="true" className="absolute left-8 top-11 h-[calc(100%-1.75rem)] w-px bg-border" />}
                     <StopBadge c={c} isNext={isNext} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{c.name}</span>
@@ -131,6 +144,15 @@ export default function MyVan() {
             <Panel title="Your route"><p className="text-sm text-muted-foreground">This trip has no route. Sell to any customer with the Sell button above.</p></Panel>
           )}
             <Panel title="On the van" description={`${(trip.sellable || []).length} item${(trip.sellable || []).length === 1 ? "" : "s"} to sell, and what is left of what was loaded`} bodyClassName="p-0"><OnVanList trip={trip} /></Panel>
+          </div>
+        </div>
+      )}
+      {trip?.status === "ON_ROUTE" && nextStop && (
+        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 px-3 lg:hidden" role="region" aria-label="Next stop">
+          <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl border border-border bg-card p-2 pl-3.5 shadow-lg">
+            <div className="min-w-0 flex-1"><p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Next stop</p><p className="truncate text-sm font-semibold">{nextStop.name}</p></div>
+            <button type="button" aria-label={`Sell to ${nextStop.name} (next stop)`} onClick={() => ask("sell", { customerId: nextStop.customerId, customerName: nextStop.name })} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><ShoppingCart className="h-4 w-4" aria-hidden="true" />Sell</button>
+            <button type="button" aria-label={`Collect from ${nextStop.name} (next stop)`} onClick={() => ask("collect", { customerId: nextStop.customerId })} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-border px-3.5 text-sm font-medium"><Banknote className="h-4 w-4" aria-hidden="true" />Collect</button>
           </div>
         </div>
       )}

@@ -379,6 +379,7 @@ const DEEP = {
   "vansales-my-van": [
     { name: "my-van", page: true, clicks: [], settle: 1200 },
     { name: "my-van-sell", clicks: ["^Sell$"], settle: 1200 },
+    { name: "my-van-sell-door", clicks: ["^Sell to Al Noor Grocery"], settle: 1800 },
     { name: "my-van-collect", clicks: ["^Collect money$"], settle: 1200 },
     { name: "my-van-return", clicks: ["^Take goods back$"], settle: 1200 },
     { name: "my-van-count", clicks: ["Count the van back in"], settle: 1200 },
@@ -856,8 +857,8 @@ function stubFor(pathname, search = "") {
       status: "ON_ROUTE", date: "2026-11-17T00:00:00.000Z",
       loads: [{ no: 1, at: "2026-11-17T05:00:00.000Z", lines: [{ stockId: "s1", itemName: longRice, qty: 40 }, { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 20 }] }],
       sellable: shelf, damaged: [{ stockId: "s1", itemName: longRice, qty: 1 }],
-      route: [{ customerId: "c1", name: longCustomer, seq: 0, sold: false, collected: false }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1, sold: true, collected: true }],
-      totals: { sales: 336, cash: 210, cheques: 0, returned: 0, invoices: 2, returns: 0, receipts: 1, pendingReceipts: 0 },
+      route: [{ customerId: "c1", name: longCustomer, seq: 0, sold: false, collected: false }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1, sold: true, collected: true }, ...[3, 4, 5, 6, 7, 8].map((n) => ({ customerId: "c" + n, name: "Corner Shop " + n, seq: n - 1, sold: false, collected: false }))],
+      totals: { sales: 336, cash: 210, cheques: 0, returned: 0, invoices: 2, returns: 0, receipts: 1, pendingReceipts: 0, calls: 2, productive: 2, target: { sales: 400, calls: 10 }, progress: { sales: { target: 400, done: 336, pct: 84, toGo: 64, hit: false }, calls: { target: 10, done: 2, pct: 20, toGo: 8, hit: false } } },
     };
     if (p.endsWith("/van-sales/trips/mine")) return [trip];
     if (/\/van-sales\/trips\/[^/]+\/activity$/.test(p)) return [{ id: "a1", summary: "Van VAN-1 loaded: 60 units on VTR-2026-0001", createdAt: "2026-11-17T05:00:00.000Z" }];
@@ -873,6 +874,7 @@ function stubFor(pathname, search = "") {
         ],
       };
     }
+    if (/\/van-sales\/trips\/[^/]+\/customers\/[^/]+\/insight$/.test(p)) return { invoices: 6, lastOrder: { number: "SO-2026-0098", date: "2026-11-10T00:00:00.000Z", lines: [{ stockId: "s1", name: longRice, qty: 12, onVan: 30 }, { stockId: "s2", name: "Sunflower Oil 1.8L", qty: 6, onVan: 16 }] }, usual: [{ stockId: "s1", name: longRice, times: 5, avgQty: 10, onVan: 30 }, { stockId: "s2", name: "Sunflower Oil 1.8L", times: 3, avgQty: 6, onVan: 16 }], notLately: [{ stockId: "s2", name: "Sunflower Oil 1.8L", times: 2, avgQty: 4, onVan: 16 }], position: { owed: 420, open: [{ id: "i1", number: "SO-2026-0001", outstanding: 420, date: "2026-10-01" }] } };
     if (/\/van-sales\/trips\/[^/]+\/preorders$/.test(p)) return [{ id: "o1", orderNo: "SORD-2026-0003", customerId: "c1", customerName: longCustomer, expectedDate: "2026-11-19", source: "van", totalAmount: 108, items: [{ itemId: "s1", description: longRice, qty: 6, price: 18 }] }];
     if (/\/van-sales\/trips\/[^/]+\/suggested-load$/.test(p)) return { runs: 4, lines: [{ stockId: "s1", itemName: longRice, qty: 31, why: { preorder: 6, average: 24.3, runs: 4, onVan: 0, free: 120, capped: false } }, { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 4, why: { preorder: 0, average: 6.5, runs: 4, onVan: 3, free: 4, capped: true } }] };
     if (/\/van-sales\/trips\/[^/]+\/load-check$/.test(p)) return { mustLastUntil: "2026-11-27", shelfLifeDays: 10, warnings: [] };
@@ -881,7 +883,7 @@ function stubFor(pathname, search = "") {
       return {
         at: "2026-11-17T11:05:00.000Z", counts: { out: 3, loading: 1, toSettle: 1, quiet: 1, overCash: 1, far: 1 }, sales: 12880.75, cash: 6900,
         rows: [
-          row("1"),
+          row("1", { totals: { sales: 4210.5, cash: 2100, cashInHand: 2040, cashLimit: 5000, cashOverLimit: false, progress: { sales: { target: 5000, done: 4210.5, pct: 84, toGo: 789.5, hit: false } } } }),
           row("2", { quiet: true, quietMinutes: 165, far: [{ customerId: "c2", kind: "sale", ref: "SO-2026-0105", distanceM: 1480, at: "2026-11-17T08:10:00.000Z" }] }),
           row("3", { totals: { sales: 8000, cash: 6100, cashInHand: 6100, cashLimit: 5000, cashOverLimit: true } }),
           row("4", { status: "LOADING", done: 0, lastAt: null, quietMinutes: null, totals: { sales: 0, cash: 0, cashInHand: 0 } }),
@@ -912,7 +914,7 @@ function stubFor(pathname, search = "") {
     }
     if (p.endsWith("/van-sales/vans")) {
       return [
-        { id: "v1", _id: "v1", code: "VAN-1", name: "Van One", plate: "DXB 12345", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", active: true, openTrip: { tripNo: "VTR-2026-0001", status: "ON_ROUTE" } },
+        { id: "v1", _id: "v1", code: "VAN-1", name: "Van One", plate: "DXB 12345", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", dailySalesTarget: 1500, dailyCallsTarget: 12, cashLimit: 20000, active: true, openTrip: { tripNo: "VTR-2026-0001", status: "ON_ROUTE" } },
         { id: "v2", _id: "v2", code: "VAN-2", name: "Van Two", plate: "SHJ 777", active: true, openTrip: null },
       ];
     }
@@ -928,9 +930,10 @@ function stubFor(pathname, search = "") {
     if (p.endsWith("/van-sales/payment-choices")) return { cheque: true, bankAccounts: [{ id: "b1", name: "Emirates NBD Current" }, { id: "b2", name: "Mashreq Current" }] };
     if (p.includes("/van-sales/customers/") && p.endsWith("/position")) return { owed: 420, open: [{ id: "i1", number: "SO-2026-0001", outstanding: 420, date: "2026-11-01T00:00:00.000Z" }] };
     if (p.endsWith("/van-sales/reports/summary")) {
-      const r = { id: "t1", tripNo: "VTR-2026-0001", date: "2026-11-17T00:00:00.000Z", status: "SETTLED", vanId: "v1", vanCode: "VAN-1", vanName: "Van One", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, stockVarianceValue: -10 };
-      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 };
-      return { from: "2026-10-19", to: "2026-11-17", rows: [r], byVan: [roll], bySalesman: [{ ...roll, id: "a1", name: "Rashid Al Mansoori" }], total: { trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 } };
+      const r = { id: "t1", tripNo: "VTR-2026-0001", date: "2026-11-17T00:00:00.000Z", status: "SETTLED", vanId: "v1", vanCode: "VAN-1", vanName: "Van One", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", invoices: 2, lines: 5, expenses: 60, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, stockVarianceValue: -10, calls: 3, productive: 2, strikeRate: 66.7, salesTarget: 400, targetHit: false };
+      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, lines: 5, expenses: 60, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, calls: 3, productive: 2, strikeRate: 66.7, dropSize: 168, linesPerCall: 2.5, costPerDrop: 30, targetTrips: 1, targetDays: 0 };
+      const days = Array.from({ length: 14 }, (_, i) => ({ day: "2026-11-" + String(4 + i).padStart(2, "0"), sales: [0, 220, 340, 0, 410, 180, 0, 520, 300, 260, 0, 610, 450, 336][i], invoices: [0, 2, 3, 0, 4, 2, 0, 5, 3, 3, 0, 6, 4, 2][i] }));
+      return { from: "2026-11-04", to: "2026-11-17", rows: [r], byVan: [roll], bySalesman: [{ ...roll, id: "a1", name: "Rashid Al Mansoori" }, { ...roll, id: "a2", name: "Maya Khan", sales: 210, invoices: 1, dropSize: 210, linesPerCall: 3, strikeRate: 100, targetDays: 1 }], byDay: days, total: { trips: 1, invoices: 2, lines: 5, expenses: 60, calls: 3, productive: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, dropSize: 168, linesPerCall: 2.5, strikeRate: 66.7, costPerDrop: 30 } };
     }
     return [];
   }

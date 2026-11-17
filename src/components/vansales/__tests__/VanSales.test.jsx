@@ -6,11 +6,11 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({
   mine: vi.fn(), list: vi.fn(), get: vi.fn(), activity: vi.fn(), sell: vi.fn(), collect: vi.fn(), settlement: vi.fn(), settle: vi.fn(),
   customers: vi.fn(), payment: vi.fn(), position: vi.fn(), apiGet: vi.fn(), print: vi.fn(), depart: vi.fn(),
-  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), suggestedLoad: vi.fn(), loadCheck: vi.fn(), load: vi.fn(), preorders: vi.fn(), preorder: vi.fn(), promoList: vi.fn(), promoCreate: vi.fn(), expense: vi.fn(), pin: vi.fn(), board: vi.fn(), routeProfit: vi.fn(), summary: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
+  prices: vi.fn(), insight: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), suggestedLoad: vi.fn(), loadCheck: vi.fn(), load: vi.fn(), preorders: vi.fn(), preorder: vi.fn(), promoList: vi.fn(), promoCreate: vi.fn(), expense: vi.fn(), pin: vi.fn(), board: vi.fn(), routeProfit: vi.fn(), summary: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
 }));
 
 vi.mock("../../../lib/vanSalesApi", () => ({
-  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: m.load, cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn(), offlinePack: m.offlinePack, sync: m.sync, suggestedLoad: m.suggestedLoad, loadCheck: m.loadCheck, preorders: m.preorders, preorder: m.preorder, expense: m.expense, pin: m.pin },
+  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: m.load, cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, insight: m.insight, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn(), offlinePack: m.offlinePack, sync: m.sync, suggestedLoad: m.suggestedLoad, loadCheck: m.loadCheck, preorders: m.preorders, preorder: m.preorder, expense: m.expense, pin: m.pin },
   fleet: { board: m.board },
   promotions: { list: m.promoList, create: m.promoCreate, update: vi.fn() },
   choices: { customers: m.customers, payment: m.payment, position: m.position, assignees: vi.fn(() => Promise.resolve([])), returnable: vi.fn() },
@@ -282,6 +282,38 @@ describe("Phase 4: offers, orders for next time, the suggested load", () => {
     expect(m.sell.mock.calls[0][1].items).toEqual([{ itemId: "rice", qty: 10, price: 17 }]);
   });
 
+  it("at the door: what they owe, the last order held to the van, and one tap for what they usually buy", async () => {
+    m.insight.mockResolvedValue({
+      invoices: 4,
+      lastOrder: { number: "SO-9", date: "2026-11-10T00:00:00.000Z", lines: [{ stockId: "rice", name: "Rice 5kg", qty: 40, onVan: 30 }] },
+      usual: [{ stockId: "rice", name: "Rice 5kg", times: 3, avgQty: 6, onVan: 30 }], notLately: [],
+      position: { owed: 440, open: [{ id: "a", number: "SO-8", outstanding: 440 }] },
+    });
+    render(<SellDialog trip={trip} customerId="c1" onClose={() => {}} onDone={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Owes AED 440.00/)).toBeInTheDocument();
+    expect(within(dialog).getByText("SO-9")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Repeat last order" }));
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("30");
+    expect(within(dialog).getByText(/Rice 5kg: 30 of 40 \(all the van has\)/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add 6 Rice 5kg" }));
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("6");
+    fireEvent.click(within(dialog).getByRole("button", { name: "One more" }));
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("7");
+    fireEvent.click(within(dialog).getByRole("button", { name: "One less" }));
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("6");
+  });
+
+  it("a customer with no history, or a failed read, shows nothing extra and the sale still works", async () => {
+    m.insight.mockRejectedValue(new Error("offline"));
+    render(<SellDialog trip={trip} customerId="c1" onClose={() => {}} onDone={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(m.insight).toHaveBeenCalled());
+    expect(within(dialog).queryByRole("button", { name: "Repeat last order" })).toBeNull();
+    expect(within(dialog).queryByLabelText("About this customer")).toBeNull();
+  });
+
   it("delivering an order fills its lines and sends the order with the sale", async () => {
     m.sell.mockResolvedValue({ invoice: { _id: "i1", transactionNo: "SO-1", totalAmount: 120, items: [] }, receipt: null });
     render(<SellDialog trip={trip} customerId="c1" preorder={{ id: "o1", orderNo: "SORD-2026-0003", items: [{ itemId: "rice", qty: 6, price: 18 }] }} onClose={() => {}} onDone={() => {}} />);
@@ -466,5 +498,59 @@ describe("Settlement", () => {
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByText(/waiting for approval/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Settle trip" })).toBeDisabled();
+  });
+});
+
+describe("Phase 7: targets, the next stop within reach, and the owner's figures", () => {
+  it("the trip card shows today's targets, and the phone keeps the next stop's Sell and Collect in reach", async () => {
+    m.mine.mockResolvedValue([{ ...trip, totals: { ...trip.totals, target: { sales: 250, calls: 10 }, progress: { sales: { target: 250, done: 420, pct: 168, toGo: 0, hit: true }, calls: { target: 10, done: 2, pct: 20, toGo: 8, hit: false } } } }]);
+    wrap(<MyVan />);
+    expect(await screen.findByText("Today's target")).toBeInTheDocument();
+    expect(screen.getByText("Target reached")).toBeInTheDocument();
+    expect(screen.getByText("8 to go")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Sales against today's target" })).toHaveAttribute("aria-valuenow", "100");
+    const bar = screen.getByRole("region", { name: "Next stop" });
+    expect(within(bar).getByText("Al Noor Grocery")).toBeInTheDocument();
+    fireEvent.click(within(bar).getByRole("button", { name: /Sell to Al Noor Grocery/ }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("a long route can be searched", async () => {
+    const route = Array.from({ length: 8 }, (_, i) => ({ customerId: `c${i}`, name: i === 5 ? "Zayed Bakery" : `Shop ${i}`, seq: i, sold: false, collected: false }));
+    m.mine.mockResolvedValue([{ ...trip, route }]);
+    wrap(<MyVan />);
+    const box = await screen.findByRole("searchbox", { name: "Find a customer on your route" });
+    fireEvent.change(box, { target: { value: "bakery" } });
+    expect(screen.getByText("Zayed Bakery")).toBeInTheDocument();
+    expect(screen.queryByText("Shop 1")).toBeNull();
+    fireEvent.change(box, { target: { value: "nobody" } });
+    expect(screen.getByText(/No customer on this route matches/)).toBeInTheDocument();
+  });
+
+  it("reports show the owner's figures, sales by day and a salesman leaderboard", async () => {
+    const man = { id: "u1", name: "Rashid", trips: 1, invoices: 3, lines: 4, sales: 420, returned: 0, cash: 420, cheques: 0, cashVariance: 0, calls: 2, productive: 2, dropSize: 140, linesPerCall: 2, strikeRate: 100, costPerDrop: 0, targetTrips: 1, targetDays: 1 };
+    m.summary.mockResolvedValue({
+      from: "2026-11-01", to: "2026-11-02", rows: [{ id: "t1", tripNo: "VTR-1", date: "2026-11-02T00:00:00.000Z", status: "SETTLED", vanCode: "VAN-1", salesmanName: "Rashid", sales: 420, cash: 420, strikeRate: 100, cashVariance: 0 }],
+      byVan: [{ ...man, id: "v1", name: "VAN-1" }], bySalesman: [man],
+      total: { trips: 1, invoices: 3, lines: 4, sales: 420, returned: 0, cash: 420, cheques: 0, cashVariance: 0, calls: 2, productive: 2, dropSize: 140, linesPerCall: 2, strikeRate: 100, costPerDrop: 0 },
+      byDay: [{ day: "2026-11-01", sales: 0, invoices: 0 }, { day: "2026-11-02", sales: 420, invoices: 3 }],
+    });
+    wrap(<VanReports />, ["/van-sales/reports"]);
+    expect(await screen.findByText("Average drop", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText("Road expenses per invoice")).toBeInTheDocument();
+    expect(screen.getByText("2 of 2 calls bought")).toBeInTheDocument();
+    expect(screen.getByText(/Best day .*AED 420.00 on 3 invoices/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Sales for each of 2 days/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Leaderboard" }));
+    const table = await screen.findByRole("table", { name: "Salesman leaderboard" });
+    expect(within(table).getByText("Rashid")).toBeInTheDocument();
+    expect(within(table).getByText("1 of 1 day")).toBeInTheDocument();
+    expect(within(table).getByText("2.0")).toBeInTheDocument();
+  });
+
+  it("the board says how far each van is toward its sales target", async () => {
+    m.board.mockResolvedValue({ at: "2026-11-17T11:05:00.000Z", counts: { out: 1, loading: 0, toSettle: 0, quiet: 0, overCash: 0, far: 0 }, sales: 200, cash: 0, rows: [{ id: "t1", tripNo: "VTR-1", vanCode: "VAN-1", salesmanName: "Rashid", status: "ON_ROUTE", done: 1, total: 4, next: { name: "Corner Shop" }, lastAt: null, quiet: false, far: [], totals: { sales: 200, cash: 0, cashInHand: 0, progress: { sales: { target: 400, done: 200, pct: 50, toGo: 200, hit: false } } } }] });
+    wrap(<BoardPage />, ["/van-sales/board"]);
+    expect(await screen.findByText("50% of today's sales target")).toBeInTheDocument();
   });
 });
