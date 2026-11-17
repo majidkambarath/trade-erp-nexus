@@ -6,6 +6,7 @@ import { api } from "../../lib/accountingApi";
 import { choices, priceLists, trips } from "../../lib/vanSalesApi";
 import { VISIT_REASONS, loadBody, loadProblem, priceListBody, vanErrorText } from "../../lib/vanSales";
 import { currentLocation } from "../../lib/geo";
+import { isNetworkError } from "../../lib/vanOffline";
 
 // The dialogs phase 2 added: a stop without a sale, goods handed to another van, and a price list.
 
@@ -17,7 +18,7 @@ const Footer = ({ onClose, busy, onSubmit, label, disabled }) => (
 );
 
 // ---- a stop without a sale ------------------------------------------------------------------------------------
-export function VisitDialog({ trip, customerId, customerName, onClose, onDone }) {
+export function VisitDialog({ trip, customerId, customerName, onClose, onDone, offline }) {
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,14 @@ export function VisitDialog({ trip, customerId, customerName, onClose, onDone })
     setError(null);
     try {
       const location = await currentLocation(); // best effort: never waits more than a few seconds
-      onDone(await trips.visit(trip.id, { customerId, reason, note, ...(location ? { location } : {}) }));
+      const body = { customerId, reason, note, ...(location ? { location } : {}) };
+      if (offline?.active) return onDone(await offline.enqueue("visit", body));
+      try {
+        onDone(await trips.visit(trip.id, body));
+      } catch (err) {
+        if (offline?.enqueue && isNetworkError(err)) return onDone(await offline.enqueue("visit", body));
+        throw err;
+      }
     } catch (err) {
       setError(err);
       setBusy(false);

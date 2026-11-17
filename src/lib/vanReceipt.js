@@ -35,7 +35,7 @@ const money = (n) => (Number(n) || 0).toLocaleString("en-US", { minimumFractionD
  * @param {string} [p.taxWord]     VAT / GST / Tax
  * @param {string} [p.currency]
  */
-export function vanReceiptMarkup({ company = {}, invoice = {}, customerName = "", customerTrn = "", tripNo = "", salesmanName = "", paid = 0, taxInvoice = false, taxWord = "VAT", currency = "AED", uae = true }) {
+export function vanReceiptMarkup({ company = {}, invoice = {}, customerName = "", customerTrn = "", tripNo = "", salesmanName = "", paid = 0, taxInvoice = false, taxWord = "VAT", currency = "AED", uae = true, provisional = false }) {
   const kind = slipKind({ taxInvoice, uae, customerTrn, total: invoice.totalAmount });
   const items = invoice.items || [];
   const vat = items.reduce((t, l) => t + (Number(l.vatAmount) || 0), 0);
@@ -66,7 +66,8 @@ ${company.addressLine1 ? `<p>${esc(company.addressLine1)}</p>` : ""}
 ${company.city ? `<p>${esc(company.city)}</p>` : ""}
 ${company.vatNumber ? `<p>${esc(taxWord)} no. ${esc(company.vatNumber)}</p>` : ""}
 <hr>
-<p class="b">${taxInvoice ? "TAX INVOICE" : "INVOICE"}</p>
+<p class="b">${provisional ? "DELIVERY SLIP" : taxInvoice ? "TAX INVOICE" : "INVOICE"}</p>
+${provisional ? `<p>Prices before ${esc(taxWord)}. The tax invoice follows.</p>` : ""}
 <table>
 ${row("No.", invoice.transactionNo || "")}
 ${row("Date", day)}

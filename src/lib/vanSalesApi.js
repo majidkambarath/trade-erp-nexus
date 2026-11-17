@@ -46,6 +46,8 @@ export const trips = {
   visit: (id, body) => api.post(`/van-sales/trips/${id}/visits`, body),
   transfer: (id, body) => api.post(`/van-sales/trips/${id}/transfer`, body),
   whatsapp: (id, invoiceId, body) => api.post(`/van-sales/trips/${id}/invoices/${invoiceId}/whatsapp`, body),
+  offlinePack: (id, params) => api.get(`/van-sales/trips/${id}/offline`, params),
+  sync: (id, body) => api.post(`/van-sales/trips/${id}/sync`, body),
 };
 
 export const priceLists = {

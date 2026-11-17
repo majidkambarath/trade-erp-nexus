@@ -10,11 +10,11 @@ import { TransferDialog, VisitDialog } from "./phase2Dialogs";
 import { MessageCircle } from "lucide-react";
 import { TextInput } from "../accounting/kit.jsx";
 import { PrintButton } from "./vanShared";
-import { printSale } from "./printSale";
+import { printDeliverySlip, printSale } from "./printSale";
 
 // Renders whichever dialog `ask(kind)` named for a trip, runs the quick acts (send out, cancel) itself, and tells the
 // page what happened so it can reload. `customerId` pre-fills the customer for a stop on the route.
-export default function TripDialogHost({ trip, dialog, onClose, onChanged, notify }) {
+export default function TripDialogHost({ trip, dialog, onClose, onChanged, notify, offline }) {
   const company = useCompanyProfile();
   const [sold, setSold] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -50,6 +50,19 @@ export default function TripDialogHost({ trip, dialog, onClose, onChanged, notif
   }
   const finish = (message) => { notify?.(message); onClose(); onChanged?.(); };
 
+  if (sold?.queued) {
+    const done = () => { setSold(null); onClose(); onChanged?.(); };
+    const total = sold.items.reduce((t, l) => t + l.qty * l.price, 0);
+    return (
+      <Modal size="sm" title="Saved on the phone" onClose={done} footer={<Button onClick={done}>Done</Button>}>
+        <div className="grid gap-3 text-sm">
+          <p>No signal, so the sale to {sold.customerName || "the customer"} is kept on this phone{sold.number ? ` as ${sold.number}` : ""} and sent as soon as the signal is back. The tax invoice is made then.</p>
+          <div><PrintButton onClick={() => printDeliverySlip({ company, number: sold.number, items: sold.items, total, customerName: sold.customerName, trip, paid: sold.paidNow ? total : 0 })} /></div>
+        </div>
+      </Modal>
+    );
+  }
+
   if (sold) {
     const { invoice, receipt, customerName, customerTrn } = sold;
     return (
@@ -73,11 +86,11 @@ export default function TripDialogHost({ trip, dialog, onClose, onChanged, notif
   switch (kind) {
     case "open": return <OpenTripDialog onClose={onClose} onDone={(t) => finish(`Trip ${t.tripNo} opened.`)} />;
     case "load": return <LoadDialog trip={trip} onClose={onClose} onDone={() => finish("Load saved.")} />;
-    case "sell": return <SellDialog trip={trip} customerId={dialog.customerId} onClose={onClose} onDone={(r) => setSold({ ...r, customerName: r.customerName || "the customer" })} />;
-    case "collect": return <CollectDialog trip={trip} customerId={dialog.customerId} onClose={onClose} onDone={(r) => finish(`${r.receipt.voucherNo} taken.`)} />;
+    case "sell": return <SellDialog trip={trip} offline={offline} customerId={dialog.customerId} onClose={onClose} onDone={(r) => setSold({ ...r, customerName: r.customerName || "the customer" })} />;
+    case "collect": return <CollectDialog trip={trip} offline={offline} customerId={dialog.customerId} onClose={onClose} onDone={(r) => finish(r.queued ? "No signal: the payment is kept on the phone and sent when the signal is back." : `${r.receipt.voucherNo} taken.`)} />;
     case "return": return <ReturnDialog trip={trip} customerId={dialog.customerId} onClose={onClose} onDone={(r) => finish(`${r.creditNote.transactionNo} taken back.`)} />;
     case "unload": return <UnloadDialog trip={trip} onClose={onClose} onDone={() => finish("The van is counted in. A supervisor can settle it now.")} />;
-    case "visit": return <VisitDialog trip={trip} customerId={dialog.customerId} customerName={dialog.customerName} onClose={onClose} onDone={() => finish("Visit recorded.")} />;
+    case "visit": return <VisitDialog trip={trip} offline={offline} customerId={dialog.customerId} customerName={dialog.customerName} onClose={onClose} onDone={() => finish("Visit recorded.")} />;
     case "transfer": return <TransferDialog trip={trip} onClose={onClose} onDone={() => finish("Goods handed over.")} />;
     case "settle": return <SettleDialog trip={trip} onClose={onClose} onDone={() => finish(`${trip.tripNo} settled.`)} />;
     case "depart":

@@ -6,6 +6,7 @@ import { api } from "../../lib/accountingApi";
 import { choices, trips, vans } from "../../lib/vanSalesApi";
 import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, priceSourceLabel, round2, saleLines, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
 import { formatCurrencyAED } from "../../utils/format";
+import { isNetworkError, packPrice } from "../../lib/vanOffline";
 import { useOrganisation } from "../shell/OrganisationContext";
 
 // The dialogs that drive a van trip. Each one runs a single act and hands the answer back; the page decides what to
@@ -102,10 +103,11 @@ export function LoadDialog({ trip, onClose, onDone }) {
 }
 
 // ---- sell ------------------------------------------------------------------------------------------------------
-export function SellDialog({ trip, customerId: startCustomer, onClose, onDone }) {
+export function SellDialog({ trip, customerId: startCustomer, onClose, onDone, offline }) {
   const org = useOrganisation();
-  const customers = useAsync(() => choices.customers(), []);
-  const payment = useAsync(() => choices.payment(), []);
+  const off = offline?.active ? offline : null;
+  const customers = useAsync(() => (off ? Promise.resolve(off.pack?.customers || []) : choices.customers()), [Boolean(off)]);
+  const payment = useAsync(() => (off ? Promise.resolve({ cheque: false, bankAccounts: [] }) : choices.payment()), [Boolean(off)]);
   const [customerId, setCustomerId] = useState(startCustomer || "");
   const [rows, setRows] = useState([{ itemId: "", qty: "", price: "" }]);
   const [mode, setMode] = useState("none"); // none | cash | cheque
@@ -113,11 +115,14 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone })
   const [acknowledged, setAcknowledged] = useState(false);
   const [warning, setWarning] = useState(null);
   const { busy, error, run } = useAct();
-  const onVan = useMemo(() => trip.sellable || [], [trip.sellable]);
-  const listed = useAsync(() => (customerId ? trips.prices(trip.id, customerId) : Promise.resolve([])), [trip.id, customerId]);
+  const onVan = useMemo(() => (off ? off.view.sellable : trip.sellable || []), [off, trip.sellable]);
+  const listed = useAsync(
+    () => (!customerId ? Promise.resolve([]) : off ? Promise.resolve(onVan.map((l) => ({ stockId: l.stockId, price: packPrice(off.pack, customerId, l.stockId), source: "pack" }))) : trips.prices(trip.id, customerId)),
+    [trip.id, customerId, Boolean(off)]
+  );
   const priceOf = useMemo(() => new Map((listed.data || []).map((p) => [p.stockId, p])), [listed.data]);
   const pricedVan = useMemo(() => onVan.map((l) => (priceOf.has(l.stockId) ? { ...l, salesPrice: priceOf.get(l.stockId).price } : l)), [onVan, priceOf]);
-  const options = vanItems(trip);
+  const options = vanItems({ sellable: onVan });
   const problem = saleProblem({ customerId, rows }, onVan);
   const lines = saleLines(rows, pricedVan);
   const canOverride = org.canAny?.(["sales.creditOverride", "vansales.manage"]);
@@ -132,9 +137,23 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone })
     const body = { customerId, items: lines, acknowledged };
     if (mode === "cash") body.payNow = { mode: "cash", full: true };
     if (mode === "cheque") body.payNow = { mode: "cheque", full: true, details: { chequeNo: chq.chequeNo, chequeDate: chq.chequeDate, accountId: chq.accountId || undefined } };
-    const r = await run(async () => trips.sell(trip.id, body));
     const c = (customers.data || []).find((x) => x.id === customerId);
-    if (r) onDone({ ...r, customerName: c?.name, customerTrn: c?.trn || "" });
+    // no signal: keep it on the phone with the next reserved number, and say so; the server applies it when it is back
+    const queue = async () => {
+      const number = offline?.number ? offline.number() : null;
+      const op = await (off || offline).enqueue("sell", { ...body, ...(number ? { number } : {}) });
+      return { queued: true, clientId: op.clientId, number, items: lines.map((l) => ({ ...l, name: onVan.find((x) => x.stockId === l.itemId)?.itemName || "" })), paidNow: mode !== "none", customerName: c?.name, customerTrn: c?.trn || "" };
+    };
+    const r = await run(async () => {
+      if (off) return queue();
+      try {
+        return await trips.sell(trip.id, body);
+      } catch (err) {
+        if (offline?.enqueue && isNetworkError(err)) return queue();
+        throw err;
+      }
+    });
+    if (r) onDone(r.queued ? r : { ...r, customerName: c?.name, customerTrn: c?.trn || "" });
   }
 
   useEffect(() => {
@@ -196,11 +215,12 @@ function ChequeFields({ value, onChange, accounts }) {
 }
 
 // ---- collect ---------------------------------------------------------------------------------------------------
-export function CollectDialog({ trip, customerId: startCustomer, onClose, onDone }) {
-  const customers = useAsync(() => choices.customers(), []);
-  const payment = useAsync(() => choices.payment(), []);
+export function CollectDialog({ trip, customerId: startCustomer, onClose, onDone, offline }) {
+  const off = offline?.active ? offline : null;
+  const customers = useAsync(() => (off ? Promise.resolve(off.pack?.customers || []) : choices.customers()), [Boolean(off)]);
+  const payment = useAsync(() => (off ? Promise.resolve({ cheque: false, bankAccounts: [] }) : choices.payment()), [Boolean(off)]);
   const [customerId, setCustomerId] = useState(startCustomer || "");
-  const position = useAsync(() => (customerId ? choices.position(customerId) : Promise.resolve(null)), [customerId]);
+  const position = useAsync(() => (customerId && !off ? choices.position(customerId) : Promise.resolve(null)), [customerId, Boolean(off)]);
   const [mode, setMode] = useState("cash");
   const [amount, setAmount] = useState("");
   const [chq, setChq] = useState({ chequeNo: "", chequeDate: "", accountId: "" });
@@ -209,7 +229,19 @@ export function CollectDialog({ trip, customerId: startCustomer, onClose, onDone
 
   async function submit() {
     const body = { customerId, amount: Number(amount), mode, details: mode === "cheque" ? { chequeNo: chq.chequeNo, chequeDate: chq.chequeDate, accountId: chq.accountId || undefined } : undefined };
-    const r = await run(async () => trips.collect(trip.id, body));
+    const queue = async () => {
+      const op = await (off || offline).enqueue("collect", body);
+      return { queued: true, clientId: op.clientId };
+    };
+    const r = await run(async () => {
+      if (off) return queue();
+      try {
+        return await trips.collect(trip.id, body);
+      } catch (err) {
+        if (offline?.enqueue && isNetworkError(err)) return queue();
+        throw err;
+      }
+    });
     if (r) onDone(r);
   }
 

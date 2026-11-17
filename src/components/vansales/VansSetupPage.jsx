@@ -18,7 +18,7 @@ const primaryBtn = "inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary 
 
 function VanDialog({ van, people, routeList, onClose, onSaved }) {
   const editing = Boolean(van?.id);
-  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), active: van?.active !== false });
+  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), offlineBlock: String(van?.offlineBlock ?? 0), active: van?.active !== false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
@@ -42,6 +42,7 @@ function VanDialog({ van, people, routeList, onClose, onSaved }) {
         <Field label="Name" required><TextInput value={f.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} /></Field>
         <Field label="Usual salesman"><SearchSelect value={f.salesmanId} onChange={(v) => set({ salesmanId: v })} clearable options={people.map((p) => ({ value: p.id, label: p.name }))} placeholder="Choose…" /></Field>
         <Field label="Cash limit" hint="The most cash the van should carry. The screen warns past it; nothing is refused. Blank for none."><AmountInput value={f.cashLimit} onChange={(e) => set({ cashLimit: e.target.value })} inputMode="decimal" /></Field>
+        <Field label="Invoice numbers for offline sales" hint="Numbers the van takes out each trip, so a sale made with no signal prints its final number. 0 if the van always has signal; unused ones are retired with a reason when it comes back."><AmountInput value={f.offlineBlock} onChange={(e) => set({ offlineBlock: e.target.value })} inputMode="numeric" /></Field>
         <Field label="Usual route"><SearchSelect value={f.defaultRouteId} onChange={(v) => set({ defaultRouteId: v })} clearable options={routeList.map((r) => ({ value: r.id, label: r.name }))} placeholder="Choose…" /></Field>
         {editing && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.active} onChange={(e) => set({ active: e.target.checked })} /> Active</label>}
       </div>

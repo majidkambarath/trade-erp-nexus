@@ -1,16 +1,16 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const m = vi.hoisted(() => ({
   mine: vi.fn(), list: vi.fn(), get: vi.fn(), activity: vi.fn(), sell: vi.fn(), collect: vi.fn(), settlement: vi.fn(), settle: vi.fn(),
   customers: vi.fn(), payment: vi.fn(), position: vi.fn(), apiGet: vi.fn(), print: vi.fn(), depart: vi.fn(),
-  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), open: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
+  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
 }));
 
 vi.mock("../../../lib/vanSalesApi", () => ({
-  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: vi.fn(), cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn() },
+  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: vi.fn(), cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn(), offlinePack: m.offlinePack, sync: m.sync },
   choices: { customers: m.customers, payment: m.payment, position: m.position, assignees: vi.fn(() => Promise.resolve([])), returnable: vi.fn() },
   vans: { list: m.vansList },
   routes: { list: m.routesList },
@@ -59,7 +59,11 @@ beforeEach(() => {
   m.routesList.mockResolvedValue([]);
   m.plList.mockResolvedValue([{ id: "p1", name: "Al Noor deal", lines: [{ stockId: "rice", price: 17, minQty: 1 }], customerIds: ["c1"], active: true }]);
   m.canManage.value = true;
+  m.offlinePack.mockResolvedValue({ at: "2026-11-17T08:00:00.000Z", trip, customers: [{ id: "c1", name: "Al Noor Grocery", trn: "" }], prices: { c1: { rice: 17 } }, freeNumbers: ["SO-2026-0100", "SO-2026-0101"] });
+  setOnline(true);
 });
+
+const setOnline = (on) => Object.defineProperty(window.navigator, "onLine", { configurable: true, get: () => on });
 
 describe("My van", () => {
   it("says so when no van is out for the person", async () => {
@@ -189,6 +193,60 @@ describe("My van, phase 2", () => {
     await waitFor(() => expect(m.whatsapp).toHaveBeenCalledWith("t1", "inv1", { phone: "+971 50 111 2222" }));
     await waitFor(() => expect(open).toHaveBeenCalledWith("https://wa.me/971501112222?text=x", "_blank", "noopener"));
     open.mockRestore();
+  });
+});
+
+describe("My van with no signal", () => {
+  it("works from the pack: the sale is kept on the phone with a reserved number, a delivery slip prints, and it is sent when the signal is back", async () => {
+    const { store } = await import("../../../lib/vanOffline");
+    store._reset();
+    wrap(<MyVan />);
+    await screen.findByText(/VTR-2026-0001/);
+    await waitFor(() => expect(m.offlinePack).toHaveBeenCalledWith("t1"));
+    // the signal goes
+    setOnline(false);
+    await act(async () => { window.dispatchEvent(new Event("offline")); });
+    expect(await screen.findByText(/No signal\. Working from figures read at/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Take goods back/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sell to Al Noor Grocery" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.querySelector(".search-select__single-value")).toHaveTextContent("Al Noor Grocery"));
+    choose(dialog.querySelectorAll("input[role='combobox']")[1], "Rice 5kg (30 on van)");
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "4" } });
+    expect(within(dialog).getByLabelText("Price")).toHaveValue("17");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sell" }));
+    expect(await screen.findByText(/kept on this phone as SO-2026-0100/)).toBeInTheDocument();
+    expect(m.sell).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Print slip/ }));
+    expect(m.print.mock.calls[0][0]).toContain("DELIVERY SLIP");
+    expect(m.print.mock.calls[0][0]).toContain("SO-2026-0100");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(await screen.findByText("1 done on the phone, waiting to send.")).toBeInTheDocument();
+    expect(screen.getByText("26")).toBeInTheDocument(); // 30 on the van less the 4 kept on the phone
+
+    // the signal comes back: it is sent by itself
+    m.sync.mockResolvedValue({ results: [{ clientId: "x", ok: true }], applied: 1, refused: 0 });
+    m.sync.mockImplementation((id, body) => Promise.resolve({ results: body.ops.map((o) => ({ clientId: o.clientId, ok: true })), applied: body.ops.length, refused: 0 }));
+    setOnline(true);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    await waitFor(() => expect(m.sync).toHaveBeenCalled());
+    const [tripId, body] = m.sync.mock.calls[0];
+    expect(tripId).toBe("t1");
+    expect(body.ops[0]).toMatchObject({ kind: "sell", body: { customerId: "c1", number: "SO-2026-0100", items: [{ itemId: "rice", qty: 4, price: 17 }] } });
+    await waitFor(() => expect(screen.queryByText(/waiting to send/)).toBeNull());
+  });
+
+  it("what the server refuses stays on the phone with its reason, until discarded", async () => {
+    const { store, queuedOp } = await import("../../../lib/vanOffline");
+    store._reset();
+    await store.add(queuedOp({ tripId: "t1", kind: "sell", clientId: "bad", body: { customerId: "c1", items: [{ itemId: "rice", qty: 99, price: 20 }] } }));
+    m.sync.mockResolvedValue({ results: [{ clientId: "bad", ok: false, error: { code: "VAN_STOCK_SHORT", message: "There is not enough of that on the van to sell" } }], applied: 0, refused: 1 });
+    wrap(<MyVan />);
+    fireEvent.click(await screen.findByRole("button", { name: "Send now" }));
+    expect(await screen.findByText(/Sale not accepted: There is not enough of that on the van/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    await waitFor(() => expect(screen.queryByText(/not accepted/)).toBeNull());
   });
 });
 

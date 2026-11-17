@@ -65,7 +65,7 @@ const primary = "inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-
  * The actions a trip offers right now. `ask(kind)` opens the matching dialog; the page owns the dialogs.
  * `mine` limits it to the salesman's own tools (the My van screen); the supervisor's view shows the rest too.
  */
-export function TripActions({ trip, ask, mine = false }) {
+export function TripActions({ trip, ask, mine = false, offline = false }) {
   const s = trip.status;
   return (
     <div className="flex flex-wrap gap-2">
@@ -73,7 +73,7 @@ export function TripActions({ trip, ask, mine = false }) {
         <Can permission="vansales.sell">
           <button type="button" className={primary} onClick={() => ask("sell")}><ShoppingCart className="h-4 w-4" aria-hidden="true" /> Sell</button>
           <button type="button" className={btn} onClick={() => ask("collect")}><Banknote className="h-4 w-4" aria-hidden="true" /> Collect money</button>
-          <button type="button" className={btn} onClick={() => ask("return")}><RotateCcw className="h-4 w-4" aria-hidden="true" /> Take goods back</button>
+          {!offline && <button type="button" className={btn} onClick={() => ask("return")}><RotateCcw className="h-4 w-4" aria-hidden="true" /> Take goods back</button>}
         </Can>
       )}
       {["LOADING", "ON_ROUTE"].includes(s) && !mine && (
@@ -91,7 +91,7 @@ export function TripActions({ trip, ask, mine = false }) {
           <button type="button" className={primary} disabled={!trip.loads?.length} onClick={() => ask("depart")}><Send className="h-4 w-4" aria-hidden="true" /> Send the van out</button>
         </Can>
       )}
-      {s === "ON_ROUTE" && (
+      {s === "ON_ROUTE" && !offline && (
         <Can permission={["vansales.load", "vansales.sell"]}>
           <button type="button" className={btn} onClick={() => ask("unload")}><ClipboardCheck className="h-4 w-4" aria-hidden="true" /> Count the van back in</button>
         </Can>
