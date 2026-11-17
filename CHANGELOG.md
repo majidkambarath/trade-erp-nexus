@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.5.1.0 — 18 November 2026
+
+Van sales: corrections to the new figures, and the door history with no signal. Frontend and backend both at 3.5.1.0.
+
+### Fixed
+
+- **Average drop** is now before VAT, matching the profit report.
+- **Lines per call** counts only lines that were sold: a promotion's free goods no longer widen a basket.
+- **Target reached** is judged by the day: two trips on one day count together, and the Leaderboard reads "N of M days".
+- **Usually buys** no longer counts goods the customer sent back.
+
+### Added
+
+- With no signal, Sell shows each route customer's last order and usual items from the phone (what they owe is not shown offline). The trip card says when sales waiting to send are not yet in the target bars.
+
 ## 3.5.0.0 — 17 November 2026
 
 Van sales: more at the customer's door, daily targets and the figures an owner judges the vans by. Frontend and backend both at 3.5.0.0.
