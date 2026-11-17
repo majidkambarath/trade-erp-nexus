@@ -25,7 +25,8 @@ export const CUSTOMER_TERMS = ["Cash", "Net 30", "Net 45", "Net 60", "Cash on De
 export const VENDOR_TERMS = ["Cash", "30 days", "Net 30", "45 days", "Net 60", "60 days", "COD"];
 export const CUSTOMER_STATUSES = ["Active", "Inactive"];
 export const VENDOR_STATUSES = ["Compliant", "Non-compliant", "Pending", "Expired"];
-export const DEFAULT_TERMS = { customer: "Net 30", vendor: "30 days" };
+// A new party is paid on the invoice date until someone sets credit terms; saved parties keep what they have.
+export const DEFAULT_TERMS = { customer: "Cash", vendor: "Cash" };
 export const MAX_CREDIT_DAYS = 365;
 export const DEFAULT_WARNING_DAYS = 30;
 
@@ -260,7 +261,6 @@ export function validateParty(kind, form, { documentTypes = [], strict = true } 
   const e = {};
   const noun = kind === "vendor" ? "Vendor" : "Customer";
   if (strict && blank(form.name)) e.name = `${noun} name is required`;
-  if (strict && blank(form.contactPerson)) e.contactPerson = "Contact person is required";
   if (!blank(form.email) && !isEmail(form.email)) e.email = "Enter a valid email address";
   if (!blank(form.phone) && !isPhone(form.phone)) e.phone = "Enter a valid phone number, for example +971 50 123 4567";
   if (!blank(form.website) && !isWebsite(form.website)) e.website = "Enter a website such as www.example.ae";

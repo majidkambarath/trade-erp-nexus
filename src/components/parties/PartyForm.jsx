@@ -76,7 +76,7 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
       <Field label={`${noun} name`} required error={errors.name} className="sm:col-span-2">
         <TextInput value={value.name} onChange={text("name")} maxLength={100} placeholder={kind === "vendor" ? "e.g. Gulf Mills Trading LLC" : "e.g. Al Noor Mart LLC"} data-autofocus={autoFocus ? true : undefined} />
       </Field>
-      <Field label="Contact person" required error={errors.contactPerson}>
+      <Field label="Contact person" error={errors.contactPerson}>
         <TextInput value={value.contactPerson} onChange={text("contactPerson")} maxLength={100} autoComplete="off" />
       </Field>
       <Field label="Phone" error={errors.phone}>

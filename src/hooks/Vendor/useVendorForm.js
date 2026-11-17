@@ -40,7 +40,6 @@ const useVendorForm = (initialData = {}) => {
   const validateForm = () => {
     const newErrors = {};
     if (!formData.vendorName) newErrors.vendorName = "Vendor Name is required";
-    if (!formData.contactPerson) newErrors.contactPerson = "Contact Person is required";
     if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email))
       newErrors.email = "Invalid email format";
     if (formData.phone && !/^\+?\d{10,}$/.test(formData.phone))

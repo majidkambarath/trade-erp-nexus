@@ -63,7 +63,7 @@ describe("Vendor management", () => {
 
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0]).toBe("vendor");
-    expect(mocks.save.mock.calls[0][2]).toMatchObject({ vendorName: "Al Ain Farms", contactPerson: "Khalid", address: "Al Ain", status: "Compliant", paymentTerms: "30 days" });
+    expect(mocks.save.mock.calls[0][2]).toMatchObject({ vendorName: "Al Ain Farms", contactPerson: "Khalid", address: "Al Ain", status: "Compliant", paymentTerms: "Cash" });
     expect(await screen.findByText("Vendor created successfully!")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(mocks.get).toHaveBeenCalledTimes(2);

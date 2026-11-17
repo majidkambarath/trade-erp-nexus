@@ -67,7 +67,7 @@ describe("Customer management", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
     expect(mocks.save.mock.calls[0][0]).toBe("customer");
     expect(mocks.save.mock.calls[0][1]).toBeUndefined();
-    expect(mocks.save.mock.calls[0][2]).toMatchObject({ customerName: "New Buyer", contactPerson: "Huda", billingAddress: "Sharjah", paymentTerms: "Net 30" });
+    expect(mocks.save.mock.calls[0][2]).toMatchObject({ customerName: "New Buyer", contactPerson: "Huda", billingAddress: "Sharjah", paymentTerms: "Cash" });
     expect(await screen.findByText("Customer created successfully!")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(mocks.get).toHaveBeenCalledTimes(2);

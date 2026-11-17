@@ -216,7 +216,8 @@ describe("quick-create payloads", () => {
   });
 
   it("reports the first missing required field", () => {
-    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "" }).name).toBe("contactPerson");
+    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "" }).name).toBe("address"); // the contact person is optional
+    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "Z" })).toBeNull();
     expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "Y", address: "Z" })).toBeNull();
   });
 
