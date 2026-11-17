@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.4.1.0 — 17 November 2026
+
+Van sales: a redesigned My van screen. Frontend and backend both at 3.4.1.0.
+
+### Changed
+
+- **My van** opens on a trip card with the van, the route, how many stops are done and the next shop, and a progress bar.
+- Figure tiles with icons that count up once, and cash shown against the van's limit.
+- **On the van** shows what is left of what was loaded, as a bar per item.
+- On a wide screen the route and the stock sit side by side; the route is a numbered step line and the next stop's Sell is the main button.
+- Gentle motion (GSAP), switched off for anyone who asks for reduced motion.
+
 ## 3.4.0.0 — 17 November 2026
 
 Van sales: a distributor's salesman loads a van, sells and collects on the road, and settles the day. An opt-in module,
