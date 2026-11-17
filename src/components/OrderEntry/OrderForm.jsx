@@ -518,6 +518,8 @@ export default function OrderForm({
   const hydrateSaved = (saved, payload) => ({
     ...saved,
     id: saved._id,
+    // the sheet's Prepared by box: the server names the creator on a read; a document saved just now was prepared by this person
+    createdByName: saved.createdByName || selected?.createdByName || (selected ? "" : me?.name) || "",
     [V.party.idInDoc]: saved.partyId,
     [V.party.nameInDoc]: allParties.find((p) => p._id === saved.partyId)?.[V.party.nameKey] || "Unknown",
     items: (saved.items || []).map((bi) => {
