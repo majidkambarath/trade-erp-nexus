@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeftRight, Banknote, FileCheck2, Fuel, Receipt, Wallet, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, CheckCircle2, FileCheck2, Fuel, Receipt, Wallet, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
 import { Pill } from "../accounting/kit.jsx";
 import Can from "../shell/Can.jsx";
 import { statusOf } from "../../lib/vanSales";
@@ -96,6 +96,42 @@ export function OnVanList({ trip }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A cash (or stock) difference as a small badge: short in red, over in green, nothing at all as "Exact". */
+export function VarianceBadge({ value }) {
+  const v = Number(value) || 0;
+  if (Math.abs(v) < 0.005) return <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-status-success-soft px-2 py-0.5 text-xs font-medium text-status-success"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Exact</span>;
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${v < 0 ? "bg-status-danger-soft text-status-danger" : "bg-status-success-soft text-status-success"}`}>{v > 0 ? "+" : ""}{formatCurrencyAED(v)}</span>;
+}
+
+/**
+ * A ranked list of bars (the biggest first): who sold most, which route earned most. Each bar is drawn at its share of
+ * the largest and grows in with the page's motion ([data-meter]); a negative value draws in red from nothing.
+ */
+export function BarList({ rows, format = formatCurrencyAED, empty = "Nothing to show yet.", tone = "bg-accent-teal" }) {
+  const list = (rows || []).filter((r) => r && Number.isFinite(Number(r.value)));
+  if (!list.length) return <p className="px-4 py-6 text-sm text-muted-foreground">{empty}</p>;
+  const max = Math.max(...list.map((r) => Math.abs(Number(r.value)))) || 1;
+  return (
+    <ol className="grid grid-cols-1 gap-3 p-4">
+      {list.map((r, i) => {
+        const v = Number(r.value);
+        return (
+          <li key={r.key ?? i} data-reveal="" className="grid grid-cols-1 gap-1.5 text-sm">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="flex min-w-0 items-baseline gap-2"><span className="w-4 shrink-0 text-xs text-muted-foreground">{i + 1}</span><span className="min-w-0 truncate font-medium">{r.label}</span></span>
+              <span className={`shrink-0 whitespace-nowrap font-semibold ${v < 0 ? "text-status-danger" : ""}`}>{format(v)}</span>
+            </div>
+            <div className="ml-6 h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+              <div data-meter="" className={`h-full origin-left rounded-full ${v < 0 ? "bg-status-danger" : tone}`} style={{ width: `${Math.max(2, Math.round((Math.abs(v) / max) * 100))}%` }} />
+            </div>
+            {r.sub && <p className="ml-6 text-xs text-muted-foreground">{r.sub}</p>}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
