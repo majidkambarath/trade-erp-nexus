@@ -1,5 +1,8 @@
-import React, { useState } from "react";
-import { Banknote, Check, ClipboardList, MapPin, ShoppingCart } from "lucide-react";
+import React, { useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { Banknote, Check, ClipboardList, MapPin, Navigation, Package, Route as RouteIcon, ShoppingCart, Truck, XCircle } from "lucide-react";
+import { motionOK } from "../Dashborad/motion";
+import { useReveal } from "../crm/useReveal";
 import { currentLocation } from "../../lib/geo";
 import { vanErrorText } from "../../lib/vanSales";
 import { EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
@@ -39,6 +42,55 @@ function OfflineBar({ off }) {
   );
 }
 
+// The day at a glance: which van, which route, how far along it the salesman is and who is next. Graphite with the
+// brand's gold; the progress bar grows in once (GSAP, never under reduced motion), and its width in the markup is
+// always the real one.
+function stopDone(c) {
+  return Boolean(c.sold || c.collected || c.visit);
+}
+function VanHero({ trip }) {
+  const route = trip.route || [];
+  const done = route.filter(stopDone).length;
+  const next = route.find((c) => !stopDone(c));
+  const pct = route.length ? Math.round((done / route.length) * 100) : 0;
+  return (
+    <section data-reveal="" aria-label="Today's trip" className="relative overflow-hidden rounded-2xl bg-primary p-5 text-primary-foreground shadow-lg sm:p-6">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden"><div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand/25 blur-3xl" /><div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-accent-teal/20 blur-3xl" /></div>
+      <div className="relative grid grid-cols-1 gap-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span data-truck="" className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand text-primary"><Truck className="h-6 w-6" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold tracking-tight sm:text-xl">{tripTitle(trip)}</p>
+              <p className="truncate text-sm opacity-75">{tripWhen(trip)}{trip.routeName ? ` · ${trip.routeName}` : ""}</p>
+            </div>
+          </div>
+          <StatusPill status={trip.status} />
+        </div>
+        {route.length > 0 && (
+          <div className="grid grid-cols-1 gap-2">
+            <div className="flex flex-wrap items-end justify-between gap-2 text-sm">
+              <span className="flex items-center gap-1.5 opacity-80"><RouteIcon className="h-4 w-4" aria-hidden="true" />{done} of {route.length} stops done</span>
+              <span className="flex min-w-0 items-center gap-1.5 font-medium"><Navigation className="h-4 w-4 shrink-0 text-brand" aria-hidden="true" /><span className="truncate">{next ? `Next: ${next.name}` : "Route done"}</span></span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-white/15" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Route progress">
+              <div data-meter="" className="h-full origin-left rounded-full bg-brand" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+        <p className="text-sm opacity-75">{nextStep(trip)}</p>
+      </div>
+    </section>
+  );
+}
+
+// One stop on the route, drawn as a step on a line: done in green, the next one ringed in gold, the rest quiet.
+function StopBadge({ c, isNext }) {
+  if (c.sold || c.collected) return <span className="relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-status-success text-white shadow-sm"><Check className="h-4 w-4" aria-label="Visited" /></span>;
+  if (c.visit) return <span className="relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><XCircle className="h-4 w-4" aria-label="Visited, no sale" /></span>;
+  return <span className={`relative z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 bg-card text-xs font-semibold ${isNext ? "border-brand text-foreground ring-4 ring-brand/20" : "border-border text-muted-foreground"}`}>{c.seq + 1}</span>;
+}
+
 export default function MyVan() {
   const mine = useAsync(() => trips.mine(), []);
   const { notify, toastNode } = useToasts();
@@ -50,6 +102,18 @@ export default function MyVan() {
   // with no signal the screen works from the pack kept on the phone, less what was sold since it was read
   const trip = off.active ? { ...off.pack.trip, sellable: off.view.sellable } : live || (off.pack && !off.online ? off.pack.trip : undefined);
   const ask = (kind, extra = {}) => setDialog({ kind, ...extra });
+  const scope = useRef(null);
+  useReveal(scope, Boolean(trip?.id));
+  // the bars grow from nothing to their real width once per trip, and the truck drives in
+  useLayoutEffect(() => {
+    const root = scope.current;
+    if (!trip?.id || !root || !motionOK()) return undefined;
+    const ctx = gsap.context(() => {
+      gsap.fromTo("[data-meter]", { scaleX: 0 }, { scaleX: 1, duration: 0.9, delay: 0.25, ease: "power3.out", stagger: 0.05, clearProps: "transform" });
+      gsap.fromTo("[data-truck]", { x: -18, opacity: 0 }, { x: 0, opacity: 1, duration: 0.6, ease: "back.out(1.7)", clearProps: "opacity,transform" });
+    }, root);
+    return () => ctx.revert();
+  }, [trip?.id]);
   // orders customers gave for this visit: delivered by selling against them (online only: the order is closed by the sale)
   const preorders = useAsync(() => (trip?.id && trip.routeId && !off.active ? trips.preorders(trip.id).catch(() => []) : Promise.resolve([])), [trip?.id, off.active]);
   const ordersFor = (customerId) => (preorders.data || []).filter((p) => p.customerId === customerId);
@@ -71,7 +135,7 @@ export default function MyVan() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6 lg:p-8">
+    <div ref={scope} className="mx-auto max-w-6xl p-4 sm:p-6 lg:p-8">
       <PageHeader title="My van" description="Today's trip: what is on the van, who to call on, what has been sold and collected." />
       {mine.loading && !mine.data && <Spinner label="Reading your trip" />}
       {mine.error && !trip && <ErrorNote error={mine.error} onRetry={mine.reload} />}
@@ -82,37 +146,37 @@ export default function MyVan() {
         </div>
       )}
       {trip && (
-        <div className="mt-6 grid grid-cols-1 gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-lg font-semibold">{tripTitle(trip)}</p>
-              <p className="text-sm text-muted-foreground">{tripWhen(trip)}{trip.routeName ? ` · ${trip.routeName}` : ""}</p>
-            </div>
-            <StatusPill status={trip.status} />
-          </div>
-          <p className="text-sm text-muted-foreground">{nextStep(trip)}</p>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-5">
+          <VanHero trip={trip} />
           {trip.totals?.cashOverLimit && <p role="status" className="rounded-lg border border-status-danger px-3 py-2 text-sm text-status-danger">The van is carrying more cash than its limit. Hand some in at the depot.</p>}
           <TripTiles trip={trip} />
-          <TripActions trip={trip} ask={ask} mine offline={off.active} />
+          <div data-reveal="" className="rounded-xl border border-border bg-card p-3 shadow-sm">
+            <TripActions trip={trip} ask={ask} mine offline={off.active} />
+          </div>
 
-          <Panel title="On the van" bodyClassName="p-0"><OnVanList trip={trip} /></Panel>
-
-          {trip.route?.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+          {trip.route?.length > 0 ? (
             <Panel title="Your route" description="In the order you call." bodyClassName="p-0">
-              <ul className="divide-y divide-border">
-                {trip.route.map((c) => (
-                  <li key={c.customerId} className="flex flex-wrap items-center gap-2 px-4 py-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-xs">{c.sold || c.collected ? <Check className="h-3.5 w-3.5 text-status-success" aria-label="Visited" /> : c.seq + 1}</span>
+              <ol className="relative">
+                {trip.route.map((c, i) => {
+                  const isNext = trip.route.find((x) => !stopDone(x))?.customerId === c.customerId;
+                  return (
+                  <li key={c.customerId} data-reveal="" className={`relative flex flex-wrap items-center gap-3 px-4 py-3.5 transition-colors ${isNext ? "bg-brand-soft/40" : "hover:bg-muted/40"}`}>
+                    {i < trip.route.length - 1 && <span aria-hidden="true" className="absolute left-8 top-11 h-[calc(100%-1.75rem)] w-px bg-border" />}
+                    <StopBadge c={c} isNext={isNext} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{c.name}</span>
-                      {c.visit && !c.sold && <span className="block truncate text-xs text-muted-foreground">No sale: {visitReasonLabel(c.visit.reason)}</span>}
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {c.sold ? "Sold" : c.collected ? "Money collected" : c.visit ? `No sale: ${visitReasonLabel(c.visit.reason)}` : isNext ? "Next stop" : "To visit"}
+                        {c.sold && c.collected ? " · money collected" : ""}{c.pinned ? " · pinned" : ""}
+                      </span>
                       {ordersFor(c.customerId).map((p) => (
                         <button key={p.id} type="button" onClick={() => ask("sell", { customerId: c.customerId, customerName: c.name, preorder: p })} className="mt-1 inline-flex h-10 max-w-full items-center rounded-lg border border-primary/40 px-2.5 text-xs font-medium text-primary hover:bg-primary/5"><span className="truncate">{p.source === "customer_link" ? "Deliver their request" : "Deliver order"} {p.orderNo}</span></button>
                       ))}
                     </span>
                     {trip.status === "ON_ROUTE" && (
-                      <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:shrink-0">
-                        <button type="button" aria-label={`Sell to ${c.name}`} onClick={() => ask("sell", { customerId: c.customerId, customerName: c.name })} className="inline-flex h-10 items-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-muted"><ShoppingCart className="h-4 w-4" aria-hidden="true" /> Sell</button>
+                      <div className="flex w-full flex-wrap gap-1.5 pl-11">
+                        <button type="button" aria-label={`Sell to ${c.name}`} onClick={() => ask("sell", { customerId: c.customerId, customerName: c.name })} className={`inline-flex h-10 items-center gap-1 rounded-lg px-2.5 text-sm font-medium ${isNext ? "bg-primary text-primary-foreground hover:opacity-90" : "border border-border hover:bg-muted"}`}><ShoppingCart className="h-4 w-4" aria-hidden="true" /> Sell</button>
                         <button type="button" aria-label={`No sale at ${c.name}`} onClick={() => ask("visit", { customerId: c.customerId, customerName: c.name })} className="inline-flex h-10 items-center rounded-lg border border-border px-2.5 text-sm hover:bg-muted">No sale</button>
                         {!off.active && !c.pinned && <button type="button" aria-label={`Pin ${c.name} here`} disabled={pinning === c.customerId} onClick={() => pin(c)} className="inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-muted disabled:opacity-50"><MapPin className="h-4 w-4" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Pin</span></button>}
                         {!off.active && <button type="button" aria-label={`Order for next visit from ${c.name}`} onClick={() => ask("preorder", { customerId: c.customerId, customerName: c.name })} className="inline-flex h-10 min-w-10 items-center justify-center gap-1 rounded-lg border border-border px-2.5 text-sm hover:bg-muted"><ClipboardList className="h-4 w-4" aria-hidden="true" /><span className="sr-only sm:not-sr-only">Order</span></button>}
@@ -120,10 +184,15 @@ export default function MyVan() {
                       </div>
                     )}
                   </li>
-                ))}
-              </ul>
+                  );
+                })}
+              </ol>
             </Panel>
+          ) : (
+            <Panel title="Your route"><p className="text-sm text-muted-foreground">This trip has no route. Sell to any customer with the Sell button above.</p></Panel>
           )}
+            <Panel title="On the van" description={`${(trip.sellable || []).length} item${(trip.sellable || []).length === 1 ? "" : "s"} to sell, and what is left of what was loaded`} bodyClassName="p-0"><OnVanList trip={trip} /></Panel>
+          </div>
         </div>
       )}
       <TripDialogHost trip={trip} dialog={dialog} onClose={() => setDialog(null)} onChanged={() => { mine.reload(); off.refresh(); preorders.reload(); }} notify={notify} offline={off} />
