@@ -52,6 +52,7 @@ const ALL_GRANTS = [...new Set([
     // figures for that person, which is not the layout worth checking.
     hr: ["view", "manage", "attendance", "leave", "payroll", "approve", "confidential"],
     staff: ["view", "manage"], garage: ["view", "create", "edit", "approve", "invoice", "manage"],
+    vansales: ["view", "sell", "load", "settle", "manage"],
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
 // Files a step can choose in a dialog's file input (`upload: "leads"`), written once to a throwaway folder. The lead sheet has
@@ -372,6 +373,46 @@ const DEEP = {
     { name: "vehicles", page: true, clicks: [], settle: 1000 },
     { name: "vehicle-new", clicks: ["^New vehicle"], settle: 1100 },
   ],
+  // Van sales: the salesman's phone screen and the dialogs behind it (each one a place the layout can break: a long item
+  // name in a picker, three columns in the sell grid, the count-back table), then the supervisor's trip list and the
+  // settlement dialog with its ticked differences.
+  "vansales-my-van": [
+    { name: "my-van", page: true, clicks: [], settle: 1200 },
+    { name: "my-van-sell", clicks: ["^Sell$"], settle: 1200 },
+    { name: "my-van-collect", clicks: ["^Collect money$"], settle: 1200 },
+    { name: "my-van-return", clicks: ["^Take goods back$"], settle: 1200 },
+    { name: "my-van-count", clicks: ["Count the van back in"], settle: 1200 },
+    { name: "my-van-no-sale", clicks: ["^No sale at Al Noor"], settle: 1000 },
+    { name: "my-van-preorder", clicks: ["^Order for next visit from Al Noor"], settle: 1200 },
+    { name: "my-van-deliver", clicks: ["^Deliver order SORD"], settle: 1200 },
+    { name: "my-van-expense", clicks: ["^Road expense$"], settle: 1000 },
+  ],
+  "vansales-trips": [
+    { name: "trips", page: true, clicks: [], settle: 1000 },
+    { name: "trip-new", clicks: ["^New trip"], settle: 1200 },
+  ],
+  "vansales-trip": [
+    { name: "trip", page: true, clicks: [], settle: 1200 },
+    { name: "trip-topup", clicks: ["^Top up$"], settle: 1200 },
+    { name: "trip-transfer", clicks: ["Hand goods to another van"], settle: 1200 },
+    { name: "trip-topup-suggested", clicks: ["^Top up$", "Fill suggested load"], settle: 1500 },
+  ],
+  "vansales-settlement": [
+    { name: "settlement", page: true, clicks: [], settle: 1000 },
+    { name: "settle", clicks: ["^Settle$"], settle: 1500 },
+  ],
+  "vansales-reports": [
+    { name: "reports", page: true, clicks: [], settle: 1000 },
+    { name: "route-profit", clicks: ["^Profit by route$"], settle: 1200 },
+  ],
+  "vansales-board": [{ name: "board", page: true, clicks: [], settle: 1200 }],
+  "vansales-vans-and-routes": [
+    { name: "vans", page: true, clicks: [], settle: 1000 },
+    { name: "van-new", clicks: ["^New van"], settle: 1200 },
+    { name: "price-list-new", clicks: ["^Price lists$", "^New price list"], settle: 1200 },
+    { name: "promotions", clicks: ["^Promotions$"], settle: 1000 },
+    { name: "promotion-new", clicks: ["^Promotions$", "^New promotion"], settle: 1200 },
+  ],
   "garage-claims": [{ name: "claims", page: true, clicks: [], settle: 1000 }],
   "garage-setup": [{ name: "setup", page: true, clicks: [], settle: 1000 }],
   // Seven tabs, one route: each step is its own click from the page's initial load (PillTabs draws all
@@ -416,6 +457,8 @@ DEEP["job-cards"] = DEEP["garage-job-cards"]; // check:mobile -- /garage/job-car
 DEEP["vehicles"] = DEEP["garage-vehicles"]; // check:mobile -- /garage/vehicles
 DEEP["claims"] = DEEP["garage-claims"]; // check:mobile -- /garage/claims
 DEEP["setup"] = DEEP["garage-setup"]; // check:mobile -- /garage/setup
+// check:mobile -- /van-sales/<page> names a page from its address
+for (const [from, to] of [["my-van", "my-van"], ["trips", "trips"], ["trip", "trip"], ["settlement", "settlement"], ["reports", "reports"], ["vans-and-routes", "setup"], ["trip", "trips-open-t1"], ["board", "board"]]) DEEP[`van-sales-${to}`] = DEEP[`vansales-${from}`];
 // The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
 // opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
 // not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
@@ -584,6 +627,8 @@ const EXTRA_PAGES = [
   // list - a DataTable row is a plain <tr>, which the sweep's clicker cannot find), so it needs its own
   // entry here, the same way every other deep-linked detail does (console-organisation-plan above).
   ["garage-job-card", "/garage/job-cards?open=j1"],
+  // A van trip is a routed page like the job card (?open=<id> on /van-sales/trips).
+  ["vansales-trip", "/van-sales/trips?open=t1"],
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
   ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],
@@ -795,6 +840,100 @@ function stubFor(pathname, search = "") {
   const p = pathname;
   const q = new URLSearchParams(search);
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
+
+  // Van sales. Answered FIRST: "/van-sales/customers" and "/van-sales/trips" would otherwise be read by the generic
+  // customer and document rules further down. The shapes are what vanTripService.present() and the list really send,
+  // so the trip tiles, the route with its stops, the long customer name and the count-back table are all measured.
+  if (p.includes("/van-sales/")) {
+    const longRice = "Basmati Rice 5kg, Extra Long Grain, Premium Reserve";
+    const longCustomer = "Al Noor Grocery and General Trading Company LLC";
+    const shelf = [
+      { stockId: "s1", itemName: longRice, qty: 30, salesPrice: 20 },
+      { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 16, salesPrice: 30 },
+    ];
+    const trip = {
+      id: "t1", _id: "t1", tripNo: "VTR-2026-0001", vanCode: "VAN-1", vanName: "Van One", salesmanName: "Rashid Al Mansoori", routeName: "Sharjah North", routeId: "r1",
+      status: "ON_ROUTE", date: "2026-11-17T00:00:00.000Z",
+      loads: [{ no: 1, at: "2026-11-17T05:00:00.000Z", lines: [{ stockId: "s1", itemName: longRice, qty: 40 }, { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 20 }] }],
+      sellable: shelf, damaged: [{ stockId: "s1", itemName: longRice, qty: 1 }],
+      route: [{ customerId: "c1", name: longCustomer, seq: 0, sold: false, collected: false }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1, sold: true, collected: true }],
+      totals: { sales: 336, cash: 210, cheques: 0, returned: 0, invoices: 2, returns: 0, receipts: 1, pendingReceipts: 0 },
+    };
+    if (p.endsWith("/van-sales/trips/mine")) return [trip];
+    if (/\/van-sales\/trips\/[^/]+\/activity$/.test(p)) return [{ id: "a1", summary: "Van VAN-1 loaded: 60 units on VTR-2026-0001", createdAt: "2026-11-17T05:00:00.000Z" }];
+    if (/\/van-sales\/trips\/[^/]+\/settlement$/.test(p)) {
+      return {
+        trip: { id: "t1", tripNo: "VTR-2026-0001", vanCode: "VAN-1" }, cash: { expected: 210, handed: 200, short: 10, over: 0, variance: -10 }, expenses: 60,
+        cheques: [{ chequeNo: "000123", amount: 1420.5, bank: "Emirates NBD", from: "Al Noor Grocery and General Trading Company LLC", date: "2026-11-30T00:00:00.000Z" }], missingCheques: [],
+        rows: [{ stockId: "s1", itemName: longRice, expectedGood: 30, countedGood: 29, expectedDamaged: 1, countedDamaged: 1, difference: -1, unitCost: 10, varianceValue: -10, damagedValue: 10 }],
+        stockVarianceValue: -10, damagedValue: 10, blockers: [],
+        warnings: [
+          { code: "CASH_SHORT", message: "10.00 less cash was handed in than the van took. It is charged to the salesman's shortage account." },
+          { code: "STOCK_DIFFERENCE", message: "1 item counted differently from what the van should hold (-10.00 at cost). It is booked as a stock adjustment." },
+        ],
+      };
+    }
+    if (/\/van-sales\/trips\/[^/]+\/preorders$/.test(p)) return [{ id: "o1", orderNo: "SORD-2026-0003", customerId: "c1", customerName: longCustomer, expectedDate: "2026-11-19", source: "van", totalAmount: 108, items: [{ itemId: "s1", description: longRice, qty: 6, price: 18 }] }];
+    if (/\/van-sales\/trips\/[^/]+\/suggested-load$/.test(p)) return { runs: 4, lines: [{ stockId: "s1", itemName: longRice, qty: 31, why: { preorder: 6, average: 24.3, runs: 4, onVan: 0, free: 120, capped: false } }, { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 4, why: { preorder: 0, average: 6.5, runs: 4, onVan: 3, free: 4, capped: true } }] };
+    if (/\/van-sales\/trips\/[^/]+\/load-check$/.test(p)) return { mustLastUntil: "2026-11-27", shelfLifeDays: 10, warnings: [] };
+    if (p.endsWith("/van-sales/board")) {
+      const row = (id, over) => ({ id, tripNo: "VTR-2026-000" + id, vanCode: "VAN-" + id, vanName: "Van", salesmanName: "Rashid Al Mansoori", routeName: "Sharjah North and Industrial Area", status: "ON_ROUTE", done: 3, total: 9, next: { customerId: "c1", name: longCustomer }, lastAt: "2026-11-17T09:40:00.000Z", quietMinutes: 25, quiet: false, far: [], totals: { sales: 4210.5, cash: 2100, cashInHand: 2040, cashLimit: 5000, cashOverLimit: false }, ...over });
+      return {
+        at: "2026-11-17T11:05:00.000Z", counts: { out: 3, loading: 1, toSettle: 1, quiet: 1, overCash: 1, far: 1 }, sales: 12880.75, cash: 6900,
+        rows: [
+          row("1"),
+          row("2", { quiet: true, quietMinutes: 165, far: [{ customerId: "c2", kind: "sale", ref: "SO-2026-0105", distanceM: 1480, at: "2026-11-17T08:10:00.000Z" }] }),
+          row("3", { totals: { sales: 8000, cash: 6100, cashInHand: 6100, cashLimit: 5000, cashOverLimit: true } }),
+          row("4", { status: "LOADING", done: 0, lastAt: null, quietMinutes: null, totals: { sales: 0, cash: 0, cashInHand: 0 } }),
+        ],
+      };
+    }
+    if (p.endsWith("/van-sales/reports/route-profit")) return { from: "2026-10-19", to: "2026-11-17", by: "route", trips: 12, rows: [
+      { key: "r1", name: "Sharjah North and Industrial Area", trips: 8, sales: 48210.5, netSales: 47100, cost: 31000, returns: 1110.5, returnsCost: 700, damaged: 240, expenses: 960, cashVariance: -35, km: 712.4, kmTrips: 8, grossMargin: 16800, contribution: 15565, marginPct: 33.05, perKm: 21.85 },
+      { key: "none", name: "No route", trips: 4, sales: 6000, netSales: 6000, cost: 5100, returns: 0, returnsCost: 0, damaged: 0, expenses: 420, cashVariance: 0, km: 0, kmTrips: 0, grossMargin: 900, contribution: 480, marginPct: 8, perKm: null },
+    ] };
+    if (/\/van-sales\/trips\/[^/]+\/expenses$/.test(p)) return [{ id: "e1", voucherNo: "EV-2026-0004", kind: "fuel", amount: 60, status: "approved", description: "Fuel - van VAN-1" }];
+    if (p.endsWith("/van-sales/promotions")) return [
+      { id: "pr1", _id: "pr1", name: "Basmati 10 cartons or more, 5% off", kind: "slab", stockIds: ["s1"], categoryIds: [], customerIds: [], routeIds: [], minQty: 10, percent: 5, active: true, validFrom: "2026-11-01", validTo: "2026-12-31" },
+      { id: "pr2", _id: "pr2", name: "A bag of oil with every 10 rice", kind: "bxgy", stockIds: ["s1"], categoryIds: [], customerIds: [], routeIds: [], buyQty: 10, freeQty: 1, freeStockId: "s2", active: true },
+      { id: "pr3", _id: "pr3", name: "Big order", kind: "basket", minValue: 1000, percent: 2, stockIds: [], categoryIds: [], customerIds: [], routeIds: [], active: false },
+    ];
+    if (/\/van-sales\/trips\/[^/]+$/.test(p)) {
+      return { ...trip, unload: { at: "2026-11-17T15:00:00.000Z", byName: "Rashid", lines: [{ stockId: "s1", itemName: longRice, expectedGood: 30, countedGood: 29, expectedDamaged: 1, countedDamaged: 1, difference: -1 }] } };
+    }
+    if (p.endsWith("/van-sales/trips")) {
+      const row = (id, status) => ({
+        id, _id: id, tripNo: "VTR-2026-000" + id.slice(1), vanCode: "VAN-1", vanName: "Van One", salesmanName: "Rashid Al Mansoori", routeName: "Sharjah North",
+        date: "2026-11-17T00:00:00.000Z", status, loadedUnits: 60, settlement: status === "SETTLED" ? { cashHanded: 200, cashVariance: -10 } : undefined,
+      });
+      if (q.get("status") === "UNLOADED") return [row("t2", "UNLOADED")];
+      if (q.get("status") === "SETTLED") return [row("t3", "SETTLED")];
+      return [row("t1", "ON_ROUTE"), row("t2", "UNLOADED"), row("t3", "SETTLED")];
+    }
+    if (p.endsWith("/van-sales/vans")) {
+      return [
+        { id: "v1", _id: "v1", code: "VAN-1", name: "Van One", plate: "DXB 12345", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", active: true, openTrip: { tripNo: "VTR-2026-0001", status: "ON_ROUTE" } },
+        { id: "v2", _id: "v2", code: "VAN-2", name: "Van Two", plate: "SHJ 777", active: true, openTrip: null },
+      ];
+    }
+    if (p.endsWith("/van-sales/routes")) {
+      return [{ id: "r1", _id: "r1", name: "Sharjah North", days: [1, 3], active: true, customers: [{ customerId: "c1", name: longCustomer, seq: 0 }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1 }] }];
+    }
+    if (p.endsWith("/van-sales/price-lists")) return [{ id: "p1", _id: "p1", name: "Al Noor Grocery wholesale deal", validFrom: "2026-11-01", validTo: "", active: true, customerIds: ["c1"], lines: [{ stockId: "s1", itemName: longRice, price: 17, minQty: 1 }, { stockId: "s1", itemName: longRice, price: 15, minQty: 10 }] }];
+    if (/\/van-sales\/trips\/[^/]+\/prices$/.test(p)) return [{ stockId: "s1", price: 17, source: "customer", listName: "Al Noor Grocery wholesale deal" }, { stockId: "s2", price: 30, source: "item", listName: "" }];
+    if (p.endsWith("/van-sales/assignees")) return [{ id: "a1", name: "Rashid Al Mansoori" }, { id: "a2", name: "Maya Khan" }];
+    if (p.endsWith("/van-sales/customers")) {
+      return [{ id: "c1", name: longCustomer, code: "C1", phone: "", terms: "Cash", active: true }, { id: "c2", name: "Bin Zayed Mini Market", code: "C2", phone: "", terms: "Net 30", active: true }];
+    }
+    if (p.endsWith("/van-sales/payment-choices")) return { cheque: true, bankAccounts: [{ id: "b1", name: "Emirates NBD Current" }, { id: "b2", name: "Mashreq Current" }] };
+    if (p.includes("/van-sales/customers/") && p.endsWith("/position")) return { owed: 420, open: [{ id: "i1", number: "SO-2026-0001", outstanding: 420, date: "2026-11-01T00:00:00.000Z" }] };
+    if (p.endsWith("/van-sales/reports/summary")) {
+      const r = { id: "t1", tripNo: "VTR-2026-0001", date: "2026-11-17T00:00:00.000Z", status: "SETTLED", vanId: "v1", vanCode: "VAN-1", vanName: "Van One", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, stockVarianceValue: -10 };
+      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 };
+      return { from: "2026-10-19", to: "2026-11-17", rows: [r], byVan: [roll], bySalesman: [{ ...roll, id: "a1", name: "Rashid Al Mansoori" }], total: { trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 } };
+    }
+    return [];
+  }
 
   // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
   // citations and a link, so the deep step below measures a real exchange rather than an empty box.
@@ -1181,6 +1320,16 @@ function stubFor(pathname, search = "") {
       ] };
     }
     return {};
+  }
+  // the customer's van corner under the invoice (van sales phase 6): long names, an overdue line, a request form
+  if (p.includes("/share/") && p.endsWith("/van")) {
+    return {
+      statement: { owed: 1840.5, overdue: 420, open: [{ number: "SO-2026-0001", date: "2026-11-01T00:00:00.000Z", outstanding: 420, overdue: true }, { number: "SO-2026-0041", date: "2026-11-15T00:00:00.000Z", outstanding: 1420.5, overdue: false }] },
+      nextVisit: "2026-11-19",
+      orders: [{ orderNo: "SORD-2026-0003", expectedDate: "2026-11-19", requested: true, items: [{ name: "Basmati Rice 5kg, Extra Long Grain, Premium Reserve", qty: 6 }] }],
+      canRequest: true,
+      items: [{ stockId: "s1", name: "Basmati Rice 5kg, Extra Long Grain, Premium Reserve", price: 17 }, { stockId: "s2", name: "Sunflower Oil 1.8L", price: 30 }],
+    };
   }
   if (p.includes("/share/")) {
     return {

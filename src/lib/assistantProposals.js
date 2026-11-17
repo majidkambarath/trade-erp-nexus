@@ -7,7 +7,7 @@ import { emptyPayment } from "./voucherForms";
 // card's button posts it to that route with the person's own sign-in, so the server's own rules (rights,
 // approval limits, the period lock, reference numbers) decide - this file only decides what the card offers.
 
-const KINDS = new Set(["payment", "receipt", "expense", "invoice", "customer", "vendor"]);
+const KINDS = new Set(["payment", "receipt", "expense", "invoice", "customer", "vendor", "van_sale"]);
 // A new customer or vendor is not a document: no payment details, and what is missing is a field of the party itself.
 const PARTY = new Set(["customer", "vendor"]);
 // The label of a box the card asks for, by what is missing. A reference is a bank transfer's slip number.
@@ -17,7 +17,7 @@ export const MISSING_LABEL = { reference: "Reference (the transfer or deposit sl
 export function normaliseProposals(list) {
   if (!Array.isArray(list)) return [];
   return list
-    .filter((p) => p && KINDS.has(p.kind) && p.body && typeof p.body === "object" && (p.endpoint === "voucher" || p.endpoint === "transaction" || p.endpoint === "party"))
+    .filter((p) => p && KINDS.has(p.kind) && p.body && typeof p.body === "object" && (p.endpoint === "voucher" || p.endpoint === "transaction" || p.endpoint === "party" || (p.endpoint === "van_sale" && typeof p.body.tripId === "string" && /^[a-f0-9]{24}$/.test(p.body.tripId))))
     .map((p) => ({
       id: String(p.id || ""),
       kind: p.kind,
@@ -50,6 +50,7 @@ export function canSave(p, filled = {}) {
 export function bodyToSend(p, filled = {}) {
   const body = { ...p.body };
   if (p.kind === "invoice") return body;
+  if (p.kind === "van_sale") { delete body.tripId; return body; } // the trip is in the address, not the body
   if (PARTY.has(p.kind)) {
     for (const key of p.missing || []) if (String(filled[key] ?? "").trim()) body[key] = String(filled[key]).trim().slice(0, 500);
     return body;
@@ -62,7 +63,7 @@ export function bodyToSend(p, filled = {}) {
 }
 
 /** Where the normal route is. */
-export const saveUrl = (p) => (p.kind === "customer" ? "/customers" : p.kind === "vendor" ? "/vendors/vendors" : p.endpoint === "transaction" ? "/transactions/transactions" : "/vouchers/vouchers");
+export const saveUrl = (p) => (p.kind === "van_sale" ? `/van-sales/trips/${p.body.tripId}/sell` : p.kind === "customer" ? "/customers" : p.kind === "vendor" ? "/vendors/vendors" : p.endpoint === "transaction" ? "/transactions/transactions" : "/vouchers/vouchers");
 
 /** "Change details": the normal form, opened already filled in. An invoice has no form to prefill, so none. */
 export function formTarget(p, filled = {}) {
@@ -76,7 +77,7 @@ export function formTarget(p, filled = {}) {
 }
 
 /** The number a saved document got, wherever the route puts it. */
-export const numberOf = (saved) => saved?.voucherNo || saved?.transactionNo || saved?.number || "";
+export const numberOf = (saved) => saved?.voucherNo || saved?.transactionNo || saved?.invoice?.transactionNo || saved?.number || "";
 
 /**
  * What to say once the route answered. `data` is the route's own body ({ data, approval? }). A voucher held
@@ -88,6 +89,10 @@ export function savedResult(p, data) {
   if (PARTY.has(p.kind)) {
     const id = doc.customerId || doc.vendorId || "";
     return { ok: true, number: id, held: false, text: `${p.kind === "vendor" ? "Vendor" : "Customer"} ${doc.vendorName || doc.customerName || p.body.vendorName || p.body.customerName} is added${id ? ` (${id})` : ""}.`, open: p.kind === "vendor" ? "/vendor-creation" : "/customer-creation", openLabel: p.kind === "vendor" ? "Open vendors" : "Open customers" };
+  }
+  if (p.kind === "van_sale") {
+    const paid = doc.receipt ? `, ${doc.receipt.voucherNo} received` : ", on credit";
+    return { ok: true, number, held: false, text: `Sold from the van: ${number || "invoice made"}${paid}.`, open: "/van-sales/my-van", openLabel: "Open my van" };
   }
   const held = Boolean(data?.approval?.held || doc?.status === "pending");
   if (p.kind === "invoice") {

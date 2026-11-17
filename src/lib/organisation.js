@@ -122,6 +122,7 @@ export const FEATURE_LABELS = {
 export const MODULE_LABELS = {
   crm: "CRM",
   garage: "Garage",
+  vansales: "Van sales",
   sales: "Sales",
   purchase: "Purchase",
   inventory: "Inventory",

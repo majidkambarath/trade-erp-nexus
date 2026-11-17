@@ -24,6 +24,7 @@ import {
   Settings,
   ShoppingBag,
   Truck,
+  Container,
   Users,
   Wallet,
   Warehouse,
@@ -333,6 +334,23 @@ export const MODULES = [
       { label: "Claims", to: "/garage/claims", permission: "garage.view", keywords: ["insurance", "insurer", "surveyor", "lpo", "excess", "depreciation", "accident"] },
       { label: "Reports", to: "/garage/reports", permission: "garage.view", keywords: ["efficiency", "revenue", "technician", "turnaround", "comeback", "effective labour rate", "work in progress", "profit", "margin", "bays", "customers", "vehicles", "insurers", "rejected claims"] },
       { label: "Setup", to: "/garage/setup", permission: "garage.manage", keywords: ["service menu", "standard job", "bay", "ramp", "lift"] },
+    ],
+  },
+  // The second industry vertical: a distributor's vans. Opt-in per organisation like garage (OPT_IN_MODULES on the
+  // server), so a person without the module never sees this rail item. Not mobilePrimary, for the same reason as
+  // garage: the four pinned slots are already sales, purchase, inventory and finance. A salesman on a phone reaches
+  // it from More, and "My van" is the first tab.
+  {
+    id: "vansales",
+    label: "Van sales",
+    icon: Container,
+    tabs: [
+      { label: "My van", to: "/van-sales/my-van", permission: "vansales.sell", keywords: ["van", "route", "sell", "collect", "salesman", "today", "trip", "delivery"] },
+      { label: "Trips", to: "/van-sales/trips", permission: "vansales.view", keywords: ["trip", "load", "unload", "van", "dispatch", "send out", "count"] },
+      { label: "Board", to: "/van-sales/board", permission: ["vansales.settle", "vansales.manage"], keywords: ["live", "supervisor", "where", "vans out", "quiet", "gps", "map", "today"] },
+      { label: "Settlement", to: "/van-sales/settlement", permission: "vansales.settle", keywords: ["settle", "cash", "handover", "shortage", "end of day", "close"] },
+      { label: "Reports", to: "/van-sales/reports", permission: "vansales.view", keywords: ["van sales", "by van", "by salesman", "cash difference"] },
+      { label: "Vans and routes", to: "/van-sales/setup", permission: "vansales.manage", keywords: ["van", "route", "customers", "days", "salesman"] },
     ],
   },
   {
