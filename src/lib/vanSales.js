@@ -246,3 +246,8 @@ export const isCreditWarning = (err) => err?.code === "RISK_WARNING_ACKNOWLEDGEM
 
 /** Items to offer on the sell screen: what is on the van, with how many. */
 export const vanItems = (trip) => (trip?.sellable || []).map((l) => ({ value: l.stockId, label: `${l.itemName} (${l.qty} on van)`, qty: l.qty, price: l.salesPrice, name: l.itemName }));
+
+/** A stop on today's route is done once the van sold there, collected there, or recorded a visit without a sale. */
+export function stopDone(c) {
+  return Boolean(c?.sold || c?.collected || c?.visit);
+}

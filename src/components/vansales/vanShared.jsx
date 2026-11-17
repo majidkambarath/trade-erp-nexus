@@ -135,7 +135,7 @@ export function TripActions({ trip, ask, mine = false, offline = false }) {
       )}
       {s === "ON_ROUTE" && !offline && (
         <Can permission={["vansales.load", "vansales.sell"]}>
-          <button type="button" className={`${btn} sm:ml-auto`} onClick={() => ask("unload")}><ClipboardCheck className="h-4 w-4" aria-hidden="true" /> Count the van back in</button>
+          <button type="button" className={`${btn} ${mine ? "sm:ml-auto" : ""}`} onClick={() => ask("unload")}><ClipboardCheck className="h-4 w-4" aria-hidden="true" /> Count the van back in</button>
         </Can>
       )}
       {s === "UNLOADED" && (
