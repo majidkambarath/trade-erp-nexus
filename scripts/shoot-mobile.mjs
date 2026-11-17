@@ -52,6 +52,7 @@ const ALL_GRANTS = [...new Set([
     // figures for that person, which is not the layout worth checking.
     hr: ["view", "manage", "attendance", "leave", "payroll", "approve", "confidential"],
     staff: ["view", "manage"], garage: ["view", "create", "edit", "approve", "invoice", "manage"],
+    vansales: ["view", "sell", "load", "settle", "manage"],
   }).flatMap(([m, actions]) => actions.map((a) => `${m}.${a}`)),
 ])];
 // Files a step can choose in a dialog's file input (`upload: "leads"`), written once to a throwaway folder. The lead sheet has
@@ -372,6 +373,33 @@ const DEEP = {
     { name: "vehicles", page: true, clicks: [], settle: 1000 },
     { name: "vehicle-new", clicks: ["^New vehicle"], settle: 1100 },
   ],
+  // Van sales: the salesman's phone screen and the dialogs behind it (each one a place the layout can break: a long item
+  // name in a picker, three columns in the sell grid, the count-back table), then the supervisor's trip list and the
+  // settlement dialog with its ticked differences.
+  "vansales-my-van": [
+    { name: "my-van", page: true, clicks: [], settle: 1200 },
+    { name: "my-van-sell", clicks: ["^Sell$"], settle: 1200 },
+    { name: "my-van-collect", clicks: ["^Collect money$"], settle: 1200 },
+    { name: "my-van-return", clicks: ["^Take goods back$"], settle: 1200 },
+    { name: "my-van-count", clicks: ["Count the van back in"], settle: 1200 },
+  ],
+  "vansales-trips": [
+    { name: "trips", page: true, clicks: [], settle: 1000 },
+    { name: "trip-new", clicks: ["^New trip"], settle: 1200 },
+  ],
+  "vansales-trip": [
+    { name: "trip", page: true, clicks: [], settle: 1200 },
+    { name: "trip-topup", clicks: ["^Top up$"], settle: 1200 },
+  ],
+  "vansales-settlement": [
+    { name: "settlement", page: true, clicks: [], settle: 1000 },
+    { name: "settle", clicks: ["^Settle$"], settle: 1500 },
+  ],
+  "vansales-reports": [{ name: "reports", page: true, clicks: [], settle: 1000 }],
+  "vansales-vans-and-routes": [
+    { name: "vans", page: true, clicks: [], settle: 1000 },
+    { name: "van-new", clicks: ["^New van"], settle: 1200 },
+  ],
   "garage-claims": [{ name: "claims", page: true, clicks: [], settle: 1000 }],
   "garage-setup": [{ name: "setup", page: true, clicks: [], settle: 1000 }],
   // Seven tabs, one route: each step is its own click from the page's initial load (PillTabs draws all
@@ -416,6 +444,8 @@ DEEP["job-cards"] = DEEP["garage-job-cards"]; // check:mobile -- /garage/job-car
 DEEP["vehicles"] = DEEP["garage-vehicles"]; // check:mobile -- /garage/vehicles
 DEEP["claims"] = DEEP["garage-claims"]; // check:mobile -- /garage/claims
 DEEP["setup"] = DEEP["garage-setup"]; // check:mobile -- /garage/setup
+// check:mobile -- /van-sales/<page> names a page from its address
+for (const [from, to] of [["my-van", "my-van"], ["trips", "trips"], ["trip", "trip"], ["settlement", "settlement"], ["reports", "reports"], ["vans-and-routes", "setup"]]) DEEP[`van-sales-${to}`] = DEEP[`vansales-${from}`];
 // The developer console's modules panel: one module opened (its parts, what people can do, who gets it), then every module
 // opened at once (the tallest the panel gets), on a new organisation and on one organisation's Plan tab. The page is measured,
 // not a dialog, and `reveal` scrolls the part the step is about into view so the screenshot shows it.
@@ -584,6 +614,8 @@ const EXTRA_PAGES = [
   // list - a DataTable row is a plain <tr>, which the sweep's clicker cannot find), so it needs its own
   // entry here, the same way every other deep-linked detail does (console-organisation-plan above).
   ["garage-job-card", "/garage/job-cards?open=j1"],
+  // A van trip is a routed page like the job card (?open=<id> on /van-sales/trips).
+  ["vansales-trip", "/van-sales/trips?open=t1"],
   // reached while signed OUT, from the sign-in page and from the emailed link
   ["forgot-password", "/forgot-password"],
   ["reset-password", "/reset-password?token=Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9Zq3_-aB9xyz"],
@@ -795,6 +827,72 @@ function stubFor(pathname, search = "") {
   const p = pathname;
   const q = new URLSearchParams(search);
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
+
+  // Van sales. Answered FIRST: "/van-sales/customers" and "/van-sales/trips" would otherwise be read by the generic
+  // customer and document rules further down. The shapes are what vanTripService.present() and the list really send,
+  // so the trip tiles, the route with its stops, the long customer name and the count-back table are all measured.
+  if (p.includes("/van-sales/")) {
+    const longRice = "Basmati Rice 5kg, Extra Long Grain, Premium Reserve";
+    const longCustomer = "Al Noor Grocery and General Trading Company LLC";
+    const shelf = [
+      { stockId: "s1", itemName: longRice, qty: 30, salesPrice: 20 },
+      { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 16, salesPrice: 30 },
+    ];
+    const trip = {
+      id: "t1", _id: "t1", tripNo: "VTR-2026-0001", vanCode: "VAN-1", vanName: "Van One", salesmanName: "Rashid Al Mansoori", routeName: "Sharjah North",
+      status: "ON_ROUTE", date: "2026-11-17T00:00:00.000Z",
+      loads: [{ no: 1, at: "2026-11-17T05:00:00.000Z", lines: [{ stockId: "s1", itemName: longRice, qty: 40 }, { stockId: "s2", itemName: "Sunflower Oil 1.8L", qty: 20 }] }],
+      sellable: shelf, damaged: [{ stockId: "s1", itemName: longRice, qty: 1 }],
+      route: [{ customerId: "c1", name: longCustomer, seq: 0, sold: false, collected: false }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1, sold: true, collected: true }],
+      totals: { sales: 336, cash: 210, cheques: 0, returned: 0, invoices: 2, returns: 0, receipts: 1, pendingReceipts: 0 },
+    };
+    if (p.endsWith("/van-sales/trips/mine")) return [trip];
+    if (/\/van-sales\/trips\/[^/]+\/activity$/.test(p)) return [{ id: "a1", summary: "Van VAN-1 loaded: 60 units on VTR-2026-0001", createdAt: "2026-11-17T05:00:00.000Z" }];
+    if (/\/van-sales\/trips\/[^/]+\/settlement$/.test(p)) {
+      return {
+        trip: { id: "t1", tripNo: "VTR-2026-0001", vanCode: "VAN-1" }, cash: { expected: 210, handed: 200, short: 10, over: 0, variance: -10 }, cheques: [], missingCheques: [],
+        rows: [{ stockId: "s1", itemName: longRice, expectedGood: 30, countedGood: 29, expectedDamaged: 1, countedDamaged: 1, difference: -1, unitCost: 10, varianceValue: -10, damagedValue: 10 }],
+        stockVarianceValue: -10, damagedValue: 10, blockers: [],
+        warnings: [
+          { code: "CASH_SHORT", message: "10.00 less cash was handed in than the van took. It is charged to the salesman's shortage account." },
+          { code: "STOCK_DIFFERENCE", message: "1 item counted differently from what the van should hold (-10.00 at cost). It is booked as a stock adjustment." },
+        ],
+      };
+    }
+    if (/\/van-sales\/trips\/[^/]+$/.test(p)) {
+      return { ...trip, unload: { at: "2026-11-17T15:00:00.000Z", byName: "Rashid", lines: [{ stockId: "s1", itemName: longRice, expectedGood: 30, countedGood: 29, expectedDamaged: 1, countedDamaged: 1, difference: -1 }] } };
+    }
+    if (p.endsWith("/van-sales/trips")) {
+      const row = (id, status) => ({
+        id, _id: id, tripNo: "VTR-2026-000" + id.slice(1), vanCode: "VAN-1", vanName: "Van One", salesmanName: "Rashid Al Mansoori", routeName: "Sharjah North",
+        date: "2026-11-17T00:00:00.000Z", status, loadedUnits: 60, settlement: status === "SETTLED" ? { cashHanded: 200, cashVariance: -10 } : undefined,
+      });
+      if (q.get("status") === "UNLOADED") return [row("t2", "UNLOADED")];
+      if (q.get("status") === "SETTLED") return [row("t3", "SETTLED")];
+      return [row("t1", "ON_ROUTE"), row("t2", "UNLOADED"), row("t3", "SETTLED")];
+    }
+    if (p.endsWith("/van-sales/vans")) {
+      return [
+        { id: "v1", _id: "v1", code: "VAN-1", name: "Van One", plate: "DXB 12345", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", active: true, openTrip: { tripNo: "VTR-2026-0001", status: "ON_ROUTE" } },
+        { id: "v2", _id: "v2", code: "VAN-2", name: "Van Two", plate: "SHJ 777", active: true, openTrip: null },
+      ];
+    }
+    if (p.endsWith("/van-sales/routes")) {
+      return [{ id: "r1", _id: "r1", name: "Sharjah North", days: [1, 3], active: true, customers: [{ customerId: "c1", name: longCustomer, seq: 0 }, { customerId: "c2", name: "Bin Zayed Mini Market", seq: 1 }] }];
+    }
+    if (p.endsWith("/van-sales/assignees")) return [{ id: "a1", name: "Rashid Al Mansoori" }, { id: "a2", name: "Maya Khan" }];
+    if (p.endsWith("/van-sales/customers")) {
+      return [{ id: "c1", name: longCustomer, code: "C1", phone: "", terms: "Cash", active: true }, { id: "c2", name: "Bin Zayed Mini Market", code: "C2", phone: "", terms: "Net 30", active: true }];
+    }
+    if (p.endsWith("/van-sales/payment-choices")) return { cheque: true, bankAccounts: [{ id: "b1", name: "Emirates NBD Current" }, { id: "b2", name: "Mashreq Current" }] };
+    if (p.includes("/van-sales/customers/") && p.endsWith("/position")) return { owed: 420, open: [{ id: "i1", number: "SO-2026-0001", outstanding: 420, date: "2026-11-01T00:00:00.000Z" }] };
+    if (p.endsWith("/van-sales/reports/summary")) {
+      const r = { id: "t1", tripNo: "VTR-2026-0001", date: "2026-11-17T00:00:00.000Z", status: "SETTLED", vanId: "v1", vanCode: "VAN-1", vanName: "Van One", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, stockVarianceValue: -10 };
+      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 };
+      return { from: "2026-10-19", to: "2026-11-17", rows: [r], byVan: [roll], bySalesman: [{ ...roll, id: "a1", name: "Rashid Al Mansoori" }], total: { trips: 1, invoices: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10 } };
+    }
+    return [];
+  }
 
   // Zarvia AI. The panel asks what the screen is about as it opens, and answers come back with
   // citations and a link, so the deep step below measures a real exchange rather than an empty box.
