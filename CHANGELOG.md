@@ -1,5 +1,23 @@
 # Changelog
 
+## 3.4.0.0 — 17 November 2026
+
+Van sales: a distributor's salesman loads a van, sells and collects on the road, and settles the day. An opt-in module,
+switched on per organisation in the developer console. Frontend and backend both at 3.4.0.0.
+
+### Added
+
+- **Van sales** (rail module): My van (the salesman's phone screen), Trips, Settlement, Board, Reports, Vans and routes.
+- **Selling at the door**: price lists, promotions (quantity breaks, buy X get Y, basket), free goods, cash or cheque taken
+  on the spot, a printed slip, WhatsApp the invoice, pre-orders for the next visit, no-sale visits with a reason.
+- **Loading**: a suggested load that explains each figure, an expiry warning, transfers between vans.
+- **No signal**: sales, payments and visits queue on the phone and sync on their own when the signal returns.
+- **Settling the day**: count-in, one settlement with every cash and stock difference named, road expenses, a cheque
+  deposit slip.
+- **The supervisor's Board** and **Profit by route**.
+- **Zarvia AI on the van** ("what is on my van", "who on my route owes") and a van sale it prepares for the salesman to confirm.
+- **The customer's own invoice link** shows what they owe, when the van comes next, and lets them ask for goods.
+
 ## 3.3.0.0 — 16 November 2026
 
 A new look for Zarvia AI, with tables from your books, kept chats and new example questions. Frontend and backend both at 3.3.0.0.
