@@ -404,6 +404,7 @@ const DEEP = {
   ],
   "vansales-reports": [
     { name: "reports", page: true, clicks: [], settle: 1000 },
+    { name: "leaderboard", clicks: ["^Leaderboard$"], settle: 1200 },
     { name: "route-profit", clicks: ["^Profit by route$"], settle: 1200 },
   ],
   "vansales-board": [{ name: "board", page: true, clicks: [], settle: 1200 }],
@@ -931,7 +932,7 @@ function stubFor(pathname, search = "") {
     if (p.includes("/van-sales/customers/") && p.endsWith("/position")) return { owed: 420, open: [{ id: "i1", number: "SO-2026-0001", outstanding: 420, date: "2026-11-01T00:00:00.000Z" }] };
     if (p.endsWith("/van-sales/reports/summary")) {
       const r = { id: "t1", tripNo: "VTR-2026-0001", date: "2026-11-17T00:00:00.000Z", status: "SETTLED", vanId: "v1", vanCode: "VAN-1", vanName: "Van One", salesmanId: "a1", salesmanName: "Rashid Al Mansoori", invoices: 2, lines: 5, expenses: 60, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, stockVarianceValue: -10, calls: 3, productive: 2, strikeRate: 66.7, salesTarget: 400, targetHit: false };
-      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, lines: 5, expenses: 60, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, calls: 3, productive: 2, strikeRate: 66.7, dropSize: 168, linesPerCall: 2.5, costPerDrop: 30, targetTrips: 1, targetDays: 0 };
+      const roll = { id: "v1", name: "VAN-1", trips: 1, invoices: 2, lines: 5, expenses: 60, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, calls: 3, productive: 2, strikeRate: 66.7, dropSize: 168, linesPerCall: 2.5, costPerDrop: 30, daysWithTarget: 1, targetDays: 0 };
       const days = Array.from({ length: 14 }, (_, i) => ({ day: "2026-11-" + String(4 + i).padStart(2, "0"), sales: [0, 220, 340, 0, 410, 180, 0, 520, 300, 260, 0, 610, 450, 336][i], invoices: [0, 2, 3, 0, 4, 2, 0, 5, 3, 3, 0, 6, 4, 2][i] }));
       return { from: "2026-11-04", to: "2026-11-17", rows: [r], byVan: [roll], bySalesman: [{ ...roll, id: "a1", name: "Rashid Al Mansoori" }, { ...roll, id: "a2", name: "Maya Khan", sales: 210, invoices: 1, dropSize: 210, linesPerCall: 3, strikeRate: 100, targetDays: 1 }], byDay: days, total: { trips: 1, invoices: 2, lines: 5, expenses: 60, calls: 3, productive: 2, sales: 336, returned: 0, cash: 210, cheques: 0, cashVariance: -10, dropSize: 168, linesPerCall: 2.5, strikeRate: 66.7, costPerDrop: 30 } };
     }

@@ -173,7 +173,7 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
   );
   const priceOf = useMemo(() => new Map((listed.data || []).map((p) => [p.stockId, p])), [listed.data]);
   // what this customer owes, bought last time and usually buys: read from their own invoices (online only; a customer with no history shows nothing)
-  const insight = useAsync(() => (!customerId || off ? Promise.resolve(null) : Promise.resolve().then(() => trips.insight(trip.id, customerId)).catch(() => null)), [trip.id, customerId, Boolean(off)]);
+  const insight = useAsync(() => (!customerId ? Promise.resolve(null) : off ? Promise.resolve(off.pack?.insight?.[customerId] || null) : Promise.resolve().then(() => trips.insight(trip.id, customerId)).catch(() => null)), [trip.id, customerId, Boolean(off)]);
   const [cut, setCut] = useState("");
   const pricedVan = useMemo(() => onVan.map((l) => (priceOf.has(l.stockId) ? { ...l, salesPrice: priceOf.get(l.stockId).price } : l)), [onVan, priceOf]);
   const options = vanItems({ sellable: onVan });
@@ -248,7 +248,7 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
           <SearchSelect value={customerId} onChange={(v) => { setCustomerId(v); setCut(""); }} loading={customers.loading} placeholder="Search a customer…"
             options={(customers.data || []).map((c) => ({ value: c.id, label: c.name, hint: c.code }))} />
         </Field>
-        <SellInsight insight={insight.data} onRepeat={repeat} onAdd={addUsual} cut={cut} />
+        <SellInsight insight={insight.data} onRepeat={repeat} onAdd={addUsual} cut={cut} asOf={off?.pack?.at} />
         {rows.map((r, i) => (
           <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_auto]">
             <div className="col-span-3 min-w-0 sm:col-span-1"><Field label={i === 0 ? "Item" : undefined}><SearchSelect value={r.itemId} onChange={(v) => pick(i, v)} options={options} placeholder="On the van…" /></Field></div>

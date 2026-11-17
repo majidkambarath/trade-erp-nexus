@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({
   mine: vi.fn(), list: vi.fn(), get: vi.fn(), activity: vi.fn(), sell: vi.fn(), collect: vi.fn(), settlement: vi.fn(), settle: vi.fn(),
   customers: vi.fn(), payment: vi.fn(), position: vi.fn(), apiGet: vi.fn(), print: vi.fn(), depart: vi.fn(),
-  prices: vi.fn(), insight: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), suggestedLoad: vi.fn(), loadCheck: vi.fn(), load: vi.fn(), preorders: vi.fn(), preorder: vi.fn(), promoList: vi.fn(), promoCreate: vi.fn(), expense: vi.fn(), pin: vi.fn(), board: vi.fn(), routeProfit: vi.fn(), summary: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
+  prices: vi.fn(), insight: vi.fn(), vanUpdate: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), suggestedLoad: vi.fn(), loadCheck: vi.fn(), load: vi.fn(), preorders: vi.fn(), preorder: vi.fn(), promoList: vi.fn(), promoCreate: vi.fn(), expense: vi.fn(), pin: vi.fn(), board: vi.fn(), routeProfit: vi.fn(), summary: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
 }));
 
 vi.mock("../../../lib/vanSalesApi", () => ({
@@ -14,7 +14,7 @@ vi.mock("../../../lib/vanSalesApi", () => ({
   fleet: { board: m.board },
   promotions: { list: m.promoList, create: m.promoCreate, update: vi.fn() },
   choices: { customers: m.customers, payment: m.payment, position: m.position, assignees: vi.fn(() => Promise.resolve([])), returnable: vi.fn() },
-  vans: { list: m.vansList },
+  vans: { list: m.vansList, update: m.vanUpdate, create: vi.fn() },
   routes: { list: m.routesList },
   priceLists: { list: m.plList, create: vi.fn(), update: vi.fn() },
   reports: { summary: m.summary, routeProfit: m.routeProfit },
@@ -28,6 +28,7 @@ vi.mock("../../PurchaseOrder/shared/documentPdf.jsx", () => ({ printMarkup: m.pr
 vi.mock("../../../lib/geo", () => ({ currentLocation: () => Promise.resolve({ lat: 25.2, lng: 55.3, accuracy: 15 }) }));
 
 import MyVan from "../MyVan";
+import { VanHero } from "../VanHero";
 import TripsPage from "../TripsPage";
 import SettlementPage from "../SettlementPage";
 import VansSetupPage from "../VansSetupPage";
@@ -528,7 +529,7 @@ describe("Phase 7: targets, the next stop within reach, and the owner's figures"
   });
 
   it("reports show the owner's figures, sales by day and a salesman leaderboard", async () => {
-    const man = { id: "u1", name: "Rashid", trips: 1, invoices: 3, lines: 4, sales: 420, returned: 0, cash: 420, cheques: 0, cashVariance: 0, calls: 2, productive: 2, dropSize: 140, linesPerCall: 2, strikeRate: 100, costPerDrop: 0, targetTrips: 1, targetDays: 1 };
+    const man = { id: "u1", name: "Rashid", trips: 1, invoices: 3, lines: 4, sales: 420, returned: 0, cash: 420, cheques: 0, cashVariance: 0, calls: 2, productive: 2, dropSize: 140, linesPerCall: 2, strikeRate: 100, costPerDrop: 0, daysWithTarget: 1, targetDays: 1 };
     m.summary.mockResolvedValue({
       from: "2026-11-01", to: "2026-11-02", rows: [{ id: "t1", tripNo: "VTR-1", date: "2026-11-02T00:00:00.000Z", status: "SETTLED", vanCode: "VAN-1", salesmanName: "Rashid", sales: 420, cash: 420, strikeRate: 100, cashVariance: 0 }],
       byVan: [{ ...man, id: "v1", name: "VAN-1" }], bySalesman: [man],
@@ -552,5 +553,46 @@ describe("Phase 7: targets, the next stop within reach, and the owner's figures"
     m.board.mockResolvedValue({ at: "2026-11-17T11:05:00.000Z", counts: { out: 1, loading: 0, toSettle: 0, quiet: 0, overCash: 0, far: 0 }, sales: 200, cash: 0, rows: [{ id: "t1", tripNo: "VTR-1", vanCode: "VAN-1", salesmanName: "Rashid", status: "ON_ROUTE", done: 1, total: 4, next: { name: "Corner Shop" }, lastAt: null, quiet: false, far: [], totals: { sales: 200, cash: 0, cashInHand: 0, progress: { sales: { target: 400, done: 200, pct: 50, toGo: 200, hit: false } } } }] });
     wrap(<BoardPage />, ["/van-sales/board"]);
     expect(await screen.findByText("50% of today's sales target")).toBeInTheDocument();
+  });
+});
+
+describe("Phase 7 gaps: van targets, offline history, and the waiting note", () => {
+  it("a van's daily targets are shown, edited and sent", async () => {
+    m.vansList.mockResolvedValue([{ id: "v1", _id: "v1", code: "VAN-1", name: "Van One", plate: "DXB 1", salesmanName: "Rashid", dailySalesTarget: 1500, dailyCallsTarget: 12, active: true, openTrip: null }]);
+    m.routesList.mockResolvedValue([]);
+    m.vanUpdate.mockResolvedValue({ id: "v1" });
+    m.canManage.value = true;
+    wrap(<VansSetupPage />, ["/van-sales/setup"]);
+    const table = await screen.findByRole("table", { name: "Vans" });
+    expect(within(table).getByText(/AED 1,500.00 · 12 calls/)).toBeInTheDocument();
+    fireEvent.click(within(table).getByText("Van One"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Daily sales target/)).toHaveValue("1,500");
+    fireEvent.change(within(dialog).getByLabelText(/Daily calls target/), { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(m.vanUpdate).toHaveBeenCalled());
+    expect(m.vanUpdate.mock.calls[0][1]).toMatchObject({ dailySalesTarget: "1500", dailyCallsTarget: "" });
+  });
+
+  it("with no signal the Sell dialog shows the history kept on the phone, and not what they owe", async () => {
+    const pack = { at: "2026-11-17T08:00:00.000Z", trip, customers: [{ id: "c1", name: "Al Noor Grocery", code: "C1" }], prices: { c1: { rice: 20 } }, promotions: [], categories: {},
+      insight: { c1: { invoices: 2, lastOrder: { number: "SO-9", date: "2026-11-10T00:00:00.000Z", lines: [{ stockId: "rice", name: "Rice 5kg", qty: 4, onVan: 30 }] }, usual: [], notLately: [] } } };
+    const offline = { active: true, pack, view: { sellable: trip.sellable, waiting: 0 }, enqueue: vi.fn(), number: () => null, refresh: vi.fn() };
+    render(<SellDialog trip={trip} customerId="c1" offline={offline} onClose={() => {}} onDone={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("SO-9")).toBeInTheDocument();
+    expect(within(dialog).getByText(/From figures read at/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Owes/)).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Repeat last order" }));
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("4");
+    expect(m.insight).not.toHaveBeenCalled();
+  });
+
+  it("the trip card says that sales waiting on the phone are not in the target figures yet", () => {
+    const progress = { sales: { target: 400, done: 336, pct: 84, toGo: 64, hit: false }, calls: null };
+    const { rerender } = render(<VanHero trip={{ ...trip, totals: { ...trip.totals, progress } }} waiting={2} />);
+    expect(screen.getByText(/Not counting the 2 sales done on the phone/)).toBeInTheDocument();
+    rerender(<VanHero trip={{ ...trip, totals: { ...trip.totals, progress } }} waiting={0} />);
+    expect(screen.queryByText(/Not counting/)).toBeNull();
   });
 });

@@ -47,7 +47,7 @@ function Leaderboard({ rows }) {
     { key: "drop", header: "Average drop", align: "end", card: "meta", cell: (r) => dash(r.dropSize, money) },
     { key: "lines", header: "Lines per call", align: "end", card: "meta", cell: (r) => dash(r.linesPerCall, (v) => v.toFixed(1)) },
     { key: "strike", header: "Strike rate", align: "end", card: "meta", cell: (r) => <Strike rate={r.strikeRate} title={`${r.productive} of ${r.calls} customers called on bought`} /> },
-    { key: "target", header: "Target reached", align: "end", card: "meta", cell: (r) => (r.targetTrips ? `${r.targetDays} of ${r.targetTrips} day${r.targetTrips === 1 ? "" : "s"}` : "No target") },
+    { key: "target", header: "Target reached", align: "end", card: "meta", cell: (r) => (r.daysWithTarget ? `${r.targetDays} of ${r.daysWithTarget} day${r.daysWithTarget === 1 ? "" : "s"}` : "No target") },
   ];
   const ranked = rows.map((r, i) => ({ ...r, _rank: i + 1 }));
   return <DataTable caption="Salesman leaderboard" rows={ranked} rowKey={(r) => r.id} columns={cols} />;
@@ -168,7 +168,7 @@ export default function VanReports() {
             <Tile label="Cash difference" icon={Scale} tone="olive" amount={d.total.cashVariance} value={money(d.total.cashVariance)} warn={d.total.cashVariance < -0.005} />
           </div>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-            <Tile label="Average drop" icon={ShoppingBasket} tone="teal" value={dash(d.total.dropSize, money)} sub="One invoice, on average" />
+            <Tile label="Average drop" icon={ShoppingBasket} tone="teal" value={dash(d.total.dropSize, money)} sub="One invoice, before VAT" />
             <Tile label="Lines per call" icon={Layers} tone="plum" value={dash(d.total.linesPerCall, (v) => v.toFixed(1))} sub="Items in a basket" />
             <Tile label="Strike rate" icon={Gauge} tone="brand" value={dash(d.total.strikeRate, (v) => `${v}%`)} sub={d.total.calls ? `${d.total.productive} of ${d.total.calls} calls bought` : undefined} />
             <Tile label="Cost per drop" icon={Truck} tone="olive" value={dash(d.total.costPerDrop, money)} sub="Road expenses per invoice" />
