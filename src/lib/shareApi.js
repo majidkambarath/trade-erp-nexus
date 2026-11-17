@@ -61,3 +61,32 @@ export async function postEstimateDecision(token, body) {
 // An inspection photo on the estimate. Not fetched by hand: handed to an <img src> exactly like the
 // authenticated attachment routes are, so the browser's own cache and retry apply.
 export const sharePhotoUrl = (token, attachmentId) => url(token, `/photo/${encodeURIComponent(attachmentId)}`);
+
+// A van invoice's extra page (van sales): what the customer owes, when the van comes next, what is ordered for it.
+// Every other link answers 404 here, which simply means "nothing extra to show" - never an error to the customer.
+export async function fetchVanCorner(token) {
+  try {
+    const res = await fetch(url(token, "/van"), { credentials: "omit", headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    return (await res.json().catch(() => null))?.data || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The customer asks the van for goods on its next visit. Awaited: the page says whether it worked. */
+export async function postVanRequest(token, body) {
+  let res;
+  try {
+    res = await fetch(url(token, "/van-request"), {
+      method: "POST", credentials: "omit",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ShareError("OFFLINE");
+  }
+  const out = await res.json().catch(() => null);
+  if (res.ok && out?.data) return out.data;
+  throw new ShareError(out?.errorCode || "ERROR", { status: res.status, message: out?.message });
+}

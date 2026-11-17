@@ -88,3 +88,34 @@ ${paid ? row("Balance due", money(due), true) : ""}
 <hr>
 <p>Thank you</p>`;
 }
+
+/**
+ * The bank deposit slip for the cheques a van brought back (van sales, phase 6): each cheque with its number, the bank
+ * it is drawn on, who gave it, its date and amount, grouped by that bank, with the count and total, and a line to sign.
+ * A4, not 80mm: it goes to the bank with the cheques.
+ */
+export function depositSlipMarkup({ company = {}, trip = {}, cheques = [], currency = "AED", day = "" }) {
+  const byBank = new Map();
+  for (const c of cheques) {
+    const k = c.bank || "Bank not given";
+    if (!byBank.has(k)) byBank.set(k, []);
+    byBank.get(k).push(c);
+  }
+  const total = cheques.reduce((t, c) => t + (Number(c.amount) || 0), 0);
+  const row = (c) => `<tr><td>${esc(c.chequeNo)}</td><td>${esc(c.from || "")}</td><td>${esc(c.date ? String(c.date).slice(0, 10) : "")}</td><td style="text-align:right">${money(c.amount)}</td></tr>`;
+  const groups = [...byBank].map(([bank, list]) => `
+    <tr><th colspan="4" style="text-align:left;padding-top:10px">${esc(bank)} (${list.length})</th></tr>
+    ${list.map(row).join("")}
+    <tr><td colspan="3" style="text-align:right">Subtotal</td><td style="text-align:right">${money(list.reduce((t, c) => t + (Number(c.amount) || 0), 0))}</td></tr>`).join("");
+  return `<div style="font-family:Inter,Arial,sans-serif;font-size:12px;color:#111;padding:24px;max-width:760px">
+  <p style="font-size:16px;font-weight:600;margin:0">${esc(company.companyName || "")}</p>
+  <p style="margin:2px 0 14px">Cheque deposit slip${day ? ` - ${esc(day)}` : ""}</p>
+  <p style="margin:0 0 10px">Van ${esc(trip.vanCode || "")} · trip ${esc(trip.tripNo || "")}${trip.salesmanName ? ` · ${esc(trip.salesmanName)}` : ""}</p>
+  <table style="width:100%;border-collapse:collapse" cellpadding="4">
+    <thead><tr style="border-bottom:1px solid #999"><th style="text-align:left">Cheque no.</th><th style="text-align:left">From</th><th style="text-align:left">Dated</th><th style="text-align:right">Amount (${esc(currency)})</th></tr></thead>
+    <tbody>${groups}</tbody>
+    <tfoot><tr style="border-top:1px solid #999"><th colspan="3" style="text-align:right">${cheques.length} cheque${cheques.length === 1 ? "" : "s"}, total</th><th style="text-align:right">${money(total)}</th></tr></tfoot>
+  </table>
+  <p style="margin-top:40px">Handed in by ______________________ &nbsp;&nbsp; Received by ______________________</p>
+</div>`;
+}

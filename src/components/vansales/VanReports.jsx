@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit.jsx";
+import { DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, Spinner, useAsync } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import { reports } from "../../lib/vanSalesApi";
 import { strikeText, vanErrorText } from "../../lib/vanSales";
@@ -9,6 +9,41 @@ import { StatusPill, Tile } from "./vanShared";
 // Van sales > Reports: what the vans did over a period - sales, returns, money taken and how each day settled - one
 // row per trip, and rolled up by van and by salesman. Read from the documents themselves.
 const money = (r) => formatCurrencyAED(r || 0);
+
+// What each route, salesman or van made over its settled trips: sales less returns and their cost, the goods written
+// off, the road expenses and the cash short, per km where the odometer was read.
+function RouteProfit({ from, to }) {
+  const [by, setBy] = useState("route");
+  const data = useAsync(() => reports.routeProfit({ from: from || undefined, to: to || undefined, by }), [from, to, by]);
+  const d = data.data;
+  const label = { route: "Route", salesman: "Salesman", van: "Van" }[by];
+  const cols = [
+    { key: "name", header: label, card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
+    { key: "trips", header: "Trips", align: "end", card: "meta", cell: (r) => r.trips },
+    { key: "net", header: "Sales less returns", align: "end", card: "meta", cell: (r) => money(r.netSales) },
+    { key: "gm", header: "Gross margin", align: "end", card: "meta", cell: (r) => money(r.grossMargin) },
+    { key: "off", header: "Written off", align: "end", card: "meta", cell: (r) => money(r.damaged) },
+    { key: "exp", header: "Road expenses", align: "end", card: "meta", cell: (r) => money(r.expenses) },
+    { key: "cash", header: "Cash short / over", align: "end", card: "meta", cell: (r) => <span className={r.cashVariance < 0 ? "text-red-600" : ""}>{money(r.cashVariance)}</span> },
+    { key: "contribution", header: "Contribution", align: "end", card: "amount", cell: (r) => <span className={r.contribution < 0 ? "font-medium text-red-600" : "font-medium"}>{money(r.contribution)}</span> },
+    { key: "pct", header: "Margin", align: "end", card: "meta", cell: (r) => (r.marginPct === null ? "–" : `${r.marginPct}%`) },
+    { key: "km", header: "Per km", align: "end", card: "meta", cell: (r) => (r.perKm === null ? "–" : money(r.perKm)) },
+  ];
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="By"><Select value={by} onChange={(e) => setBy(e.target.value)}><option value="route">Route</option><option value="salesman">Salesman</option><option value="van">Van</option></Select></Field>
+        {d && <p className="pb-2 text-sm text-muted-foreground">From {d.trips} settled trip{d.trips === 1 ? "" : "s"}. A trip still out or not settled is left out: its figures can still change.</p>}
+      </div>
+      {data.loading && !d && <Spinner label="Reading the figures" />}
+      {data.error && <ErrorNote error={new Error(vanErrorText(data.error))} onRetry={data.reload} />}
+      <Panel bodyClassName="p-0">
+        {d?.rows.length === 0 && <EmptyState title="No settled trips in this period" text="Profit is worked out once a trip is settled." />}
+        {d?.rows.length > 0 && <DataTable caption={`Profit by ${label.toLowerCase()}`} rows={d.rows} rowKey={(r) => r.key} columns={cols} />}
+      </Panel>
+    </div>
+  );
+}
 
 export default function VanReports() {
   const [from, setFrom] = useState("");
@@ -56,13 +91,14 @@ export default function VanReports() {
             <Tile label="Cheques" value={money(d.total.cheques)} />
             <Tile label="Cash difference" value={money(d.total.cashVariance)} />
           </div>
-          <PillTabs label="Report view" tabs={[["trips", "Trips"], ["vans", "By van"], ["salesmen", "By salesman"]]} value={view} onChange={setView} />
-          <Panel bodyClassName="p-0">
+          <PillTabs label="Report view" tabs={[["trips", "Trips"], ["vans", "By van"], ["salesmen", "By salesman"], ["profit", "Profit by route"]]} value={view} onChange={setView} />
+          {view === "profit" && <RouteProfit from={from} to={to} />}
+          {view !== "profit" && <Panel bodyClassName="p-0">
             {d.rows.length === 0 && <EmptyState title="No trips in this period" text="Widen the dates, or send a van out." />}
             {d.rows.length > 0 && view === "trips" && <DataTable caption="Van trips" rows={d.rows} rowKey={(r) => r.id} columns={tripCols} />}
             {d.rows.length > 0 && view === "vans" && <DataTable caption="Sales by van" rows={d.byVan} rowKey={(r) => r.id} columns={rollCols("Van")} />}
             {d.rows.length > 0 && view === "salesmen" && <DataTable caption="Sales by salesman" rows={d.bySalesman} rowKey={(r) => r.id} columns={rollCols("Salesman")} />}
-          </Panel>
+          </Panel>}
         </div>
       )}
     </div>

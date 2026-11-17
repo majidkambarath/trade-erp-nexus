@@ -4,8 +4,9 @@ import { Button } from "../ui/button";
 import { DataTable, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, TextInput, useAsync, useToasts } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
-import { choices, priceLists, routes, vans } from "../../lib/vanSalesApi";
-import { vanErrorText } from "../../lib/vanSales";
+import { choices, priceLists, promotions, routes, vans } from "../../lib/vanSalesApi";
+import { promotionKindLabel, promotionText, vanErrorText } from "../../lib/vanSales";
+import { PromotionDialog } from "./phase4Dialogs";
 import { AmountInput, Select } from "../accounting/kit.jsx";
 import { useOrganisation } from "../shell/OrganisationContext";
 import { PriceListDialog } from "./phase2Dialogs";
@@ -117,13 +118,21 @@ export default function VansSetupPage() {
   const routeList = useAsync(() => routes.list({ all: 1 }), []);
   const people = useAsync(() => choices.assignees(), []);
   const lists = useAsync(() => priceLists.list({ all: 1 }), []);
+  const promos = useAsync(() => promotions.list({ all: 1 }), []);
   const { canAny } = useOrganisation();
   const mayManage = canAny?.("vansales.manage") !== false;
   const { notify, toastNode } = useToasts();
   const [dialog, setDialog] = useState(null);
-  const done = (message) => { setDialog(null); notify(message); vanList.reload(); routeList.reload(); lists.reload(); };
-  const newLabel = { vans: "New van", routes: "New route", lists: "New price list" }[tab];
-  const newKind = { vans: "van", routes: "route", lists: "list" }[tab];
+  const done = (message) => { setDialog(null); notify(message); vanList.reload(); routeList.reload(); lists.reload(); promos.reload(); };
+  const newLabel = { vans: "New van", routes: "New route", lists: "New price list", promos: "New promotion" }[tab];
+  const newKind = { vans: "van", routes: "route", lists: "list", promos: "promo" }[tab];
+  const promoCols = [
+    { key: "name", header: "Promotion", card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
+    { key: "kind", header: "Kind", card: "meta", cell: (r) => promotionKindLabel(r.kind) },
+    { key: "what", header: "Gives", card: "meta", cell: (r) => promotionText(r) },
+    { key: "when", header: "Good for", card: "meta", cell: (r) => (r.validFrom || r.validTo ? `${r.validFrom ? formatDate(r.validFrom) : "…"} to ${r.validTo ? formatDate(r.validTo) : "…"}` : "Always") },
+    { key: "active", header: "", card: "badge", cell: (r) => (r.active ? null : <Pill tone="neutral">Inactive</Pill>) },
+  ];
   const listCols = [
     { key: "name", header: "Price list", card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
     { key: "lines", header: "Prices", card: "meta", cell: (r) => `${r.lines?.length || 0}` },
@@ -149,7 +158,7 @@ export default function VansSetupPage() {
     <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Vans and routes" description="The vans, who drives them, and the customers each one calls on."
         actions={<Can permission="vansales.manage"><button type="button" data-shortcut="new" className={primaryBtn} onClick={() => setDialog({ kind: newKind })}><Plus className="h-4 w-4" aria-hidden="true" /> {newLabel}</button></Can>} />
-      <div className="mt-6"><PillTabs label="Vans and routes" tabs={[["vans", "Vans"], ["routes", "Routes"], ["lists", "Price lists"]]} value={tab} onChange={setTab} /></div>
+      <div className="mt-6"><PillTabs label="Vans and routes" tabs={[["vans", "Vans"], ["routes", "Routes"], ["lists", "Price lists"], ["promos", "Promotions"]]} value={tab} onChange={setTab} /></div>
       <div className="mt-4">
         <Panel bodyClassName="p-0">
           {tab === "vans" && (
@@ -176,8 +185,17 @@ export default function VansSetupPage() {
               {lists.data?.length > 0 && <DataTable caption="Price lists" rows={lists.data} rowKey={(r) => r.id} onRowClick={mayManage ? (r) => setDialog({ kind: "list", list: r }) : undefined} columns={listCols} />}
             </>
           )}
+          {tab === "promos" && (
+            <>
+              {promos.loading && !promos.data && <Spinner label="Reading the promotions" />}
+              {promos.error && <ErrorNote error={promos.error} onRetry={promos.reload} />}
+              {promos.data?.length === 0 && <EmptyState title="No promotions yet" text="A quantity discount, goods given free, or a discount on a large order, applied on every van sale it fits." />}
+              {promos.data?.length > 0 && <DataTable caption="Promotions" rows={promos.data} rowKey={(r) => r.id} onRowClick={mayManage ? (r) => setDialog({ kind: "promo", promotion: r }) : undefined} columns={promoCols} />}
+            </>
+          )}
         </Panel>
       </div>
+      {dialog?.kind === "promo" && <PromotionDialog promotion={dialog.promotion} onClose={() => setDialog(null)} onSaved={(_, m) => done(m)} />}
       {dialog?.kind === "list" && <PriceListDialog list={dialog.list} onClose={() => setDialog(null)} onSaved={(_, m) => done(m)} />}
       {dialog?.kind === "van" && <VanDialog van={dialog.van} people={people.data || []} routeList={routeList.data || []} onClose={() => setDialog(null)} onSaved={(_, m) => done(m)} />}
       {dialog?.kind === "route" && <RouteDialog route={dialog.route} lists={lists.data || []} onClose={() => setDialog(null)} onSaved={(_, m) => done(m)} />}

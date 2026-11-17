@@ -23,7 +23,7 @@ export function TripView({ id, notify, onClose, onChanged }) {
 
   return (
     <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
-      <button type="button" onClick={onClose} className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> All trips</button>
+      <button type="button" onClick={onClose} className="mb-3 inline-flex h-10 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" aria-hidden="true" /> All trips</button>
       {trip.loading && !t && <Spinner label="Reading the trip" />}
       {trip.error && <ErrorNote error={trip.error} onRetry={trip.reload} />}
       {t && (
@@ -39,7 +39,8 @@ export function TripView({ id, notify, onClose, onChanged }) {
           <TripActions trip={t} ask={(kind) => setDialog({ kind })} />
           <TripTiles trip={t} />
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* grid-cols-1 below lg: an implicit auto column grows to the longest item name and pushes the page wide */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Panel title="On the van" bodyClassName="p-0"><OnVanList trip={t} /></Panel>
             <Panel title="Loads" bodyClassName="p-0">
               {t.loads?.length ? (

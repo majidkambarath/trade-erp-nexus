@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeftRight, Banknote, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, Fuel, ClipboardCheck, PackagePlus, Printer, RotateCcw, Send, ShoppingCart, Truck, X } from "lucide-react";
 import { Pill } from "../accounting/kit.jsx";
 import Can from "../shell/Can.jsx";
 import { statusOf } from "../../lib/vanSales";
@@ -28,7 +28,7 @@ export function TripTiles({ trip }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <Tile label="Sold" value={formatCurrencyAED(t.sales || 0)} sub={`${t.invoices || 0} invoice${t.invoices === 1 ? "" : "s"}`} />
-      <Tile label="Cash taken" value={formatCurrencyAED(t.cash || 0)} sub={t.cashLimit != null ? (t.cashOverLimit ? `Over the ${formatCurrencyAED(t.cashLimit)} limit` : `Limit ${formatCurrencyAED(t.cashLimit)}`) : undefined} warn={t.cashOverLimit} />
+      <Tile label="Cash taken" value={formatCurrencyAED(t.cash || 0)} sub={t.cashOverLimit ? `Over the ${formatCurrencyAED(t.cashLimit)} limit` : t.expenses ? `${formatCurrencyAED(t.expenses)} spent, ${formatCurrencyAED(t.cashInHand)} in hand` : t.cashLimit != null ? `Limit ${formatCurrencyAED(t.cashLimit)}` : undefined} warn={t.cashOverLimit} />
       <Tile label="Cheques" value={formatCurrencyAED(t.cheques || 0)} />
       <Tile label="Returned" value={formatCurrencyAED(t.returned || 0)} sub={`${t.returns || 0} return${t.returns === 1 ? "" : "s"}`} />
     </div>
@@ -74,6 +74,7 @@ export function TripActions({ trip, ask, mine = false, offline = false }) {
           <button type="button" className={primary} onClick={() => ask("sell")}><ShoppingCart className="h-4 w-4" aria-hidden="true" /> Sell</button>
           <button type="button" className={btn} onClick={() => ask("collect")}><Banknote className="h-4 w-4" aria-hidden="true" /> Collect money</button>
           {!offline && <button type="button" className={btn} onClick={() => ask("return")}><RotateCcw className="h-4 w-4" aria-hidden="true" /> Take goods back</button>}
+          {!offline && <button type="button" className={btn} onClick={() => ask("expense")}><Fuel className="h-4 w-4" aria-hidden="true" /> Road expense</button>}
         </Can>
       )}
       {["LOADING", "ON_ROUTE"].includes(s) && !mine && (

@@ -7,6 +7,8 @@ import { vanErrorText } from "../../lib/vanSales";
 import { formatCurrencyAED } from "../../utils/format";
 import { CollectDialog, LoadDialog, OpenTripDialog, ReturnDialog, SellDialog, SettleDialog, UnloadDialog } from "./tripDialogs";
 import { TransferDialog, VisitDialog } from "./phase2Dialogs";
+import { PreorderDialog } from "./phase4Dialogs";
+import { DepartDialog, ExpenseDialog } from "./phase5Dialogs";
 import { MessageCircle } from "lucide-react";
 import { TextInput } from "../accounting/kit.jsx";
 import { PrintButton } from "./vanShared";
@@ -86,15 +88,16 @@ export default function TripDialogHost({ trip, dialog, onClose, onChanged, notif
   switch (kind) {
     case "open": return <OpenTripDialog onClose={onClose} onDone={(t) => finish(`Trip ${t.tripNo} opened.`)} />;
     case "load": return <LoadDialog trip={trip} onClose={onClose} onDone={() => finish("Load saved.")} />;
-    case "sell": return <SellDialog trip={trip} offline={offline} customerId={dialog.customerId} onClose={onClose} onDone={(r) => setSold({ ...r, customerName: r.customerName || "the customer" })} />;
+    case "preorder": return <PreorderDialog trip={trip} customerId={dialog.customerId} customerName={dialog.customerName} onClose={onClose} onDone={(o) => finish(`${o.orderNo} saved for the next visit.`)} />;
+    case "sell": return <SellDialog trip={trip} offline={offline} customerId={dialog.customerId} preorder={dialog.preorder} onClose={onClose} onDone={(r) => setSold({ ...r, customerName: r.customerName || "the customer" })} />;
     case "collect": return <CollectDialog trip={trip} offline={offline} customerId={dialog.customerId} onClose={onClose} onDone={(r) => finish(r.queued ? "No signal: the payment is kept on the phone and sent when the signal is back." : `${r.receipt.voucherNo} taken.`)} />;
     case "return": return <ReturnDialog trip={trip} customerId={dialog.customerId} onClose={onClose} onDone={(r) => finish(`${r.creditNote.transactionNo} taken back.`)} />;
     case "unload": return <UnloadDialog trip={trip} onClose={onClose} onDone={() => finish("The van is counted in. A supervisor can settle it now.")} />;
     case "visit": return <VisitDialog trip={trip} offline={offline} customerId={dialog.customerId} customerName={dialog.customerName} onClose={onClose} onDone={() => finish("Visit recorded.")} />;
     case "transfer": return <TransferDialog trip={trip} onClose={onClose} onDone={() => finish("Goods handed over.")} />;
     case "settle": return <SettleDialog trip={trip} onClose={onClose} onDone={() => finish(`${trip.tripNo} settled.`)} />;
-    case "depart":
-      return <ConfirmDialog title="Send the van out?" text="From now the salesman can sell from it." confirmLabel="Send out" busy={busy} onClose={onClose} onConfirm={() => quick(() => trips.depart(trip.id), "The van is out.")} />;
+    case "depart": return <DepartDialog trip={trip} onClose={onClose} onDone={() => finish("The van is out.")} />;
+    case "expense": return <ExpenseDialog trip={trip} onClose={onClose} onDone={(r) => finish(`${r.voucher.voucherNo} paid from the van's cash.`)} />;
     case "cancel":
       return <ConfirmDialog title="Cancel this trip?" text="Only possible while nothing has been sold or collected. What was loaded stops counting as on the van." confirmLabel="Cancel trip" danger busy={busy} onClose={onClose} onConfirm={() => quick(() => trips.cancel(trip.id), "Trip cancelled.")} />;
     default: return null;

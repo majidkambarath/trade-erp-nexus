@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Printer, Sparkles, Trash2 } from "lucide-react";
+import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
+import { printMarkup } from "../PurchaseOrder/shared/documentPdf.jsx";
+import { depositSlipMarkup } from "../../lib/vanReceipt";
+import { orgCurrency } from "../../utils/orgLocale";
 import { Button } from "../ui/button";
 import { AmountInput, DateInput, ErrorNote, Field, Modal, Select, SearchSelect, Spinner, TextInput, useAsync } from "../accounting/kit.jsx";
 import { api } from "../../lib/accountingApi";
-import { choices, trips, vans } from "../../lib/vanSalesApi";
-import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, priceSourceLabel, round2, saleLines, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
+import { choices, promotions, trips, vans } from "../../lib/vanSalesApi";
+import { apply as applyPromotions } from "../../lib/promotions";
+import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, odometerBody, offerPreview, priceSourceLabel, round2, saleLines, suggestedRows, suggestionWhy, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
 import { formatCurrencyAED } from "../../utils/format";
 import { isNetworkError, packPrice } from "../../lib/vanOffline";
 import { useOrganisation } from "../shell/OrganisationContext";
+import { currentLocation } from "../../lib/geo";
 
 // The dialogs that drive a van trip. Each one runs a single act and hands the answer back; the page decides what to
 // show next. The server is the judge of every rule (stock on the van, credit, the period lock): a dialog only keeps a
@@ -79,20 +85,61 @@ export function LoadDialog({ trip, onClose, onDone }) {
     const list = (items.data?.stocks || []).filter((s) => s.itemType !== "service");
     return list.map((s) => ({ value: String(s._id), label: s.itemName, hint: s.currentStock != null ? `${s.currentStock} on hand` : undefined, searchText: `${s.itemId || ""} ${s.sku || ""}` }));
   }, [items.data]);
-  const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+  const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch, ...(patch.qty !== undefined || patch.stockId !== undefined ? { why: undefined } : {}) } : x)));
   const problem = loadProblem(rows);
+  const [suggest, setSuggest] = useState(null); // { runs, lines } once asked for
+  const [expiry, setExpiry] = useState(null); // the warnings, once checked
+  const [suggesting, setSuggesting] = useState(false);
+
+  async function fillSuggested() {
+    setSuggesting(true);
+    try {
+      const s = await trips.suggestedLoad(trip.id);
+      setSuggest(s);
+      if (s.lines?.length) setRows(suggestedRows(s.lines));
+    } catch {
+      setSuggest({ runs: 0, lines: [], failed: true });
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  // stock that would expire before the route's customers take it is a warning: said once, then the person decides
+  async function save() {
+    await run(async () => {
+      const body = loadBody(rows);
+      if (!expiry) {
+        const check = await trips.loadCheck(trip.id, body).catch(() => ({ warnings: [] }));
+        if (check.warnings?.length) { setExpiry(check.warnings); throw Object.assign(new Error("Some of this stock expires soon. Check it, then load anyway or change the lines."), { code: "EXPIRY_SOON" }); }
+      }
+      onDone(await trips.load(trip.id, body));
+    });
+  }
 
   return (
     <Modal size="lg" title={trip.loads?.length ? "Top up the van" : "Load the van"} description="Loading moves no stock and posts nothing. The goods leave the books only when they are sold." onClose={onClose}
-      footer={<Footer onClose={onClose} busy={busy} disabled={Boolean(problem)} label="Save load" onSubmit={() => run(async () => onDone(await trips.load(trip.id, loadBody(rows))))} />}>
+      footer={<Footer onClose={onClose} busy={busy} disabled={Boolean(problem)} label={expiry ? "Load anyway" : "Save load"} onSubmit={save} />}>
       <div className="grid grid-cols-1 gap-3">
         <ErrorLine error={error} />
+        {trip.routeId && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <button type="button" onClick={fillSuggested} disabled={suggesting} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 font-medium hover:bg-muted disabled:opacity-50"><Sparkles className="h-4 w-4" aria-hidden="true" /> {suggesting ? "Working it out…" : "Fill suggested load"}</button>
+            {suggest && <span className="text-muted-foreground">{suggest.failed ? "The suggestion could not be read." : suggest.lines?.length ? `From the orders for this route and the last ${suggest.runs || 0} run${suggest.runs === 1 ? "" : "s"}. Change anything before saving.` : "Nothing to suggest yet: no orders and no runs of this route to learn from."}</span>}
+          </div>
+        )}
+        {expiry && (
+          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">Expires before the customers will take it</p>
+            <ul className="mt-1 list-disc ps-5">{expiry.map((w) => <li key={w.stockId}>{w.message}{w.batches?.length ? ` (batch ${w.batches.map((b) => `${b.batchNo}, ${b.expiryDate}`).join("; ")})` : ""}</li>)}</ul>
+          </div>
+        )}
         {items.loading && <Spinner label="Reading the items" />}
         {rows.map((r, i) => (
           <div key={i} className="grid grid-cols-[1fr_7rem_auto] items-end gap-2">
             <Field label={i === 0 ? "Item" : undefined}><SearchSelect value={r.stockId} onChange={(v) => set(i, { stockId: v })} options={options} placeholder="Choose an item" /></Field>
             <Field label={i === 0 ? "Quantity" : undefined}><AmountInput value={r.qty} onChange={(e) => set(i, { qty: e.target.value })} inputMode="decimal" aria-label="Quantity" /></Field>
             <button type="button" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
+            {r.why && <p className="col-span-3 -mt-1 text-xs text-muted-foreground">Suggested: {suggestionWhy(r.why)}</p>}
           </div>
         ))}
         <button type="button" onClick={() => setRows((r) => [...r, { stockId: "", qty: "" }])} className="inline-flex h-10 w-fit items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted"><Plus className="h-4 w-4" aria-hidden="true" /> Add item</button>
@@ -103,17 +150,20 @@ export function LoadDialog({ trip, onClose, onDone }) {
 }
 
 // ---- sell ------------------------------------------------------------------------------------------------------
-export function SellDialog({ trip, customerId: startCustomer, onClose, onDone, offline }) {
+export function SellDialog({ trip, customerId: startCustomer, preorder, onClose, onDone, offline }) {
   const org = useOrganisation();
   const off = offline?.active ? offline : null;
   const customers = useAsync(() => (off ? Promise.resolve(off.pack?.customers || []) : choices.customers()), [Boolean(off)]);
   const payment = useAsync(() => (off ? Promise.resolve({ cheque: false, bankAccounts: [] }) : choices.payment()), [Boolean(off)]);
   const [customerId, setCustomerId] = useState(startCustomer || "");
-  const [rows, setRows] = useState([{ itemId: "", qty: "", price: "" }]);
+  // selling against an order taken last visit: its lines, at its prices
+  const [rows, setRows] = useState(() => (preorder?.items?.length ? preorder.items.map((l) => ({ itemId: l.itemId, qty: String(l.qty), price: String(l.price ?? "") })) : [{ itemId: "", qty: "", price: "" }]));
   const [mode, setMode] = useState("none"); // none | cash | cheque
   const [chq, setChq] = useState({ chequeNo: "", chequeDate: "", accountId: "" });
   const [acknowledged, setAcknowledged] = useState(false);
   const [warning, setWarning] = useState(null);
+  const [here, setHere] = useState(null);
+  useEffect(() => { let live = true; currentLocation().then((l) => live && setHere(l)).catch(() => {}); return () => { live = false; }; }, []);
   const { busy, error, run } = useAct();
   const onVan = useMemo(() => (off ? off.view.sellable : trip.sellable || []), [off, trip.sellable]);
   const listed = useAsync(
@@ -126,6 +176,14 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone, o
   const problem = saleProblem({ customerId, rows }, onVan);
   const lines = saleLines(rows, pricedVan);
   const canOverride = org.canAny?.(["sales.creditOverride", "vansales.manage"]);
+  // the offers, worked out here so the salesman sees them before pressing Sell; the server applies them again
+  const promos = useAsync(() => (off ? Promise.resolve(off.pack?.promotions || []) : promotions.list().catch(() => offline?.pack?.promotions || [])), [Boolean(off)]);
+  const cats = useMemo(() => offline?.pack?.categories || {}, [offline?.pack]);
+  const names = useMemo(() => new Map(onVan.map((l) => [l.stockId, l.itemName])), [onVan]);
+  const offer = useMemo(() => offerPreview(
+    applyPromotions(lines.map((l) => ({ ...l, categoryId: cats[l.itemId] || "" })), promos.data || [], { customerId, routeId: trip.routeId, date: new Date().toISOString().slice(0, 10) }),
+    names
+  ), [lines, promos.data, cats, customerId, trip.routeId, names]);
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   function pick(i, id) {
@@ -134,14 +192,14 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone, o
   }
 
   async function submit() {
-    const body = { customerId, items: lines, acknowledged };
+    const body = { customerId, items: lines, acknowledged, ...(preorder?.id ? { preorderId: preorder.id } : {}), ...(here ? { location: here } : {}) };
     if (mode === "cash") body.payNow = { mode: "cash", full: true };
     if (mode === "cheque") body.payNow = { mode: "cheque", full: true, details: { chequeNo: chq.chequeNo, chequeDate: chq.chequeDate, accountId: chq.accountId || undefined } };
     const c = (customers.data || []).find((x) => x.id === customerId);
     // no signal: keep it on the phone with the next reserved number, and say so; the server applies it when it is back
     const queue = async () => {
       const number = offline?.number ? offline.number() : null;
-      const op = await (off || offline).enqueue("sell", { ...body, ...(number ? { number } : {}) });
+      const op = await (off || offline).enqueue("sell", { ...body, ...(number ? { number } : {}), ...(offer.free.length ? { previewFree: offer.free.map((f) => ({ stockId: f.stockId, qty: f.qty })) } : {}) });
       return { queued: true, clientId: op.clientId, number, items: lines.map((l) => ({ ...l, name: onVan.find((x) => x.stockId === l.itemId)?.itemName || "" })), paidNow: mode !== "none", customerName: c?.name, customerTrn: c?.trn || "" };
     };
     const r = await run(async () => {
@@ -186,7 +244,17 @@ export function SellDialog({ trip, customerId: startCustomer, onClose, onDone, o
           </div>
         ))}
         <button type="button" onClick={() => setRows((r) => [...r, { itemId: "", qty: "", price: "" }])} className="inline-flex h-10 w-fit items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted"><Plus className="h-4 w-4" aria-hidden="true" /> Add item</button>
-        <p className="text-sm text-muted-foreground">Before VAT: <span className="font-medium text-foreground">{formatCurrencyAED(saleSubtotal(lines))}</span>. VAT is added when the invoice is made.</p>
+        {(offer.applied.length > 0) && (
+          <div role="status" className="rounded-lg border border-status-success/40 bg-status-success/5 p-3 text-sm">
+            <p className="font-medium">Offer applied</p>
+            <ul className="mt-1 grid gap-0.5">
+              {offer.applied.map((a) => <li key={a.id}>{a.name}: {a.text}</li>)}
+              {offer.free.map((f) => <li key={f.stockId} className="text-muted-foreground">Free: {f.qty} x {f.name}</li>)}
+            </ul>
+          </div>
+        )}
+        {preorder && <p className="text-sm text-muted-foreground">Delivering order {preorder.orderNo}. It is closed when this sale is made.</p>}
+        <p className="text-sm text-muted-foreground">Before VAT: <span className="font-medium text-foreground">{formatCurrencyAED(offer.discounted ? offer.subtotal : saleSubtotal(lines))}</span>{offer.discounted ? " after the offer" : ""}. VAT is added when the invoice is made.</p>
         <Field label="Money received now">
           <Select value={mode} onChange={(e) => setMode(e.target.value)}>
             <option value="none">Nothing yet (on credit)</option>
@@ -309,14 +377,16 @@ export function ReturnDialog({ trip, customerId: startCustomer, onClose, onDone 
 // ---- count the van back in ------------------------------------------------------------------------------------
 export function UnloadDialog({ trip, onClose, onDone }) {
   const [rows, setRows] = useState(() => countRows(trip));
+  const [odometer, setOdometer] = useState("");
   const { busy, error, run } = useAct();
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const off = rows.filter((r) => countDifference(r) !== 0).length;
   return (
     <Modal size="lg" title="Count the van back in" description="Count what is physically in the van. The figures start at what should be there; change any that differ." onClose={onClose}
-      footer={<Footer onClose={onClose} busy={busy} label="Save the count" onSubmit={() => run(async () => onDone(await trips.unload(trip.id, unloadBody(rows))))} />}>
+      footer={<Footer onClose={onClose} busy={busy} label="Save the count" onSubmit={() => run(async () => onDone(await trips.unload(trip.id, { ...unloadBody(rows), ...odometerBody(odometer) })))} />}>
       <div className="grid grid-cols-1 gap-3">
         <ErrorLine error={error} />
+        <Field label="Odometer back (km)" hint={trip.odometer?.out != null ? `Went out at ${trip.odometer.out} km` : "Optional"}><AmountInput value={odometer} onChange={(e) => setOdometer(e.target.value)} inputMode="decimal" aria-label="Odometer back" /></Field>
         {rows.length === 0 && <p className="text-sm text-muted-foreground">Nothing should be left on the van. Save the count to close the trip out.</p>}
         {rows.map((r, i) => {
           const d = countDifference(r);
@@ -336,6 +406,7 @@ export function UnloadDialog({ trip, onClose, onDone }) {
 
 // ---- settle ----------------------------------------------------------------------------------------------------
 export function SettleDialog({ trip, onClose, onDone }) {
+  const company = useCompanyProfile();
   const [cashHanded, setCashHanded] = useState("");
   const [ack, setAck] = useState({});
   const [notes, setNotes] = useState("");
@@ -362,6 +433,10 @@ export function SettleDialog({ trip, onClose, onDone }) {
               <Tile label="Cheques" value={`${p.cheques.length}`} />
               <Tile label="Stock difference" value={formatCurrencyAED(p.stockVarianceValue)} />
             </div>
+            {p.expenses > 0 && <p className="text-sm text-muted-foreground">The cash taken is net of {formatCurrencyAED(p.expenses)} spent on the road from the van's cash.</p>}
+            {p.cheques.length > 0 && (
+              <div><button type="button" onClick={() => printMarkup(depositSlipMarkup({ company, trip, cheques: p.cheques, currency: orgCurrency(), day: new Date().toISOString().slice(0, 10) }))} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted"><Printer className="h-4 w-4" aria-hidden="true" /> Print the cheque deposit slip</button></div>
+            )}
             <Field label="Cash handed in" hint={cash?.short ? `${formatCurrencyAED(cash.short)} short, owed by the salesman` : cash?.over ? `${formatCurrencyAED(cash.over)} over` : "Matches what the van took"}>
               <AmountInput value={cashHanded} onChange={(e) => setCashHanded(e.target.value)} placeholder={String(round2(p.cash.expected))} inputMode="decimal" />
             </Field>

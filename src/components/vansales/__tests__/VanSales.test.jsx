@@ -6,16 +6,18 @@ import { MemoryRouter } from "react-router-dom";
 const m = vi.hoisted(() => ({
   mine: vi.fn(), list: vi.fn(), get: vi.fn(), activity: vi.fn(), sell: vi.fn(), collect: vi.fn(), settlement: vi.fn(), settle: vi.fn(),
   customers: vi.fn(), payment: vi.fn(), position: vi.fn(), apiGet: vi.fn(), print: vi.fn(), depart: vi.fn(),
-  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
+  prices: vi.fn(), visit: vi.fn(), whatsapp: vi.fn(), offlinePack: vi.fn(), sync: vi.fn(), open: vi.fn(), suggestedLoad: vi.fn(), loadCheck: vi.fn(), load: vi.fn(), preorders: vi.fn(), preorder: vi.fn(), promoList: vi.fn(), promoCreate: vi.fn(), expense: vi.fn(), pin: vi.fn(), board: vi.fn(), routeProfit: vi.fn(), summary: vi.fn(), plList: vi.fn(), vansList: vi.fn(), routesList: vi.fn(), canManage: { value: true },
 }));
 
 vi.mock("../../../lib/vanSalesApi", () => ({
-  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: vi.fn(), cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn(), offlinePack: m.offlinePack, sync: m.sync },
+  trips: { mine: m.mine, list: m.list, get: m.get, activity: m.activity, sell: m.sell, collect: m.collect, settlement: m.settlement, settle: m.settle, depart: m.depart, open: vi.fn(), load: m.load, cancel: vi.fn(), returnGoods: vi.fn(), unload: vi.fn(), prices: m.prices, visit: m.visit, whatsapp: m.whatsapp, transfer: vi.fn(), offlinePack: m.offlinePack, sync: m.sync, suggestedLoad: m.suggestedLoad, loadCheck: m.loadCheck, preorders: m.preorders, preorder: m.preorder, expense: m.expense, pin: m.pin },
+  fleet: { board: m.board },
+  promotions: { list: m.promoList, create: m.promoCreate, update: vi.fn() },
   choices: { customers: m.customers, payment: m.payment, position: m.position, assignees: vi.fn(() => Promise.resolve([])), returnable: vi.fn() },
   vans: { list: m.vansList },
   routes: { list: m.routesList },
   priceLists: { list: m.plList, create: vi.fn(), update: vi.fn() },
-  reports: {},
+  reports: { summary: m.summary, routeProfit: m.routeProfit },
 }));
 vi.mock("../../../lib/accountingApi", () => ({ api: { get: m.apiGet } }));
 vi.mock("../../shell/OrganisationContext", () => ({
@@ -29,6 +31,10 @@ import MyVan from "../MyVan";
 import TripsPage from "../TripsPage";
 import SettlementPage from "../SettlementPage";
 import VansSetupPage from "../VansSetupPage";
+import { LoadDialog, SellDialog } from "../tripDialogs";
+import BoardPage from "../BoardPage";
+import VanReports from "../VanReports";
+import { DepartDialog, ExpenseDialog } from "../phase5Dialogs";
 
 const wrap = (ui, entries = ["/van-sales/my-van"]) => render(<MemoryRouter initialEntries={entries}>{ui}</MemoryRouter>);
 
@@ -59,6 +65,8 @@ beforeEach(() => {
   m.routesList.mockResolvedValue([]);
   m.plList.mockResolvedValue([{ id: "p1", name: "Al Noor deal", lines: [{ stockId: "rice", price: 17, minQty: 1 }], customerIds: ["c1"], active: true }]);
   m.canManage.value = true;
+  m.promoList.mockResolvedValue([]);
+  m.preorders.mockResolvedValue([]);
   m.offlinePack.mockResolvedValue({ at: "2026-11-17T08:00:00.000Z", trip, customers: [{ id: "c1", name: "Al Noor Grocery", trn: "" }], prices: { c1: { rice: 17 } }, freeNumbers: ["SO-2026-0100", "SO-2026-0101"] });
   setOnline(true);
 });
@@ -247,6 +255,150 @@ describe("My van with no signal", () => {
     expect(await screen.findByText(/Sale not accepted: There is not enough of that on the van/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     await waitFor(() => expect(screen.queryByText(/not accepted/)).toBeNull());
+  });
+});
+
+describe("Phase 4: offers, orders for next time, the suggested load", () => {
+  const rice10 = { id: "pr1", _id: "pr1", name: "Rice 10+ 5%", kind: "slab", stockIds: ["rice"], categoryIds: [], customerIds: [], routeIds: [], minQty: 10, percent: 5, active: true };
+  const bagFree = { id: "pr2", _id: "pr2", name: "Bag with rice", kind: "bxgy", stockIds: ["rice"], categoryIds: [], customerIds: [], routeIds: [], buyQty: 10, freeQty: 1, freeStockId: "rice", active: true };
+  const combo = "input[role='combobox']";
+
+  it("the sale shows the offer while typing, and sends the lines as they are (the server applies the offer)", async () => {
+    m.promoList.mockResolvedValue([rice10, bagFree]);
+    m.sell.mockResolvedValue({ invoice: { _id: "i1", transactionNo: "SO-1", totalAmount: 190, items: [] }, receipt: null });
+    render(<SellDialog trip={trip} customerId="c1" onClose={() => {}} onDone={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.querySelector(".search-select__single-value")).toHaveTextContent("Al Noor Grocery"));
+    choose(dialog.querySelectorAll(combo)[1], "Rice 5kg (30 on van)");
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "9" } });
+    expect(within(dialog).queryByText("Offer applied")).toBeNull();
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "10" } });
+    expect(await within(dialog).findByText("Offer applied")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Rice 10\+ 5%: 5% off from 10 units/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Free: 1 x Rice 5kg/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/after the offer/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sell" }));
+    await waitFor(() => expect(m.sell).toHaveBeenCalled());
+    expect(m.sell.mock.calls[0][1].items).toEqual([{ itemId: "rice", qty: 10, price: 17 }]);
+  });
+
+  it("delivering an order fills its lines and sends the order with the sale", async () => {
+    m.sell.mockResolvedValue({ invoice: { _id: "i1", transactionNo: "SO-1", totalAmount: 120, items: [] }, receipt: null });
+    render(<SellDialog trip={trip} customerId="c1" preorder={{ id: "o1", orderNo: "SORD-2026-0003", items: [{ itemId: "rice", qty: 6, price: 18 }] }} onClose={() => {}} onDone={() => {}} />);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Delivering order SORD-2026-0003/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Quantity")).toHaveValue("6");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Sell" })).not.toBeDisabled());
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sell" }));
+    await waitFor(() => expect(m.sell).toHaveBeenCalled());
+    expect(m.sell.mock.calls[0][1]).toMatchObject({ preorderId: "o1", items: [{ itemId: "rice", qty: 6, price: 18 }] });
+  });
+
+  it("the route offers an order for next visit, and an open order shows as Deliver", async () => {
+    m.mine.mockResolvedValue([{ ...trip, routeId: "r1" }]);
+    m.preorders.mockResolvedValue([{ id: "o1", orderNo: "SORD-2026-0003", customerId: "c1", items: [{ itemId: "rice", qty: 6, price: 18 }] }]);
+    m.preorder.mockResolvedValue({ orderNo: "SORD-2026-0004" });
+    m.apiGet.mockResolvedValue({ stocks: [{ _id: "rice", itemName: "Rice 5kg", itemType: "goods" }] });
+    wrap(<MyVan />);
+    expect(await screen.findByRole("button", { name: "Deliver order SORD-2026-0003" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Order for next visit from Bin Zayed Market" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(m.apiGet).toHaveBeenCalled());
+    await waitFor(() => expect(dialog.querySelector(".search-select__control")).toBeTruthy());
+    choose(dialog.querySelector(combo), "Rice 5kg");
+    fireEvent.change(within(dialog).getByLabelText("Quantity"), { target: { value: "4" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save order" }));
+    await waitFor(() => expect(m.preorder).toHaveBeenCalledWith("t1", { customerId: "c2", items: [{ itemId: "rice", qty: 4 }], notes: "" }));
+  });
+
+  it("the load is filled from the suggestion with the reason on each line, and stock expiring too soon is said once before loading", async () => {
+    m.apiGet.mockResolvedValue({ stocks: [{ _id: "rice", itemName: "Rice 5kg", itemType: "goods", currentStock: 100 }] });
+    m.suggestedLoad.mockResolvedValue({ runs: 3, lines: [{ stockId: "rice", itemName: "Rice 5kg", qty: 31, why: { preorder: 6, average: 24.3, runs: 3, onVan: 0, free: 100, capped: false } }] });
+    m.loadCheck.mockResolvedValue({ warnings: [{ code: "EXPIRY_SOON", stockId: "rice", message: "10 of Rice 5kg would expire before 2026-11-27", batches: [{ batchNo: "B1", expiryDate: "2026-11-21", qty: 10 }] }] });
+    m.load.mockResolvedValue({});
+    render(<LoadDialog trip={{ ...trip, status: "LOADING", routeId: "r1" }} onClose={() => {}} onDone={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Fill suggested load/ }));
+    expect(await screen.findByText(/last 3 runs/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Quantity")).toHaveValue("31");
+    expect(screen.getByText(/Suggested: 6 ordered, about 25 sold a run \(last 3\)/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save load" }));
+    expect(await screen.findByText(/Expires before the customers will take it/)).toBeInTheDocument();
+    expect(screen.getByText(/batch B1, 2026-11-21/)).toBeInTheDocument();
+    expect(m.load).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Load anyway" }));
+    await waitFor(() => expect(m.load).toHaveBeenCalledWith("t1", { lines: [{ stockId: "rice", qty: 31 }] }));
+    expect(m.loadCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it("the promotions tab lists each offer in words", async () => {
+    m.promoList.mockResolvedValue([rice10, { id: "pr3", name: "Big order", kind: "basket", minValue: 1000, percent: 2, active: false }]);
+    wrap(<VansSetupPage />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Promotions" }));
+    expect(await screen.findByText("Rice 10+ 5%")).toBeInTheDocument();
+    expect(screen.getAllByText("5% off from 10 units").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2% off an order of 1000 or more").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Phase 5: running the fleet", () => {
+  it("the board shows each van with its progress, cash in hand and the flags worth a call", async () => {
+    m.board.mockResolvedValue({
+      at: "2026-11-17T11:05:00.000Z", counts: { out: 2, loading: 0, toSettle: 1, quiet: 1, overCash: 1, far: 1 }, sales: 9000, cash: 5000,
+      rows: [
+        { id: "t1", tripNo: "VTR-1", vanCode: "VAN-1", salesmanName: "Rashid", routeName: "North", status: "ON_ROUTE", done: 3, total: 9, next: { name: "Corner Shop" }, lastAt: "2026-11-17T08:20:00.000Z", quietMinutes: 165, quiet: true, far: [{ kind: "sale", ref: "SO-2026-0105", distanceM: 1480 }], totals: { sales: 4000, cash: 2100, cashInHand: 2040, cashLimit: 5000 } },
+        { id: "t2", tripNo: "VTR-2", vanCode: "VAN-2", salesmanName: "Maya", status: "ON_ROUTE", done: 1, total: 4, next: null, lastAt: null, quiet: false, far: [], totals: { sales: 5000, cash: 6100, cashInHand: 6100, cashLimit: 5000, cashOverLimit: true } },
+      ],
+    });
+    wrap(<BoardPage />, ["/van-sales/board"]);
+    expect(await screen.findByText("VAN-1 · Rashid")).toBeInTheDocument();
+    expect(screen.getByText("3 of 9 stops")).toBeInTheDocument();
+    expect(screen.getByText("Next: Corner Shop")).toBeInTheDocument();
+    expect(screen.getByText("Quiet for 2 h 45 min with stops to go")).toBeInTheDocument();
+    expect(screen.getByText(/Sale SO-2026-0105 1.48 km from the shop/)).toBeInTheDocument();
+    expect(screen.getByText(/Carrying more cash than its/)).toBeInTheDocument();
+    expect(screen.getByText("1 quiet, 1 over cash, 1 far from a shop")).toBeInTheDocument();
+  });
+
+  it("money spent on the road is sent with its kind and amount", async () => {
+    m.expense.mockResolvedValue({ voucher: { voucherNo: "EV-1" } });
+    const onDone = vi.fn();
+    render(<ExpenseDialog trip={{ ...trip, totals: { cashInHand: 340 } }} onClose={() => {}} onDone={onDone} />);
+    expect(screen.getByText(/The van holds/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Amount paid"), { target: { value: "60" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /Note/ }), { target: { value: "ENOC" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(m.expense).toHaveBeenCalledWith("t1", { kind: "fuel", amount: 60, note: "ENOC" }));
+    expect(onDone).toHaveBeenCalled();
+  });
+
+  it("the van goes out with its odometer, or without one", async () => {
+    m.depart.mockResolvedValue({});
+    render(<DepartDialog trip={trip} onClose={() => {}} onDone={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Odometer going out"), { target: { value: "12000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send out" }));
+    await waitFor(() => expect(m.depart).toHaveBeenCalledWith("t1", { odometer: 12000 }));
+  });
+
+  it("a stop not yet pinned can be pinned where the van stands; a sale carries where the phone was", async () => {
+    m.mine.mockResolvedValue([{ ...trip, route: [{ ...trip.route[0], pinned: false }, { ...trip.route[1], pinned: true }] }]);
+    m.pin.mockResolvedValue({ customerId: "c1" });
+    wrap(<MyVan />);
+    fireEvent.click(await screen.findByRole("button", { name: "Pin Al Noor Grocery here" }));
+    await waitFor(() => expect(m.pin).toHaveBeenCalledWith("t1", "c1", { location: { lat: 25.2, lng: 55.3, accuracy: 15 } }));
+    expect(screen.queryByRole("button", { name: "Pin Bin Zayed Market here" })).toBeNull();
+  });
+
+  it("the reports have a profit view by route, salesman or van, from settled trips only", async () => {
+    m.summary.mockResolvedValue({ from: "2026-10-19", to: "2026-11-17", total: { sales: 0, invoices: 0, trips: 0, cash: 0, cheques: 0, cashVariance: 0 }, rows: [], byVan: [], bySalesman: [] });
+    m.routeProfit.mockResolvedValue({ trips: 3, rows: [{ key: "r1", name: "North", trips: 3, netSales: 1400, grossMargin: 560, damaged: 20, expenses: 80, cashVariance: -10, contribution: 450, marginPct: 32.14, perKm: 5.63 }] });
+    wrap(<VanReports />, ["/van-sales/reports"]);
+    fireEvent.click(await screen.findByRole("tab", { name: "Profit by route" }));
+    expect(await screen.findByText(/From 3 settled trips/)).toBeInTheDocument();
+    expect(screen.getAllByText("North").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("32.14%").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByRole("combobox", { name: "By" }), { target: { value: "salesman" } });
+    await waitFor(() => expect(m.routeProfit).toHaveBeenLastCalledWith({ from: undefined, to: undefined, by: "salesman" }));
   });
 });
 

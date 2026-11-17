@@ -8,6 +8,7 @@ import { SHEET_DESIGN_WIDTH, buildFromShare, fitScale } from "./shareSheet";
 import { formatDate } from "../../utils/format";
 import { setOrgLocale } from "../../utils/orgLocale";
 import EstimateApproval from "./EstimateApproval";
+import VanCorner from "./VanCorner";
 
 // The page a customer opens from the emailed or WhatsApp link: no sign-in, no menu, nothing of ours but
 // the document and who it is from. It must not use the signed-in helpers (the company profile hook and
@@ -167,6 +168,7 @@ export default function SharedDocument() {
         <div data-print-preview="" className="rounded-xl border border-border bg-secondary p-2 sm:p-8">
           <FitToWidth><div className="shadow-card"><Sheet {...doc.sheet} copy={doc.copies[0]} accent={accent} /></div></FitToWidth>
         </div>
+        <VanCorner token={token} />
         <p className="text-center text-xs text-muted-foreground">
           This document was sent to you by {company.companyName || "the sender"}.{reach ? ` Questions? ${reach}.` : ""}
           {state.data.expiresAt ? ` This link works until ${formatDate(state.data.expiresAt)}.` : ""}

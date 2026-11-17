@@ -71,6 +71,7 @@ const VanTrips = lazy(() => import("../components/vansales/TripsPage.jsx"));
 const VanSettlement = lazy(() => import("../components/vansales/SettlementPage.jsx"));
 const VanReports = lazy(() => import("../components/vansales/VanReports.jsx"));
 const VanSetup = lazy(() => import("../components/vansales/VansSetupPage.jsx"));
+const VanBoard = lazy(() => import("../components/vansales/BoardPage.jsx"));
 const HrOverview = lazy(() => import("../components/hr/OverviewPage.jsx"));
 const HrEmployees = lazy(() => import("../components/hr/EmployeesPage.jsx"));
 const HrEmployeeView = lazy(() => import("../components/hr/EmployeeView.jsx"));
@@ -213,6 +214,7 @@ export default function AdminRouter() {
         <Route path="/garage/setup" element={<GarageSetup />} />
         <Route path="/van-sales/my-van" element={<VanMyVan />} />
         <Route path="/van-sales/trips" element={<VanTrips />} />
+        <Route path="/van-sales/board" element={<VanBoard />} />
         <Route path="/van-sales/settlement" element={<VanSettlement />} />
         <Route path="/van-sales/reports" element={<VanReports />} />
         <Route path="/van-sales/setup" element={<VanSetup />} />

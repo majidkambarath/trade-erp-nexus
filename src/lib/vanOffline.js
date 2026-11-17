@@ -29,7 +29,8 @@ export function offlineView(pack, queue = []) {
   const live = (queue || []).filter((o) => o.state !== "refused");
   const taken = new Map();
   for (const op of live.filter((o) => o.kind === "sell")) {
-    for (const l of op.body?.items || []) taken.set(String(l.itemId), round3((taken.get(String(l.itemId)) || 0) + Number(l.qty || 0)));
+    // the goods an offer gives free leave the van too (the phone kept what the rule promised; the server re-applies it)
+    for (const l of [...(op.body?.items || []), ...(op.body?.previewFree || []).map((f) => ({ itemId: f.stockId, qty: f.qty }))]) taken.set(String(l.itemId), round3((taken.get(String(l.itemId)) || 0) + Number(l.qty || 0)));
   }
   const sellable = (pack?.trip?.sellable || []).map((l) => ({ ...l, qty: round3(l.qty - (taken.get(l.stockId) || 0)) })).filter((l) => l.qty > 0);
   const usedNumbers = new Set(live.map((o) => o.body?.number).filter(Boolean));

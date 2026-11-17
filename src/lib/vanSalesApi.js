@@ -33,7 +33,7 @@ export const trips = {
   activity: (id) => api.get(`/van-sales/trips/${id}/activity`),
   open: (body) => api.post("/van-sales/trips", body),
   load: (id, body) => api.post(`/van-sales/trips/${id}/load`, body),
-  depart: (id) => api.post(`/van-sales/trips/${id}/depart`),
+  depart: (id, body) => api.post(`/van-sales/trips/${id}/depart`, body),
   cancel: (id) => api.post(`/van-sales/trips/${id}/cancel`),
   sell: (id, body) => api.post(`/van-sales/trips/${id}/sell`, body),
   collect: (id, body) => api.post(`/van-sales/trips/${id}/collect`, body),
@@ -48,6 +48,23 @@ export const trips = {
   whatsapp: (id, invoiceId, body) => api.post(`/van-sales/trips/${id}/invoices/${invoiceId}/whatsapp`, body),
   offlinePack: (id, params) => api.get(`/van-sales/trips/${id}/offline`, params),
   sync: (id, body) => api.post(`/van-sales/trips/${id}/sync`, body),
+  suggestedLoad: (id) => api.get(`/van-sales/trips/${id}/suggested-load`),
+  loadCheck: (id, body) => api.post(`/van-sales/trips/${id}/load-check`, body),
+  preorders: (id) => api.get(`/van-sales/trips/${id}/preorders`),
+  preorder: (id, body) => api.post(`/van-sales/trips/${id}/preorders`, body),
+  expenses: (id) => api.get(`/van-sales/trips/${id}/expenses`),
+  expense: (id, body) => api.post(`/van-sales/trips/${id}/expenses`, body),
+  pin: (id, customerId, body) => api.post(`/van-sales/trips/${id}/customers/${customerId}/location`, body),
+};
+
+export const fleet = {
+  board: () => api.get("/van-sales/board"),
+};
+
+export const promotions = {
+  list: (params) => api.get("/van-sales/promotions", params),
+  create: (body) => api.post("/van-sales/promotions", body),
+  update: (id, body) => api.put(`/van-sales/promotions/${id}`, body),
 };
 
 export const priceLists = {
@@ -59,4 +76,5 @@ export const priceLists = {
 
 export const reports = {
   summary: (params) => api.get("/van-sales/reports/summary", params),
+  routeProfit: (params) => api.get("/van-sales/reports/route-profit", params),
 };
