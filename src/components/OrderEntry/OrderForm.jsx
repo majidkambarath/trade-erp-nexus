@@ -9,6 +9,7 @@ import axiosInstance from "../../axios/axios";
 import LineItemsGrid, { firstEditableKey } from "./LineItemsGrid";
 import QuickCreateDialog from "./QuickCreateDialog";
 import { QUICK_CREATE, MEASURE_TYPES } from "./quickCreate";
+import { noVatCodeOf, salesWithoutVat } from "../../lib/vatRegistration";
 import { buildPayload, columnsFor, recalcRow, rowFromReturnLine } from "./variants";
 import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
@@ -174,7 +175,7 @@ export default function OrderForm({
   activeView = "create",
 }) {
   const uid = useId();
-  const { me, featureOn } = useOrganisation();
+  const { me, featureOn, status } = useOrganisation();
   // The availability check is a DELIVERY NOTES endpoint, so an organisation without that feature would be
   // asking for a 403 on every keystroke. The variant still says whether it wants the check at all; this only
   // adds whether the plan allows it, and gates the warnings with it so neither half runs on its own.
@@ -263,9 +264,17 @@ export default function OrderForm({
   // lines"): a fresh line gets it at once, so a new invoice never starts with no tax treatment at
   // all (F01, finance QA review 1 Nov 2026). Falls back to nothing when none is set, or while the
   // codes are still loading - a line then keeps the plain 5% rowTemplate() has always carried.
+  // A company that is not registered for VAT charges none (the server forces it; the form shows it): what it SELLS is out of scope at 0%
+  // and the tax cell is read-only. What it BUYS keeps the supplier's code, since a supplier may still charge 5% (that VAT is then part of the cost).
+  const sellsWithoutVat = salesWithoutVat(status) && V.party.idKey === "customerId";
+  const registeredForVat = Boolean(status?.vatRegistration?.governs) && status.vatRegistration.registered !== false;
+  const noVatCode = useMemo(() => noVatCodeOf(taxCodes), [taxCodes]);
   const defaultCode = useMemo(
-    () => taxCodes.find((c) => c.isDefault && c.kind === "standard") || null,
-    [taxCodes]
+    () =>
+      sellsWithoutVat
+        ? (taxCodes.length ? noVatCode || { _id: "", ratePercent: 0 } : null) // none until the codes have loaded
+        : taxCodes.find((c) => c.isDefault && c.kind === "standard") || null,
+    [taxCodes, sellsWithoutVat, noVatCode]
   );
   const freshRow = useCallback(() => {
     const row = V.rowTemplate();
@@ -329,6 +338,14 @@ export default function OrderForm({
     );
   }, [defaultCode, editing, V, setRows]);
 
+  // A saved draft opened while the company is not registered shows what will be saved: no VAT on any line.
+  const forcedNoVat = useRef(false);
+  useEffect(() => {
+    if (!sellsWithoutVat || forcedNoVat.current || !taxCodes.length) return;
+    forcedNoVat.current = true;
+    setRows((items) => items.map((row) => (row.itemId ? recalc(V, { ...row, taxCodeId: noVatCode?._id || "", [V.fields.vatPercent]: "0", reverseCharge: false }) : row)));
+  }, [sellsWithoutVat, taxCodes, noVatCode, V, setRows]);
+
   const setHeader = (name, value) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
     clearErrors([name]);
@@ -371,7 +388,9 @@ export default function OrderForm({
             // own and so always reads "5" - a row that already carries a tax code keeps that
             // code's own rate instead, so a default other than 5% is not silently overwritten the
             // moment an item is chosen.
-            if (next.taxCodeId) {
+            if (sellsWithoutVat) {
+              next = { ...next, taxCodeId: noVatCode?._id || "", [V.fields.vatPercent]: "0", reverseCharge: false };
+            } else if (next.taxCodeId) {
               const code = taxCodes.find((c) => c._id === next.taxCodeId);
               if (code) next[V.fields.vatPercent] = String(code.ratePercent);
             }
@@ -381,7 +400,7 @@ export default function OrderForm({
       );
       clearErrors([`itemId_${r}`]);
     },
-    [V, stockById, setRows, clearErrors, taxCodes]
+    [V, stockById, setRows, clearErrors, taxCodes, sellsWithoutVat, noVatCode]
   );
 
   const changeCell = useCallback(
@@ -407,7 +426,7 @@ export default function OrderForm({
 
   // ---- charges ------------------------------------------------------------------------
   const setCharges = (fn) => setFormData((prev) => ({ ...prev, charges: fn(prev.charges || []) }));
-  const addCharge = () => setCharges((c) => [...c, { description: "Freight", amount: "", vatPercent: "5" }]);
+  const addCharge = () => setCharges((c) => [...c, { description: "Freight", amount: "", vatPercent: sellsWithoutVat ? "0" : "5" }]);
   const changeCharge = (i, k, v) => {
     setCharges((c) => c.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
     clearErrors([`charge_${k}_${i}`]);
@@ -417,6 +436,15 @@ export default function OrderForm({
   // The grid's own columns - computed once so Alt+N and the header's Enter know which column
   // a new line's cursor belongs in without duplicating columnsFor's rules.
   const columns = useMemo(() => columnsFor(V, { batches: !noBatches }), [V, noBatches]);
+  // the tax code is required once the company is registered (no blank choice), and read-only while it sells without VAT
+  const gridColumns = useMemo(
+    () => columns.map((c) => {
+      if (sellsWithoutVat && (c.key === "taxCodeId" || c.key === V.fields.vatPercent)) return { ...c, label: c.label, locked: true };
+      if (registeredForVat && c.key === "taxCodeId") return { ...c, label: c.label, required: true };
+      return c;
+    }),
+    [columns, sellsWithoutVat, registeredForVat, V]
+  );
 
   // ---- keyboard: one line of travel through the whole form ---------------------------
   // Somebody with no mouse fills this in with Tab, typing and Enter. The lines are an ARIA grid
@@ -493,6 +521,7 @@ export default function OrderForm({
       if (!(num(r.qty) > 0)) e[`qty_${i}`] = "Enter a quantity above 0";
       if (priceEditable && !(num(r[F.unitPrice]) > 0)) e[`${F.unitPrice}_${i}`] = "Enter a price above 0";
       if (num(r[F.vatPercent]) < 0) e[`${F.vatPercent}_${i}`] = `${taxWord()} cannot be negative`;
+      if (registeredForVat && !sellsWithoutVat && columns.some((c) => c.key === "taxCodeId") && r.itemId && !r.taxCodeId) e[`taxCodeId_${i}`] = "Choose a tax code";
       if (num(r.discountPercent) < 0 || num(r.discountPercent) > 100) e[`discountPercent_${i}`] = "Discount is 0 to 100%";
       // a return against an invoice cannot take back more than is left on that line
       if (r.maxQty !== "" && r.maxQty != null && num(r.qty) > num(r.maxQty)) e[`qty_${i}`] = `At most ${r.maxQty} can be returned`;
@@ -518,6 +547,8 @@ export default function OrderForm({
   const hydrateSaved = (saved, payload) => ({
     ...saved,
     id: saved._id,
+    // the sheet's Prepared by box: the server names the creator on a read; a document saved just now was prepared by this person
+    createdByName: saved.createdByName || selected?.createdByName || (selected ? "" : me?.name) || "",
     [V.party.idInDoc]: saved.partyId,
     [V.party.nameInDoc]: allParties.find((p) => p._id === saved.partyId)?.[V.party.nameKey] || "Unknown",
     items: (saved.items || []).map((bi) => {
@@ -1022,7 +1053,7 @@ export default function OrderForm({
           )}
           <LineItemsGrid
             label={V.title.items}
-            columns={columns}
+            columns={gridColumns}
             rows={rows}
             errors={errors}
             itemOptions={itemOptions}
@@ -1034,6 +1065,16 @@ export default function OrderForm({
             focusRequest={focusRequest}
             selectOptions={selectOptions}
           />
+          {sellsWithoutVat && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Your company is not registered for {taxWord()}, so no {taxWord()} is charged on this document. Save your tax number under Settings, Business rules, to charge it.
+            </p>
+          )}
+          {Boolean(status?.vatRegistration?.governs) && !registeredForVat && V.party.idKey === "vendorId" && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Your company is not registered for {taxWord()}, so {taxWord()} charged by a supplier cannot be claimed back: it is added to the cost of what you buy.
+            </p>
+          )}
           {stockWarnings.length > 0 && (
             <div role="status" className="rounded-lg border border-status-warning/40 bg-status-warning-soft px-3 py-2 text-sm text-foreground">
               <p className="font-semibold">Not enough free stock for this delivery note</p>
@@ -1075,7 +1116,7 @@ export default function OrderForm({
         </section>
 
         {/* attachments belong to transactions; a quotation or delivery note has none of its own yet */}
-        {isTransaction && (
+        {isTransaction && featureOn("invoiceAttachments") && (
           <section className={CARD}>
             {selected?.id
               ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />

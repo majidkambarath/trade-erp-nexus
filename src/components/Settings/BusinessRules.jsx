@@ -5,7 +5,7 @@ import { orgCurrency } from "../../utils/orgLocale";
 import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
 import { useOrganisation } from "../shell/OrganisationContext";
-import { ErrorNote, Field, Panel, Select, PageSpinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
+import { DateInput, ErrorNote, Field, Panel, Select, PageSpinner, TextInput, errorMessage, useAsync } from "../accounting/kit";
 import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
 import { isValidTrn, taxIdRule } from "../../lib/partyForms";
 
@@ -141,7 +141,7 @@ export function taxIdentityFrom(profile = {}, company) {
     legalName: company.companyName, addressLine1: company.addressLine1, city: company.city,
     emirate: EMIRATES.includes(company.state) ? company.state : "", email: company.emailAddress, phone: company.phoneNumber,
   } : {};
-  const merged = { legalName: "", trn: "", addressLine1: "", city: "", emirate: "", countryCode: "AE", email: "", phone: "", vatRegistered: true, ...profile };
+  const merged = { legalName: "", trn: "", addressLine1: "", city: "", emirate: "", countryCode: "AE", email: "", phone: "", vatRegistered: true, vatRegisteredFrom: "", ...profile };
   for (const [k, v] of Object.entries(fallback)) if (!merged[k] && v) merged[k] = v;
   return merged;
 }
@@ -160,8 +160,13 @@ function TaxIdentity({ settings, defaults, notify, onSaved }) {
     <Panel title="Tax identity" description="The seller on tax invoices and on every e-invoice. Taken from your company profile until you change it here.">
       <form onSubmit={s.submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Registered name" className="sm:col-span-2"><TextInput value={p.legalName || ""} onChange={set("legalName")} maxLength={150} /></Field>
-        <Field label={isUae() ? "Tax registration number (TRN)" : taxIdWord()} error={fieldError} hint={isUae() ? "15 digits." : taxIdWord() === "GSTIN" ? "15 characters, for example 27ABCDE1234F1Z5." : undefined}><TextInput inputMode={isUae() ? "numeric" : "text"} value={p.trn || ""} onChange={set("trn")} maxLength={isUae() ? 15 : 20} /></Field>
+        <Field label={isUae() ? "Tax registration number (TRN)" : taxIdWord()} error={fieldError} hint={isUae() ? "15 digits. Without one the company counts as not registered: sales carry no VAT and print as an Invoice." : taxIdWord() === "GSTIN" ? "15 characters, for example 27ABCDE1234F1Z5." : undefined}><TextInput inputMode={isUae() ? "numeric" : "text"} value={p.trn || ""} onChange={set("trn")} maxLength={isUae() ? 15 : 20} /></Field>
         <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={p.vatRegistered !== false} onChange={set("vatRegistered")} className="h-5 w-5 accent-[var(--color-primary)] lg:h-4 lg:w-4" />Registered for {taxWord()}</label>
+        {isUae() && (
+          <Field label="Registered from" hint="Invoices dated before this day are plain invoices with no VAT. Leave empty if registered from the start.">
+            <DateInput value={p.vatRegisteredFrom || ""} onChange={set("vatRegisteredFrom")} />
+          </Field>
+        )}
         <Field label="Address" className="sm:col-span-2"><TextInput value={p.addressLine1 || ""} onChange={set("addressLine1")} /></Field>
         <Field label="City"><TextInput value={p.city || ""} onChange={set("city")} /></Field>
         <Field label="Emirate">

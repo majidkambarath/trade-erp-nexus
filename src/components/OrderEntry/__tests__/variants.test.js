@@ -216,8 +216,9 @@ describe("quick-create payloads", () => {
   });
 
   it("reports the first missing required field", () => {
-    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "" }).name).toBe("contactPerson");
-    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "Y", address: "Z" })).toBeNull();
+    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "" }).name).toBe("address"); // the contact person is optional
+    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "", address: "Z", country: "AE", emirate: "Dubai" })).toBeNull();
+    expect(missingRequired(QUICK_CREATE.vendor, { vendorName: "X", contactPerson: "Y", address: "Z", country: "AE", emirate: "Dubai" })).toBeNull();
   });
 
   // A party quick-added from an order used to be saved on the server's Net 30 fallback, so a
@@ -241,7 +242,7 @@ describe("quick-create payloads", () => {
   });
 
   it("the tax number is asked for only once the box is ticked, and is checked before the request", () => {
-    const base = { customerName: "Spinneys", contactPerson: "Ali", billingAddress: "Abu Dhabi" };
+    const base = { customerName: "Spinneys", contactPerson: "Ali", billingAddress: "Abu Dhabi", country: "AE", emirate: "Abu Dhabi" };
     const trnField = QUICK_CREATE.customer.fields.find((f) => f.name === "trn");
     expect(isShown(trnField, base)).toBe(false);
     expect(isShown(trnField, { ...base, vatRegistered: true })).toBe(true);
@@ -251,6 +252,29 @@ describe("quick-create payloads", () => {
     expect(invalidField(QUICK_CREATE.customer, { ...base, vatRegistered: true, trn: "12345" })).toBeTruthy();
     expect(invalidField(QUICK_CREATE.customer, { ...base, vatRegistered: true, trn: "100123456700003" })).toBeNull();
     expect(invalidField(QUICK_CREATE.customer, base)).toBeNull();
+  });
+});
+
+describe("quick-add: country and emirate", () => {
+  const base = { customerName: "Spinneys", billingAddress: "Corniche" };
+  it("asks for a country, and an emirate only for the UAE", () => {
+    const emirate = QUICK_CREATE.customer.fields.find((f) => f.name === "emirate");
+    expect(missingRequired(QUICK_CREATE.customer, base).name).toBe("country");
+    expect(isShown(emirate, { country: "AE" })).toBe(true);
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "AE" }).name).toBe("emirate");
+    expect(isShown(emirate, { country: "IN" })).toBe(false);
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "IN" })).toBeNull();
+  });
+  it("opens on the UAE and Abu Dhabi, and choosing another country clears the emirate", () => {
+    expect(QUICK_CREATE.customer.defaults).toEqual({ country: "AE", emirate: "Abu Dhabi" });
+    expect(QUICK_CREATE.vendor.defaults).toEqual({ country: "AE", emirate: "Abu Dhabi" });
+    expect(QUICK_CREATE.customer.onChange("country", "IN", { country: "AE", emirate: "Dubai" })).toEqual({ emirate: "" });
+    expect(QUICK_CREATE.customer.onChange("country", "AE", { country: "IN", emirate: "" })).toEqual({ emirate: "Abu Dhabi" });
+    expect(QUICK_CREATE.customer.onChange("billingAddress", "x", {})).toBeNull();
+  });
+  it("sends the two as fields of their own, and no emirate outside the UAE", () => {
+    expect(QUICK_CREATE.customer.payload({ ...base, country: "AE", emirate: "Sharjah" })).toMatchObject({ billingAddress: "Corniche", country: "AE", emirate: "Sharjah" });
+    expect(QUICK_CREATE.vendor.payload({ vendorName: "V", address: "A", country: "IN", emirate: "Dubai" })).toMatchObject({ country: "IN", emirate: "" });
   });
 });
 

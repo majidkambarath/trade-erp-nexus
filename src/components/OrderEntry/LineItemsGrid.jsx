@@ -8,6 +8,7 @@ import { DateInput } from "../accounting/kit";
 import { WIDE, useMediaQuery } from "../accounting/DataTable";
 import { rowIsService } from "../../lib/itemTypes";
 import { lineHint } from "../../lib/reverseCharge";
+import { taxWord } from "../../lib/taxTerms";
 // Line items as an ARIA grid (https://www.w3.org/WAI/ARIA/apg/patterns/grid/).
 //
 // Keyboard model:
@@ -258,7 +259,8 @@ export default function LineItemsGrid({
             step="any"
             value={value ?? ""}
             onChange={(e) => onCellChange(r, col.key, e.target.value)}
-            className={cn(fieldInput, col.align === "end" && "text-end tabular-nums")}
+            readOnly={col.locked}
+            className={cn(fieldInput, col.align === "end" && "text-end tabular-nums", col.locked && "opacity-70")}
           />
         );
       case "select": {
@@ -268,9 +270,12 @@ export default function LineItemsGrid({
             {...common}
             value={value ?? ""}
             onChange={(e) => onCellChange(r, col.key, e.target.value)}
-            className={cn(fieldInput, "pe-7")}
+            disabled={col.locked}
+            required={col.required}
+            title={col.locked ? `No ${taxWord()}: the company is not registered` : undefined}
+            className={cn(fieldInput, "pe-7", col.locked && "opacity-70")}
           >
-            <option value="">—</option>
+            {!col.required && <option value="">—</option>}
             {options.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}

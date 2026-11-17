@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Field, PhoneInput, Select, Textarea, TextInput } from "../accounting/kit";
+import { Field, PhoneInput, SearchSelect, Select, Textarea, TextInput } from "../accounting/kit";
+import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, EMIRATES } from "../../lib/countries";
 import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
 import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
@@ -76,7 +77,7 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
       <Field label={`${noun} name`} required error={errors.name} className="sm:col-span-2">
         <TextInput value={value.name} onChange={text("name")} maxLength={100} placeholder={kind === "vendor" ? "e.g. Gulf Mills Trading LLC" : "e.g. Al Noor Mart LLC"} data-autofocus={autoFocus ? true : undefined} />
       </Field>
-      <Field label="Contact person" required error={errors.contactPerson}>
+      <Field label="Contact person" error={errors.contactPerson}>
         <TextInput value={value.contactPerson} onChange={text("contactPerson")} maxLength={100} autoComplete="off" />
       </Field>
       <Field label="Phone" error={errors.phone}>
@@ -120,7 +121,35 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
           <Textarea value={value.address} onChange={text("address")} maxLength={500} />
         </Field>
       )}
+      <CountryFields value={value} set={set} errors={errors} />
     </div>
+  );
+}
+
+// The address's country (searchable, every country) and, in the UAE only, the emirate it is in.
+function CountryFields({ value, set, errors }) {
+  const options = useMemo(countryOptions, []);
+  const isAe = value.country === DEFAULT_COUNTRY;
+  return (
+    <>
+      <Field label="Country" required>
+        <SearchSelect
+          aria-label="Country"
+          value={value.country}
+          options={options}
+          rankMatches
+          onChange={(code) => set({ country: code || DEFAULT_COUNTRY, ...(code === DEFAULT_COUNTRY ? { emirate: value.emirate || DEFAULT_EMIRATE, addressLegacy: false } : { emirate: "" }) })}
+        />
+      </Field>
+      {isAe && (
+        <Field label="Emirate" required error={errors.emirate}>
+          <Select value={value.emirate} onChange={(e) => set({ emirate: e.target.value, addressLegacy: false })}>
+            {!value.emirate && <option value="">Choose an emirate…</option>}
+            {EMIRATES.map((e) => <option key={e} value={e}>{e}</option>)}
+          </Select>
+        </Field>
+      )}
+    </>
   );
 }
 

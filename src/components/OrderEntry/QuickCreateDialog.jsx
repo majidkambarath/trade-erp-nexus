@@ -3,6 +3,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X } from "lucide-react";
 import { invalidField, isRequired, isShown, missingRequired } from "./quickCreate";
 import { cn } from "../../lib/utils";
+import { SearchSelect } from "../accounting/kit";
 
 // One dialog for every quick create. The field list comes from quickCreate.js, so the
 // required fields are the same ones the management screens enforce.
@@ -27,10 +28,11 @@ export default function QuickCreateDialog({
 
   useEffect(() => {
     if (open) {
-      setValues({ ...(initial || {}) });
+      setValues({ ...(spec?.defaults || {}), ...(initial || {}) });
       setError("");
       setBusy(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initial]);
 
   useEffect(() => {
@@ -41,7 +43,8 @@ export default function QuickCreateDialog({
 
   if (!spec) return null;
 
-  const set = (name, value) => setValues((v) => ({ ...v, [name]: value }));
+  // a field can say what else changes with it (the country decides the emirate)
+  const set = (name, value) => setValues((v) => ({ ...v, [name]: value, ...(spec.onChange?.(name, value, v) || {}) }));
 
   const submit = async (e) => {
     e.preventDefault();
@@ -79,9 +82,9 @@ export default function QuickCreateDialog({
           onCloseAutoFocus={(e) => {
             if (onCloseFocus?.()) e.preventDefault();
           }}
-          className="fixed start-1/2 top-[18dvh] z-[60] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
+          className="fixed start-1/2 top-[max(1rem,6dvh)] z-[60] flex max-h-[calc(100dvh-2rem)] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 flex-col rounded-xl border border-border bg-card p-6 text-foreground shadow-elevated rtl:translate-x-1/2"
         >
-          <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="mb-5 flex shrink-0 items-start justify-between gap-4">
             <Dialog.Title className="text-lg font-bold tracking-tight">{spec.title}</Dialog.Title>
             <Dialog.Close
               aria-label="Close"
@@ -91,13 +94,14 @@ export default function QuickCreateDialog({
             </Dialog.Close>
           </div>
 
-          <form onSubmit={submit} noValidate className="space-y-4">
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+            <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 pb-1">
             {spec.fields.map((f) => {
               // A field can depend on another: the tax number appears only once the box is ticked.
               if (!isShown(f, values)) return null;
               const id = `${uid}-${f.name}`;
               const isSelect = Boolean(f.select);
-              const opts = isSelect ? options[f.select] || [] : [];
+              const opts = isSelect ? (f.optionsList ? f.optionsList() : options[f.select] || []) : [];
               const required = isRequired(f, values); // some fields depend on others (origin and brand are not asked of a service)
               // A tick is its own row: the label sits beside the box, not above it.
               if (f.checkbox) {
@@ -122,7 +126,17 @@ export default function QuickCreateDialog({
                     {f.label}
                     {required && <span className="ms-1 text-status-danger" aria-hidden="true">*</span>}
                   </label>
-                  {isSelect ? (
+                  {isSelect && f.search ? (
+                    <SearchSelect
+                      id={id}
+                      aria-label={f.label}
+                      value={values[f.name] || ""}
+                      options={opts}
+                      rankMatches
+                      onChange={(v) => set(f.name, v)}
+                      invalid={false}
+                    />
+                  ) : isSelect ? (
                     <div className="flex gap-2">
                       <select
                         id={id}
@@ -177,13 +191,15 @@ export default function QuickCreateDialog({
               );
             })}
 
+            </div>
+
             {error && (
-              <p role="alert" className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm font-semibold text-status-danger">
+              <p role="alert" className="mt-3 shrink-0 rounded-lg bg-status-danger-soft px-3 py-2 text-sm font-semibold text-status-danger">
                 {error}
               </p>
             )}
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="mt-4 flex shrink-0 justify-end gap-2 border-t border-border pt-4">
               <Dialog.Close className="h-10 rounded-lg border border-input bg-card px-4 text-sm font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 Cancel
               </Dialog.Close>

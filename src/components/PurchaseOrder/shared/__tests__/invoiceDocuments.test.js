@@ -59,7 +59,7 @@ describe("purchase invoice", () => {
     expect(draft.sheet.title).toBe("Tax invoice");
     expect(draft.sheet.number.label).toBe("Draft invoice no.");
     expect(draft.fileName).toBe("Draft-Tax-invoice_PO-1");
-    expect(draft.sheet.notice).toMatch(/draft tax invoice/);
+    expect(draft.sheet.notice).toBe("");
 
     const approved = buildPurchaseDocument({ transactionNo: "PO-1", status: "APPROVED", items: [] }, registered, company, "AED");
     expect(approved.sheet.title).toBe("Tax invoice");
@@ -168,7 +168,7 @@ describe("returns: a credit note and a debit note, with the invoice returned nam
     expect(doc.sheet.title).toBe("Tax credit note");
     expect(doc.sheet.number).toEqual({ label: "Credit note no.", value: "SR-1" });
     expect(doc.sheet.meta).toContainEqual(["Original invoice", "SO-2026-0042"]);
-    expect(doc.sheet.notice).toMatch(/tax credit note.*against SO-2026-0042/);
+    expect(doc.sheet.notice).toMatch(/against SO-2026-0042/);
     expect(doc.fileName).toBe("Tax-credit-note_SR-1");
   });
 
@@ -183,10 +183,9 @@ describe("returns: a credit note and a debit note, with the invoice returned nam
     expect(doc.sheet.notice).not.toMatch(/tax/i);
   });
 
-  it("a draft return says nothing is posted yet", () => {
+  it("a draft return no longer prints a draft notice", () => {
     const doc = buildSalesReturnDocument(ret({ status: "DRAFT" }), customer, company, "AED");
-    expect(doc.sheet.notice).toMatch(/draft/);
-    expect(doc.sheet.notice).toMatch(/Nothing is posted and no stock moves until it is approved/);
+    expect(doc.sheet.notice).not.toMatch(/draft|Nothing is posted/);
   });
 
   it("a purchase return is the same debit note whoever the supplier is", () => {
@@ -295,8 +294,9 @@ describe("the due date, and where the customer is", () => {
 
   // A vendor record has no structured locality at all, so the purchase side must pass none rather
   // than reach for a field that does not exist.
-  it("claims no locality for a vendor, or for a customer whose address is one blob", () => {
-    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf" }, company, "AED").sheet.party.locality).toBeUndefined();
+  it("claims no locality for a vendor with no country on file, prints one that has, and for a customer whose address is one blob", () => {
+    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf" }, company, "AED").sheet.party.locality).toBe("");
+    expect(buildPurchaseDocument(base, { vendorId: "V1", vendorName: "Gulf", country: "AE", emirate: "Ajman" }, company, "AED").sheet.party.locality).toBe("Ajman, United Arab Emirates");
     expect(buildSalesDocument(base, { customerId: "C1", customerName: "S" }, company, "AED").sheet.party.locality).toBe("");
   });
 
@@ -332,7 +332,7 @@ describe("the seller's own registration decides the heading", () => {
   it("carries the same rule to the credit note and to the file name", () => {
     expect(creditFor({ vatNumber: "100000000000003", vatRegistered: true })).toBe("Tax credit note");
     expect(creditFor({ vatNumber: "100000000000003", vatRegistered: false })).toBe("Credit note");
-    expect(buildSalesDocument(sale, customer, { vatNumber: "1", vatRegistered: false }, "AED").fileName).toBe("Invoice_SO-9");
+    expect(buildSalesDocument(sale, customer, { vatNumber: "1", vatRegistered: false }, "AED").fileName).toBe("SO-9_Spinneys_Invoice");
     expect(buildSalesDocument(sale, customer, { vatNumber: "1", vatRegistered: false }, "AED").taxInvoice).toBe(false);
   });
 

@@ -142,7 +142,7 @@ describe("creating a customer or vendor from the account form", () => {
     await screen.findByRole("dialog");
     fireEvent.click(screen.getByRole("button", { name: "Create customer" }));
     expect(await screen.findByText("Customer name is required")).toBeInTheDocument();
-    expect(screen.getByText("Contact person is required")).toBeInTheDocument();
+    expect(screen.queryByText("Contact person is required")).toBeNull(); // optional now
     expect(mocks.partyCreate).not.toHaveBeenCalled();
 
     fill(/Customer name/, "Marina Minimart");
@@ -195,7 +195,7 @@ describe("creating a customer or vendor from the account form", () => {
     fill(/^Address/, "Al Ain");
     fireEvent.click(screen.getByRole("button", { name: "Create vendor" }));
     await waitFor(() => expect(mocks.partyCreate).toHaveBeenCalledTimes(1));
-    expect(mocks.partyCreate.mock.calls[0][0]).toMatchObject({ groupId: "ap", party: { vendorName: "Al Ain Farms", address: "Al Ain", paymentTerms: "30 days" } });
+    expect(mocks.partyCreate.mock.calls[0][0]).toMatchObject({ groupId: "ap", party: { vendorName: "Al Ain Farms", address: "Al Ain", paymentTerms: "Cash" } });
     expect(mocks.partyCreate.mock.calls[0][0].party).not.toHaveProperty("customerName");
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith("AP0007 Vendor - Al Ain Farms created"));
   });

@@ -188,7 +188,7 @@ const VendorManagement = () => {
               </div>
             ),
           },
-          { key: "contactPerson", header: "Contact Person", sortable: true, card: "title", cell: (v) => v.contactPerson },
+          { key: "contactPerson", header: "Contact Person", sortable: true, card: "title", cell: (v) => v.contactPerson || "-" },
           { key: "email", header: "Email", sortable: true, cell: (v) => <a href={`mailto:${v.email}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.email}</a> },
           { key: "phone", header: "Phone Number", sortable: true, cell: (v) => <a href={`tel:${v.phone}`} className="text-blue-600 hover:text-blue-800 transition-colors">{v.phone}</a> },
           { key: "address", header: "Billing Address", sortable: true, card: "hidden", cell: (v) => <div className="max-w-xs truncate" title={v.address}>{v.address}</div> },
