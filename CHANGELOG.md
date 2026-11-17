@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.5.0.0 — 17 November 2026
+
+Van sales: more at the customer's door, daily targets and the figures an owner judges the vans by. Frontend and backend both at 3.5.0.0.
+
+### Added
+
+- **At the door**: when you choose a customer in Sell you see what they owe and their last order. **Repeat last order** fills it in (held to what is on the van, with any cut named), and one-tap buttons add what they usually buy and what they have stopped buying.
+- **Daily targets**: a van can have a sales target and a calls target. My van and the trip show bars and "AED 64 to go" or "Target reached"; the Board shows the percentage. A trip keeps the targets it opened with.
+- **Reports**: average drop, lines per call, strike rate and cost per drop; a sales-by-day chart; a **Leaderboard** of salesmen with the days each reached their target.
+- **On the phone**: the next stop's Sell and Collect stay in a bar above the bottom menu, a long route can be searched, and Sell has - / + buttons for quantities.
+
+### Changed
+
+- The trip card is a plain light card: the coloured line along its top and the coloured edge on Board cards are gone.
+- The credit and expiry warnings in the van dialogs use the product's warning colours.
+
 ## 3.4.3.0 — 17 November 2026
 
 Van sales: Settlement and Reports redesigned to match the other van screens. Frontend and backend both at 3.4.3.0.
