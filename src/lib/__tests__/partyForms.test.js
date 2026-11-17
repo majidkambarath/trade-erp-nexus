@@ -119,9 +119,9 @@ describe("rows with one primary", () => {
 });
 
 describe("validateParty", () => {
-  it("asks for the name, contact person and billing address of a customer; the address of a vendor", () => {
+  it("asks for the name and billing address of a customer (the contact person is optional); the address of a vendor", () => {
     expect(validateParty("customer", emptyParty("customer"))).toMatchObject({
-      name: "Customer name is required", contactPerson: "Contact person is required", billingAddress: "Billing address is required",
+      name: "Customer name is required", billingAddress: "Billing address is required",
     });
     expect(validateParty("vendor", emptyParty("vendor"))).toMatchObject({ name: "Vendor name is required", address: "Address is required" });
     expect(validateParty("customer", filled())).toEqual({});

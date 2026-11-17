@@ -61,7 +61,7 @@ export const QUICK_CREATE = {
     endpoint: "/vendors/vendors",
     fields: [
       { name: "vendorName", label: "Vendor name", required: true },
-      { name: "contactPerson", label: "Contact person", required: true },
+      { name: "contactPerson", label: "Contact person" },
       { name: "address", label: "Address", required: true, multiline: true },
       ...vatFields(),
     ],
@@ -85,7 +85,7 @@ export const QUICK_CREATE = {
     endpoint: "/customers",
     fields: [
       { name: "customerName", label: "Customer name", required: true },
-      { name: "contactPerson", label: "Contact person", required: true },
+      { name: "contactPerson", label: "Contact person" },
       { name: "billingAddress", label: "Billing address", required: true, multiline: true },
       ...vatFields(),
     ],
