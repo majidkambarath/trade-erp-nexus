@@ -65,6 +65,13 @@ beforeEach(() => {
   });
 });
 
+// the list shows the unit by name and never a raw id under the category
+it("shows an item's unit by name, never its raw id", async () => {
+  await show();
+  expect(screen.queryByText("u-kg")).toBeNull();
+  expect((await screen.findAllByText("Kg")).length).toBeGreaterThan(0);
+});
+
 const searchBox = () => screen.getByRole("searchbox", { name: "Search items" });
 const clearButton = () => screen.queryByRole("button", { name: "Clear filters" });
 // the category and vendor filters are typed-into lists: open one and pick an entry
@@ -298,7 +305,10 @@ describe("a half-filled new item is kept", () => {
     openAdd();
     await pickCategory("General");
     fireEvent.change(nameField(), { target: { value: "Flour" } });
-    await pick(/Select unit/, "Kg");
+    fireEvent.click(await screen.findByText(/Select unit/));
+    // the list rows now print the unit too, so "Kg" is also a row: the open menu is portalled last
+    const kgs = await screen.findAllByText("Kg");
+    fireEvent.click(kgs[kgs.length - 1]);
     fireEvent.change(screen.getByPlaceholderText("Enter country of origin"), { target: { value: "UAE" } });
     fireEvent.change(screen.getByPlaceholderText("Enter brand name"), { target: { value: "Al Ain" } });
     expect(await screen.findByText(/Draft saved/)).toBeInTheDocument();
