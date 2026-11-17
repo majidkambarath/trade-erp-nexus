@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ClipboardCheck, Clock, MapPin, Navigation, Receipt, Truck, Wallet } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Clock, MapPin, Navigation, Receipt, Target, Truck, Wallet } from "lucide-react";
 import { EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync } from "../accounting/kit.jsx";
 import { fleet } from "../../lib/vanSalesApi";
 import { distanceText, quietText, vanErrorText } from "../../lib/vanSales";
@@ -58,6 +58,7 @@ function VanCard({ row }) {
         </div>
       </div>
       <ul className="grid grid-cols-1 gap-1.5 text-xs">
+        {t.progress?.sales && <li className={`flex items-center gap-1.5 ${t.progress.sales.hit ? "font-medium text-status-success" : "text-muted-foreground"}`}><Target className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{t.progress.sales.hit ? `Sales target reached (${t.progress.sales.pct}%)` : `${t.progress.sales.pct}% of today's sales target`}</li>}
         <li className="flex items-center gap-1.5 text-muted-foreground"><Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{row.lastAt ? `Last activity ${formatTime(row.lastAt)}` : "Nothing done yet"}</li>
         {row.quiet && <li className="flex items-center gap-1.5 rounded-md bg-status-warning/10 px-2 py-1 font-medium text-status-warning"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Quiet for {quietText(row.quietMinutes)} with stops to go</li>}
         {t.cashOverLimit && <li className="flex items-center gap-1.5 rounded-md bg-status-danger-soft px-2 py-1 font-medium text-status-danger"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Carrying more cash than its {formatCurrencyAED(t.cashLimit)} limit</li>}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Printer, Sparkles, Trash2 } from "lucide-react";
+import { Minus, Plus, Printer, Sparkles, Trash2 } from "lucide-react";
+import { SellInsight } from "./SellInsight";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import { printMarkup } from "../PurchaseOrder/shared/documentPdf.jsx";
 import { depositSlipMarkup } from "../../lib/vanReceipt";
@@ -9,7 +10,7 @@ import { AmountInput, DateInput, ErrorNote, Field, Modal, Select, SearchSelect, 
 import { api } from "../../lib/accountingApi";
 import { choices, promotions, trips, vans } from "../../lib/vanSalesApi";
 import { apply as applyPromotions } from "../../lib/promotions";
-import { cashPlan, countDifference, countRows, isCreditWarning, loadBody, loadProblem, odometerBody, offerPreview, priceSourceLabel, round2, saleLines, suggestedRows, suggestionWhy, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
+import { addSuggestedRow, cashPlan, countDifference, cutText, countRows, isCreditWarning, loadBody, loadProblem, odometerBody, offerPreview, priceSourceLabel, round2, repeatRows, saleLines, stepQty, suggestedRows, suggestionWhy, saleProblem, saleSubtotal, unloadBody, vanErrorText, vanItems } from "../../lib/vanSales";
 import { formatCurrencyAED } from "../../utils/format";
 import { isNetworkError, packPrice } from "../../lib/vanOffline";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -171,6 +172,9 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
     [trip.id, customerId, Boolean(off)]
   );
   const priceOf = useMemo(() => new Map((listed.data || []).map((p) => [p.stockId, p])), [listed.data]);
+  // what this customer owes, bought last time and usually buys: read from their own invoices (online only; a customer with no history shows nothing)
+  const insight = useAsync(() => (!customerId || off ? Promise.resolve(null) : Promise.resolve().then(() => trips.insight(trip.id, customerId)).catch(() => null)), [trip.id, customerId, Boolean(off)]);
+  const [cut, setCut] = useState("");
   const pricedVan = useMemo(() => onVan.map((l) => (priceOf.has(l.stockId) ? { ...l, salesPrice: priceOf.get(l.stockId).price } : l)), [onVan, priceOf]);
   const options = vanItems({ sellable: onVan });
   const problem = saleProblem({ customerId, rows }, onVan);
@@ -185,6 +189,15 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
     names
   ), [lines, promos.data, cats, customerId, trip.routeId, names]);
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
+  const priced = (row) => ({ ...row, price: priceOf.has(row.itemId) ? String(priceOf.get(row.itemId).price ?? "") : row.price });
+  function repeat() {
+    const r = repeatRows(insight.data?.lastOrder, onVan);
+    setRows(r.rows.length ? r.rows.map(priced) : [{ itemId: "", qty: "", price: "" }]);
+    setCut(cutText(r.cut));
+  }
+  const addUsual = (item) => { setCut(""); setRows((r) => addSuggestedRow(r, item, onVan).map((x) => (x.itemId === item.stockId && !x.price ? priced(x) : x))); };
+  const bump = (i, d) => setRows((r) => r.map((x, j) => (j === i ? stepQty(x, d, onVan) : x)));
 
   function pick(i, id) {
     const l = pricedVan.find((x) => x.stockId === id);
@@ -232,13 +245,20 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
           </div>
         ) : <ErrorLine error={error} />}
         <Field label="Customer" required>
-          <SearchSelect value={customerId} onChange={setCustomerId} loading={customers.loading} placeholder="Search a customer…"
+          <SearchSelect value={customerId} onChange={(v) => { setCustomerId(v); setCut(""); }} loading={customers.loading} placeholder="Search a customer…"
             options={(customers.data || []).map((c) => ({ value: c.id, label: c.name, hint: c.code }))} />
         </Field>
+        <SellInsight insight={insight.data} onRepeat={repeat} onAdd={addUsual} cut={cut} />
         {rows.map((r, i) => (
-          <div key={i} className="grid grid-cols-[1fr_5.5rem_6.5rem_auto] items-end gap-2">
-            <Field label={i === 0 ? "Item" : undefined}><SearchSelect value={r.itemId} onChange={(v) => pick(i, v)} options={options} placeholder="On the van…" /></Field>
-            <Field label={i === 0 ? "Qty" : undefined}><AmountInput value={r.qty} onChange={(e) => set(i, { qty: e.target.value })} inputMode="decimal" aria-label="Quantity" /></Field>
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_auto]">
+            <div className="col-span-3 min-w-0 sm:col-span-1"><Field label={i === 0 ? "Item" : undefined}><SearchSelect value={r.itemId} onChange={(v) => pick(i, v)} options={options} placeholder="On the van…" /></Field></div>
+            <Field label={i === 0 ? "Qty" : undefined}>
+              <div className="flex items-center gap-1">
+                <button type="button" aria-label="One less" onClick={() => bump(i, -1)} disabled={!r.itemId} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 sm:hidden"><Minus className="h-4 w-4" aria-hidden="true" /></button>
+                <div className="min-w-0 flex-1"><AmountInput value={r.qty} onChange={(e) => set(i, { qty: e.target.value })} inputMode="decimal" aria-label="Quantity" /></div>
+                <button type="button" aria-label="One more" onClick={() => bump(i, 1)} disabled={!r.itemId} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40 sm:hidden"><Plus className="h-4 w-4" aria-hidden="true" /></button>
+              </div>
+            </Field>
             <Field label={i === 0 ? "Price" : undefined} hint={r.itemId && priceOf.get(r.itemId) ? priceSourceLabel(priceOf.get(r.itemId)) : undefined}><AmountInput value={r.price} onChange={(e) => set(i, { price: e.target.value })} inputMode="decimal" aria-label="Price" /></Field>
             <button type="button" aria-label="Remove line" disabled={rows.length === 1} onClick={() => setRows((x) => x.filter((_, j) => j !== i))} className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
           </div>

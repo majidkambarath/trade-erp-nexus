@@ -1,7 +1,8 @@
 import React from "react";
-import { Check, Navigation, Route as RouteIcon, Truck, XCircle } from "lucide-react";
+import { Check, Navigation, Route as RouteIcon, Target, Truck, XCircle } from "lucide-react";
 import { nextStep, stopDone } from "../../lib/vanSales";
 import { StatusPill } from "./vanShared";
+import { formatCurrencyAED } from "../../utils/format";
 import { tripTitle, tripWhen } from "./printSale";
 
 // The day at a glance: which van, which route, how far along it the salesman is and who is next.
@@ -11,6 +12,35 @@ import { tripTitle, tripWhen } from "./printSale";
 // other screen, and the owner asked for no decorative line or wash either. So: the plain card surface, graphite text, the van in a brand-soft badge, and the route's progress in teal (the product's data colour)
 // with the share done as a figure. Every colour is a token, so it follows the organisation's own brand pack and dark
 // mode. The bar grows in once (GSAP, never under reduced motion); its width in the markup is always the real one.
+// Today's targets, when the van has any: what it should sell and how many customers it should call on, each as a
+// bar with what is done and what is left. Reaching one says so in words; no target, nothing is drawn.
+function TargetBars({ progress }) {
+  const rows = [
+    progress?.sales && { key: "sales", label: "Sales", done: formatCurrencyAED(progress.sales.done), goal: formatCurrencyAED(progress.sales.target), left: formatCurrencyAED(progress.sales.toGo), p: progress.sales },
+    progress?.calls && { key: "calls", label: "Customers called on", done: String(progress.calls.done), goal: String(progress.calls.target), left: String(progress.calls.toGo), p: progress.calls },
+  ].filter(Boolean);
+  if (!rows.length) return null;
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-xl bg-muted/50 p-3.5 sm:p-4" aria-label="Today's targets">
+      <p className="flex items-center gap-1.5 text-sm font-medium"><Target className="h-4 w-4 text-accent-teal" aria-hidden="true" />Today's target</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-8">
+        {rows.map((r) => (
+          <div key={r.key} className="grid grid-cols-1 gap-1.5">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+              <span className="text-muted-foreground">{r.label}</span>
+              <span className="whitespace-nowrap font-medium">{r.done} <span className="font-normal text-muted-foreground">of {r.goal}</span></span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-border/70" role="progressbar" aria-valuenow={Math.min(100, r.p.pct)} aria-valuemin={0} aria-valuemax={100} aria-label={`${r.label} against today's target`}>
+              <div data-meter="" className={`h-full origin-left rounded-full ${r.p.hit ? "bg-status-success" : "bg-accent-teal"}`} style={{ width: `${Math.max(0, Math.min(100, r.p.pct))}%` }} />
+            </div>
+            <p className={`text-xs ${r.p.hit ? "font-medium text-status-success" : "text-muted-foreground"}`}>{r.p.hit ? "Target reached" : `${r.left} to go`}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function VanHero({ trip, detail, heading = false }) {
   const route = trip.route || [];
   const done = route.filter(stopDone).length;
@@ -46,6 +76,7 @@ export function VanHero({ trip, detail, heading = false }) {
             </div>
           </div>
         )}
+        <TargetBars progress={trip.totals?.progress} />
         <p className="text-sm text-muted-foreground">{nextStep(trip)}</p>
       </div>
     </section>

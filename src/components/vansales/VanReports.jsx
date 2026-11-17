@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { CalendarRange, FileCheck2, Receipt, Scale, TrendingUp, Truck, Users, Wallet } from "lucide-react";
+import { CalendarRange, FileCheck2, Gauge, Layers, Receipt, Scale, ShoppingBasket, TrendingUp, Truck, Users, Wallet } from "lucide-react";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, PageHeader, Panel, Select, Spinner, useAsync } from "../accounting/kit.jsx";
 import { PillTabs } from "../salesDocs/parts.jsx";
 import { reports } from "../../lib/vanSalesApi";
@@ -13,6 +13,45 @@ import { BarList, StatusPill, Tile, VarianceBadge } from "./vanShared";
 // same figures as the tables under them, ranked; nothing is computed here that the server did not send.
 const money = (r) => formatCurrencyAED(r || 0);
 const top = (rows, value, sub, n = 5) => [...(rows || [])].sort((a, b) => value(b) - value(a)).slice(0, n).map((r) => ({ key: r.id ?? r.key ?? r.name, label: r.name, value: value(r), sub: sub?.(r) }));
+
+const dash = (v, fmt) => (v === null || v === undefined ? "–" : fmt(v));
+const dayName = (d) => formatDate(`${d}T00:00:00.000Z`);
+
+// Sales by day as columns, tallest = the best day. Quiet days are there as nothing, so a gap reads as a gap. The
+// figures are under each column's tooltip and summed in words above, so the picture is never the only way to read it.
+function DayStrip({ days }) {
+  if (!days?.length) return null;
+  const best = days.reduce((a, b) => (b.sales > a.sales ? b : a), days[0]);
+  const max = best.sales || 1;
+  return (
+    <Panel title="Sales by day" description={best.sales > 0 ? `Best day ${dayName(best.day)}: ${money(best.sales)} on ${best.invoices} invoice${best.invoices === 1 ? "" : "s"}` : "Nothing sold in this period yet"}>
+      <div role="img" aria-label={`Sales for each of ${days.length} days; the best was ${dayName(best.day)} at ${money(best.sales)}`} className="flex h-28 items-end gap-px sm:gap-0.5">
+        {days.map((x) => (
+          <div key={x.day} title={`${dayName(x.day)}: ${money(x.sales)} (${x.invoices} invoice${x.invoices === 1 ? "" : "s"})`} className="flex h-full min-w-0 flex-1 items-end">
+            <div data-grow="" className={`w-full origin-bottom rounded-t ${x.day === best.day && x.sales > 0 ? "bg-brand" : "bg-accent-teal/70"}`} style={{ height: `${x.sales > 0 ? Math.max(4, Math.round((x.sales / max) * 100)) : 0}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex justify-between text-xs text-muted-foreground"><span>{dayName(days[0].day)}</span><span>{dayName(days[days.length - 1].day)}</span></div>
+    </Panel>
+  );
+}
+
+// Salesmen ranked by what they sold, with the figures that say HOW: the size of a drop, the width of a basket, how
+// often a call became a sale, and the days they reached their target. Read from the same rows as every other tab.
+function Leaderboard({ rows }) {
+  const cols = [
+    { key: "rank", header: "#", card: "hidden", cell: (r) => <span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-semibold ${r._rank === 1 ? "bg-brand-soft text-brand-on-soft" : "bg-muted text-muted-foreground"}`}>{r._rank}</span> },
+    { key: "name", header: "Salesman", card: "primary", cell: (r) => <span className="flex min-w-0 items-center gap-2"><span className="md:hidden text-xs text-muted-foreground">#{r._rank}</span><span className="truncate font-medium">{r.name}</span></span> },
+    { key: "sales", header: "Sales", align: "end", card: "amount", cell: (r) => <span className="whitespace-nowrap font-semibold">{money(r.sales)}</span> },
+    { key: "drop", header: "Average drop", align: "end", card: "meta", cell: (r) => dash(r.dropSize, money) },
+    { key: "lines", header: "Lines per call", align: "end", card: "meta", cell: (r) => dash(r.linesPerCall, (v) => v.toFixed(1)) },
+    { key: "strike", header: "Strike rate", align: "end", card: "meta", cell: (r) => <Strike rate={r.strikeRate} title={`${r.productive} of ${r.calls} customers called on bought`} /> },
+    { key: "target", header: "Target reached", align: "end", card: "meta", cell: (r) => (r.targetTrips ? `${r.targetDays} of ${r.targetTrips} day${r.targetTrips === 1 ? "" : "s"}` : "No target") },
+  ];
+  const ranked = rows.map((r, i) => ({ ...r, _rank: i + 1 }));
+  return <DataTable caption="Salesman leaderboard" rows={ranked} rowKey={(r) => r.id} columns={cols} />;
+}
 
 // Strike rate as words and a thin bar: how many of the customers called on bought.
 function Strike({ rate, title }) {
@@ -90,6 +129,7 @@ export default function VanReports() {
     { key: "name", header: label, card: "primary", cell: (r) => <span className="font-medium">{r.name}</span> },
     { key: "trips", header: "Trips", align: "end", card: "meta", cell: (r) => r.trips },
     { key: "sales", header: "Sales", align: "end", card: "amount", cell: (r) => <span className="whitespace-nowrap font-semibold">{money(r.sales)}</span> },
+    { key: "drop", header: "Average drop", align: "end", card: "meta", cell: (r) => dash(r.dropSize, money) },
     { key: "returned", header: "Returned", align: "end", card: "meta", cell: (r) => money(r.returned) },
     { key: "cash", header: "Cash", align: "end", card: "meta", cell: (r) => money(r.cash) },
     { key: "cheques", header: "Cheques", align: "end", card: "meta", cell: (r) => money(r.cheques) },
@@ -127,15 +167,25 @@ export default function VanReports() {
             <Tile label="Cheques" icon={FileCheck2} tone="plum" amount={d.total.cheques} value={money(d.total.cheques)} />
             <Tile label="Cash difference" icon={Scale} tone="olive" amount={d.total.cashVariance} value={money(d.total.cashVariance)} warn={d.total.cashVariance < -0.005} />
           </div>
-          {view !== "profit" && d.rows.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <Tile label="Average drop" icon={ShoppingBasket} tone="teal" value={dash(d.total.dropSize, money)} sub="One invoice, on average" />
+            <Tile label="Lines per call" icon={Layers} tone="plum" value={dash(d.total.linesPerCall, (v) => v.toFixed(1))} sub="Items in a basket" />
+            <Tile label="Strike rate" icon={Gauge} tone="brand" value={dash(d.total.strikeRate, (v) => `${v}%`)} sub={d.total.calls ? `${d.total.productive} of ${d.total.calls} calls bought` : undefined} />
+            <Tile label="Cost per drop" icon={Truck} tone="olive" value={dash(d.total.costPerDrop, money)} sub="Road expenses per invoice" />
+          </div>
+          <DayStrip days={d.byDay} />
+          {view !== "profit" && view !== "leaderboard" && d.rows.length > 0 && (
             <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
               <Panel title={<span className="flex items-center gap-2"><Truck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />Top vans</span>} description="By sales in the period" bodyClassName="p-0"><BarList rows={vans} /></Panel>
               <Panel title={<span className="flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />Top salesmen</span>} description="By sales in the period" bodyClassName="p-0"><BarList rows={people} tone="bg-brand" /></Panel>
             </div>
           )}
-          <PillTabs label="Report view" tabs={[["trips", "Trips"], ["vans", "By van"], ["salesmen", "By salesman"], ["profit", "Profit by route"]]} value={view} onChange={setView} />
+          <PillTabs label="Report view" tabs={[["trips", "Trips"], ["vans", "By van"], ["salesmen", "By salesman"], ["leaderboard", "Leaderboard"], ["profit", "Profit by route"]]} value={view} onChange={setView} />
           {view === "profit" && <RouteProfit from={from} to={to} />}
-          {view !== "profit" && <Panel bodyClassName="p-0">
+          {view === "leaderboard" && <Panel bodyClassName="p-0">
+            {d.bySalesman.length === 0 ? <EmptyState title="No salesmen in this period" text="Widen the dates, or send a van out." /> : <Leaderboard rows={d.bySalesman} />}
+          </Panel>}
+          {view !== "profit" && view !== "leaderboard" && <Panel bodyClassName="p-0">
             {d.rows.length === 0 && <EmptyState title="No trips in this period" text="Widen the dates, or send a van out." />}
             {d.rows.length > 0 && view === "trips" && <DataTable caption="Van trips" rows={d.rows} rowKey={(r) => r.id} columns={tripCols} />}
             {d.rows.length > 0 && view === "vans" && <DataTable caption="Sales by van" rows={d.byVan} rowKey={(r) => r.id} columns={rollCols("Van")} />}

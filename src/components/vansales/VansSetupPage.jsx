@@ -21,7 +21,7 @@ const primaryBtn = "inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary 
 
 function VanDialog({ van, people, routeList, onClose, onSaved }) {
   const editing = Boolean(van?.id);
-  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), offlineBlock: String(van?.offlineBlock ?? 0), active: van?.active !== false });
+  const [f, setF] = useState({ code: van?.code || "", name: van?.name || "", plate: van?.plate || "", salesmanId: van?.salesmanId || "", defaultRouteId: van?.defaultRouteId || "", cashLimit: van?.cashLimit == null ? "" : String(van.cashLimit), dailySalesTarget: van?.dailySalesTarget == null ? "" : String(van.dailySalesTarget), dailyCallsTarget: van?.dailyCallsTarget == null ? "" : String(van.dailyCallsTarget), offlineBlock: String(van?.offlineBlock ?? 0), active: van?.active !== false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (patch) => setF((x) => ({ ...x, ...patch }));
@@ -45,6 +45,10 @@ function VanDialog({ van, people, routeList, onClose, onSaved }) {
         <Field label="Name" required><TextInput value={f.name} onChange={(e) => set({ name: e.target.value })} maxLength={80} /></Field>
         <Field label="Usual salesman"><SearchSelect value={f.salesmanId} onChange={(v) => set({ salesmanId: v })} clearable options={people.map((p) => ({ value: p.id, label: p.name }))} placeholder="Choose…" /></Field>
         <Field label="Cash limit" hint="The most cash the van should carry. The screen warns past it; nothing is refused. Blank for none."><AmountInput value={f.cashLimit} onChange={(e) => set({ cashLimit: e.target.value })} inputMode="decimal" /></Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Daily sales target" hint="What the van should sell in a day. Shown on My van and the Board. Blank for none."><AmountInput value={f.dailySalesTarget} onChange={(e) => set({ dailySalesTarget: e.target.value })} inputMode="decimal" /></Field>
+          <Field label="Daily calls target" hint="How many customers it should call on in a day. Blank for none."><AmountInput value={f.dailyCallsTarget} onChange={(e) => set({ dailyCallsTarget: e.target.value })} inputMode="numeric" /></Field>
+        </div>
         <Field label="Invoice numbers for offline sales" hint="Numbers the van takes out each trip, so a sale made with no signal prints its final number. 0 if the van always has signal; unused ones are retired with a reason when it comes back."><AmountInput value={f.offlineBlock} onChange={(e) => set({ offlineBlock: e.target.value })} inputMode="numeric" /></Field>
         <Field label="Usual route"><SearchSelect value={f.defaultRouteId} onChange={(v) => set({ defaultRouteId: v })} clearable options={routeList.map((r) => ({ value: r.id, label: r.name }))} placeholder="Choose…" /></Field>
         {editing && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.active} onChange={(e) => set({ active: e.target.checked })} /> Active</label>}
@@ -174,6 +178,7 @@ export default function VansSetupPage() {
     { key: "name", header: "Name", card: "title", cell: (r) => <div className="min-w-0"><p className="truncate font-medium">{r.name}</p>{r.plate && <p className="truncate text-xs text-muted-foreground">{r.plate}</p>}</div> },
     { key: "salesman", header: "Usual salesman", card: "meta", cell: (r) => r.salesmanName || "–" },
     { key: "route", header: "Usual route", card: "meta", cell: (r) => (r.defaultRouteId ? routeName.get(String(r.defaultRouteId)) || "–" : "–") },
+    { key: "target", header: "Daily target", card: "meta", cell: (r) => (r.dailySalesTarget == null && r.dailyCallsTarget == null ? "None" : [r.dailySalesTarget != null && formatCurrencyAED(r.dailySalesTarget), r.dailyCallsTarget != null && `${r.dailyCallsTarget} calls`].filter(Boolean).join(" · ")) },
     { key: "limit", header: "Cash limit", align: "end", card: "meta", cell: (r) => (r.cashLimit == null ? "None" : <span className="whitespace-nowrap">{formatCurrencyAED(r.cashLimit)}</span>) },
     { key: "out", header: "Now", card: "badge", cell: (r) => (r.openTrip ? <Pill tone="success">{r.openTrip.tripNo}</Pill> : r.active ? <Pill tone="neutral">At the depot</Pill> : <Pill tone="neutral">Inactive</Pill>) },
   ];
