@@ -129,7 +129,7 @@ export function LoadDialog({ trip, onClose, onDone }) {
           </div>
         )}
         {expiry && (
-          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div role="alert" className="rounded-lg border border-status-warning bg-status-warning/10 p-3 text-sm">
             <p className="font-medium">Expires before the customers will take it</p>
             <ul className="mt-1 list-disc ps-5">{expiry.map((w) => <li key={w.stockId}>{w.message}{w.batches?.length ? ` (batch ${w.batches.map((b) => `${b.batchNo}, ${b.expiryDate}`).join("; ")})` : ""}</li>)}</ul>
           </div>
@@ -236,7 +236,7 @@ export function SellDialog({ trip, customerId: startCustomer, preorder, onClose,
       footer={<Footer onClose={onClose} busy={busy} disabled={Boolean(problem) || (mode === "cheque" && !chq.chequeNo)} label={warning && acknowledged ? "Sell anyway" : "Sell"} onSubmit={submit} />}>
       <div className="grid grid-cols-1 gap-3">
         {warning ? (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="rounded-lg border border-status-warning bg-status-warning/10 p-3 text-sm">
             <p className="font-medium">Credit warning</p>
             <p className="mt-1">{warning}</p>
             {canOverride ? (
