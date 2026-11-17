@@ -109,6 +109,7 @@ export const FEATURE_LABELS = {
   multiBranch: "More than one branch",
   production: "Production",
   assistant: "Zarvia AI assistant",
+  invoiceAttachments: "Files on sales and purchase invoices",
 };
 
 // ---- modules: the parts of the product the organisation bought

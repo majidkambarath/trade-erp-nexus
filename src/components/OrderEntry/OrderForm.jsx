@@ -1077,7 +1077,7 @@ export default function OrderForm({
         </section>
 
         {/* attachments belong to transactions; a quotation or delivery note has none of its own yet */}
-        {isTransaction && (
+        {isTransaction && featureOn("invoiceAttachments") && (
           <section className={CARD}>
             {selected?.id
               ? <AttachmentPanel ownerType="transaction" ownerId={selected.id} label={attachmentsLabel} />
