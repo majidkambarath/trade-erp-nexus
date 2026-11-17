@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.4.3.0 — 17 November 2026
+
+Van sales: Settlement and Reports redesigned to match the other van screens. Frontend and backend both at 3.4.3.0.
+
+### Changed
+
+- **Settlement**: tiles for vans waiting, days settled, cash handed in and cash short or over; the waiting list highlighted, with when each van was counted in and whether its stock count agrees; recent days with the cash difference as a badge; a panel showing how the days came out (exact, short, over).
+- **Reports**: the dates in a card, tiles with icons that count up, the top vans and top salesmen as ranked bars, strike rate with a small bar, cash differences as badges.
+- **Profit by route**: total tiles (sales less returns, gross margin, road expenses, contribution) and a contribution bar for each route, salesman or van.
+- Gentle motion (GSAP), played once and switched off for reduced motion.
+
 ## 3.4.2.0 — 17 November 2026
 
 Van sales: Trips and Board redesigned to match My van. Frontend and backend both at 3.4.2.0.
