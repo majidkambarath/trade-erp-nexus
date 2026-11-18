@@ -214,7 +214,7 @@ export default function PartyAccountPage({ kind, partyId }) {
           </TabsList>
         </div>
         <TabsContent value="statement">
-          <StatementTab k={k} name={name} statement={statement} range={range} onRange={setRange} />
+          <StatementTab k={k} name={name} party={p} statement={statement} range={range} onRange={setRange} />
         </TabsContent>
         <TabsContent value="open">
           <OpenInvoicesTab k={k} ageing={ageing} row={ageingRow} />

@@ -235,6 +235,22 @@ describe("statement tab", () => {
     expect(m.statement).toHaveBeenCalledWith({ kind: "customer", partyId: "c1", from: undefined, to: undefined });
   });
 
+  it("a customer's statement can be sent once both dates are chosen; a vendor's cannot be sent at all", async () => {
+    showCustomer();
+    await waitFor(() => statementTable("Al Noor Trading"));
+    const send = screen.getByRole("button", { name: /^send$/i });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "Choose both dates to send a statement");
+    fireEvent.click(screen.getByRole("button", { name: "This month" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^send$/i })).toBeEnabled());
+  });
+
+  it("offers a vendor's statement no Send button", async () => {
+    showVendor();
+    await waitFor(() => statementTable("Fresh Farms LLC"));
+    expect(screen.queryByRole("button", { name: /^send$/i })).not.toBeInTheDocument();
+  });
+
   it("reads a vendor's payable balance as a credit", async () => {
     showVendor();
     const table = await waitFor(() => statementTable("Fresh Farms LLC"));

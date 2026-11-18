@@ -3,10 +3,16 @@
 // builders the signed-in screens and the PDF attachment use, so the page, the attachment and the print
 // cannot disagree about what the document says.
 import { buildSalesDocument } from "../PurchaseOrder/shared/invoiceDocuments";
+import { buildQuotationDocument, buildDeliveryNoteDocument } from "../salesDocs/documents";
+import { buildStatementDocument } from "./statementShare";
 import { orgCurrency } from "../../utils/orgLocale";
 
 const BUILDERS = {
   tax_invoice: (p) => buildSalesDocument(p.document, p.party || {}, p.company || {}, p.currency || orgCurrency()),
+  quotation: (p) => buildQuotationDocument(p.document, p.party || {}, p.company || {}, p.currency || orgCurrency()),
+  // the customer's own copy of a note: quantities and the proof of delivery, no prices (the server sends none)
+  delivery_note: (p) => buildDeliveryNoteDocument(p.document, p.party || {}, p.company || {}, p.currency || orgCurrency()),
+  statement: (p) => buildStatementDocument(p),
 };
 
 // The copies a customer sees: only theirs. The internal copy is ours and never leaves.

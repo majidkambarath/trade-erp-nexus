@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Download, FileText, Printer } from "lucide-react";
+import { Download, FileText, Printer, Send } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, reportPreamble } from "../../../utils/format";
 import { statementDocument } from "../../../lib/statement";
 import { taxIdWord } from "../../../lib/taxTerms";
-import { printMarkup, downloadSheetsPdf } from "../../PurchaseOrder/shared/documentPdf";
+import { printMarkup, downloadSheetsPdf, sheetsPdfFile } from "../../PurchaseOrder/shared/documentPdf";
+import SendDialog from "../../send/SendDialog";
+import { useOrganisation } from "../../shell/OrganisationContext";
 import { Button } from "../../ui/button";
-import { Balance, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, DateInput } from "../../accounting/kit";
+import { Balance, EmptyState, ErrorNote, Field, Panel, Select, Spinner, TextInput, DateInput, useToasts } from "../../accounting/kit";
 import { useCompanyProfile } from "../../PurchaseOrder/shared/useCompanyProfile";
 import { Skeleton } from "./partyAccountParts";
 import { PRESETS, activePreset, netOf, presetRange, sideText, slug, sumRows, typeOptions, voucherLabel } from "./partyAccountUtils";
@@ -20,8 +22,11 @@ const COLUMNS = 7;
  * closing balance. The period is asked of the server; the voucher type is filtered here, so the
  * running balance on each row stays the true balance after that entry.
  */
-export default function StatementTab({ k, name, statement, range, onRange }) {
+export default function StatementTab({ k, name, party, statement, range, onRange }) {
   const [chosen, setChosen] = useState("all");
+  const [sendOpen, setSendOpen] = useState(false);
+  const { notify, toastNode } = useToasts();
+  const { mayUse } = useOrganisation();
   const { data, loading, error, reload } = statement;
   const profile = useCompanyProfile();
 
@@ -68,6 +73,19 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
     downloadSheetsPdf([documentMarkup()], `statement-${slug(name)}-${range.from || "start"}-${range.to || "latest"}`);
   }
 
+  // A customer can be emailed their statement for a period both ends of which are chosen; what is emailed is the whole statement, so the
+  // type filter must be off (the server draws the link's copy from the ledger, the attachment from this screen: they must agree).
+  const maySend = k.kind === "customer" && party?._id && mayUse("sales.send", "messaging") && Boolean(data);
+  const sendBlock = !range.from || !range.to ? "Choose both dates to send a statement" : filtered ? "Show all types to send the whole statement" : "";
+  const sendDoc = maySend && !sendBlock
+    ? {
+        kind: "statement", sourceType: "Customer", id: party._id, number: `${range.from} to ${range.to}`, title: "Statement of account",
+        companyName: profile.companyName, period: { from: range.from, to: range.to },
+        party: { email: party.email, phone: party.phone, contacts: party.contacts },
+      }
+    : null;
+  const statementAttachment = { label: "Statement", build: () => sheetsPdfFile([documentMarkup()], `statement-${slug(name)}-${range.from}-${range.to}`) };
+
   const hasActivity = data && (data.rows.length > 0 || data.opening !== 0);
 
   return (
@@ -110,6 +128,11 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
               <Button type="button" variant="outline" size="sm" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />Export CSV</Button>
               <Button type="button" variant="outline" size="sm" onClick={printStatement}><Printer className="h-3.5 w-3.5" aria-hidden="true" />Print</Button>
               <Button type="button" variant="outline" size="sm" onClick={downloadPdf}><FileText className="h-3.5 w-3.5" aria-hidden="true" />Download PDF</Button>
+              {maySend && (
+                <Button type="button" variant="outline" size="sm" disabled={Boolean(sendBlock)} title={sendBlock || undefined} onClick={() => setSendOpen(true)}>
+                  <Send className="h-3.5 w-3.5" aria-hidden="true" />Send
+                </Button>
+              )}
             </div>
           )
         }
@@ -185,6 +208,8 @@ export default function StatementTab({ k, name, statement, range, onRange }) {
           </div>
         )}
       </Panel>
+      {toastNode}
+      {sendOpen && sendDoc && <SendDialog doc={sendDoc} attachment={statementAttachment} notify={notify} onClose={() => setSendOpen(false)} onSent={() => setSendOpen(false)} />}
     </div>
   );
 }

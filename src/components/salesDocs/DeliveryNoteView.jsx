@@ -165,11 +165,22 @@ export default function DeliveryNoteView({ id, onBack, onEdit, onChanged, onInvo
     </>
   );
 
+  // The note that travels with the goods can be emailed once it is on the road or signed for; the warehouse's pick list never leaves.
+  const customer = dn.party || {};
+  const send = mode === "note" && ["DISPATCHED", "DELIVERED"].includes(dn.status)
+    ? {
+        kind: "delivery_note", sourceType: "DeliveryNote", id: dn._id, number: dn.deliveryNoteNo, title: "Delivery note", companyName: company.companyName,
+        lastSend: dn.lastSend || null, party: { email: customer.email, phone: dn.contactPhone || customer.phone, contacts: customer.contacts },
+        onSent: () => refresh(),
+      }
+    : null;
+
   return (
     <>
       <InvoiceScreen
         sheet={doc.sheet}
         fileName={doc.fileName}
+        send={send}
         status={dn.status}
         statusLabel={statusLabel(dn.status)}
         copies={doc.copies}

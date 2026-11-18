@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Eye, FileText, Pencil, Search, Trash2, Truck } from "lucide-react";
+import { SentLine } from "../send/shared";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { ConfirmDialog, DataTable, ErrorNote, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
@@ -181,6 +182,7 @@ export default function DeliveryNoteList({ onOpen, onNew, onEdit, onInvoiced, no
                     <span className="block text-xs font-normal text-muted-foreground">
                       {r.source?.kind === "sales_order" ? `Against ${r.source.no}` : r.source?.kind === "quotation" ? `From ${r.source.no}` : r.reference ? `LPO ${r.reference}` : "On its own"}
                     </span>
+                    {r.lastSend && <SentLine send={r.lastSend} className="block" />}
                   </>
                 ),
               },
