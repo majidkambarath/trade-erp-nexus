@@ -33,7 +33,7 @@ function GrantsKnown() {
   const { me } = useOrganisation();
   return me ? <span data-testid="grants-known" /> : null;
 }
-const show = async (grants = ["inventory.view", "inventory.create", "inventory.edit", "lookups.view"]) => {
+const show = async (grants = ["inventory.view", "inventory.viewCost", "inventory.create", "inventory.edit", "lookups.view"]) => {
   m.status.mockImplementation(() => Promise.resolve(statusFor(grants)));
   render(<MemoryRouter><OrganisationProvider><GrantsKnown /><StockManagement /></OrganisationProvider></MemoryRouter>);
   await screen.findByTestId("grants-known");
@@ -110,6 +110,24 @@ describe("the item list", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Stock level" }), { target: { value: "low" } });
     expect(screen.getByText("BASMATI")).toBeInTheDocument();
     expect(screen.queryByText("INSTALLATION")).not.toBeInTheDocument();
+  });
+});
+
+describe("what an item costs", () => {
+  it("is not drawn for someone without inventory.viewCost: no cost line, no stock value card, no purchase price field", async () => {
+    await show(["inventory.view", "inventory.create", "inventory.edit", "lookups.view"]);
+    expect(screen.queryByText(/Cost:/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Value")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Sale:/).length).toBeGreaterThan(0); // the selling price stays
+    await openAddForm();
+    expect(await screen.findByPlaceholderText("Enter sales price")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Enter purchase price")).not.toBeInTheDocument();
+  });
+
+  it("is drawn for someone who holds it", async () => {
+    await show();
+    expect(screen.getAllByText(/Cost:/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Total Value")).toBeInTheDocument();
   });
 });
 

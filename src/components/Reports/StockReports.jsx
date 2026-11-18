@@ -34,7 +34,10 @@ const TABS = [
 // worse than nothing. The server mints a lot number for every receipt whatever the plan (batchService.js), so
 // the column would show real-looking codes with no Batches screen to look one up on and no expiry report to
 // reconcile it against. FEFO keeps working off those numbers either way, so hiding them loses nothing.
-const batchTabs = (batches) => (batches ? TABS : TABS.filter((t) => t.id !== "expiry"));
+// The tabs about cost and margin (valuation, movement at cost, the item ledger, sales analysis) need inventory.viewCost: the server refuses them
+// to anyone else (stockReportRoutes.js), so they are not drawn.
+const COST_TABS = ["valuation", "movement", "ledger", "sales", "slow"];
+const batchTabs = (batches, cost = true) => TABS.filter((t) => (batches || t.id !== "expiry") && (cost || !COST_TABS.includes(t.id)));
 
 function defaultFilters() {
   const today = todayInput();
@@ -61,12 +64,12 @@ function useDebounced(value, ms = 300) {
 
 export default function StockReports() {
   const [params, setParams] = useSearchParams();
-  const { featureOn } = useOrganisation();
+  const { featureOn, can } = useOrganisation();
   const batches = featureOn("batches");
-  const tabs = batchTabs(batches);
+  const tabs = batchTabs(batches, can("inventory.viewCost"));
   // The valid ids come from the tabs that are really drawn, so ?tab=expiry - which is the exact link the
   // dashboard's own "expiring" alert sends - falls back to Valuation instead of opening a hidden tab's body.
-  const tab = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : "valuation";
+  const tab = tabs.some((t) => t.id === params.get("tab")) ? params.get("tab") : tabs[0]?.id || "expiry";
   const [filters, setFilters] = useState(defaultFilters);
   const lookups = useAsync(() => stockReports.lookups(), []);
   const setFor = (id) => (patch) => setFilters((all) => ({ ...all, [id]: { ...all[id], ...patch } }));
@@ -91,9 +94,9 @@ export default function StockReports() {
         <TabsContent value="movement">{tab === "movement" && <Movement {...shared("movement")} />}</TabsContent>
         <TabsContent value="ledger">{tab === "ledger" && <ItemLedger {...shared("ledger")} />}</TabsContent>
         <TabsContent value="sales">{tab === "sales" && <SalesAnalysis {...shared("sales")} />}</TabsContent>
-        <TabsContent value="expiry">{tab === "expiry" && <Expiry {...shared("expiry")} />}</TabsContent>
+        <TabsContent value="expiry">{tab === "expiry" && <Expiry {...shared("expiry")} cost={can("inventory.viewCost")} />}</TabsContent>
         <TabsContent value="slow">{tab === "slow" && <SlowStock {...shared("slow")} />}</TabsContent>
-        <TabsContent value="reorder">{tab === "reorder" && <Reorder {...shared("reorder")} />}</TabsContent>
+        <TabsContent value="reorder">{tab === "reorder" && <Reorder {...shared("reorder")} cost={can("inventory.viewCost")} />}</TabsContent>
       </Tabs>
     </div>
   );
@@ -648,7 +651,7 @@ function AnalysisBody({ d }) {
 
 // ------------------------------------------------------------------ 5. expiry
 
-function Expiry({ f, set, lookups }) {
+function Expiry({ f, set, lookups, cost = true }) {
   const search = useDebounced(f.search);
   const valid = /^\d+$/.test(f.withinDays);
   const state = useAsync(
@@ -662,12 +665,12 @@ function Expiry({ f, set, lookups }) {
         <CategoryField value={f.categoryId} onChange={(categoryId) => set({ categoryId })} lookups={lookups} />
         <SearchField value={f.search} onChange={(s) => set({ search: s })} />
       </FilterRow>
-      {valid ? <Frame state={state} label="Checking batches">{(d) => <ExpiryBody d={d} />}</Frame> : null}
+      {valid ? <Frame state={state} label="Checking batches">{(d) => <ExpiryBody d={d} cost={cost} />}</Frame> : null}
     </>
   );
 }
 
-function ExpiryBody({ d }) {
+function ExpiryBody({ d, cost = true }) {
   const t = d.totals;
   const dayPill = (r) => {
     if (r.expired) return <Pill tone="danger">{r.daysToExpiry === 0 ? "Expired today" : `Expired ${whole(Math.abs(r.daysToExpiry))} ${Math.abs(r.daysToExpiry) === 1 ? "day" : "days"} ago`}</Pill>;
@@ -682,15 +685,17 @@ function ExpiryBody({ d }) {
     { key: "cost", header: moneyHeading("Unit cost"), align: "end", cell: (r) => rate(r.unitCost) },
     { key: "value", header: moneyHeading("Value at cost"), align: "end", cell: (r) => money(r.valueAtCost), total: money(t.value) },
     { key: "fefo", header: "Sell order", align: "end", cell: (r) => `#${r.fefoRank}`, className: "text-muted-foreground" },
-  ];
+  ].filter((c) => cost || !["cost", "value"].includes(c.key)); // cost is for inventory.viewCost only
 
   function exportCsv() {
+    const COST_AT = [7, 8]; // Unit cost, Value at cost
+    const drop = (row) => (cost ? row : row.filter((_, i) => !COST_AT.includes(i)));
     downloadCSV(
       `batch-expiry-within-${d.withinDays}-days-${d.asOn}.csv`,
-      ["Batch", "Code", "Item", "Quantity on hand", "Expiry date", "Days to expiry", "Expired", "Unit cost", "Value at cost", "Sell order (FEFO)", "Received on document"],
+      drop(["Batch", "Code", "Item", "Quantity on hand", "Expiry date", "Days to expiry", "Expired", "Unit cost", "Value at cost", "Sell order (FEFO)", "Received on document"]),
       [
-        ...d.rows.map((r) => [r.batchNumber, r.sku || r.itemId, r.itemName, r.qtyOnHand, formatDate(r.expiryDate), r.daysToExpiry, r.expired ? "Yes" : "No", r.unitCost, r.valueAtCost, r.fefoRank, r.sourceTransactionNo]),
-        ["Total", "", "", "", "", "", "", "", t.value, "", ""],
+        ...d.rows.map((r) => drop([r.batchNumber, r.sku || r.itemId, r.itemName, r.qtyOnHand, formatDate(r.expiryDate), r.daysToExpiry, r.expired ? "Yes" : "No", r.unitCost, r.valueAtCost, r.fefoRank, r.sourceTransactionNo])),
+        drop(["Total", "", "", "", "", "", "", "", t.value, "", ""]),
       ]
     );
   }
@@ -698,10 +703,12 @@ function ExpiryBody({ d }) {
   return (
     <div>
       <Cards>
-        <StatCard title="Expired, value at risk" count={money(t.expired.value)} subText={`${CURRENCY} in ${whole(t.expired.batches)} ${t.expired.batches === 1 ? "batch" : "batches"}`} tone={t.expired.value > 0 ? "danger" : "neutral"} />
-        <StatCard title={`Expiring within ${whole(d.withinDays)} days`} count={money(t.expiring.value)} subText={`${CURRENCY} in ${whole(t.expiring.batches)} ${t.expiring.batches === 1 ? "batch" : "batches"}`} tone={t.expiring.value > 0 ? "warning" : "neutral"} />
+        {!cost && <StatCard title="Expired batches" count={whole(t.expired.batches)} subText="with stock on hand" tone={t.expired.batches > 0 ? "danger" : "neutral"} />}
+        {!cost && <StatCard title={`Expiring within ${whole(d.withinDays)} days`} count={whole(t.expiring.batches)} subText={t.expiring.batches === 1 ? "batch" : "batches"} tone={t.expiring.batches > 0 ? "warning" : "neutral"} />}
+        {cost && <StatCard title="Expired, value at risk" count={money(t.expired.value)} subText={`${CURRENCY} in ${whole(t.expired.batches)} ${t.expired.batches === 1 ? "batch" : "batches"}`} tone={t.expired.value > 0 ? "danger" : "neutral"} />}
+        {cost && <StatCard title={`Expiring within ${whole(d.withinDays)} days`} count={money(t.expiring.value)} subText={`${CURRENCY} in ${whole(t.expiring.batches)} ${t.expiring.batches === 1 ? "batch" : "batches"}`} tone={t.expiring.value > 0 ? "warning" : "neutral"} />}
         <StatCard title="Batches listed" count={whole(t.batches)} subText={`across ${whole(t.items)} ${t.items === 1 ? "item" : "items"}`} tone="neutral" />
-        <StatCard title="Total value at cost" count={money(t.value)} subText={`${CURRENCY}, expired and expiring`} tone="teal" />
+        {cost && <StatCard title="Total value at cost" count={money(t.value)} subText={`${CURRENCY}, expired and expiring`} tone="teal" />}
       </Cards>
       <ReportPanel
         title="Batches by expiry"
@@ -786,7 +793,7 @@ function SlowBody({ d }) {
 
 const STATUS = { out: { tone: "danger", label: "Out of stock" }, below: { tone: "warning", label: "Below level" }, at: { tone: "neutral", label: "At level" } };
 
-function Reorder({ f, set, lookups }) {
+function Reorder({ f, set, lookups, cost = true }) {
   const search = useDebounced(f.search);
   const state = useAsync(() => stockReports.reorder({ categoryId: f.categoryId, search }), [f.categoryId, search]);
   return (
@@ -795,12 +802,12 @@ function Reorder({ f, set, lookups }) {
         <CategoryField value={f.categoryId} onChange={(categoryId) => set({ categoryId })} lookups={lookups} />
         <SearchField value={f.search} onChange={(s) => set({ search: s })} />
       </FilterRow>
-      <Frame state={state} label="Checking reorder levels">{(d) => <ReorderBody d={d} />}</Frame>
+      <Frame state={state} label="Checking reorder levels">{(d) => <ReorderBody d={d} cost={cost} />}</Frame>
     </>
   );
 }
 
-function ReorderBody({ d }) {
+function ReorderBody({ d, cost = true }) {
   const t = d.totals;
   const columns = [
     { key: "item", header: "Item", cell: (r) => <ItemCell r={r} />, total: "Total" },
@@ -812,15 +819,17 @@ function ReorderBody({ d }) {
     { key: "value", header: moneyHeading("Shortfall at cost"), align: "end", cell: (r) => money(r.shortfallValue), total: money(t.shortfallValue) },
     { key: "vendor", header: "Usual vendor", cell: (r) => r.vendorName || "–", className: "text-muted-foreground" },
     { key: "status", header: "Status", cell: (r) => <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill> },
-  ];
+  ].filter((c) => cost || !["cost", "value"].includes(c.key)); // cost is for inventory.viewCost only
 
   function exportCsv() {
+    const COST_AT = [7, 8]; // Average cost, Shortfall at cost
+    const drop = (row) => (cost ? row : row.filter((_, i) => !COST_AT.includes(i)));
     downloadCSV(
       "reorder.csv",
-      ["Code", "Item", "Category", "Unit", "On hand", "Reorder level", "Shortfall", "Average cost", "Shortfall at cost", "Usual vendor", "Status"],
+      drop(["Code", "Item", "Category", "Unit", "On hand", "Reorder level", "Shortfall", "Average cost", "Shortfall at cost", "Usual vendor", "Status"]),
       [
-        ...d.rows.map((r) => [r.sku || r.itemId, r.itemName, r.categoryName, r.unit, r.qty, r.reorderLevel, r.shortfall, r.avgCost, r.shortfallValue, r.vendorName, STATUS[r.status].label]),
-        ["", "Total", "", "", "", "", "", "", t.shortfallValue, "", ""],
+        ...d.rows.map((r) => drop([r.sku || r.itemId, r.itemName, r.categoryName, r.unit, r.qty, r.reorderLevel, r.shortfall, r.avgCost, r.shortfallValue, r.vendorName, STATUS[r.status].label])),
+        drop(["", "Total", "", "", "", "", "", "", t.shortfallValue, "", ""]),
       ]
     );
   }
@@ -830,7 +839,7 @@ function ReorderBody({ d }) {
       <Cards>
         <StatCard title="Items to reorder" count={whole(t.items)} subText="at or below their reorder level" tone={t.items ? "warning" : "neutral"} />
         <StatCard title="Out of stock" count={whole(t.outOfStock)} subText="with a reorder level set" tone={t.outOfStock ? "danger" : "neutral"} />
-        <StatCard title="Shortfall at cost" count={money(t.shortfallValue)} subText={`${CURRENCY} to get back to the level`} tone="teal" />
+        {cost && <StatCard title="Shortfall at cost" count={money(t.shortfallValue)} subText={`${CURRENCY} to get back to the level`} tone="teal" />}
       </Cards>
       <ReportPanel title="Items to reorder" description="Quantity on the item record against the reorder level set on it. Items without a level are not listed." onCsv={exportCsv} csvDisabled={!d.rows.length}>
         {d.rows.length === 0 ? (

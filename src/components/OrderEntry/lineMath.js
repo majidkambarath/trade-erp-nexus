@@ -5,6 +5,7 @@
 // lineTotal = lineValue + vatAmount (VAT-INCLUSIVE). Keeping them here, and nowhere else,
 // is what stops the forms drifting apart again.
 
+import { shareHeaderDiscount } from "../../lib/headerDiscount";
 import { decimalRound, lineTotals } from "../../utils/format";
 
 // Shape of one stored line row as the forms keep it.
@@ -53,12 +54,13 @@ export const chargesTotals = (charges = []) => {
 
 // A document's totals from its rows. Rows without an item or a quantity are not
 // part of the document, so they contribute nothing.
-export const documentTotals = (rows, priceOf, vatOf = (r) => r.vatPercent) => {
+export const documentTotals = (rows, priceOf, vatOf = (r) => r.vatPercent, headerDiscount = 0) => {
   let subtotal = 0;
   let tax = 0;
   let total = 0;
   let discount = 0;
   let rcm = 0; // VAT assessed on reverse-charge lines: beside the total, never in it
+  const priced = []; // each line's net and VAT, to share a header discount over
   for (const row of rows) {
     if (!row.itemId || !row.qty) continue;
     const line = rowLine({ qty: row.qty, price: priceOf(row), vatPercent: vatOf(row), discountPercent: row.discountPercent, reverseCharge: row.reverseCharge });
@@ -67,8 +69,13 @@ export const documentTotals = (rows, priceOf, vatOf = (r) => r.vatPercent) => {
     total += line.lineTotal;
     discount += line.discount;
     rcm += line.rcmVat || 0;
+    priced.push({ net: line.lineValue, vat: line.vatAmount });
   }
+  // The discount on the whole invoice is shared out over the lines when it is saved (the tax falls with it): `shared` previews that. The figures
+  // above stay as they were - the total comes off by the typed amount either way.
+  const shared = Number(headerDiscount) > 0 ? shareHeaderDiscount(priced, headerDiscount) : null;
   return {
+    ...(shared ? { shared: { subtotal: shared.net.toFixed(2), tax: shared.tax.toFixed(2) } } : {}),
     subtotal: decimalRound(subtotal).toFixed(2),
     tax: decimalRound(tax).toFixed(2),
     total: decimalRound(total).toFixed(2),

@@ -175,7 +175,7 @@ export default function OrderForm({
   activeView = "create",
 }) {
   const uid = useId();
-  const { me, featureOn, status } = useOrganisation();
+  const { me, featureOn, status, can } = useOrganisation();
   // The availability check is a DELIVERY NOTES endpoint, so an organisation without that feature would be
   // asking for a 403 on every keystroke. The variant still says whether it wants the check at all; this only
   // adds whether the plan allows it, and gates the warnings with it so neither half runs on its own.
@@ -303,8 +303,9 @@ export default function OrderForm({
   );
   const party = allParties.find((p) => p._id === formData.partyId);
 
-  const totals = useMemo(() => V.totals(rows), [rows, V]);
   const discount = V.discount ? num(formData.discount) : 0;
+  // (with a discount on the whole invoice, `totals.shared` previews the net and tax once it is shared out over the lines, as the server saves it)
+  const totals = useMemo(() => V.totals(rows, discount), [rows, V, discount]);
   const charges = useMemo(() => formData.charges || [], [formData.charges]);
   const chargeSums = useMemo(() => chargesTotals(charges), [charges]);
   const grandTotal = num(V.totalAmount(totals, formData)) + chargeSums.total;
@@ -435,7 +436,8 @@ export default function OrderForm({
 
   // The grid's own columns - computed once so Alt+N and the header's Enter know which column
   // a new line's cursor belongs in without duplicating columnsFor's rules.
-  const columns = useMemo(() => columnsFor(V, { batches: !noBatches }), [V, noBatches]);
+  const seesCost = can("inventory.viewCost");
+  const columns = useMemo(() => columnsFor(V, { batches: !noBatches, cost: seesCost }), [V, noBatches, seesCost]);
   // the tax code is required once the company is registered (no blank choice), and read-only while it sells without VAT
   const gridColumns = useMemo(
     () => columns.map((c) => {
@@ -1015,8 +1017,8 @@ export default function OrderForm({
               <h2 id={fid("summary")} className={CARD_TITLE}>Summary</h2>
               <dl className="space-y-2 text-sm tabular-nums">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Lines</dt><dd>{rows.filter((r) => r.itemId).length}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.subtotal))}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()}</dt><dd>{formatNumber(num(totals.tax))}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">Net</dt><dd>{formatNumber(num(totals.shared ? totals.shared.subtotal : totals.subtotal))}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()}</dt><dd>{formatNumber(num(totals.shared ? totals.shared.tax : totals.tax))}</dd></div>
                 {num(totals.rcmVat) > 0 && (
                   // reverse charge: the supplier charges no VAT; the VAT assessed on those lines is beside the total, never in it
                   <div className="flex justify-between"><dt className="text-muted-foreground">{taxWord()} self-assessed (reverse charge)<span className="block text-xs">Not in the total: {V.partyType === "Vendor" ? "you account for it, not the supplier" : "your customer accounts for it"}</span></dt><dd>{formatNumber(num(totals.rcmVat))}</dd></div>
@@ -1028,7 +1030,7 @@ export default function OrderForm({
                   <div className="flex justify-between"><dt className="text-muted-foreground">Charges (incl. {taxWord()})</dt><dd>{formatNumber(chargeSums.total)}</dd></div>
                 )}
                 {V.discount && discount > 0 && (
-                  <div className="flex justify-between"><dt className="text-muted-foreground">Discount</dt><dd>−{formatNumber(discount)}</dd></div>
+                  <div className="flex justify-between"><dt className="text-muted-foreground">Discount{totals.shared ? <span className="block text-xs">Already taken off the net and {taxWord()} above</span> : null}</dt><dd>−{formatNumber(discount)}</dd></div>
                 )}
                 <div className="flex items-baseline justify-between border-t border-border pt-3">
                   <dt className="font-semibold text-foreground">{`Total (${CURRENCY})`}</dt>

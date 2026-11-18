@@ -4,7 +4,8 @@ const patch = vi.hoisted(() => vi.fn());
 vi.mock("../../axios/axios", () => ({ default: { patch } }));
 vi.mock("sweetalert2", () => ({ default: { fire: vi.fn() } }));
 
-import { processTransaction, applyAfterSave, approveMany } from "../processTransaction";
+import Swal from "sweetalert2";
+import { processTransaction, applyAfterSave, approveMany, askToOverride } from "../processTransaction";
 
 // axios rejects with an Error that carries .response
 const httpError = (status, data) => Object.assign(new Error(`Request failed with status ${status}`), { response: { status, data } });
@@ -36,6 +37,26 @@ describe("processTransaction", () => {
     const confirm = vi.fn().mockResolvedValue(false);
     await expect(processTransaction("t1", "approve", { confirm })).rejects.toMatchObject({ cancelled: true });
     expect(patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("a bill from a supplier who is not registered is asked about the same way, under its own title and field", async () => {
+    const vendorVat = httpError(409, {
+      errorCode: "RISK_WARNING_ACKNOWLEDGEMENT_REQUIRED",
+      message: "Al Noor is not registered for VAT, but this bill charges VAT of AED 50.00.",
+      details: { risk: { operation: "bill.unregistered_vendor_vat", acknowledgementField: "riskAck_unregistered_vendor_vat", title: "VAT warning", breaches: [{ message: "Al Noor is not registered for VAT, but this bill charges VAT of AED 50.00." }] } },
+    });
+    patch.mockRejectedValueOnce(vendorVat).mockResolvedValueOnce({ data: {} });
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: true });
+    await processTransaction("t1", "approve");
+    expect(Swal.fire.mock.calls.at(-1)[0]).toMatchObject({ title: "VAT warning", confirmButtonText: "Approve anyway" });
+    expect(Swal.fire.mock.calls.at(-1)[0].html).toContain("Al Noor is not registered for VAT");
+    expect(patch).toHaveBeenLastCalledWith("/transactions/transactions/t1/process", { action: "approve", riskAck_unregistered_vendor_vat: true });
+  });
+
+  it("a credit warning still says Credit warning", async () => {
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    await askToOverride({ message: "Credit warning for X", details: { risk: { breaches: [{ message: "over the limit" }] } } });
+    expect(Swal.fire.mock.calls.at(-1)[0].title).toBe("Credit warning");
   });
 
   it("uses whatever field the server names, never a fixed one", async () => {

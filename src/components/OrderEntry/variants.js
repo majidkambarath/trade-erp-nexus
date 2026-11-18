@@ -45,8 +45,11 @@ const MAXQTY_COL = col("maxQty", "Can return", "ro", { min: "min-w-[90px]", alig
 // and FEFO keeps working from the numbers the server mints for itself (batchService.js), so nothing is
 // lost by not asking. Keyed by name, not by identity, so a variant that builds its own column list works.
 const BATCH_KEYS = ["batchNumber", "expiryDate"];
-export const columnsFor = (V, { batches = true } = {}) =>
-  (batches ? V.columns : (V.columns || []).filter((c) => !BATCH_KEYS.includes(c.key)));
+// A person who may not see what an item costs (inventory.viewCost) is not drawn the cost column either: the server no longer sends the figure,
+// and a column of zeros would read as "free".
+const COST_COLUMN_KEYS = ["purchasePrice"];
+export const columnsFor = (V, { batches = true, cost = true } = {}) =>
+  (V.columns || []).filter((c) => (batches || !BATCH_KEYS.includes(c.key)) && (cost || !COST_COLUMN_KEYS.includes(c.key)));
 
 const PURCHASE_COLUMNS = [
   col("itemId", "Item", "item", { min: "min-w-[240px]" }),
@@ -337,7 +340,7 @@ const purchaseLike = (docType, extra) => ({
   statusOptions: PURCHASE_STATUS,
   preview: vendorPreview,
   itemPayload: (row, stock) => ({ ...itemPayload({ fields: purchaseFields }, row, stock), currentPurchasePrice: num(row.currentPurchasePrice) }),
-  totals: (rows) => documentTotals(rows, (r) => num(r.currentPurchasePrice), (r) => num(r.vatPercent)),
+  totals: (rows, hd) => documentTotals(rows, (r) => num(r.currentPurchasePrice), (r) => num(r.vatPercent), hd),
   rowFromSaved: purchaseRowFromSaved,
   ...extra,
 });
@@ -398,7 +401,7 @@ export const VARIANTS = {
     statusOptions: SALES_STATUS,
     preview: customerPreview,
     itemPayload: (row, stock) => ({ ...itemPayload({ fields: { unitPrice: "rate", vatPercent: "vatPercent" } }, row, stock), salesPrice: num(row.rate) }),
-    totals: (rows) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent)),
+    totals: (rows, hd) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent), hd),
     rowFromSaved: salesRowFromSaved,
     referenceRequired: false,
     hasSecondDate: true,
@@ -430,7 +433,7 @@ export const VARIANTS = {
     statusOptions: SALES_RETURN_STATUS,
     preview: customerPreview,
     itemPayload: (row) => salesReturnItem(row),
-    totals: (rows) => documentTotals(rows, (r) => num(r.salesPrice), (r) => num(r.taxPercent)),
+    totals: (rows, hd) => documentTotals(rows, (r) => num(r.salesPrice), (r) => num(r.taxPercent), hd),
     rowFromSaved: salesReturnRowFromSaved,
     referenceRequired: false,
     hasSecondDate: true,
@@ -542,7 +545,7 @@ const customerSide = {
   columns: SALES_COLUMNS,
   rowTemplate: () => VARIANTS.sales.rowTemplate(),
   hydrate: hydrateSales,
-  totals: (rows) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent)),
+  totals: (rows, hd) => documentTotals(rows, (r) => num(r.rate), (r) => num(r.vatPercent), hd),
   rowFromSaved: withStock,
   totalAmount: (t, f) => decimalRound(Math.max(0, num(t.total) - num(f.discount))),
   discount: true,

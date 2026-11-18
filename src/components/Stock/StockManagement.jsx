@@ -195,6 +195,8 @@ const FormSelect = ({
 
 const StockManagement = () => {
   const { can } = useOrganisation();
+  // what an item costs is for inventory.viewCost only: the server sends no cost to anyone else, and a screen of zeros would read as "free"
+  const seesCost = can("inventory.viewCost");
   const [stockItems, setStockItems] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -701,13 +703,15 @@ const StockManagement = () => {
     try {
       // through downloadCSV (utils/format.js): quotes and commas inside a name stay in their cell, and a cell that would run as a
       // spreadsheet formula (an item called "=HYPERLINK(...)") is neutralised
+      const COST_AT = 12; // the PurchasePrice column; left out of the file for someone who may not see cost
+      const withoutCost = (cols) => (seesCost ? cols : cols.filter((_, i) => i !== COST_AT));
       downloadCSV(
         "stock_export.csv",
-        [
+        withoutCost([
           "ItemID", "SKU", "ItemName", "Category", "CategoryId", "VendorName", "VendorId", "UnitOfMeasure", "Origin", "Brand",
           "CurrentStock", "ReorderLevel", "PurchasePrice", "SalesPrice", "Status", "BatchNumber", "ExpiryDate", "CreatedAt", "ItemType",
-        ],
-        sortedAndFilteredItems.map((item) => [
+        ]),
+        sortedAndFilteredItems.map((item) => withoutCost([
           item.itemId || item._id,
           item.sku,
           item.itemName,
@@ -727,14 +731,14 @@ const StockManagement = () => {
           item.expiryDate || "",
           item.createdAt || new Date().toISOString(),
           item.itemType || "goods",
-        ])
+        ]))
       );
 
       showToastMessage("Stock data exported successfully!", "success");
     } catch {
       showToastMessage("Failed to export stock data.", "error");
     }
-  }, [sortedAndFilteredItems, showToastMessage]);
+  }, [sortedAndFilteredItems, showToastMessage, seesCost]);
 
   const getStatusBadge = useCallback((status) => {
     const badges = {
@@ -974,11 +978,11 @@ const StockManagement = () => {
               count: stockStats.lowStockItems,
               icon: <AlertTriangle size={24} />,
             },
-            {
+            ...(seesCost ? [{
               title: "Total Value",
               count: formatCurrency(stockStats.totalValue),
               icon: <Banknote size={24} />,
-            },
+            }] : []),
           ].map((card, index) => (
             <StatCard
               key={index}
@@ -1151,7 +1155,7 @@ const StockManagement = () => {
                     cell: (item) => (
                       <div>
                         <p className="text-sm font-medium text-gray-900">Sale: {formatCurrency(item.salesPrice)}</p>
-                        <p className="text-xs text-gray-500">Cost: {formatCurrency(item.purchasePrice)}</p>
+                        {seesCost && <p className="text-xs text-gray-500">Cost: {formatCurrency(item.purchasePrice)}</p>}
                       </div>
                     ),
                   },
@@ -1634,6 +1638,7 @@ const StockManagement = () => {
                   </h4>
                 </div>
 
+                {seesCost && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Purchase Price
@@ -1657,6 +1662,7 @@ const StockManagement = () => {
                     </p>
                   )}
                 </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
