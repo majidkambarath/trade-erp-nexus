@@ -23,6 +23,7 @@ import { formatDate, formatCurrencyAED } from "../../utils/format";
 import { isService } from "../../lib/itemTypes";
 import { taxWord } from "../../lib/taxTerms";
 import { Button } from "../ui/button";
+import { useOrganisation } from "../shell/OrganisationContext";
 import { ErrorNote, Panel, Pill, Spinner } from "../accounting/kit";
 
 // A service's income / expense account as the item detail returns it (populated), else the company default.
@@ -57,6 +58,7 @@ const Info = ({ icon: Icon, label, children }) => (
 );
 
 const StockDetail = () => {
+  const { can } = useOrganisation();
   const { id } = useParams();
   const navigate = useNavigate();
   const [stockItem, setStockItem] = useState(null);
@@ -205,7 +207,7 @@ const StockDetail = () => {
 
           <Panel title="Pricing Information">
             <div className="space-y-5">
-              <Info label="Purchase Price">{formatCurrency(stockItem.purchasePrice)}</Info>
+              {can("inventory.viewCost") && <Info label="Purchase Price">{formatCurrency(stockItem.purchasePrice)}</Info>}
               <Info label="Sales Price">{formatCurrency(stockItem.salesPrice)}</Info>
               <div>
                 <p className="flex items-center text-sm font-medium text-muted-foreground">

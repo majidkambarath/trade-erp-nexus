@@ -45,8 +45,11 @@ const MAXQTY_COL = col("maxQty", "Can return", "ro", { min: "min-w-[90px]", alig
 // and FEFO keeps working from the numbers the server mints for itself (batchService.js), so nothing is
 // lost by not asking. Keyed by name, not by identity, so a variant that builds its own column list works.
 const BATCH_KEYS = ["batchNumber", "expiryDate"];
-export const columnsFor = (V, { batches = true } = {}) =>
-  (batches ? V.columns : (V.columns || []).filter((c) => !BATCH_KEYS.includes(c.key)));
+// A person who may not see what an item costs (inventory.viewCost) is not drawn the cost column either: the server no longer sends the figure,
+// and a column of zeros would read as "free".
+const COST_COLUMN_KEYS = ["purchasePrice"];
+export const columnsFor = (V, { batches = true, cost = true } = {}) =>
+  (V.columns || []).filter((c) => (batches || !BATCH_KEYS.includes(c.key)) && (cost || !COST_COLUMN_KEYS.includes(c.key)));
 
 const PURCHASE_COLUMNS = [
   col("itemId", "Item", "item", { min: "min-w-[240px]" }),

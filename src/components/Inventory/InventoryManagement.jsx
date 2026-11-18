@@ -30,6 +30,7 @@ import { Button } from "../ui/button";
 
 import { DateInput, Field, Modal, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, useToasts } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
+import { useOrganisation } from "../shell/OrganisationContext";
 
 // The event-type badge used to be 8 literal Tailwind colours (bg-green-100 text-green-800...), none of them
 // dark-mode aware. The direction (in/out) is already shown by the row's own coloured arrow, so the badge's
@@ -80,6 +81,9 @@ const InventoryManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState(null);
+  // what a movement cost is for inventory.viewCost only: the server sends no cost to anyone else
+  const { can } = useOrganisation();
+  const seesCost = can("inventory.viewCost");
   // the search and the two choices come back as the person left them; the period opens on this calendar month, like every list
   const [kept] = useState(() => session.get("filters", {}));
   const [searchTerm, setSearchTerm] = useState(() => session.get("searchTerm", "") || "");
@@ -369,9 +373,11 @@ const InventoryManagement = () => {
 
   const handleExport = useCallback(async () => {
     try {
+      const COST_COLS = [6, 7]; // UnitCost and Value: left out of the file for someone who may not see cost
+      const withoutCost = (cols) => (seesCost ? cols : cols.filter((_, i) => !COST_COLS.includes(i)));
       downloadCSV(
         "inventory_movements_export.csv",
-        [
+        withoutCost([
           "MovementID",
           "StockID",
           "ItemName",
@@ -383,8 +389,8 @@ const InventoryManagement = () => {
           "Location",
           "Date",
           "RecordedBy",
-        ],
-        movements.map((m) => [
+        ]),
+        movements.map((m) => withoutCost([
           m._id,
           m.stockId,
           m.itemName || m.stockId,
@@ -396,14 +402,14 @@ const InventoryManagement = () => {
           m.location,
           formatDay(m.date),
           whoText(m),
-        ])
+        ]))
       );
 
       showToastMessage("Inventory movements exported successfully!", "success");
     } catch {
       showToastMessage("Failed to export data", "error");
     }
-  }, [movements, showToastMessage]);
+  }, [movements, showToastMessage, seesCost]);
 
   const handleRefresh = useCallback(() => {
     fetchMovements(true);
@@ -468,14 +474,14 @@ const InventoryManagement = () => {
             count: stats.stockOut,
             icon: <ArrowDownCircle size={24} />,
           },
-          {
+          ...(seesCost ? [{
             // what came in less what went out, at cost: the two halves are said under it so the figure can be checked
             title: "Net Value",
             count: formatCurrency(stats.totalValue),
             subText: `In ${formatCurrencyAED(Number(stats.valueIn) || 0)} · Out ${formatCurrencyAED(Number(stats.valueOut) || 0)}`,
             fit: true,
             icon: <BarChart3 size={24} />,
-          },
+          }] : []),
           {
             title: "Recent (24h)",
             count: stats.recentMovements,
@@ -618,6 +624,7 @@ const InventoryManagement = () => {
                     </div>
                   ),
                 },
+                ...(seesCost ? [
                 {
                   // worth what the books say: negative when stock went out (the stored cost is positive both ways)
                   key: "value", header: "Value", align: "end", card: "amount",
@@ -635,6 +642,7 @@ const InventoryManagement = () => {
                     );
                   },
                 },
+                ] : []),
                 {
                   key: "actions", header: "Actions", align: "center", card: "actions",
                   cell: (m) => (
@@ -745,9 +753,11 @@ const InventoryManagement = () => {
               <Field label="Reference Number" required error={errors.referenceNumber}>
                 <TextInput name="referenceNumber" value={formData.referenceNumber} onChange={handleChange} placeholder="e.g., PO-2024-001" />
               </Field>
+              {seesCost && (
               <Field label={`Unit Cost (${CURRENCY})`} error={errors.unitCost}>
                 <TextInput type="number" name="unitCost" value={formData.unitCost} onChange={handleChange} placeholder="0.00" step="0.01" min="0" />
               </Field>
+              )}
               <Field label="Location">
                 <TextInput name="location" value={formData.location} onChange={handleChange} placeholder="MAIN" />
               </Field>

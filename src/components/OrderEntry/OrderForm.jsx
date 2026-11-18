@@ -175,7 +175,7 @@ export default function OrderForm({
   activeView = "create",
 }) {
   const uid = useId();
-  const { me, featureOn, status } = useOrganisation();
+  const { me, featureOn, status, can } = useOrganisation();
   // The availability check is a DELIVERY NOTES endpoint, so an organisation without that feature would be
   // asking for a 403 on every keystroke. The variant still says whether it wants the check at all; this only
   // adds whether the plan allows it, and gates the warnings with it so neither half runs on its own.
@@ -435,7 +435,8 @@ export default function OrderForm({
 
   // The grid's own columns - computed once so Alt+N and the header's Enter know which column
   // a new line's cursor belongs in without duplicating columnsFor's rules.
-  const columns = useMemo(() => columnsFor(V, { batches: !noBatches }), [V, noBatches]);
+  const seesCost = can("inventory.viewCost");
+  const columns = useMemo(() => columnsFor(V, { batches: !noBatches, cost: seesCost }), [V, noBatches, seesCost]);
   // the tax code is required once the company is registered (no blank choice), and read-only while it sells without VAT
   const gridColumns = useMemo(
     () => columns.map((c) => {

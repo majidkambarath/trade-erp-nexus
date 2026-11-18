@@ -58,7 +58,7 @@ const LOG_LABEL = {
 // Enum values arrive SHOUTING (UNPAID, SALES_DISPATCH) or snake_cased (sales_order). The screen
 // reads in sentence case, like the rest of the finance screens.
 const titleCase = (s) => String(s || "").replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
-const amount = (v) => formatNumber(v, 2);
+const amount = (v) => (v === undefined || v === null ? "–" : formatNumber(v, 2)); // (a cost the caller may not see is simply absent)
 
 function Section({ title, note, right, children }) {
   return (
