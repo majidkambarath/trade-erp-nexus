@@ -1,6 +1,8 @@
 // Every country a customer or vendor address can be in (pure), and the seven emirates of the UAE. The country is stored as its
 // ISO 3166 alpha-2 code ("AE"); the name shown is the browser's own English name for it, so no list of names is kept here.
 // This is NOT the console's country list (platform/countries.js), which offers only countries the books can run in.
+import { GST_STATES } from "./gstStates";
+
 const CODES =
   "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ " +
   "DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT " +
@@ -31,3 +33,6 @@ export const countryOptions = () =>
   COUNTRY_CODES.map((value) => ({ value, label: countryLabel(value) })).sort((a, b) => a.label.localeCompare(b.label));
 
 export const emirateOptions = () => EMIRATES.map((e) => ({ value: e, label: e }));
+
+/** India's GST states and union territories as { value: "27", label: "27 - Maharashtra" }, by code. */
+export const stateOptions = () => GST_STATES.map(([value, name]) => ({ value, label: `${value} - ${name}` }));

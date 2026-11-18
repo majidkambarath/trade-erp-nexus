@@ -291,3 +291,32 @@ describe("the address's country and emirate", () => {
     expect(partyToForm("vendor", { vendorName: "V", country: "IN", emirate: null })).toMatchObject({ country: "IN", emirate: "", addressLegacy: false });
   });
 });
+
+describe("the GST state of an Indian address", () => {
+  afterEach(() => resetOrgLocale());
+  const indian = (over = {}) => ({ ...filled(), country: "IN", emirate: "", addressLegacy: false, ...over });
+
+  it("is needed for an Indian customer, unless the GSTIN already says which", () => {
+    setOrgLocale({ country: "IN" });
+    expect(validateParty("customer", indian({ stateCode: "" })).stateCode).toMatch(/Choose the state/);
+    expect(validateParty("customer", indian({ stateCode: "27" })).stateCode).toBeUndefined();
+    expect(validateParty("customer", indian({ stateCode: "", vatStatus: "registered", trn: "29AAPFU0939F1ZV" })).stateCode).toBeUndefined();
+    expect(validateParty("customer", filled("customer", { country: "AE", emirate: "Dubai" })).stateCode).toBeUndefined(); // a UAE address asks nothing of the kind
+  });
+
+  it("is sent with an Indian address only, and read back from a saved record", () => {
+    setOrgLocale({ country: "IN" });
+    const body = formToPayload("customer", indian({ stateCode: "27" }));
+    expect(body).toMatchObject({ country: "IN", emirate: "", stateCode: "27" });
+    expect("stateCode" in formToPayload("customer", filled("customer", { country: "AE", emirate: "Dubai" }))).toBe(false);
+    expect(partyToForm("customer", { customerName: "X", country: "IN", stateCode: "29" }).stateCode).toBe("29");
+    expect(partyToForm("customer", { customerName: "X" }).stateCode).toBe("");
+  });
+
+  it("starts an Indian organisation's new party in India, with the state still to choose", () => {
+    setOrgLocale({ country: "IN" });
+    expect(emptyParty("customer")).toMatchObject({ country: "IN", emirate: "", stateCode: "" });
+    setOrgLocale({ country: "AE" });
+    expect(emptyParty("customer")).toMatchObject({ country: "AE", emirate: "Abu Dhabi" });
+  });
+});

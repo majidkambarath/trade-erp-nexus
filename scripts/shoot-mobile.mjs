@@ -2555,6 +2555,41 @@ function stubFor(pathname, search = "") {
     };
   }
 
+  if (p.includes("gst-return")) {
+    const Z = () => ({ taxable: 0, igst: 0, cgst: 0, sgst: 0 });
+    const notReported = { withoutGstDetail: { documents: 1, taxable: 5000, tax: 900 }, unclassified: { lines: 0, taxable: 0 } };
+    if (p.endsWith("/gstr3b")) {
+      return {
+        period: { from: "2026-11-01", to: "2026-11-30" },
+        outward: { taxable: { taxable: 480000, igst: 36000, cgst: 25200, sgst: 25200, tax: 86400 }, zeroRated: { ...Z(), tax: 0 }, nilExempt: { ...Z(), taxable: 8000 }, reverseCharge: { taxable: 40000, igst: 0, cgst: 3600, sgst: 3600, tax: 7200 }, nonGst: Z() },
+        itc: { other: { igst: 20000, cgst: 9000, sgst: 9000 }, reverseCharge: { igst: 0, cgst: 3600, sgst: 3600 }, total: { igst: 20000, cgst: 12600, sgst: 12600 } },
+        liability: { ordinary: { igst: 36000, cgst: 25200, sgst: 25200 }, reverseCharge: { igst: 0, cgst: 3600, sgst: 3600 } },
+        utilised: { igst: { igst: 20000, cgst: 0, sgst: 0 }, cgst: { igst: 0, cgst: 12600, sgst: 0 }, sgst: { igst: 0, cgst: 0, sgst: 12600 } },
+        payableInCash: { igst: 16000, cgst: 16200, sgst: 16200 }, creditCarriedForward: { igst: 0, cgst: 0, sgst: 0 },
+        reconciliation: { rows: [
+          { label: "Output CGST", direction: "output", component: "cgst", documents: 25200, ledger: 25200, difference: 0, agrees: true },
+          { label: "Output SGST", direction: "output", component: "sgst", documents: 25200, ledger: 25200, difference: 0, agrees: true },
+          { label: "Output IGST", direction: "output", component: "igst", documents: 36000, ledger: 35000, difference: 1000, agrees: false },
+        ], unsplit: { output: 900, input: 0 } },
+        notReported,
+      };
+    }
+    const row = (docNo, party, gstin, place, rate, taxable, igst, cgst, sgst) => ({ gstin, party, docNo, date: "2026-11-05", docValue: taxable * 1.18, placeOfSupply: place, gstType: igst ? "inter" : "intra", rate, taxable, igst, cgst, sgst });
+    return {
+      period: { from: "2026-11-01", to: "2026-11-30" },
+      b2b: [row("SO-2026-0011", "Karnataka Traders Private Limited", "29AAPFU0939F1ZV", "29", 18, 100000, 18000, 0, 0), row("SO-2026-0012", "Mumbai Components", "27AAPFU0939F1ZV", "27", 18, 60000, 0, 5400, 5400)],
+      b2cl: [], b2cs: [{ placeOfSupply: "27", rate: 18, type: "OE", taxable: 30000, igst: 0, cgst: 2700, sgst: 2700 }],
+      cdnr: [], cdnur: [], zeroRated: [],
+      nil: { interRegistered: Z(), intraRegistered: Z(), interUnregistered: Z(), intraUnregistered: { ...Z(), taxable: 8000 } },
+      nonGst: { interRegistered: Z(), intraRegistered: Z(), interUnregistered: Z(), intraUnregistered: Z() },
+      hsn: [{ hsnCode: "7318", rate: 18, qty: 400, taxable: 190000, igst: 18000, cgst: 8100, sgst: 8100 }],
+      hsnMissing: true,
+      documentsIssued: { invoices: { count: 3, from: "SO-2026-0010", to: "SO-2026-0012" }, creditNotes: { count: 0, from: null, to: null } },
+      totals: { taxable: 190000, igst: 18000, cgst: 8100, sgst: 8100, tax: 34200 },
+      notReported,
+    };
+  }
+
   if (p.includes("vat-return") || p.includes("/vat")) {
     if (p.endsWith("/returns")) return [];
     if (p.endsWith("/detail")) {

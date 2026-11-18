@@ -11,6 +11,27 @@ import { cn } from "../../lib/utils";
 
 const ICON = { [GOODS]: Package, [SERVICE]: Briefcase };
 
+// India GST: the HSN (goods) or SAC (service) code the tax invoice must carry for this item. Drawn by an Indian organisation only.
+export function HsnField({ value, onChange, error, service = false }) {
+  const word = service ? "SAC code" : "HSN code";
+  return (
+    <div>
+      <label htmlFor="item-hsn" className="block text-sm font-semibold text-gray-700 mb-2">{word}</label>
+      <input
+        id="item-hsn"
+        type="text"
+        inputMode="numeric"
+        name="hsnCode"
+        value={value || ""}
+        onChange={onChange}
+        placeholder={service ? "6-digit service accounting code" : "4 to 8 digits"}
+        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 ${error ? "border-red-300 bg-red-50" : "border-gray-300"}`}
+      />
+      {error ? <p className="mt-1 text-sm text-red-600">{error}</p> : <p className="mt-1 text-xs text-gray-500">Printed on the invoice and used in the GST return.</p>}
+    </div>
+  );
+}
+
 // A two-way choice, not a dropdown: it decides what the rest of the form asks for, so it should be seen.
 export function ItemTypeToggle({ value = GOODS, onChange, disabled = false }) {
   return (

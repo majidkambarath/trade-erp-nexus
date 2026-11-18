@@ -402,6 +402,8 @@ export const MODULES = [
       { label: "Stock", to: "/stock-reports", permission: "reports.view", keywords: ["stock valuation", "inventory valuation", "stock movement", "item ledger", "sales analysis", "gross margin", "expiry", "slow moving", "dead stock", "reorder", "low stock"] },
       { label: "Currency", to: "/currency-register", permission: ["reports.financial", "accounts.view"], feature: "currencies", keywords: ["currency register", "foreign receipts", "foreign payments", "fx register"] },
       { label: "VAT", to: "/vat-reports", permission: "reports.financial", feature: "vatReturn", keywords: ["vat report", "fta", "tax"] },
+      // India's counterpart of the VAT return: shown to an Indian organisation (the server sends features.gstReturn), never alongside it
+      { label: "GST", to: "/gst-returns", permission: "reports.financial", feature: "gstReturn", keywords: ["gst return", "gstr-1", "gstr1", "gstr-3b", "gstr3b", "hsn", "cgst", "sgst", "igst", "input tax credit", "tax"] },
       // `soon`: the screens work against a built-in sandbox, but the connection to an accredited
       // service provider (live exchange with other businesses and the FTA) is not built yet.
       { label: "e-Invoicing", to: "/e-invoicing", permission: ["reports.financial", "sales.view"], feature: "einvoicing", soon: true, keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tax invoice", "credit note"] },

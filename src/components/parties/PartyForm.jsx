@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Field, PhoneInput, SearchSelect, Select, Textarea, TextInput } from "../accounting/kit";
-import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, EMIRATES } from "../../lib/countries";
+import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, EMIRATES, stateOptions } from "../../lib/countries";
 import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
 import { isUae, taxIdWord, taxWord } from "../../lib/taxTerms";
@@ -129,6 +129,7 @@ function BasicSection({ kind, value, set, errors, autoFocus }) {
 // The address's country (searchable, every country) and, in the UAE only, the emirate it is in.
 function CountryFields({ value, set, errors }) {
   const options = useMemo(countryOptions, []);
+  const states = useMemo(stateOptions, []);
   const isAe = value.country === DEFAULT_COUNTRY;
   return (
     <>
@@ -138,9 +139,14 @@ function CountryFields({ value, set, errors }) {
           value={value.country}
           options={options}
           rankMatches
-          onChange={(code) => set({ country: code || DEFAULT_COUNTRY, ...(code === DEFAULT_COUNTRY ? { emirate: value.emirate || DEFAULT_EMIRATE, addressLegacy: false } : { emirate: "" }) })}
+          onChange={(code) => set({ country: code || DEFAULT_COUNTRY, ...(code === DEFAULT_COUNTRY ? { emirate: value.emirate || DEFAULT_EMIRATE, addressLegacy: false } : { emirate: "" }), ...(code === "IN" ? {} : { stateCode: "" }) })}
         />
       </Field>
+      {value.country === "IN" && (
+        <Field label="State" required error={errors.stateCode} hint="Decides whether the invoice charges CGST + SGST (same state as you) or IGST.">
+          <SearchSelect aria-label="State" value={value.stateCode} options={states} onChange={(code) => set({ stateCode: code || "", addressLegacy: false })} />
+        </Field>
+      )}
       {isAe && (
         <Field label="Emirate" required error={errors.emirate}>
           <Select value={value.emirate} onChange={(e) => set({ emirate: e.target.value, addressLegacy: false })}>

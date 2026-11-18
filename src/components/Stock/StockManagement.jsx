@@ -49,7 +49,8 @@ import { DataTable } from "../accounting/DataTable";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import Can from "../shell/Can";
 import { useOrganisation } from "../shell/OrganisationContext";
-import { ItemTypeToggle, ServiceAccountFields } from "./ItemTypeFields";
+import { HsnField, ItemTypeToggle, ServiceAccountFields } from "./ItemTypeFields";
+import { orgCountry } from "../../utils/orgLocale";
 import {
   buildItemPayload, emptyItemForm, isService, itemFormFromStock, itemStats, matchesType, stockLevelText, switchItemType, validateItemForm,
 } from "../../lib/itemTypes";
@@ -1444,6 +1445,8 @@ const StockManagement = () => {
                     }))}
                   />
                 </div>
+
+                {orgCountry() === "IN" && <HsnField value={formData.hsnCode} onChange={handleChange} error={errors.hsnCode} service={service} />}
 
                 {/* origin, brand, barcode and the stock fields belong to goods; a service has none of them */}
                 {!service && (

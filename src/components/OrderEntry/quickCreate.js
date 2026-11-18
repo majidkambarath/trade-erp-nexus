@@ -1,6 +1,8 @@
 import { isValidTrn, normalizeTrn, taxIdRule } from "../../lib/partyForms";
 import { taxWord } from "../../lib/taxTerms";
-import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, emirateOptions } from "../../lib/countries";
+import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, emirateOptions, stateOptions } from "../../lib/countries";
+import { stateCodeOfGstin } from "../../lib/gstStates";
+import { orgCountry } from "../../utils/orgLocale";
 
 // Create a master record from inside an order without leaving the page.
 //
@@ -50,12 +52,22 @@ const vatFields = () => [
 const addressFields = () => [
   { name: "country", label: "Country", required: true, select: "countries", optionsList: countryOptions, search: true, noNew: true },
   { name: "emirate", label: "Emirate", required: (v) => v.country === DEFAULT_COUNTRY, when: (v) => v.country === DEFAULT_COUNTRY, select: "emirates", optionsList: emirateOptions, noNew: true },
+  // India: the GST state decides CGST + SGST or IGST; not asked when the GSTIN typed already says which
+  { name: "stateCode", label: "State", required: (v) => v.country === "IN" && !stateCodeOfGstin(v.trn), when: (v) => v.country === "IN", select: "states", optionsList: stateOptions, search: true, noNew: true },
 ];
-const addressDefaults = { country: DEFAULT_COUNTRY, emirate: DEFAULT_EMIRATE };
+// (read when the dialog opens, so an Indian organisation's quick-added party starts in India, state still to choose)
+const addressDefaults = {
+  get country() { return orgCountry() === "IN" ? "IN" : DEFAULT_COUNTRY; },
+  get emirate() { return orgCountry() === "IN" ? "" : DEFAULT_EMIRATE; },
+};
 // choosing the UAE offers Abu Dhabi until another is picked; any other country has no emirate
 const addressChanged = (name, value, values) =>
-  name === "country" ? { emirate: value === DEFAULT_COUNTRY ? values.emirate || DEFAULT_EMIRATE : "" } : null;
-const addressPayload = (v) => ({ country: v.country || DEFAULT_COUNTRY, emirate: (v.country || DEFAULT_COUNTRY) === DEFAULT_COUNTRY ? text(v.emirate) : "" });
+  name === "country" ? { emirate: value === DEFAULT_COUNTRY ? values.emirate || DEFAULT_EMIRATE : "", ...(value !== "IN" && values.stateCode ? { stateCode: "" } : {}) } : null;
+const addressPayload = (v) => ({
+  country: v.country || DEFAULT_COUNTRY,
+  emirate: (v.country || DEFAULT_COUNTRY) === DEFAULT_COUNTRY ? text(v.emirate) : "",
+  ...(v.country === "IN" ? { stateCode: text(v.stateCode) } : {}),
+});
 
 // Sent inside `vat`, never as a top-level trnNumber/trnNO: the create services take an explicit
 // whitelist and would drop an unknown key, while PartyMasterService.prepare reads `vat` and writes

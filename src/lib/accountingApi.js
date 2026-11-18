@@ -122,6 +122,12 @@ export const documents = {
   audit: (id) => api.get(`/transactions/transactions/${id}/audit`),
 };
 
+// India's GST returns (GSTR-1, GSTR-3B), worked out from the approved documents.
+export const gst = {
+  gstr1: (params) => api.get("/gst-return/gstr1", params),
+  gstr3b: (params) => api.get("/gst-return/gstr3b", params),
+};
+
 // The VAT return (FTA 201), worked out from the approved documents; saved returns are the record.
 export const vat = {
   compute: (params) => api.get("/vat-return/return", params),

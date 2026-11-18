@@ -263,7 +263,15 @@ describe("quick-add: country and emirate", () => {
     expect(isShown(emirate, { country: "AE" })).toBe(true);
     expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "AE" }).name).toBe("emirate");
     expect(isShown(emirate, { country: "IN" })).toBe(false);
-    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "IN" })).toBeNull();
+    // India has no emirate but needs the GST state (it decides CGST + SGST or IGST) - unless the GSTIN typed already says which
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "IN" }).name).toBe("stateCode");
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "IN", stateCode: "27" })).toBeNull();
+    expect(missingRequired(QUICK_CREATE.customer, { ...base, country: "IN", trn: "29AAPFU0939F1ZV" })).toBeNull();
+  });
+  it("sends the GST state for India only", () => {
+    expect(QUICK_CREATE.customer.payload({ ...base, country: "IN", stateCode: "27" })).toMatchObject({ country: "IN", emirate: "", stateCode: "27" });
+    expect("stateCode" in QUICK_CREATE.customer.payload({ ...base, country: "AE", emirate: "Dubai", stateCode: "27" })).toBe(false);
+    expect(QUICK_CREATE.customer.onChange("country", "AE", { country: "IN", emirate: "", stateCode: "27" })).toEqual({ emirate: "Abu Dhabi", stateCode: "" });
   });
   it("opens on the UAE and Abu Dhabi, and choosing another country clears the emirate", () => {
     expect(QUICK_CREATE.customer.defaults).toEqual({ country: "AE", emirate: "Abu Dhabi" });

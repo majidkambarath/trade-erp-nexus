@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { accounting } from "../../lib/accountingApi";
 import { approvalsFrom, approvalsPayload } from "../../lib/settingsForm";
-import { orgCurrency } from "../../utils/orgLocale";
+import { orgCountry, orgCurrency } from "../../utils/orgLocale";
+import { GST_STATES, stateCodeOfGstin } from "../../lib/gstStates";
 import { Button } from "../ui/button";
 import Guarded from "../shell/Guarded";
 import { useOrganisation } from "../shell/OrganisationContext";
@@ -169,12 +170,22 @@ function TaxIdentity({ settings, defaults, notify, onSaved }) {
         )}
         <Field label="Address" className="sm:col-span-2"><TextInput value={p.addressLine1 || ""} onChange={set("addressLine1")} /></Field>
         <Field label="City"><TextInput value={p.city || ""} onChange={set("city")} /></Field>
-        <Field label="Emirate">
-          <Select value={p.emirate || ""} onChange={set("emirate")}>
-            <option value="">Choose…</option>
-            {EMIRATES.map((e) => <option key={e}>{e}</option>)}
-          </Select>
-        </Field>
+        {orgCountry() === "IN" ? (
+          // India: the state the company is registered in. It decides CGST + SGST (a customer in the same state) or IGST (another state).
+          <Field label="State" hint="The state your GSTIN is registered in (its first two digits). It decides CGST + SGST or IGST on every invoice.">
+            <Select value={p.stateCode || stateCodeOfGstin(p.trn)} onChange={set("stateCode")}>
+              <option value="">Choose…</option>
+              {GST_STATES.map(([code, name]) => <option key={code} value={code}>{code} - {name}</option>)}
+            </Select>
+          </Field>
+        ) : (
+          <Field label="Emirate">
+            <Select value={p.emirate || ""} onChange={set("emirate")}>
+              <option value="">Choose…</option>
+              {EMIRATES.map((e) => <option key={e}>{e}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label="Email"><TextInput type="email" value={p.email || ""} onChange={set("email")} /></Field>
         <Field label="Phone"><TextInput value={p.phone || ""} onChange={set("phone")} /></Field>
         {s.error && !fieldError && <div className="sm:col-span-2"><ErrorNote error={s.error} /></div>}
