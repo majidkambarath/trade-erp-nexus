@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { ErrorNote, Modal, Pill, Spinner, useAsync } from "../accounting/kit";
 import { documents } from "../../lib/accountingApi";
 import { vouchers } from "../../lib/bankingApi";
+import { personLabel } from "../../lib/people";
 import { amountsIn, formatDate, formatDateTime, formatNumber, formatQty, CURRENCY } from "../../utils/format";
 
 // What one document did, and who did it. The financial effect comes first - the ledger entries it
@@ -549,7 +550,7 @@ function ChequeSection({ cheque }) {
           {cheque.history.map((h, i) => (
             <li key={i}>
               {titleCase(h.status)} · {formatDateTime(h.at)}
-              {h.by ? ` · ${h.by}` : ""}
+              {personLabel(h.byName, h.by) ? ` · ${personLabel(h.byName, h.by)}` : ""}
               {h.note ? ` · ${h.note}` : ""}
             </li>
           ))}

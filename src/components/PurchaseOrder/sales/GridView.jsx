@@ -21,6 +21,7 @@ import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import { personLabel } from "../../../lib/people";
 import PaymentBadge from "../../lists/PaymentBadge";
 
 const GridView = ({
@@ -128,10 +129,12 @@ const GridView = ({
 
             {/* Status Indicators */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
-              <div className="flex items-center space-x-1 text-muted-foreground">
-                <User className="w-3 h-3" />
-                <span>{so.createdBy}</span>
-              </div>
+              {personLabel(so.createdByName, so.createdBy) && (
+                <div className="flex items-center space-x-1 text-muted-foreground">
+                  <User className="w-3 h-3" />
+                  <span>{personLabel(so.createdByName, so.createdBy)}</span>
+                </div>
+              )}
               <AwaitingSecondBadge doc={so} state={stateOf(so)} />
             </div>
 

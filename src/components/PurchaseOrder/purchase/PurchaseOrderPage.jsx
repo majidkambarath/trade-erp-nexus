@@ -64,6 +64,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { isRecordId } from "../../../lib/people";
 import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
@@ -224,7 +225,7 @@ const PurchaseOrderManagement = () => {
         const enrichedItems = (t.items || []).map((item) => {
           const stock = item.stockDetails || stockItems.find(s => String(s._id) === String(item.itemId)) || {};
           // a stored code that is only the item's database id is no code: prefer the item's own
-          const isId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
+          const isId = isRecordId;
           const normalizedItemCode = [item.itemCode, stock.itemId, stock.itemCode, stock.sku, item.sku].find((v) => v && !isId(v)) || "-";
 
           return {
@@ -292,7 +293,7 @@ const PurchaseOrderManagement = () => {
           discount: typeof t.discount === "number" ? t.discount : 0,
           terms: t.terms || "",
           notes: t.notes || "",
-          createdBy: t.createdBy || "System",
+          createdBy: t.createdBy,
           createdByName: t.createdByName || "",
           // who has approved it so far: a first of two shows as "Awaiting second approval"
           approvals: Array.isArray(t.approvals) ? t.approvals : [],
@@ -409,7 +410,7 @@ const PurchaseOrderManagement = () => {
           !needle ||
           has(row.transactionNo) ||
           has(row.vendorName) ||
-          has(row.createdBy) ||
+          has(row.createdByName) ||
           has(row.vendorReference) ||
           has(row.notes) ||
           (row.items || []).some((i) => has(i.description) || has(i.itemName));

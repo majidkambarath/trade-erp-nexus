@@ -449,7 +449,7 @@ const SalesOrderManagement = () => {
           !needle ||
           has(so.transactionNo) ||
                     has(so.customerName) ||
-          has(so.createdBy) ||
+          has(so.createdByName) ||
           has(so.refNo) ||
           has(so.docNo) ||
           has(so.notes) ||
