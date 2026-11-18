@@ -83,5 +83,17 @@ export function gridCardCases({ module, names, View: view, setStatus }) {
       expect(within(c).getByText("Rice, the good one")).toBeInTheDocument();
       expect(within(c).queryByText("Rice 5kg")).toBeNull();
     });
+
+    // A live client read "6aca1d9b5caae294d2bad5cf" under every invoice: the card printed the creator's account id.
+    it("says who made the document by name, and never prints an account id", async () => {
+      const id = "6aca1d9b5caae294d2bad5cf";
+      await show([
+        row("named", "DRAFT", { createdBy: id, createdByName: "Asha Menon" }),
+        row("gone", "DRAFT", { createdBy: id, createdByName: "" }),
+      ]);
+      expect(within(card("DOC-named")).getByText("Asha Menon")).toBeInTheDocument();
+      expect(screen.queryByText(id)).toBeNull();
+      expect(document.body.textContent).not.toContain(id);
+    });
   });
 }

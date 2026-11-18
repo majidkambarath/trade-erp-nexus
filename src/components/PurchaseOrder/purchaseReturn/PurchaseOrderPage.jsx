@@ -327,7 +327,7 @@ const PurchaseReturnOrderManagement = () => {
           !needle ||
           has(row.transactionNo) ||
           has(row.vendorName) ||
-          has(row.createdBy) ||
+          has(row.createdByName) ||
           has(row.notes) ||
           (row.items || []).some((i) => has(i.description) || has(i.itemName));
 

@@ -18,6 +18,7 @@ import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import { personLabel } from "../../../lib/people";
 import RowMenu from "../../lists/RowMenu";
 import PaymentBadge from "../../lists/PaymentBadge";
 
@@ -176,7 +177,7 @@ const TableView = ({
                       >
                         {so.transactionNo}
                       </button>
-                      {so.createdBy && !/^[a-f0-9]{24}$/i.test(String(so.createdBy || "")) && <p className="text-xs text-muted-foreground">{so.createdBy}</p>}
+                      {personLabel(so.createdByName, so.createdBy) && <p className="text-xs text-muted-foreground">{personLabel(so.createdByName, so.createdBy)}</p>}
                     </div>
                   </div>
                 </td>

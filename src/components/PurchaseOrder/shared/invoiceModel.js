@@ -5,6 +5,7 @@ import { amountInWords, decimalAdd, decimalRound, lineValueOf } from "../../../u
 import { orgCurrency } from "../../../utils/orgLocale";
 import { isReverseCharge } from "../../../lib/reverseCharge";
 import { countryLabel } from "../../../lib/countries";
+import { isRecordId } from "../../../lib/people";
 
 const num = (v) => parseFloat(v) || 0;
 
@@ -28,7 +29,7 @@ export const tint = (hex, share = 0.12) => {
 // and `vatAmount` the VAT on it: the same contract the server prices with (utils/pricing.js).
 // A line saved without an item code was given the item's database id as its code (24 hex characters): nobody can read that
 // off a sheet, so the item's own code or SKU is shown instead when the line knows it.
-const looksLikeId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
+const looksLikeId = isRecordId;
 export const readableCode = (it) => {
   const own = it.itemCode;
   if (own && !looksLikeId(own)) return own;
