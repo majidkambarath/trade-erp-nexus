@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import InvoiceSheet from "./InvoiceSheet";
 import DeliverySheet from "./DeliverySheet";
 import VoucherSheet from "../../finance/VoucherSheet";
+import StatementSheet from "./StatementSheet";
 
 const A4_MM = { w: 210, h: 297 };
 // 210mm at 96dpi: the width the sheet is laid out at.
@@ -24,7 +25,7 @@ const RASTER = { download: { scale: 2, quality: 0.92 }, email: { scale: 1.5, qua
 // the debit/credit one, each named by `layout`. This is the registry every reader goes through -
 // `sheetMarkup` for print and PDF, and `InvoiceScreen` for the preview - so a document cannot be
 // drawn one way on screen and another on paper.
-const LAYOUTS = { delivery: DeliverySheet, voucher: VoucherSheet };
+const LAYOUTS = { delivery: DeliverySheet, voucher: VoucherSheet, statement: StatementSheet };
 export const sheetComponent = (sheet) => LAYOUTS[sheet?.layout] || InvoiceSheet;
 
 // The page markup for one copy of a document.

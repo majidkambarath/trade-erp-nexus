@@ -112,17 +112,34 @@ describe("QuotationView", () => {
     expect(screen.getAllByText("Expired").length).toBeGreaterThan(0);
   });
 
-  it("marking as sent is honest that nothing is emailed, then records it", async () => {
+  it("marking as sent points to Send for emailing, then records it", async () => {
     quotations.send.mockResolvedValue({});
     show(quotation());
     fireEvent.click(await screen.findByRole("button", { name: /mark as sent/i }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText(/not available yet/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/use Send/i)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: /^mark as sent$/i }));
     await waitFor(() => expect(quotations.send).toHaveBeenCalledWith("q1"));
     await waitFor(() => expect(notify).toHaveBeenCalledWith("QT-2026-0007 marked as sent"));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(props.onChanged).toHaveBeenCalled();
+  });
+
+  // Emailing the offer: a draft, a sent or an accepted quotation can go; a rejected or lapsed one cannot.
+  it.each([["DRAFT", true], ["SENT", true], ["ACCEPTED", true], ["REJECTED", false]])("%s: the Send button is %s", async (status, shown) => {
+    showAs(quotation({ status }), {});
+    await roleLoaded();
+    await screen.findByText("QT-2026-0007");
+    const send = screen.queryByRole("button", { name: /^send$/i });
+    if (shown) expect(send).toBeInTheDocument();
+    else expect(send).not.toBeInTheDocument();
+  });
+
+  it("a lapsed offer shows no Send button", async () => {
+    showAs(quotation({ status: "SENT", expired: true }), {});
+    await roleLoaded();
+    await screen.findByText("QT-2026-0007");
+    expect(screen.queryByRole("button", { name: /^send$/i })).not.toBeInTheDocument();
   });
 
   it("accepting records who accepted", async () => {

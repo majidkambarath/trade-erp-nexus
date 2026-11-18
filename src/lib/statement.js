@@ -107,12 +107,13 @@ export function statementDocument({ company, trn, title, period, currency, heade
   const body = rows
     .map((r) => `<tr>${r.map((c, i) => `<td${i >= money ? ' class="n"' : ""}>${esc(c ?? "")}</td>`).join("")}</tr>`)
     .join("");
-  return `<style>
+  // ONE root element: the PDF capture (documentPdf.jsx renderSheetsPdf) draws the frame's first child, which was this <style> and not the page.
+  return `<div><style>
     body{font:13px system-ui,sans-serif;margin:32px;color:#111} h1{font-size:18px;margin:0 0 2px} h2{font-size:15px;margin:0;font-weight:600}
     .meta{margin:2px 0 14px;color:#555} table{width:100%;border-collapse:collapse;margin-top:8px} th,td{padding:5px 8px;text-align:left;vertical-align:top;border-bottom:1px solid #eee}
     thead th{border-bottom:1px solid #111;font-weight:600} .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   </style>
     <h1>${esc(company)}</h1>${trn ? `<div class="meta">${esc(trn)}</div>` : ""}
     <h2>${esc(title)}</h2><div class="meta">${esc(period)}${currency ? ` &middot; Amounts in ${esc(currency)}` : ""}</div>
-    <table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    <table><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }

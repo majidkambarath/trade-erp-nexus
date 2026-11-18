@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Eye, FilePlus2, Pencil, Search, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
+import { SentLine } from "../send/shared";
 import StatCard from "../ui/stat-card";
 import { ConfirmDialog, DataTable, ErrorNote, PageHeader, Panel, Pill, Spinner, TextInput, useAsync } from "../accounting/kit";
 import { quotations } from "../../lib/salesDocumentsApi";
@@ -121,6 +122,7 @@ export default function QuotationList({ onOpen, onNew, onEdit, notify, reloadKey
                   <>
                     <span className="font-mono text-xs font-semibold">{r.quotationNo}</span>
                     {r.reference && <span className="block text-xs font-normal text-muted-foreground">Ref {r.reference}</span>}
+                    {r.lastSend && <SentLine send={r.lastSend} className="block" />}
                   </>
                 ),
               },

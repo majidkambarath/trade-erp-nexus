@@ -106,6 +106,18 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
     </div>
   );
 
+  // An offer the customer could still act on can be emailed: a draft (sending it marks it Sent), or one already sent or accepted. A lapsed,
+  // declined or replaced one shows no Send button at all.
+  const party = q.party || {};
+  const send = ["DRAFT", "SENT", "ACCEPTED"].includes(q.status) && q.displayStatus !== "EXPIRED" && q.items?.length
+    ? {
+        kind: "quotation", sourceType: "Quotation", id: q._id, number: q.quotationNo, title: "Quotation", companyName: company.companyName,
+        lastSend: q.lastSend || null, party: { email: party.email, phone: party.phone, contacts: party.contacts },
+        notice: q.status === "DRAFT" ? "Sending a draft quotation also marks it as sent: it can no longer be edited, only revised." : undefined,
+        onSent: () => refresh(),
+      }
+    : null;
+
   const footer = (
     <Panel title="Activity" description="Everything that has been done to this quotation, and by whom.">
       {activity.loading && !activity.data ? <Spinner label="Loading activity" /> : <ActivityList rows={activity.data?.rows} />}
@@ -123,6 +135,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
         actions={actions}
         banner={banner}
         footer={footer}
+        send={send}
       />
 
       {dialog === "send" && (
@@ -131,7 +144,7 @@ export default function QuotationView({ id, onBack, onEdit, onOpenQuotation, onC
           description="This records that the offer has gone to the customer. It can no longer be edited; to change it, revise it."
           onConfirm={() => finish(() => quotations.send(q._id), `${q.quotationNo} marked as sent`)}
         >
-          <Note>Sending it by email from here is not available yet. Download the PDF or print it first, then mark it as sent.</Note>
+          <Note>To email it to the customer, close this and use Send: that marks it as sent for you. Use this only to record an offer you gave in some other way.</Note>
         </ActionModal>
       )}
 

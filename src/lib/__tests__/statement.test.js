@@ -146,6 +146,12 @@ describe("statementDocument", () => {
     expect(html).not.toContain("<body");
   });
 
+  it("is ONE root element: the PDF capture draws the frame's first child, which was the <style> and so drew nothing", () => {
+    const html = statementDocument(args).trim();
+    expect(html.startsWith("<div>")).toBe(true);
+    expect(html.endsWith("</div>")).toBe(true);
+  });
+
   it("carries the company, the TRN, the title and the period", () => {
     const html = statementDocument(args);
     expect(html).toContain("Harbour Trading");

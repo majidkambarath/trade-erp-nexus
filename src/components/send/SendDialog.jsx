@@ -90,7 +90,7 @@ export default function SendDialog({ doc, attachment, notify, onSent, onClose })
 
     if (channel === "whatsapp") {
       const done = await action.run(
-        () => documentSends.handoff({ docType: doc.kind, sourceId: doc.id, phone: phone.trim() || undefined, note: note.trim() || undefined }, keyRef.current),
+        () => documentSends.handoff({ docType: doc.kind, sourceId: doc.id, periodFrom: doc.period?.from, periodTo: doc.period?.to, phone: phone.trim() || undefined, note: note.trim() || undefined }, keyRef.current),
         (r) => (r?.waUrl ? "WhatsApp is open with the message ready. Press send there." : "This was already handed over to WhatsApp."),
         { refresh: false }
       );
@@ -104,7 +104,7 @@ export default function SendDialog({ doc, attachment, notify, onSent, onClose })
 
     const useFile = attach && wantsFile && decision.allowed && file.file;
     const done = await action.run(
-      () => documentSends.send({ docType: doc.kind, sourceId: doc.id, to: check.to, cc: check.cc, subject: subject.trim(), note: note.trim(), includeShareLink: true, force: force ? "true" : undefined }, useFile ? file.file : null, keyRef.current),
+      () => documentSends.send({ docType: doc.kind, sourceId: doc.id, periodFrom: doc.period?.from, periodTo: doc.period?.to, to: check.to, cc: check.cc, subject: subject.trim(), note: note.trim(), includeShareLink: true, force: force ? "true" : undefined }, useFile ? file.file : null, keyRef.current),
       (r) => (r?.duplicate ? "This was already sent." : r?.send?.provider === "console" ? `${doc.title} ${doc.number} recorded, but NOT emailed: no email service is connected` : `${doc.title} ${doc.number} emailed to ${check.to[0]}${check.to.length > 1 ? ` and ${check.to.length - 1} more` : ""}`),
       { refresh: false }
     );
