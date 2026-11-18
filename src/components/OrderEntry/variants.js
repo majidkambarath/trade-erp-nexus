@@ -349,6 +349,7 @@ export const VARIANTS = {
   purchase: purchaseLike("purchase_order", {
     series: "PO",
     key: "purchase",
+    foreignCurrency: true, // the document may be made in a foreign currency (a return follows its invoice)
     noun: "Purchase order",
     title: { create: "Create purchase invoice", edit: "Edit purchase invoice", save: "Save invoice", saveEdit: "Update invoice", items: "Purchase items" },
     labels: { doc: "Invoice no.", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Delivery date", reference: "Reference" , serial: "Serial no." },
@@ -364,6 +365,7 @@ export const VARIANTS = {
   purchaseReturn: purchaseLike("purchase_return", {
     series: "PR",
     key: "purchaseReturn",
+    foreignCurrency: true, // the document may be made in a foreign currency (a return follows its invoice)
     noun: "Purchase return",
     title: { create: "Create purchase return", edit: "Edit purchase return", save: "Save return", saveEdit: "Update return", items: "Returned items" },
     labels: { doc: "Return number", partyNoun: "Vendor", selectParty: "Select vendor", secondDate: "Return date", reference: "Vendor reference" , serial: "Serial no." },
@@ -384,6 +386,7 @@ export const VARIANTS = {
   sales: {
     series: "SO",
     key: "sales",
+    foreignCurrency: true, // the document may be made in a foreign currency (a return follows its invoice)
     noun: "Sales order",
     docType: "sales_order",
     partyType: "Customer",
@@ -416,6 +419,7 @@ export const VARIANTS = {
   salesReturn: {
     series: "SR",
     key: "salesReturn",
+    foreignCurrency: true, // the document may be made in a foreign currency (a return follows its invoice)
     noun: "Sales return",
     docType: "sales_return",
     partyType: "Customer",
@@ -488,6 +492,10 @@ export const buildPayload = (V, f, rows, stockById, { linkedRef, charges, manual
     status: f.status,
     notes: f.notes || "",
     createdBy: CREATED_BY,
+    // a document in a foreign currency: priced in it here, converted to the base currency by the server at this rate. A return follows its invoice.
+    ...(V.foreignCurrency && !V.sourceDocument && f.currency
+      ? { currency: f.currency, ...(Number(f.exchangeRate) > 0 ? { exchangeRate: Number(f.exchangeRate) } : {}), ...(f.rateOverrideReason ? { rateOverrideReason: f.rateOverrideReason } : {}) }
+      : {}),
     // lines (after discounts) + their VAT - document discount + charges with their VAT
     totalAmount: decimalRound(num(V.totalAmount(totals, f)) + chargesTotal),
     items,

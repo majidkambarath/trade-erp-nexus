@@ -5,9 +5,12 @@
 import axiosInstance from "../../axios/axios";
 import { toInputDate } from "../../utils/format";
 import { recalcRow } from "./variants";
+import { inDocumentCurrency } from "../../lib/foreignDocument";
 
-export function formFromSaved(V, raw) {
+export function formFromSaved(V, saved) {
+  const raw = inDocumentCurrency(saved); // a document made in a foreign currency is edited in that currency
   return {
+    ...(raw.currency ? { currency: raw.currency, exchangeRate: String(raw.exchangeRate) } : {}),
     // a document that is not a Transaction names its number and its second date (a quotation's
     // "valid until") and its reference its own way, and may carry header fields of its own
     transactionNo: raw[V.numberField || "transactionNo"],

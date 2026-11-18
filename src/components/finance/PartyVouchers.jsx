@@ -100,11 +100,11 @@ function PartyVouchers({ direction }) {
 }
 
 // Oldest invoice first: the amount fills each invoice's open balance in turn; the rest stays on account.
-export function allocateOldestFirst(invoices, amountCents) {
+export function allocateOldestFirst(invoices, amountCents, openOf = (inv) => inv.outstandingAmount) {
   let left = amountCents;
   const out = {};
   for (const inv of invoices) {
-    const open = toCents(inv.outstandingAmount);
+    const open = toCents(openOf(inv));
     const take = Math.min(left, open);
     if (take > 0) out[inv._id] = String(fromCents(take));
     left -= take;
@@ -140,10 +140,6 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   );
   const partyOptions = useMemo(() => (parties.data || []).map((p) => ({ value: p._id, label: p[cfg.nameKey], hint: p[cfg.idKey] })), [parties.data, cfg]);
   const party = (parties.data || []).find((p) => p._id === partyId);
-  const open = invoices.data || [];
-  const listed = open.filter((i) => !leftOut[i._id]);
-  const aside = open.filter((i) => leftOut[i._id]);
-  const totalOpen = listed.reduce((t, i) => t + toCents(i.outstandingAmount), 0);
 
   // Opened from an invoice's own "Receive payment" / "Make payment": that invoice is already chosen, with what is owed on it (or
   // the amount asked for, if less) set against it, so the person only has to pick how it was paid and save.
@@ -187,15 +183,30 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   const check = rateCheck({ rate: rateText, masterRate: master?.rate, tolerancePercent: master?.tolerancePercent ?? 5, reason });
   const fxForm = { currency, foreignAmount: amount, rate: rateText, reason };
 
+  // An invoice made in a foreign currency is settled by a voucher in THAT currency, allocating foreign amounts; every other invoice is
+  // allocated in the base currency, as before. Which kind this voucher settles follows the currency chosen.
+  const allInvoices = invoices.data || [];
+  const foreignMode = Boolean(currency) && allInvoices.some((i) => i.fx?.currency === currency);
+  const open = allInvoices.filter((i) => (foreignMode ? i.fx?.currency === currency : !i.fx?.currency));
+  const hiddenForeign = allInvoices.filter((i) => i.fx?.currency && !open.includes(i));
+  const openOf = (inv) => (foreignMode ? inv.fx.outstandingAmount : inv.outstandingAmount);
+  const totalOf = (inv) => (foreignMode ? inv.fx.totalAmount : inv.totalAmount);
+  const fmt = (cents) => (foreignMode ? formatForeign(fromCents(cents), currency) : money(cents));
+  const listed = open.filter((i) => !leftOut[i._id]);
+  const aside = open.filter((i) => leftOut[i._id]);
+  const totalOpen = listed.reduce((t, i) => t + toCents(openOf(i)), 0);
+
   const totalFor = (text, rate = rateText) => (currency ? convertToBaseCents(text, rate, decimals) : toCents(text));
   const total = totalFor(amount);
   const allocated = Object.values(alloc).reduce((t, v) => t + toCents(v), 0);
-  const onAccount = total - allocated;
+  // allocations are measured against the amount in the currency they are in: foreign invoices in the foreign amount, the rest in base
+  const cap = foreignMode ? toCents(amount) : total;
+  const onAccount = cap - allocated;
 
   // a new rate or day can leave the invoices allocated more than the amount now covers: refill them oldest first
   useEffect(() => {
-    if (currency && allocated > total) setAlloc(allocateOldestFirst(listed, total));
-  }, [currency, total]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (currency && allocated > cap) setAlloc(allocateOldestFirst(listed, cap, openOf));
+  }, [currency, cap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeAmount = (raw) => {
     // A minus is refused with a message, not silently dropped character by character (which left
@@ -208,7 +219,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
     if (v === null) return;
     setErrors((e) => (e.amount ? { ...e, amount: undefined } : e));
     setAmount(v);
-    setAlloc(allocateOldestFirst(listed, totalFor(v))); // the oldest invoices are settled first
+    setAlloc(allocateOldestFirst(listed, foreignMode ? toCents(v) : totalFor(v), openOf)); // the oldest invoices are settled first
   };
   const changeParty = (id) => { setPartyId(id); setAlloc({}); setAmount(""); setLeftOut({}); };
   // Leaving an invoice out takes it off this voucher only: its allocation goes with it, the invoice does not.
@@ -219,9 +230,9 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   const putBack = (inv) => setLeftOut((m) => { const next = { ...m }; delete next[inv._id]; return next; });
   // Settle everything still listed: the amount becomes the total open, in the currency being paid in.
   const payAll = () => {
-    const text = String(currency ? foreignForBase(totalOpen, rateText, decimals) : fromCents(totalOpen));
+    const text = String(foreignMode ? fromCents(totalOpen) : currency ? foreignForBase(totalOpen, rateText, decimals) : fromCents(totalOpen));
     setAmount(text);
-    setAlloc(allocateOldestFirst(listed, totalFor(text)));
+    setAlloc(allocateOldestFirst(listed, foreignMode ? toCents(text) : totalFor(text), openOf));
   };
   const changeCurrency = (code) => {
     // an amount means something different in another currency: start the amount over
@@ -242,14 +253,14 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
     setAlloc(next);
     const sum = Object.values(next).reduce((t, x) => t + toCents(x), 0);
     // paying more on invoices raises the amount (in a foreign currency: to what covers it at this rate)
-    if (sum > total) setAmount(String(currency ? foreignForBase(sum, rateText, decimals) : fromCents(sum)));
+    if (sum > cap) setAmount(String(foreignMode ? fromCents(sum) : currency ? foreignForBase(sum, rateText, decimals) : fromCents(sum)));
   };
 
   async function save() {
     const e = {};
     if (!partyId) e.partyId = `Choose the ${cfg.noun.toLowerCase()}`;
     if (!(total > 0)) e.amount = "Enter the amount";
-    for (const inv of listed) if (toCents(alloc[inv._id]) > toCents(inv.outstandingAmount)) e[inv._id] = `More than the ${money(toCents(inv.outstandingAmount))} open`;
+    for (const inv of listed) if (toCents(alloc[inv._id]) > toCents(openOf(inv))) e[inv._id] = `More than the ${fmt(toCents(openOf(inv)))} open`;
     if (onAccount < 0) e.amount = "The invoices add up to more than the amount";
     if (currency) {
       const f = validateForeign({ fx: fxForm, master, masterError });
@@ -266,7 +277,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
       const saved = await vouchers.create({
         voucherType: cfg.voucherType, [cfg.partyField]: partyId, date, totalAmount: total / 100, narration: narration.trim() || undefined,
         linkedInvoices: listed.filter((i) => toCents(alloc[i._id]) > 0).map((i) => ({
-          invoiceId: i._id, amount: toCents(alloc[i._id]) / 100, balance: (toCents(i.outstandingAmount) - toCents(alloc[i._id])) / 100,
+          invoiceId: i._id, amount: toCents(alloc[i._id]) / 100, balance: (toCents(openOf(i)) - toCents(alloc[i._id])) / 100,
         })),
         ...paymentPayload(payment),
         ...fxPayload(fxForm, master),
@@ -337,18 +348,19 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
             <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-medium text-foreground">Open invoices of {party?.[cfg.nameKey]}</h3>
-                <p className="text-xs text-muted-foreground">{currency ? `Invoices are in ${baseCode}. The ${currency} amount is converted at the rate above.` : `${amountsIn()}.`}</p>
+                <p className="text-xs text-muted-foreground">{foreignMode ? `These invoices are in ${currency}: settle them in ${currency}. The difference from what they were booked at is posted as an exchange gain or loss.` : currency ? `Invoices are in ${baseCode}. The ${currency} amount is converted at the rate above.` : `${amountsIn()}.`}</p>
+                {hiddenForeign.length > 0 && <p className="text-xs text-muted-foreground">{hiddenForeign.length === 1 ? "1 invoice is" : `${hiddenForeign.length} invoices are`} in {[...new Set(hiddenForeign.map((i) => i.fx.currency))].join(", ")}: choose that currency above to settle {hiddenForeign.length === 1 ? "it" : "them"}.</p>}
               </div>
               {listed.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button" variant="outline" size="sm" onClick={payAll}
                     disabled={!(totalOpen > 0) || (Boolean(currency) && !(Number(rateText) > 0))}
-                    title={currency ? `Settle every invoice listed: ${baseCode} ${money(totalOpen)}` : "Settle every invoice listed"}
+                    title={currency ? `Settle every invoice listed: ${fmt(totalOpen)}` : "Settle every invoice listed"}
                   >
-                    {direction === "receipt" ? "Receive all" : "Pay all"} {money(totalOpen)}
+                    {direction === "receipt" ? "Receive all" : "Pay all"} {fmt(totalOpen)}
                   </Button>
-                  {total > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(listed, total))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
+                  {cap > 0 && <Button type="button" variant="outline" size="sm" onClick={() => setAlloc(allocateOldestFirst(listed, cap, openOf))}><Wand2 className="h-3.5 w-3.5" aria-hidden="true" />Oldest first</Button>}
                 </div>
               )}
             </div>
@@ -368,8 +380,8 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
                       <tr key={inv._id} className="border-t border-border">
                         <td data-label="Invoice" className="px-4 py-1.5 font-mono text-xs font-semibold">{inv.transactionNo}</td>
                         <td data-label="Date" className="whitespace-nowrap px-3 py-1.5">{formatDateGB(inv.date)}</td>
-                        <td data-label="Total" className="px-3 py-1.5 text-end tabular-nums text-muted-foreground">{money(toCents(inv.totalAmount))}</td>
-                        <td data-label="Open" className="px-3 py-1.5 text-end tabular-nums">{money(toCents(inv.outstandingAmount))}</td>
+                        <td data-label="Total" className="px-3 py-1.5 text-end tabular-nums text-muted-foreground">{fmt(toCents(totalOf(inv)))}</td>
+                        <td data-label="Open" className="px-3 py-1.5 text-end tabular-nums">{fmt(toCents(openOf(inv)))}</td>
                         <td data-label="This voucher" className="w-40 px-3 py-1">
                           <TextInput aria-label={`Amount against ${inv.transactionNo}`} inputMode="decimal" className="h-9 text-end tabular-nums" placeholder="0.00" value={alloc[inv._id] || ""} onChange={(e) => setAllocation(inv, e.target.value)} aria-invalid={errors[inv._id] ? true : undefined} />
                           {errors[inv._id] && <p className="mt-0.5 text-xs text-status-danger">{errors[inv._id]}</p>}
@@ -387,9 +399,9 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
                     ))}
                   </tbody>
                   <tfoot className="border-t-2 border-border bg-secondary/40 text-sm">
-                    <tr><td colSpan={3} className="px-4 py-2 text-end">{aside.length ? `Total open (${listed.length} of ${open.length} invoices)` : "Total open"}</td><td className="px-3 py-2 text-end font-medium tabular-nums">{money(totalOpen)}</td></tr>
-                    <tr><td colSpan={4} className="px-4 py-2 text-end">Against invoices</td><td className="px-4 py-2 text-end tabular-nums">{money(allocated)}</td></tr>
-                    <tr className="font-semibold"><td colSpan={4} className="px-4 py-2 text-end">{direction === "receipt" ? "Kept on account (advance from customer)" : "Kept on account (advance to vendor)"}</td><td className={onAccount < 0 ? "px-4 py-2 text-end text-status-danger tabular-nums" : "px-4 py-2 text-end tabular-nums"}>{money(Math.max(onAccount, 0))}</td></tr>
+                    <tr><td colSpan={3} className="px-4 py-2 text-end">{aside.length ? `Total open (${listed.length} of ${open.length} invoices)` : "Total open"}</td><td className="px-3 py-2 text-end font-medium tabular-nums">{fmt(totalOpen)}</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-2 text-end">Against invoices</td><td className="px-4 py-2 text-end tabular-nums">{fmt(allocated)}</td></tr>
+                    <tr className="font-semibold"><td colSpan={4} className="px-4 py-2 text-end">{direction === "receipt" ? "Kept on account (advance from customer)" : "Kept on account (advance to vendor)"}</td><td className={onAccount < 0 ? "px-4 py-2 text-end text-status-danger tabular-nums" : "px-4 py-2 text-end tabular-nums"}>{fmt(Math.max(onAccount, 0))}</td></tr>
                   </tfoot>
                 </table>
               </div>

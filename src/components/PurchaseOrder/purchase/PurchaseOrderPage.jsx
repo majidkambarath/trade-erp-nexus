@@ -64,6 +64,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { isRecordId } from "../../../lib/people";
 import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
@@ -216,7 +217,7 @@ const PurchaseOrderManagement = () => {
       setListInfo({ total, truncated, previousTotal });
 
 
-      const enrichedPOs = fetched.map((t) => {
+      const enrichedPOs = fetched.map(inDocumentCurrency).map((t) => {
         // FIX: Enrich vendor name using vendors array (reliable fallback)
         const vendorObj = vendors.find((v) => v._id === t.partyId);
         const vendorName = vendorObj?.vendorName || t.partyName || "Unknown Vendor";
@@ -267,6 +268,9 @@ const PurchaseOrderManagement = () => {
 
         return {
           id: t._id,
+          currency: t.currency || "",
+          exchangeRate: t.exchangeRate || null,
+          base: t.base || null,
           transactionNo: t.transactionNo,
           vendorId: t.partyId,
           vendorName,  // FIX: Use enriched vendorName

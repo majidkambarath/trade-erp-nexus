@@ -49,6 +49,7 @@ export default function InvoiceSheet({
   secondHalf = "SGST",
   bank,
   currency,
+  baseVat,
   accent,
   notice,
   receipt,
@@ -295,6 +296,12 @@ export default function InvoiceSheet({
           <TotalRow strong border accent={accent} value={formatNumber(totals.grandTotal)}>
             Grand total ({currency})
           </TotalRow>
+          {baseVat && baseVat.amount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>
+              <span>{baseVat.label}</span>
+              <span>{formatNumber(baseVat.amount)}</span>
+            </div>
+          )}
           {/* our own purchase: the VAT we assess on reverse-charge lines, beside the total and not in it */}
           {reverseCharge?.amountLabel && reverseCharge.amount > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>

@@ -65,6 +65,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const PurchaseReturnOrderManagement = () => {
@@ -208,8 +209,11 @@ const PurchaseReturnOrderManagement = () => {
       if (ask !== listRequest.current) return; // a newer read is on its way
       setListInfo({ total, truncated, previousTotal });
       setPurchaseOrders(
-        fetched.map((transaction) => ({
+        fetched.map(inDocumentCurrency).map((transaction) => ({
           id: transaction._id,
+          currency: transaction.currency || "",
+          exchangeRate: transaction.exchangeRate || null,
+          base: transaction.base || null,
           transactionNo: transaction.transactionNo,
           // The lists PRINT: Download, the Send attachment and the invoice opened from a row all build the
           // sheet from this row, so a reference left out here is simply missing from the paper.
