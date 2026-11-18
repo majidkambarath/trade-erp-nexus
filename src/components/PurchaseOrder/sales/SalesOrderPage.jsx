@@ -57,6 +57,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
@@ -247,9 +248,12 @@ const SalesOrderManagement = () => {
       if (ask !== listRequest.current) return; // a newer read is on its way
       setListInfo({ total, truncated, previousTotal });
       setSalesOrders(
-  transactions.map((t) => {
+  transactions.map(inDocumentCurrency).map((t) => {
     return {
       id: t._id,
+      currency: t.currency || "",
+      exchangeRate: t.exchangeRate || null,
+      base: t.base || null,
       transactionNo: t.transactionNo,
       customerId: t.partyId,
       customerName: t.party?.customerName || t.partyName,

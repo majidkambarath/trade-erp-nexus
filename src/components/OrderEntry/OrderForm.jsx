@@ -13,6 +13,7 @@ import { noVatCodeOf, salesWithoutVat } from "../../lib/vatRegistration";
 import { buildPayload, columnsFor, recalcRow, rowFromReturnLine } from "./variants";
 import { chargesTotals } from "./lineMath";
 import AttachmentPanel, { linkPending } from "../accounting/AttachmentPanel";
+import DocumentCurrency from "./DocumentCurrency";
 import { formatNumber, CURRENCY } from "../../utils/format";
 import { availabilityWarning } from "../../lib/salesDocuments";
 import { ITEM_TYPES, pickerLabel, rowIsService, stockedItemIds } from "../../lib/itemTypes";
@@ -707,8 +708,12 @@ export default function OrderForm({
       }
       setLinkedRef(original._id);
       setRows(() => lines.map((l) => rowFromReturnLine(V, l)));
+      const returnCurrency = r.data?.data?.currency || "";
       setFormData((prev) => ({
         ...prev,
+        // the return is in the currency, and at the rate, of the invoice it returns (the server decides it; this is what the form shows)
+        currency: returnCurrency,
+        exchangeRate: returnCurrency ? String(r.data.data.exchangeRate) : undefined,
         deliveryDate: prev.deliveryDate || (original.deliveryDate ? String(original.deliveryDate).split("T")[0] : prev.deliveryDate),
         ...(V.referenceRequired ? { vendorReference: original.vendorReference || original.transactionNo } : {}),
       }));
@@ -844,6 +849,8 @@ export default function OrderForm({
                 />
               </Field>
 
+              {V.foreignCurrency && <DocumentCurrency id={fid("currency")} formData={formData} setHeader={setHeader} locked={Boolean(V.sourceDocument)} />}
+
               <Field id={fid("partyId")} label={V.labels.partyNoun} error={errors.partyId} className="sm:col-span-2 xl:col-span-1">
                 <CreatableSelect
                   inputId={fid("partyId")}
@@ -944,7 +951,7 @@ export default function OrderForm({
               )}
 
               {V.discount && (
-                <Field id={fid("discount")} label={`Discount (${CURRENCY})`}>
+                <Field id={fid("discount")} label={`Discount (${formData.currency || CURRENCY})`}>
                   <input id={fid("discount")} name="discount" type="number" min="0" step="any" inputMode="decimal" value={formData.discount ?? ""} onChange={(e) => setHeader("discount", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />
                 </Field>
               )}
@@ -1033,7 +1040,7 @@ export default function OrderForm({
                   <div className="flex justify-between"><dt className="text-muted-foreground">Discount{totals.shared ? <span className="block text-xs">Already taken off the net and {taxWord()} above</span> : null}</dt><dd>−{formatNumber(discount)}</dd></div>
                 )}
                 <div className="flex items-baseline justify-between border-t border-border pt-3">
-                  <dt className="font-semibold text-foreground">{`Total (${CURRENCY})`}</dt>
+                  <dt className="font-semibold text-foreground">{`Total (${formData.currency || CURRENCY})`}</dt>
                   <dd className="text-xl font-extrabold text-foreground">{formatNumber(grandTotal)}</dd>
                 </div>
               </dl>
@@ -1104,7 +1111,7 @@ export default function OrderForm({
               <Field id={fid(`chargeDesc${i}`)} label={i === 0 ? "Description" : <span className="sr-only">Description</span>}>
                 <input id={fid(`chargeDesc${i}`)} type="text" value={c.description || ""} onChange={(e) => changeCharge(i, "description", e.target.value)} placeholder="e.g. Freight" className={fieldCls(false)} />
               </Field>
-              <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? `Amount (${CURRENCY})` : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
+              <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? `Amount (${formData.currency || CURRENCY})` : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
                 <input id={fid(`chargeAmt${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} className={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
               </Field>
               <Field id={fid(`chargeVat${i}`)} label={i === 0 ? `${taxWord()} %` : <span className="sr-only">{taxWord()} %</span>}>

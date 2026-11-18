@@ -96,16 +96,23 @@ export const signatureBoxes = (doc) => {
 export const fileSlug = (text) => String(text ?? "").trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 // The sheet fields every document shares: what is printed, from which saved document.
-export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency, notice, receipt, signatures, terms, reverseChargeSide }) => {
+export const sheetFor = (doc, { title, numberLabel, number, party, meta, company, currency: baseCurrency, notice, receipt, signatures, terms, reverseChargeSide }) => {
   const lines = invoiceLines(doc.items);
   const totals = documentTotals(doc);
+  // A document made in a foreign currency prints in that currency (the list/edit adapter, lib/foreignDocument.js, already holds its figures in it),
+  // states the exchange rate, and gives the tax in the organisation's own currency as well (the tax authority is paid in it).
+  const currency = doc.currency || baseCurrency;
+  const foreign = doc.currency && doc.currency !== baseCurrency;
+  const fxMeta = foreign ? [["Currency", doc.currency], ["Exchange rate", `1 ${doc.currency} = ${formatNumber(doc.exchangeRate, 4)} ${baseCurrency}`]] : [];
+  const baseVatAmount = doc.base?.vatAmount ?? doc.baseVat; // (the customer's copy carries it as `baseVat`)
+  const baseVat = foreign && baseVatAmount !== undefined ? { label: `${taxWord()} in ${baseCurrency}`, amount: baseVatAmount } : null;
   return {
     title,
     number: { label: numberLabel, value: number },
     company: companyBlock(company),
     party,
     // India GST: where the supply is made, printed with the document's other particulars
-    meta: rowsWithValue([...meta, ...(doc.placeOfSupply && placeLabel(doc.placeOfSupply) ? [["Place of supply", placeLabel(doc.placeOfSupply)]] : [])]),
+    meta: rowsWithValue([...meta, ...fxMeta, ...(doc.placeOfSupply && placeLabel(doc.placeOfSupply) ? [["Place of supply", placeLabel(doc.placeOfSupply)]] : [])]),
     lines,
     totals,
     breakdown: withChargesVat(vatBreakdown(lines), totals.vat),
@@ -114,6 +121,7 @@ export const sheetFor = (doc, { title, numberLabel, number, party, meta, company
     secondHalf: secondHalfLabel(doc.placeOfSupply),
     bank: bankRows(company),
     currency,
+    baseVat,
     notice,
     // The sheet has always rendered a Terms block (InvoiceSheet.jsx) and no invoice ever fed it, so a
     // document's stored `terms` was captured, editable and invisible. The quotation and the trade order

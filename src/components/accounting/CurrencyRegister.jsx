@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import { Button } from "../ui/button";
+import ForeignExposure from "./ForeignExposure";
 import { DataTable, DateInput, EmptyState, ErrorNote, Field, Panel, Pill, Spinner, useAsync } from "./kit";
 import { currencies } from "../../lib/currencyApi";
 import { REGISTER_TYPES, formatForeign, formatRate, registerCsvHeaders, registerCsvRows, typeLabel } from "../../lib/currencyForms";
@@ -18,6 +19,7 @@ const selectClass = "h-10 w-full rounded-lg border border-input bg-background px
 export default function CurrencyRegister() {
   const [filters, setFilters] = useState(() => ({ from: `${todayInput().slice(0, 4)}-01-01`, to: todayInput(), currency: "", type: "" }));
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }));
+  const [asOn, setAsOn] = useState(() => todayInput());
   const list = useAsync(() => currencies.list().catch(() => []), []);
   const reg = useAsync(
     () => currencies.register({ from: filters.from || undefined, to: filters.to || undefined, currency: filters.currency || undefined, type: filters.type || undefined }),
@@ -125,6 +127,7 @@ export default function CurrencyRegister() {
           </Panel>
         </div>
       )}
+      <div className="mt-5"><ForeignExposure asOn={asOn} onAsOn={setAsOn} /></div>
     </div>
   );
 }

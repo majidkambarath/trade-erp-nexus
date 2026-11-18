@@ -369,3 +369,30 @@ describe("the sales order an invoice was converted from", () => {
     expect(row(buildSalesDocument(base, cust, company, "AED").sheet.meta, "Sales order no.")).toBeUndefined();
   });
 });
+
+describe("an invoice made in a foreign currency", () => {
+  const cust = { customerId: "C1", customerName: "Overseas Ltd" };
+  const usdItems = [{ itemCode: "R1", description: "Rice", qty: 10, rate: 100, price: 100, vatPercent: 5, vatAmount: 50 }];
+  const base = { transactionNo: "SO-1", status: "APPROVED", date: "2026-11-18", items: usdItems };
+
+  it("prints in its own currency, states the rate and gives the tax in the base currency", () => {
+    const d = buildSalesDocument({ ...base, currency: "USD", exchangeRate: 3.6725, base: { vatAmount: 183.63 } }, cust, company, "AED");
+    expect(d.sheet.currency).toBe("USD");
+    expect(row(d.sheet.meta, "Currency")).toEqual(["Currency", "USD"]);
+    expect(row(d.sheet.meta, "Exchange rate")[1]).toBe("1 USD = 3.6725 AED");
+    expect(d.sheet.baseVat.amount).toBe(183.63);
+    expect(d.sheet.baseVat.label).toMatch(/in AED$/);
+  });
+
+  it("reads the base tax from the customer's copy, which carries it as baseVat", () => {
+    const d = buildSalesDocument({ ...base, currency: "USD", exchangeRate: 3.6725, baseVat: 183.63 }, cust, company, "AED");
+    expect(d.sheet.baseVat.amount).toBe(183.63);
+  });
+
+  it("a base-currency invoice has no currency row, rate or base tax line", () => {
+    const d = buildSalesDocument(base, cust, company, "AED");
+    expect(d.sheet.currency).toBe("AED");
+    expect(row(d.sheet.meta, "Exchange rate")).toBeUndefined();
+    expect(d.sheet.baseVat).toBeNull();
+  });
+});

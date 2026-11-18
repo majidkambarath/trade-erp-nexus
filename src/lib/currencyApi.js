@@ -29,4 +29,6 @@ export const currencies = {
 
   // { rows, totals, truncated } for foreign-currency receipts and payments
   register: (params) => unwrap(axiosInstance.get("/currencies/register", { params })),
+  // open invoices in a foreign currency valued at the rate on `asOn`: { asOn, baseCurrency, rows, currencies, totalDifference }
+  exposure: (params) => unwrap(axiosInstance.get("/currencies/exposure", { params })),
 };

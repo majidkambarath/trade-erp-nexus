@@ -4,7 +4,7 @@ import { render, screen, within, fireEvent, waitFor } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 
 const m = vi.hoisted(() => ({ list: vi.fn(), register: vi.fn(), download: vi.fn() }));
-vi.mock("../../../lib/currencyApi", () => ({ currencies: { list: m.list, register: m.register } }));
+vi.mock("../../../lib/currencyApi", () => ({ currencies: { list: m.list, register: m.register, exposure: vi.fn().mockResolvedValue({ asOn: "2026-11-18", baseCurrency: "AED", rows: [], currencies: [], totalDifference: 0 }) } }));
 vi.mock("../../../utils/format", async (importOriginal) => ({ ...(await importOriginal()), downloadCSV: m.download }));
 
 import CurrencyRegister from "../CurrencyRegister";

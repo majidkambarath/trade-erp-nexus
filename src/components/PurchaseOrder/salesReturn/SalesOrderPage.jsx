@@ -64,6 +64,7 @@ import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
 import { fetchAllTransactions } from "../../../lib/transactionList";
+import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
 const SalesReturnOrderManagement = () => {
@@ -208,9 +209,12 @@ const SalesReturnOrderManagement = () => {
       if (ask !== listRequest.current) return; // a newer read is on its way
       setListInfo({ total, truncated, previousTotal });
       setSalesReturnOrders(
-        fetched.map((transaction) => {
+        fetched.map(inDocumentCurrency).map((transaction) => {
           return {
             id: transaction._id,
+            currency: transaction.currency || "",
+            exchangeRate: transaction.exchangeRate || null,
+            base: transaction.base || null,
             transactionNo: transaction.transactionNo,
             // The lists PRINT: a reference left out here is missing from the paper.
             serialNo: transaction.serialNo ?? "",
