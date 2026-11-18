@@ -564,7 +564,7 @@ const InventoryManagement = () => {
                         <Package size={16} className="text-indigo-600" />
                       </div>
                       <div className="min-w-0">
-                        <span className="block truncate font-semibold text-foreground">{m.itemName || m.stockId}</span>
+                        <span className="block truncate font-semibold text-foreground">{m.itemName || "Unknown item"}</span>
                         <span className="block text-sm font-normal text-muted-foreground">ID: {m.stockId}</span>
                       </div>
                     </div>
@@ -779,7 +779,7 @@ const InventoryManagement = () => {
                 <div className="flex items-center space-x-3 rounded-lg bg-secondary p-3">
                   <Package size={20} className="text-muted-foreground" aria-hidden="true" />
                   <div>
-                    <p className="font-semibold text-foreground">{selectedMovement.itemName || selectedMovement.stockId}</p>
+                    <p className="font-semibold text-foreground">{selectedMovement.itemName || "Unknown item"}</p>
                     <p className="text-sm text-muted-foreground">ID: {selectedMovement.stockId}</p>
                   </div>
                 </div>

@@ -13,6 +13,7 @@ import { formatNumber, formatDate, CURRENCY } from "../../../utils/format";
 import Can from "../../shell/Can";
 import { AwaitingSecondBadge, useApproval } from "../../shell/Approval";
 import { deleteKey } from "../../../lib/permissions";
+import { isRecordId, personLabel } from "../../../lib/people";
 import RowMenu from "../../lists/RowMenu";
 
 const TableView = ({
@@ -143,7 +144,7 @@ const TableView = ({
                       {so.returnOf?.transactionNo ? (
                         <p className="text-xs text-slate-500">Against {so.returnOf.transactionNo}</p>
                       ) : (
-                        so.createdBy && !/^[a-f0-9]{24}$/i.test(String(so.createdBy || "")) && <p className="text-xs text-slate-500">{so.createdBy}</p>
+                        personLabel(so.createdByName, so.createdBy) && <p className="text-xs text-slate-500">{personLabel(so.createdByName, so.createdBy)}</p>
                       )}
                     </div>
                   </div>
@@ -151,7 +152,7 @@ const TableView = ({
                 <td className="px-4 py-4">
                   <div>
                     <p className="font-medium text-slate-900">{so.customerName || "Unknown"}</p>
-                    {so.customerId && !/^[a-f0-9]{24}$/i.test(String(so.customerId)) && <p className="text-xs text-slate-500">{so.customerId}</p>}
+                    {so.customerId && !isRecordId(so.customerId) && <p className="text-xs text-slate-500">{so.customerId}</p>}
                   </div>
                 </td>
                 <td className="px-4 py-4">
