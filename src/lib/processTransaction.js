@@ -9,6 +9,8 @@ import { announceApprovalsChanged } from "./approvalsApi";
 //     field the server named. Each kind of warning has its own field, so acknowledging one never
 //     acknowledges another.
 //   - "block" mode answers 403 RISK_LIMIT_BLOCKED, which is surfaced as an ordinary error.
+// A purchase bill that charges tax from a supplier who is not registered for it is the other warning of this kind (same answer, its own
+// acknowledgement field and title): approving it asks too, and "Approve anyway" sends that field.
 //
 // `confirm` is injectable so the behaviour can be tested without a dialog.
 
@@ -16,7 +18,8 @@ export const askToOverride = async (warning) => {
   const breaches = warning?.details?.risk?.breaches || [];
   const result = await Swal.fire({
     icon: "warning",
-    title: "Credit warning",
+    // each kind of warning names itself (the server sends `risk.title`: "VAT warning" for a bill from a supplier who is not registered)
+    title: warning?.details?.risk?.title || "Credit warning",
     html: `<p style="text-align:left">${[warning.message, ...breaches.map((b) => b.message)]
       .filter((v, i, a) => v && a.indexOf(v) === i)
       .map((m) => String(m).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])))

@@ -109,3 +109,19 @@ describe("reverse charge", () => {
     expect(documentTotals([rows[1]], (r) => r.price)).not.toHaveProperty("rcmVat");
   });
 });
+
+describe("a discount on the whole invoice (shared over the lines when saved)", () => {
+  const rows = [{ itemId: "a", qty: 10, rate: 100, vatPercent: 5 }];
+  const priceOf = (r) => r.rate;
+
+  it("leaves the figures as they were and previews the net and tax after it", () => {
+    const t = documentTotals(rows, priceOf, (r) => r.vatPercent, 105);
+    expect([t.subtotal, t.tax, t.total]).toEqual(["1000.00", "50.00", "1050.00"]);
+    expect(t.shared).toEqual({ subtotal: "900.00", tax: "45.00" });
+  });
+
+  it("has no preview without a discount", () => {
+    expect(documentTotals(rows, priceOf, (r) => r.vatPercent).shared).toBeUndefined();
+    expect(documentTotals(rows, priceOf, (r) => r.vatPercent, 0).shared).toBeUndefined();
+  });
+});
