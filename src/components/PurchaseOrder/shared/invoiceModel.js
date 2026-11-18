@@ -58,8 +58,41 @@ export const invoiceLines = (items = []) =>
       // customer's online copy also carries (the amount assessed is not part of what the customer is sent).
       // (the two keys exist only on such a line, so every other printed row is exactly what it was)
       ...(isReverseCharge(it) && vat === 0 ? { reverseCharge: true, rcmVat: num(it.rcmVat) } : {}),
+      // India GST: the item's HSN / SAC code and the line's tax by component, present only on a line priced with them
+      ...(it.hsnCode ? { hsn: it.hsnCode } : {}),
+      ...(hasGstSplit(it.gst) ? { gst: { cgst: num(it.gst.cgst), sgst: num(it.gst.sgst), igst: num(it.gst.igst) } } : {}),
     };
   });
+
+function hasGstSplit(g) {
+  return Boolean(g) && (num(g.cgst) > 0 || num(g.sgst) > 0 || num(g.igst) > 0);
+}
+
+// India GST: the tax summary a tax invoice carries, by HSN / SAC code and rate - taxable value and CGST, SGST, IGST. null when no
+// line has a component split (every UAE invoice, and Indian ones from before the split), so the sheet keeps its rate table.
+// `charges` (freight and the like) are added as a row of their own, the way the rate table does.
+export const gstBreakdown = (lines, charges = []) => {
+  if (!lines.some((l) => l.gst)) return null;
+  const rows = new Map();
+  const add = (key, seed, taxable, g) => {
+    const row = rows.get(key) || { ...seed, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+    row.taxable = decimalAdd(row.taxable, taxable);
+    row.cgst = decimalAdd(row.cgst, g?.cgst || 0);
+    row.sgst = decimalAdd(row.sgst, g?.sgst || 0);
+    row.igst = decimalAdd(row.igst, g?.igst || 0);
+    rows.set(key, row);
+  };
+  for (const l of lines) {
+    if (l.reverseCharge) continue; // the supplier charged nothing; the tax is ours, shown apart
+    add(`${l.hsn || ""}|${l.vatPercent}`, { hsn: l.hsn || "", rate: l.vatPercent }, l.value, l.gst);
+  }
+  for (const c of charges || []) {
+    if (num(c.amount) > 0) add(`charge|${c.vatPercent}`, { hsn: "", rate: num(c.vatPercent), label: "Charges" }, num(c.amount), c.gst);
+  }
+  const list = [...rows.values()].sort((a, b) => String(a.hsn).localeCompare(String(b.hsn)) || b.rate - a.rate);
+  const total = list.reduce((t, r) => ({ taxable: decimalAdd(t.taxable, r.taxable), cgst: decimalAdd(t.cgst, r.cgst), sgst: decimalAdd(t.sgst, r.sgst), igst: decimalAdd(t.igst, r.igst) }), { taxable: 0, cgst: 0, sgst: 0, igst: 0 });
+  return { rows: list, total };
+};
 
 // The VAT return breakdown: taxable value and VAT for each rate used on the document, highest first.
 export const vatBreakdown = (lines) => {

@@ -45,6 +45,8 @@ export default function InvoiceSheet({
   lines,
   totals,
   breakdown,
+  gstBreakdown = null,
+  secondHalf = "SGST",
   bank,
   currency,
   accent,
@@ -187,7 +189,11 @@ export default function InvoiceSheet({
             <tr key={l.no}>
               <td style={{ ...cell, textAlign: "center" }}>{l.no}</td>
               <td style={cell}>{l.code}</td>
-              <td style={cell}>{l.description}</td>
+              <td style={cell}>
+                {l.description}
+                {/* India GST: the code the tax invoice must carry for the goods or service */}
+                {l.hsn && <div style={{ color: MUTED, fontSize: 9.5 }}>HSN / SAC: {l.hsn}</div>}
+              </td>
               <td style={{ ...cell, textAlign: "right" }}>{formatQty(l.qty, 3)}</td>
               <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.unitPrice)}</td>
               <td style={{ ...cell, textAlign: "right" }}>{formatNumber(l.value)}</td>
@@ -206,7 +212,42 @@ export default function InvoiceSheet({
           <div style={label}>Amount in words</div>
           <div style={{ fontWeight: 600, marginTop: 3 }}>{totalInWords(totals.grandTotal, currency)}</div>
 
-          {breakdown.length > 0 && (
+          {gstBreakdown && gstBreakdown.rows.length > 0 && (
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 10 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${RULE}` }}>
+                  <th style={{ ...head, textAlign: "left", paddingLeft: 0 }}>HSN / SAC</th>
+                  <th style={head}>Rate</th>
+                  <th style={head}>Taxable</th>
+                  <th style={head}>CGST</th>
+                  <th style={head}>{secondHalf}</th>
+                  <th style={{ ...head, paddingRight: 0 }}>IGST</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gstBreakdown.rows.map((b, i) => (
+                  <tr key={i}>
+                    <td style={{ ...cell, paddingLeft: 0, borderBottom: "none" }}>{b.label || b.hsn || "-"}</td>
+                    <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(b.rate, 0)}%</td>
+                    <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(b.taxable)}</td>
+                    <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(b.cgst)}</td>
+                    <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(b.sgst)}</td>
+                    <td style={{ ...cell, textAlign: "right", borderBottom: "none", paddingRight: 0 }}>{formatNumber(b.igst)}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: `1px solid ${RULE}`, fontWeight: 600 }}>
+                  <td style={{ ...cell, paddingLeft: 0, borderBottom: "none" }}>Total</td>
+                  <td style={{ ...cell, borderBottom: "none" }} />
+                  <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(gstBreakdown.total.taxable)}</td>
+                  <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(gstBreakdown.total.cgst)}</td>
+                  <td style={{ ...cell, textAlign: "right", borderBottom: "none" }}>{formatNumber(gstBreakdown.total.sgst)}</td>
+                  <td style={{ ...cell, textAlign: "right", borderBottom: "none", paddingRight: 0 }}>{formatNumber(gstBreakdown.total.igst)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+
+          {!gstBreakdown && breakdown.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 10.5 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${RULE}` }}>

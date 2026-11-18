@@ -103,3 +103,30 @@ describe("the order form's rows", () => {
     expect(stockedItemIds(undefined)).toEqual([]);
   });
 });
+
+describe("the HSN / SAC code (India GST)", () => {
+  it("is sent only by an Indian organisation, digits only, and an empty value clears it", async () => {
+    const { setOrgLocale } = await import("../../utils/orgLocale");
+    const form = { ...emptyItemForm(), sku: "BO0001", itemName: "Bolt", category: "c1", unitOfMeasure: "u1", hsnCode: "7318 10" };
+    setOrgLocale({ country: "AE" });
+    expect("hsnCode" in buildItemPayload(form)).toBe(false);
+    setOrgLocale({ country: "IN" });
+    expect(buildItemPayload(form).hsnCode).toBe("731810");
+    expect(buildItemPayload({ ...form, hsnCode: "" }).hsnCode).toBe("");
+    setOrgLocale({ country: "AE" });
+  });
+
+  it("is checked: 4 to 8 digits, or blank", () => {
+    const ok = { ...emptyItemForm(), sku: "S", itemName: "I", category: "c", unitOfMeasure: "u", origin: "x", brand: "y" };
+    expect(validateItemForm({ ...ok, hsnCode: "" }).hsnCode).toBeUndefined();
+    expect(validateItemForm({ ...ok, hsnCode: "7318" }).hsnCode).toBeUndefined();
+    expect(validateItemForm({ ...ok, hsnCode: "12" }).hsnCode).toMatch(/4 to 8 digits/);
+    expect(validateItemForm({ ...ok, hsnCode: "73A8" }).hsnCode).toMatch(/HSN code/);
+    expect(validateItemForm({ ...ok, itemType: "service", hsnCode: "99" }).hsnCode).toMatch(/SAC code/);
+  });
+
+  it("travels with a saved item into the form", () => {
+    expect(itemFormFromStock({ sku: "S", itemName: "I", category: { _id: "c" }, hsnCode: "7318" }).hsnCode).toBe("7318");
+    expect(itemFormFromStock({ sku: "S", itemName: "I", category: { _id: "c" } }).hsnCode).toBe("");
+  });
+});

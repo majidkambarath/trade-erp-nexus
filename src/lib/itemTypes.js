@@ -6,6 +6,7 @@
 // services needs nothing. The server enforces all of this (utils/itemKinds.js); these helpers only decide what to show.
 //
 // Pure: no React, no network.
+import { orgCountry } from "../utils/orgLocale";
 
 export const GOODS = "goods";
 export const SERVICE = "service";
@@ -51,6 +52,7 @@ export const emptyItemForm = (itemType = GOODS) => ({
   reorderLevel: "", batchNumber: "", expiryDate: "", purchasePrice: "", salesPrice: "", currentStock: "",
   status: "Active", vendorId: "", origin: "", brand: "",
   incomeAccountId: "", expenseAccountId: "",
+  hsnCode: "", // India GST: the HSN (goods) or SAC (service) code, printed on the tax invoice
 });
 
 // The form for a saved item. The account ids may arrive populated or as plain ids.
@@ -72,6 +74,7 @@ export function itemFormFromStock(item, { toInputDate = (d) => String(d).slice(0
     vendorId: item.vendorId?._id || "",
     origin: item.origin || "", brand: item.brand || "",
     incomeAccountId: idOf(item.incomeAccountId), expenseAccountId: idOf(item.expenseAccountId),
+    hsnCode: item.hsnCode || "",
   };
 }
 
@@ -97,6 +100,7 @@ export function validateItemForm(form) {
     if (isNegative(form.reorderLevel)) errors.reorderLevel = "Reorder level must be a valid positive number";
     if (isNegative(form.currentStock)) errors.currentStock = "Current stock must be a valid positive number";
   }
+  if (form.hsnCode && !/^\d{4,8}$/.test(String(form.hsnCode).replace(/[\s.-]/g, ""))) errors.hsnCode = `${service ? "A SAC" : "An HSN"} code is 4 to 8 digits`;
   if (isNegative(form.purchasePrice)) errors.purchasePrice = "Purchase price must be a valid positive number";
   if (isNegative(form.salesPrice)) errors.salesPrice = "Sales price must be a valid positive number";
   return errors;
@@ -115,6 +119,8 @@ export function buildItemPayload(form) {
     salesPrice: Number(form.salesPrice) || 0,
     status: form.status,
     vendorId: form.vendorId,
+    // sent only by an Indian organisation (the field is not drawn elsewhere); an empty value clears the code
+    ...(orgCountry() === "IN" ? { hsnCode: String(form.hsnCode || "").replace(/[\s.-]/g, "") } : {}),
   };
   if (isService(form)) {
     return { ...base, incomeAccountId: form.incomeAccountId || null, expenseAccountId: form.expenseAccountId || null };

@@ -49,6 +49,7 @@ const LedgerReports = lazy(() => import("../components/Reports/LedgerReports.jsx
 const PartyBalances = lazy(() => import("../components/Reports/PartyBalances.jsx"));
 const TradeReports = lazy(() => import("../components/Reports/TradeReports.jsx"));
 const VatReturn = lazy(() => import("../components/Reports/VatReturn.jsx"));
+const GstReturn = lazy(() => import("../components/Reports/GstReturn.jsx"));
 const StockReports = lazy(() => import("../components/Reports/StockReports.jsx"));
 const IfrsStatements = lazy(() => import("../components/Reports/IfrsStatements.jsx"));
 const OpeningBalances = lazy(() => import("../components/accounting/OpeningBalances.jsx"));
@@ -189,6 +190,7 @@ export default function AdminRouter() {
         <Route path="/transactions" element={<Navigate to="/ledger" replace />} />
         <Route path="/transactors" element={<Navigate to="/cash-and-bank" replace />} />
         <Route path="/vat-reports" element={<VatReturn />} />
+        <Route path="/gst-returns" element={<GstReturn />} />
         <Route path="/e-invoicing" element={<EInvoicing />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/accounting-setup" element={<AccountingSetup />} />

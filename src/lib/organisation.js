@@ -103,6 +103,7 @@ export const FEATURE_LABELS = {
   reconciliation: "Bank and card reconciliation",
   currencies: "Foreign currency",
   vatReturn: "VAT return",
+  gstReturn: "GST returns",
   ifrsStatements: "IFRS statements",
   einvoicing: "E-invoicing",
   messaging: "Send documents to customers",

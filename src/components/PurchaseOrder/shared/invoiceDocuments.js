@@ -6,9 +6,11 @@ import { documentTotals } from "../../../utils/documentTotals";
 import { formatDateGB, formatNumber } from "../../../utils/format";
 import { recipientStatement, supplierStatement } from "../../../lib/reverseCharge";
 import { taxWord } from "../../../lib/taxTerms";
+import { placeLabel, secondHalfLabel } from "../../../lib/gstStates";
 import {
   bankRows,
   companyBlock,
+  gstBreakdown,
   invoiceLines,
   localityOf,
   rowsWithValue,
@@ -102,10 +104,14 @@ export const sheetFor = (doc, { title, numberLabel, number, party, meta, company
     number: { label: numberLabel, value: number },
     company: companyBlock(company),
     party,
-    meta: rowsWithValue(meta),
+    // India GST: where the supply is made, printed with the document's other particulars
+    meta: rowsWithValue([...meta, ...(doc.placeOfSupply && placeLabel(doc.placeOfSupply) ? [["Place of supply", placeLabel(doc.placeOfSupply)]] : [])]),
     lines,
     totals,
     breakdown: withChargesVat(vatBreakdown(lines), totals.vat),
+    // the tax by component and HSN, when the invoice was priced with it (null otherwise: the sheet then keeps its rate table)
+    gstBreakdown: gstBreakdown(lines, doc.charges),
+    secondHalf: secondHalfLabel(doc.placeOfSupply),
     bank: bankRows(company),
     currency,
     notice,

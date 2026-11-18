@@ -290,6 +290,9 @@ const PurchaseOrderManagement = () => {
           // and loses the header charges, the header discount and the round-off.
           charges: t.charges || [],
           pricing: t.pricing || null,
+      // India GST: where the supply is made (the printed invoice says so, and splits the tax by component)
+      placeOfSupply: t.placeOfSupply || "",
+      gstType: t.gstType || "",
           discount: typeof t.discount === "number" ? t.discount : 0,
           terms: t.terms || "",
           notes: t.notes || "",

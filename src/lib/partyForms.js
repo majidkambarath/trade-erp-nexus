@@ -3,6 +3,7 @@ import { orgCountry } from "../utils/orgLocale";
 import { toInputDate, todayInput } from "../utils/format";
 import { taxWord } from "./taxTerms";
 import { DEFAULT_COUNTRY, DEFAULT_EMIRATE } from "./countries";
+import { stateCodeOfGstin } from "./gstStates";
 
 // Pure logic of the customer / vendor form: the rules the server applies (so a mistake is caught
 // before the request), and the two translations between the API record and the form fields.
@@ -185,7 +186,8 @@ export function emptyParty(kind) {
     name: "", contactPerson: "", phone: "", email: "", website: "", salesPerson: "", isInsurer: false,
     billingAddress: "", shippingAddress: "", address: "",
     // the address's country and, in the UAE, emirate; a NEW party starts in the UAE, Abu Dhabi
-    country: DEFAULT_COUNTRY, emirate: DEFAULT_EMIRATE, addressLegacy: false,
+    // (an Indian organisation's new party starts in India, with its state still to choose)
+    country: orgCountry() === "IN" ? "IN" : DEFAULT_COUNTRY, emirate: orgCountry() === "IN" ? "" : DEFAULT_EMIRATE, addressLegacy: false, stateCode: "",
     status: kind === "vendor" ? "Compliant" : "Active",
     vatStatus: "unregistered", trn: "", tradeLicenseNo: "",
     creditLimit: "", paymentTerms: DEFAULT_TERMS[kind], creditDays: String(termsToDays(DEFAULT_TERMS[kind])),
@@ -213,6 +215,7 @@ export function partyToForm(kind, record) {
     ...(r.country
       ? { country: r.country, emirate: r.emirate || "", addressLegacy: false }
       : { country: DEFAULT_COUNTRY, emirate: "", addressLegacy: true }),
+    stateCode: r.stateCode || "", // India GST: decides CGST + SGST or IGST on a document
     status: r.status || base.status,
     vatStatus: r.vat?.status || (trn ? "registered" : "unregistered"),
     trn, tradeLicenseNo: r.vat?.tradeLicenseNo || "",
@@ -256,6 +259,8 @@ export function formToPayload(kind, form) {
   const address = form.addressLegacy && country === DEFAULT_COUNTRY && !trimmed(form.emirate)
     ? {}
     : { country, emirate: country === DEFAULT_COUNTRY ? trimmed(form.emirate) : "" };
+  // an Indian address also names its GST state; elsewhere there is none to send (the server clears a stored one)
+  if (country === "IN") address.stateCode = trimmed(form.stateCode);
   Object.assign(body, address);
   if (kind === "vendor") return { vendorName: trimmed(form.name), address: trimmed(form.address), ...body };
   return {
@@ -282,6 +287,8 @@ export function validateParty(kind, form, { documentTypes = [], strict = true } 
     if (kind === "vendor" && blank(form.address)) e.address = "Address is required";
     if (kind === "customer" && blank(form.billingAddress)) e.billingAddress = "Billing address is required";
     if (form.country === DEFAULT_COUNTRY && blank(form.emirate) && !form.addressLegacy) e.emirate = "Choose an emirate";
+    // India: the state decides CGST + SGST or IGST, so a customer or vendor needs one - unless its GSTIN already says which
+    if (form.country === "IN" && blank(form.stateCode) && !stateCodeOfGstin(form.trn)) e.stateCode = "Choose the state (it decides CGST + SGST or IGST)";
   }
 
   // VAT

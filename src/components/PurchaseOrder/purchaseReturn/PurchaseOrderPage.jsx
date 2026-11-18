@@ -229,6 +229,9 @@ const PurchaseReturnOrderManagement = () => {
           // and loses the header charges, the header discount and the round-off.
           charges: transaction.charges || [],
           pricing: transaction.pricing || null,
+      // India GST: where the supply is made (the printed invoice says so, and splits the tax by component)
+      placeOfSupply: transaction.placeOfSupply || "",
+      gstType: transaction.gstType || "",
           discount: typeof transaction.discount === "number" ? transaction.discount : 0,
           terms: transaction.terms,
           notes: transaction.notes,

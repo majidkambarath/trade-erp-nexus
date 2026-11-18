@@ -268,6 +268,9 @@ const SalesOrderManagement = () => {
       // and loses the header charges, the header discount and the round-off.
       charges: t.charges || [],
       pricing: t.pricing || null,
+      // India GST: where the supply is made (the printed invoice says so, and splits the tax by component)
+      placeOfSupply: t.placeOfSupply || "",
+      gstType: t.gstType || "",
       terms: t.terms || "",
       notes: t.notes || "",
       createdBy: t.createdBy,
