@@ -450,8 +450,15 @@ const StockManagement = () => {
         await axiosInstance.put(`/stock/stock/${editItemId}`, payload);
         showToastMessage("Stock item updated successfully!", "success");
       } else {
-        await axiosInstance.post("/stock/stock", payload);
-        showToastMessage("Stock item created successfully!", "success");
+        // an automatic SKU is chosen by the server (the number shown was a preview: somebody else may have just taken it)
+        const res = await axiosInstance.post("/stock/stock", isAutoSKU ? { ...payload, autoSku: true } : payload);
+        const savedSku = res?.data?.data?.stock?.sku;
+        showToastMessage(
+          isAutoSKU && savedSku && savedSku !== payload.sku
+            ? `Stock item created as ${savedSku} (${payload.sku} had just been taken)`
+            : "Stock item created successfully!",
+          "success"
+        );
       }
 
       await fetchStockItems();
@@ -470,7 +477,7 @@ const StockManagement = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [editItemId, formData, fetchStockItems, validateForm, showToastMessage]);
+  }, [editItemId, formData, isAutoSKU, fetchStockItems, validateForm, showToastMessage]);
 
   const handleEdit = useCallback((item) => {
     setEditItemId(item._id);

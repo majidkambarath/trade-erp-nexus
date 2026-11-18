@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Download, Printer, TriangleAlert } from "lucide-react";
 import { ifrs } from "../../lib/ifrsApi";
+import { useYearToDate } from "./reportKit";
 import {
   COMPARE_OPTIONS, TABS, buildDocument, documentCsv, fileSlug, formatAmount, isAsAtTab, isTab, keyFigures, printDocument, requestFor, warnings,
 } from "../../lib/ifrsStatements";
@@ -14,6 +15,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, DateInput, ErrorNote, Field, PageHeader, Panel, Select, PageSpinner, useAsync, useToasts } from "../accounting/kit";
 
 const thisYear = () => todayInput().slice(0, 4);
+// the fiscal year before the current one (the calendar year before, while no fiscal year is known)
+const previousYear = (fy) => {
+  if (!fy) return { from: `${Number(thisYear()) - 1}-01-01`, to: `${Number(thisYear()) - 1}-12-31` };
+  const start = new Date(`${fy.from}T00:00:00Z`);
+  const to = new Date(start.getTime() - 86400e3).toISOString().slice(0, 10);
+  const from = new Date(Date.UTC(start.getUTCFullYear() - 1, start.getUTCMonth(), start.getUTCDate())).toISOString().slice(0, 10);
+  return { from, to };
+};
 const monthStart = () => `${todayInput().slice(0, 7)}-01`;
 const GRID = { 3: "lg:grid-cols-3", 4: "lg:grid-cols-4" };
 
@@ -23,7 +32,8 @@ const GRID = { 3: "lg:grid-cols-3", 4: "lg:grid-cols-4" };
 export default function IfrsStatements() {
   const [params, setParams] = useSearchParams();
   const tab = isTab(params.get("tab")) ? params.get("tab") : "position";
-  const [range, setRange] = useState({ from: `${thisYear()}-01-01`, to: todayInput() });
+  // the statements open on the organisation's own fiscal year (April-March in India), the calendar year until it is known
+  const [range, setRange, fy] = useYearToDate();
   const [compare, setCompare] = useState("prior-year");
   const [detail, setDetail] = useState(false);
   const asAt = isAsAtTab(tab);
@@ -47,8 +57,8 @@ export default function IfrsStatements() {
         {!asAt && (
           <>
             <Button variant="outline" size="sm" onClick={() => setRange({ from: monthStart(), to: todayInput() })}>This month</Button>
-            <Button variant="outline" size="sm" onClick={() => setRange({ from: `${thisYear()}-01-01`, to: todayInput() })}>This year</Button>
-            <Button variant="outline" size="sm" onClick={() => setRange({ from: `${Number(thisYear()) - 1}-01-01`, to: `${Number(thisYear()) - 1}-12-31` })}>Last year</Button>
+            <Button variant="outline" size="sm" onClick={() => setRange({ from: fy?.from || `${thisYear()}-01-01`, to: todayInput() })}>This year</Button>
+            <Button variant="outline" size="sm" onClick={() => setRange(previousYear(fy))}>Last year</Button>
           </>
         )}
         {hasDetail && (

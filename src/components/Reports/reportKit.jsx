@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { ErrorNote, Field, PageSpinner, TextInput, DateInput } from "../accounting/kit";
 import { reportPreamble, todayInput } from "../../utils/format";
 import { useCompanyProfile } from "../PurchaseOrder/shared/useCompanyProfile";
 import SavedViews from "../lists/SavedViews";
+import { accounting } from "../../lib/accountingApi";
 
 // Small pieces the report screens share: the date range with its presets, and the loading / error frame.
 
@@ -21,6 +22,44 @@ export function useExportPreamble(title) {
 const pad = (n) => String(n).padStart(2, "0");
 export const monthStart = (today = todayInput()) => `${today.slice(0, 7)}-01`;
 export const yearStart = (today = todayInput()) => `${today.slice(0, 4)}-01-01`;
+// The organisation's fiscal year that holds `today` ({ from, to } as "YYYY-MM-DD"), or null when no year covers it.
+// An April-March organisation (India) reads "this year" from 1 April, not 1 January.
+export function fiscalYearOf(years, today = todayInput()) {
+  const y = (Array.isArray(years) ? years : []).find((x) => x?.startDay && x?.endDay && x.startDay <= today && today <= x.endDay);
+  return y ? { from: y.startDay, to: y.endDay } : null;
+}
+
+// The fiscal year that holds today, read once per screen (every signed-in person may read the list). null until known,
+// and null for good when there is none or it cannot be read: the screen then keeps the calendar year.
+export function useFiscalYear() {
+  const [fy, setFy] = useState(null);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve()
+      .then(() => accounting.fiscalYears())
+      .then((years) => live && setFy(fiscalYearOf(years)))
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+  return fy;
+}
+
+// A report's period, year to date: opens on the calendar year and moves its start to the fiscal year's once that is
+// known - unless the person has already chosen a period of their own. `restore` is a remembered range, kept as it is.
+export function useYearToDate(restore) {
+  const fy = useFiscalYear();
+  const touched = useRef(Boolean(restore));
+  const [range, setRangeState] = useState(() => restore || { from: yearStart(), to: todayInput() });
+  useEffect(() => {
+    if (fy && !touched.current) setRangeState((r) => ({ ...r, from: fy.from }));
+  }, [fy]);
+  const setRange = useCallback((v) => {
+    touched.current = true;
+    setRangeState(v);
+  }, []);
+  return [range, setRange, fy];
+}
+
 export function lastMonth(today = todayInput()) {
   const y = Number(today.slice(0, 4));
   const m = Number(today.slice(5, 7));

@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, CheckCircle2, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
-import { amountsIn, formatDate, CURRENCY, downloadCSV, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, formatDate, CURRENCY, downloadCSV, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { EmptyState, PageHeader, Panel, Pill, useAsync } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, useYearToDate } from "./reportKit";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import { pageSession } from "../../lib/pageSession";
 import * as TB from "../../lib/trialBalance";
@@ -25,7 +25,7 @@ const TAB_IDS = ["trial", "pl", "cash", "bs"];
 export default function FinancialStatements() {
   const [params, setParams] = useSearchParams();
   const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "trial";
-  const [range, setRange] = useState({ from: yearStart(), to: todayInput() });
+  const [range, setRange] = useYearToDate(); // from the start of the fiscal year, once known
   const [ledgerFor, setLedgerFor] = useState(null);
 
   return (

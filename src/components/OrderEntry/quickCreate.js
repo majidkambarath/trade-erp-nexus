@@ -175,7 +175,8 @@ export const QUICK_CREATE = {
     payload: (v, ctx = {}) => ({
       itemName: text(v.itemName),
       itemType: v.itemType === "service" ? "service" : "goods",
-      sku: nextSku(ctx.categoryName, ctx.existingSkus),
+      sku: nextSku(ctx.categoryName, ctx.existingSkus), // a preview: with autoSku the server picks the real one
+      autoSku: true,
       categoryId: v.category,
       unitOfMeasure: v.unitOfMeasure,
       origin: text(v.origin),
