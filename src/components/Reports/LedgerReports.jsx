@@ -3,13 +3,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import { BookOpen, CheckCircle2, ChevronLeft, ChevronRight, Download, TriangleAlert } from "lucide-react";
 import { accounting } from "../../lib/accountingApi";
 import { DAY_BOOK_HEADERS, JOURNAL_HEADERS, dayBookRows, exportedText, fetchAllPages, journalRows } from "../../lib/ledgerExport";
-import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber, todayInput } from "../../utils/format";
+import { amountsIn, CURRENCY, downloadCSV, formatDate, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Select, Spinner, TextInput, errorMessage, useAsync, useToasts } from "../accounting/kit";
 import { LedgerModal } from "../accounting/ChartOfAccounts";
-import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, yearStart } from "./reportKit";
+import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, useYearToDate } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import SavedViews from "../lists/SavedViews";
@@ -34,7 +34,7 @@ const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend"];
 export default function LedgerReports() {
   const [params, setParams] = useSearchParams();
   const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "gl";
-  const [range, setRange] = useState({ from: yearStart(), to: todayInput() });
+  const [range, setRange] = useYearToDate(); // from the start of the fiscal year, once known
   const [ledgerFor, setLedgerFor] = useState(null);
   const openLedger = (a) => setLedgerFor({ _id: a.accountId || a._id, accountCode: a.accountCode, accountName: a.accountName });
   // one day's vouchers in the day book (from the daily summary, or from a day's cash and bank report)
