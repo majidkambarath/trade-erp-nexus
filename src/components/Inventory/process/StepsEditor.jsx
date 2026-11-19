@@ -2,7 +2,7 @@ import React from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { STEP_SUGGESTIONS } from "../../../lib/processOrders";
-import { DateInput, Field, SearchSelect, Select, TextInput } from "../../accounting/kit";
+import { DateInput, Field, SearchSelect, Select, TextInput, AmountInput } from "../../accounting/kit";
 
 // What a process order and a saved route share: the materials a product is made from and its steps in order, each in
 // house (a person) or at a job worker. An order's step has a due date; a route's step has the days it usually takes.
@@ -18,7 +18,7 @@ export function MaterialsEditor({ materials, onChange, errors, itemOptions, load
               <SearchSelect value={m.stockId} onChange={(v) => setLine(i, { stockId: v })} options={itemOptions.filter((o) => String(o.value) !== finishedId)} loading={loading} disabled={disabled} placeholder="Choose a material" aria-label={`Material ${i + 1}`} noOptionsText="Add the raw material under Inventory > Stock Items (a different item from the product)." />
             </Field>
             <Field label="Quantity" labelClassName="sm:sr-only" error={errors[`materials.${i}.qty`]}>
-              <TextInput type="number" min="0" step="any" inputMode="decimal" value={m.qty} onChange={(e) => setLine(i, { qty: e.target.value })} disabled={disabled} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
+              <AmountInput min="0" inputMode="decimal" value={m.qty} onChange={(e) => setLine(i, { qty: e.target.value })} disabled={disabled} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
             </Field>
             <Button type="button" variant="ghost" size="icon" className="self-end sm:self-center" onClick={() => onChange(materials.filter((_, j) => j !== i))} disabled={disabled} aria-label={`Remove material ${i + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
           </div>

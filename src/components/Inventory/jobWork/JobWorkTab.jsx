@@ -16,8 +16,7 @@ import FilterBar, { FilterSelect } from "../../lists/FilterBar";
 import InvoiceScreen from "../../PurchaseOrder/shared/InvoiceScreen";
 import { useCompanyProfile } from "../../PurchaseOrder/shared/useCompanyProfile";
 import {
-  ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput, useAsync, useToasts,
-} from "../../accounting/kit";
+  ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput, useAsync, useToasts, AmountInput } from "../../accounting/kit";
 import { useMasters, WarningsDialog } from "../productionShared";
 import { buildJobWorkChallan } from "./challan";
 import { taxWord } from "../../../lib/taxTerms";
@@ -211,13 +210,13 @@ export function JobWorkForm({ job, onClose, onSaved }) {
                     <SearchSelect value={l.rawStockId} onChange={(v) => setLine(i, { rawStockId: v })} options={masters.itemOptions} loading={masters.loading} placeholder="Raw item" aria-label={`Item sent ${i + 1}`} noOptionsText="No stock items. Add them under Inventory > Stock Items." />
                   </Field>
                   <Field label="Qty sent" error={errors[`lines.${i}.qtySent`]}>
-                    <TextInput type="number" min="0" step="any" inputMode="decimal" value={l.qtySent} onChange={(e) => setLine(i, { qtySent: e.target.value })} aria-label={`Quantity sent ${i + 1}`} />
+                    <AmountInput min="0" inputMode="decimal" value={l.qtySent} onChange={(e) => setLine(i, { qtySent: e.target.value })} aria-label={`Quantity sent ${i + 1}`} />
                   </Field>
                   <Field label="Comes back as" error={errors[`lines.${i}.finishedStockId`]} className="order-last col-span-2 sm:order-none sm:col-span-1">
                     <SearchSelect value={l.finishedStockId} onChange={(v) => setLine(i, { finishedStockId: v })} options={masters.itemOptions.filter((o) => String(o.value) !== l.rawStockId)} loading={masters.loading} placeholder="Finished item" aria-label={`Comes back as ${i + 1}`} noOptionsText="Add the finished item under Inventory > Stock Items (a different item from the one sent)." />
                   </Field>
                   <Field label="Per unit" error={errors[`lines.${i}.finishedPerRaw`]} hint="Finished per unit sent" className="order-last sm:order-none">
-                    <TextInput type="number" min="0" step="any" inputMode="decimal" value={l.finishedPerRaw} onChange={(e) => setLine(i, { finishedPerRaw: e.target.value })} aria-label={`Finished per unit ${i + 1}`} />
+                    <AmountInput min="0" inputMode="decimal" value={l.finishedPerRaw} onChange={(e) => setLine(i, { finishedPerRaw: e.target.value })} aria-label={`Finished per unit ${i + 1}`} />
                   </Field>
                   <Button type="button" variant="ghost" size="icon" className="self-end sm:mt-7 sm:self-start" onClick={() => setForm((f) => ({ ...f, lines: f.lines.filter((_, j) => j !== i) }))} aria-label={`Remove line ${i + 1}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
                 </div>
@@ -417,9 +416,9 @@ export function ReceiveDialog({ job, onClose, onDone }) {
               <div key={r.lineId} className="grid gap-2 rounded-lg border p-3">
                 <div className="text-sm"><span className="font-medium">{r.finishedName}</span> <span className="text-muted-foreground">from {r.rawName} · {qtyText(r.atWorker)} still out</span></div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <Field label="Came back finished"><TextInput type="number" min="0" step="any" inputMode="decimal" value={r.finishedQty} onChange={(e) => setRow(i, { finishedQty: e.target.value })} aria-label={`Came back finished ${i + 1}`} /></Field>
-                  <Field label="Parts used" hint={`${qtyText(r.ratio)} finished per part`}><TextInput type="number" min="0" step="any" inputMode="decimal" value={r.rawConsumed} onChange={(e) => setRow(i, { rawConsumed: e.target.value })} aria-label={`Parts used ${i + 1}`} /></Field>
-                  <Field label="Returned unprocessed"><TextInput type="number" min="0" step="any" inputMode="decimal" value={r.rawReturned} onChange={(e) => setRow(i, { rawReturned: e.target.value })} aria-label={`Returned unprocessed ${i + 1}`} /></Field>
+                  <Field label="Came back finished"><AmountInput min="0" inputMode="decimal" value={r.finishedQty} onChange={(e) => setRow(i, { finishedQty: e.target.value })} aria-label={`Came back finished ${i + 1}`} /></Field>
+                  <Field label="Parts used" hint={`${qtyText(r.ratio)} finished per part`}><AmountInput min="0" inputMode="decimal" value={r.rawConsumed} onChange={(e) => setRow(i, { rawConsumed: e.target.value })} aria-label={`Parts used ${i + 1}`} /></Field>
+                  <Field label="Returned unprocessed"><AmountInput min="0" inputMode="decimal" value={r.rawReturned} onChange={(e) => setRow(i, { rawReturned: e.target.value })} aria-label={`Returned unprocessed ${i + 1}`} /></Field>
                 </div>
                 {errors[`rows.${i}`] && <p className="text-sm text-destructive">{errors[`rows.${i}`]}</p>}
               </div>
@@ -441,7 +440,7 @@ export function ReceiveDialog({ job, onClose, onDone }) {
                   <SearchSelect value={c.accountId} onChange={(v) => setCost(i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="e.g. Powder coating charges" aria-label={`Cost ${i + 1} expense`} noOptionsText="Add the expense account under Accounts > Chart of accounts." />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only">
-                  <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setCost(i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={orgCurrency()} />
+                  <AmountInput min="0" inputMode="decimal" value={c.amount} onChange={(e) => setCost(i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={orgCurrency()} />
                 </Field>
                 <Field label="Note" labelClassName="sm:sr-only" className="order-last col-span-2 sm:order-none sm:col-span-1">
                   <TextInput value={c.narration} maxLength={300} onChange={(e) => setCost(i, { narration: e.target.value })} aria-label={`Cost ${i + 1} note`} placeholder="Note (optional)" />

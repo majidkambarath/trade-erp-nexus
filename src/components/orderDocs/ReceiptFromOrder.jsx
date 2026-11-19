@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "../ui/button";
-import { DateInput, ErrorNote, Field, PageHeader, Panel, SearchSelect, Spinner, Textarea, TextInput, useAsync } from "../accounting/kit";
+import { DateInput, ErrorNote, Field, PageHeader, Panel, SearchSelect, Spinner, Textarea, TextInput, useAsync, AmountInput } from "../accounting/kit";
 import { goodsReceipts, tradeOrders } from "../../lib/orderDocumentsApi";
 import { orderRows, validateOrderRows } from "../../lib/salesDocuments";
 import { formatDate, formatNumber, formatQty, todayInput, toInputDate } from "../../utils/format";
@@ -127,10 +127,9 @@ export default function ReceiptFromOrder({ orderId, editing, vendors, onBack, on
                       <td data-label="On other receipts" className="px-3 py-2 text-end tabular-nums">{formatQty(r.pending, 3)}</td>
                       <td data-label="Left" className="px-3 py-2 text-end tabular-nums">{formatQty(r.remaining, 3)}</td>
                       <td data-label="This receipt" className="px-3 py-2">
-                        <input
-                          type="number" inputMode="decimal" min="0" step="any" value={r.qty} disabled={r.remaining <= 0}
+                        <AmountInput inputMode="decimal" min="0" value={r.qty} disabled={r.remaining <= 0}
                           aria-label={`Quantity of ${r.description} on this receipt`} aria-invalid={errors?.[i] ? true : undefined}
-                          onChange={(e) => setQty(i, e.target.value)} className={numInput}
+                          onChange={(e) => setQty(i, e.target.value)} inputClassName={numInput}
                         />
                         {errors?.[i] && <p className="mt-1 text-xs font-medium text-status-danger">{errors[i]}</p>}
                       </td>

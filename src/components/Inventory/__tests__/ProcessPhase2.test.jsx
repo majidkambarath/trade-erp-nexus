@@ -83,7 +83,7 @@ describe("costs recorded on an order", () => {
     await openFirst();
     expect(await screen.findByText("Costs so far")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Finish" }));
-    expect(await screen.findByLabelText("Cost 1 amount")).toHaveValue(60);
+    expect(await screen.findByLabelText("Cost 1 amount")).toHaveValue("60");
     expect(screen.getByLabelText("Cost 1 note")).toHaveValue("EV-2026-0004 · Bending");
   });
 });
@@ -99,11 +99,11 @@ describe("a saved route", () => {
     await waitFor(() => expect(m.apiGet).toHaveBeenCalled());
     await screen.findByText("Choose the product");
     pick("Product to make", "Keychain");
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantity" }), { target: { value: "25" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Quantity" }), { target: { value: "25" } });
     fireEvent.click(await screen.findByRole("button", { name: "Use the saved route" }));
     await waitFor(() => expect(screen.getByLabelText("Step 2 name")).toHaveValue("Packing"));
     expect(m.plan).toHaveBeenLastCalledWith(expect.objectContaining({ stockId: "fin", qty: "25" }));
-    expect(screen.getByLabelText("Material 1 quantity")).toHaveValue(25);
+    expect(screen.getByLabelText("Material 1 quantity")).toHaveValue("25");
     expect(screen.getByText(/saved route: 2 steps, 3 days/)).toBeInTheDocument();
   });
 

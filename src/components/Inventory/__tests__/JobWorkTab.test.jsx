@@ -72,7 +72,7 @@ describe("job work tab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Receive back/ }));
     const dialog = await screen.findByRole("dialog", { name: /Receive back on JWC-2026-0001/ });
     fireEvent.change(within(dialog).getByLabelText("Came back finished 1"), { target: { value: "6" } });
-    expect(within(dialog).getByLabelText("Parts used 1")).toHaveValue(6);
+    expect(within(dialog).getByLabelText("Parts used 1")).toHaveValue("6");
     fireEvent.change(within(dialog).getByLabelText("Cost 1 amount"), { target: { value: "240" } });
     await waitFor(() => expect(m.postable).toHaveBeenCalled());
     fireEvent.click(within(dialog).getByRole("button", { name: "Receive and post" }));

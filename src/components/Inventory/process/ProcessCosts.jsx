@@ -8,7 +8,7 @@ import { orgCurrency } from "../../../utils/orgLocale";
 import { taxWord } from "../../../lib/taxTerms";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { useMasters } from "../productionShared";
-import { ConfirmDialog, ErrorNote, Field, Modal, SearchSelect, Select, TextInput, useAsync } from "../../accounting/kit";
+import { ConfirmDialog, ErrorNote, Field, Modal, SearchSelect, Select, TextInput, useAsync, AmountInput } from "../../accounting/kit";
 
 // Costs recorded on a process order while it runs (the coater's bill, labour, transport), each against a step if wanted
 // and, for someone who may read vouchers, taken from the expense voucher that paid it: the server then refuses to move
@@ -148,7 +148,7 @@ export function AddCostDialog({ order, onClose, onDone }) {
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Amount" required={from === "account"} hint={from === "voucher" ? "Leave empty for all that is left." : undefined}>
-            <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" placeholder={orgCurrency()} />
+            <AmountInput min="0" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" placeholder={orgCurrency()} />
           </Field>
           <Field label="For the step">
             <Select value={stepId} onChange={(e) => setStepId(e.target.value)} aria-label="For the step">

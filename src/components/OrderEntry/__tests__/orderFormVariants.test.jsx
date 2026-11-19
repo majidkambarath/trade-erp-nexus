@@ -200,7 +200,7 @@ describe("a new line gets the organisation's default tax code", () => {
     });
     await show(<Harness variant={VARIANTS.sales} initial={blankForm()} />);
     await waitFor(() => expect(screen.getByLabelText("Tax code, row 1")).toHaveValue("tc-std"));
-    expect(screen.getByLabelText("VAT %, row 1")).toHaveValue(5);
+    expect(screen.getByLabelText("VAT %, row 1")).toHaveValue("5");
   });
 
   it("does not disturb a saved line's own tax code when editing", async () => {

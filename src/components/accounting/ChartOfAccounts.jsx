@@ -18,6 +18,7 @@ import DocumentAuditTrail, { VoucherAuditTrail } from "../audit/AuditTrail";
 import { VoucherView } from "../finance/shared";
 import { recentLink } from "../Dashborad/helpers";
 import { Link } from "react-router-dom";
+import { AmountInput } from "./kit";
 
 const SM = "(min-width: 640px)";
 
@@ -445,7 +446,7 @@ export function AccountModal({ account, groupId, groups, preset, onClose, onSave
           <fieldset className="grid gap-4 rounded-xl border border-border p-4 sm:col-span-2 sm:grid-cols-3">
             <legend className="px-1 text-sm font-medium text-foreground">Opening balance <span className="font-normal text-muted-foreground">(optional)</span></legend>
             <Field label={`Amount (${CURRENCY})`} error={errors.openingBalance}>
-              <TextInput inputMode="decimal" type="number" min="0" step="0.01" value={form.openingBalance} onChange={set("openingBalance")} placeholder="0.00" />
+              <AmountInput inputMode="decimal" min="0" value={form.openingBalance} onChange={set("openingBalance")} placeholder="0.00" />
             </Field>
             <Field label="Side" error={errors.openingSide}>
               <Select value={form.openingSide} onChange={set("openingSide")}>

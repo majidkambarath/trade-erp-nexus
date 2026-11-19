@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DateInput, Field, Textarea, TextInput } from "../accounting/kit";
+import { DateInput, Field, Textarea, TextInput, AmountInput } from "../accounting/kit";
 import { ActionModal, Note } from "../salesDocs/parts";
 import { formatDate, formatNumber, formatQty, todayInput, CURRENCY } from "../../utils/format";
 import { receiptInvoiceBlocker, receivePayload, receiveRows, validateReceive } from "../../lib/orderDocuments";
@@ -63,10 +63,9 @@ export function ReceiveDialog({ receipt, busy, problem, onClose, onConfirm }) {
                 <td data-label="Item" className="px-3 py-2"><span className="font-medium">{r.description}</span>{r.itemCode && <span className="block text-xs text-muted-foreground">{r.itemCode}</span>}</td>
                 <td data-label="Expected" className="px-3 py-2 text-end tabular-nums">{formatQty(r.expected, 3)}</td>
                 <td data-label="Received" className="px-3 py-2">
-                  <input
-                    type="number" inputMode="decimal" min="0" step="any" value={r.received}
+                  <AmountInput inputMode="decimal" min="0" value={r.received}
                     aria-label={`Quantity of ${r.description} received`} aria-invalid={errors?.[i] ? true : undefined}
-                    onChange={(e) => setRow(i, { received: e.target.value })} className={numInput}
+                    onChange={(e) => setRow(i, { received: e.target.value })} inputClassName={numInput}
                   />
                   {errors?.[i] && <p className="mt-1 text-xs font-medium text-status-danger">{errors[i]}</p>}
                 </td>

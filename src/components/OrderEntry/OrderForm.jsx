@@ -23,7 +23,7 @@ import { nextField } from "../../lib/fieldFlow";
 import { partyVat, vatAdvice } from "../../lib/partyVat";
 import { statusClasses } from "../../lib/status";
 
-import { ConfirmDialog, DateInput, PhoneInput } from "../accounting/kit";
+import { ConfirmDialog, DateInput, PhoneInput, AmountInput } from "../accounting/kit";
 import { KEEP_LABEL, LEAVE_LABEL, LEAVE_TITLE, leaveText, useTypedIn, useUnsavedWork } from "../../lib/unsavedWork";
 import { taxIdWord, taxWord } from "../../lib/taxTerms";
 const num = (v) => parseFloat(v) || 0;
@@ -952,7 +952,7 @@ export default function OrderForm({
 
               {V.discount && (
                 <Field id={fid("discount")} label={`Discount (${formData.currency || CURRENCY})`}>
-                  <input id={fid("discount")} name="discount" type="number" min="0" step="any" inputMode="decimal" value={formData.discount ?? ""} onChange={(e) => setHeader("discount", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />
+                  <AmountInput id={fid("discount")} name="discount" min="0" inputMode="decimal" value={formData.discount ?? ""} onChange={(e) => setHeader("discount", e.target.value)} inputClassName={cn(fieldCls(false), "text-end tabular-nums")} />
                 </Field>
               )}
 
@@ -1112,7 +1112,7 @@ export default function OrderForm({
                 <input id={fid(`chargeDesc${i}`)} type="text" value={c.description || ""} onChange={(e) => changeCharge(i, "description", e.target.value)} placeholder="e.g. Freight" className={fieldCls(false)} />
               </Field>
               <Field id={fid(`chargeAmt${i}`)} label={i === 0 ? `Amount (${formData.currency || CURRENCY})` : <span className="sr-only">Amount</span>} error={errors[`charge_amount_${i}`]}>
-                <input id={fid(`chargeAmt${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} className={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
+                <AmountInput id={fid(`chargeAmt${i}`)} min="0" inputMode="decimal" value={c.amount ?? ""} onChange={(e) => changeCharge(i, "amount", e.target.value)} aria-invalid={Boolean(errors[`charge_amount_${i}`]) || undefined} inputClassName={cn(fieldCls(Boolean(errors[`charge_amount_${i}`])), "text-end tabular-nums")} />
               </Field>
               <Field id={fid(`chargeVat${i}`)} label={i === 0 ? `${taxWord()} %` : <span className="sr-only">{taxWord()} %</span>}>
                 <input id={fid(`chargeVat${i}`)} type="number" min="0" step="any" inputMode="decimal" value={c.vatPercent ?? ""} onChange={(e) => changeCharge(i, "vatPercent", e.target.value)} className={cn(fieldCls(false), "text-end tabular-nums")} />

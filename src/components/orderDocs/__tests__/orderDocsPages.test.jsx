@@ -243,7 +243,7 @@ describe("GoodsReceivedPage", () => {
     expect(await screen.findByText("What goes on this receipt")).toBeInTheDocument();
     expect(goodsReceipts.fromOrder).toHaveBeenCalledWith("o1");
     // starts at what is left, never at what was ordered
-    expect(await screen.findByLabelText("Quantity of Rice on this receipt")).toHaveValue(7);
+    expect(await screen.findByLabelText("Quantity of Rice on this receipt")).toHaveValue("7");
     expect(goodsReceipts.list).not.toHaveBeenCalled();
   });
 

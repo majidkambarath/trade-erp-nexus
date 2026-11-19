@@ -20,8 +20,7 @@ import RoutesTab from "./process/RoutesTab";
 import ProcessAnalysis from "./process/ProcessAnalysis";
 import {
   ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
-  useAsync, useToasts,
-} from "../accounting/kit";
+  useAsync, useToasts, AmountInput } from "../accounting/kit";
 
 // Inventory > Production: materials used up and expenses already paid (coating, labour, transport to the coater, packing ...) moved
 // into the cost of the item made. Posting moves the stock and books Dr Inventory / Cr Inventory (materials) /
@@ -205,7 +204,7 @@ export function ProductionForm({ production, onClose, onSaved }) {
             <SearchSelect value={form.finishedId} onChange={(v) => set({ finishedId: v })} options={masters.itemOptions} loading={masters.loading} placeholder="Choose the finished item" aria-label="Item made" autoFocus noOptionsText="No stock items yet. Add the item under Inventory > Stock Items first." />
           </Field>
           <Field label="Quantity made" required error={errors.qty} hint={finishedItem ? `${qtyText(finishedItem.currentStock)} on hand now` : undefined}>
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Quantity made" />
+            <AmountInput min="0" inputMode="decimal" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Quantity made" />
           </Field>
           <Field label="Date">
             <DateInput value={form.date} max={todayInput()} onChange={(v) => set({ date: v })} aria-label="Date" />
@@ -226,7 +225,7 @@ export function ProductionForm({ production, onClose, onSaved }) {
                       : masters.items.length ? "No other stock items. Add the raw material under Inventory > Stock Items (it must be a different item from the one made)." : "No stock items yet. Add them under Inventory > Stock Items first."} />
                   </Field>
                   <Field label="Quantity" labelClassName="sm:sr-only" error={errors[`materials.${i}.qty`]}>
-                    <TextInput type="number" min="0" step="any" inputMode="decimal" value={m.qty} onChange={(e) => setLine("materials", i, { qty: e.target.value })} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
+                    <AmountInput min="0" inputMode="decimal" value={m.qty} onChange={(e) => setLine("materials", i, { qty: e.target.value })} aria-label={`Material ${i + 1} quantity`} placeholder="Qty" />
                   </Field>
                   <div className="order-last col-span-2 self-center text-xs text-muted-foreground tabular-nums sm:order-none sm:col-span-1">
                     {line ? (
@@ -259,7 +258,7 @@ export function ProductionForm({ production, onClose, onSaved }) {
                   <SearchSelect value={c.accountId} onChange={(v) => setLine("costs", i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="Choose the expense" aria-label={`Cost ${i + 1} expense`} noOptionsText={(typed) => (typed.trim() ? `No expense account matches "${typed.trim()}". Add it under Accounts > Chart of accounts (as an expense).` : "No expense accounts. Add one (e.g. Powder coating) under Accounts > Chart of accounts.")} />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only" error={errors[`costs.${i}.amount`]}>
-                  <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setLine("costs", i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={CURRENCY} />
+                  <AmountInput min="0" inputMode="decimal" value={c.amount} onChange={(e) => setLine("costs", i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={CURRENCY} />
                 </Field>
                 <Field label="Note" labelClassName="sm:sr-only" className="order-last col-span-2 sm:order-none sm:col-span-1">
                   <TextInput value={c.narration} maxLength={300} onChange={(e) => setLine("costs", i, { narration: e.target.value })} aria-label={`Cost ${i + 1} note`} placeholder="Note (optional)" />

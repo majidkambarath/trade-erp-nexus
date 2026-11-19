@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DateInput, Field, Textarea, TextInput } from "../accounting/kit";
+import { DateInput, Field, Textarea, TextInput, AmountInput } from "../accounting/kit";
 import { deliverForm, deliverPayload, invoiceBlocker, shortBy, validateDeliver } from "../../lib/salesDocuments";
 import { formatDate, formatNumber, todayInput, toInputDate } from "../../utils/format";
 import { cn } from "../../lib/utils";
@@ -79,9 +79,8 @@ export function DeliverDialog({ note, busy, problem, onClose, onConfirm }) {
                   <td data-label="Item" className="px-3 py-2 font-medium">{l.description}</td>
                   <td data-label="Sent" className="px-3 py-2 text-end tabular-nums">{l.qty}</td>
                   <td data-label="Delivered" className="px-3 py-2">
-                    <input
-                      type="number" inputMode="decimal" min="0" step="any" aria-label={`Delivered quantity of ${l.description}`} aria-invalid={bad ? true : undefined}
-                      value={l.deliveredQty} onChange={(e) => setLine(i, { deliveredQty: e.target.value })} className={numInput}
+                    <AmountInput inputMode="decimal" min="0" aria-label={`Delivered quantity of ${l.description}`} aria-invalid={bad ? true : undefined}
+                      value={l.deliveredQty} onChange={(e) => setLine(i, { deliveredQty: e.target.value })} inputClassName={numInput}
                     />
                   </td>
                   <td data-label="If short, why" className="px-3 py-2">

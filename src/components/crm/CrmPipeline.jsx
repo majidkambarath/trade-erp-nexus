@@ -8,7 +8,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, TrendingUp, AlarmClock, Clock } from "lucide-react";
-import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, useAsync, useToasts, Field, TextInput, Textarea, DateInput, SearchSelect, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, EmptyState, useAsync, useToasts, Field, TextInput, Textarea, DateInput, SearchSelect, inputClass, AmountInput } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
 import { useRecordRoute } from "../../lib/useRecordRoute";
@@ -107,7 +107,7 @@ function NewDealDialog({ onClose, onSaved, notify }) {
           <TextInput value={form.title} onChange={set("title")} placeholder="Monthly rice and oil" />
         </Field>
         <Field label="What it may be worth" error={errors.value}>
-          <input className={inputClass} type="number" min="0" value={form.value} onChange={set("value")} />
+          <AmountInput inputClassName={inputClass} min="0" value={form.value} onChange={set("value")} />
         </Field>
         <Field label="Expected to close">
           <DateInput value={form.expectedCloseDate} onChange={set("expectedCloseDate")} />

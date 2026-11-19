@@ -19,8 +19,7 @@ import { CostsSection } from "./ProcessCosts";
 import { MaterialsEditor, StepsEditor } from "./StepsEditor";
 import {
   ConfirmDialog, DataTable, DateInput, EmptyState, ErrorNote, Field, Modal, Panel, Pill, SearchSelect, Spinner, Textarea, TextInput,
-  useAsync, useToasts,
-} from "../../accounting/kit";
+  useAsync, useToasts, AmountInput } from "../../accounting/kit";
 
 // Inventory > Production > Process orders: a product made through several steps (cutting, bending, painting, packing ...),
 // each done in house by a named person or by an outside job worker. Steps run one after another, each with what came out
@@ -184,7 +183,7 @@ export function ProcessOrderForm({ order, onClose, onSaved }) {
             <SearchSelect value={form.finishedId} onChange={(v) => set({ finishedId: v })} options={masters.itemOptions} loading={masters.loading} placeholder="Choose the product" aria-label="Product to make" autoFocus noOptionsText="No stock items yet. Add the product under Inventory > Stock Items first." />
           </Field>
           <Field label="Quantity" required error={errors.qty}>
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Quantity" />
+            <AmountInput min="0" inputMode="decimal" value={form.qty} onChange={(e) => set({ qty: e.target.value })} aria-label="Quantity" />
           </Field>
           <Field label="Due by" hint="When the whole order should be done.">
             <DateInput value={form.dueDate} onChange={(v) => set({ dueDate: v })} aria-label="Due by" />
@@ -404,10 +403,10 @@ export function CompleteStepDialog({ orderId, step, onClose, onDone }) {
         {failure && <ErrorNote error={new Error(processErrorText(failure))} />}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Good" required error={!(Number(good) > 0) ? "Enter how many came out good" : undefined}>
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={good} onChange={(e) => setGood(e.target.value)} aria-label="Good" autoFocus />
+            <AmountInput min="0" inputMode="decimal" value={good} onChange={(e) => setGood(e.target.value)} aria-label="Good" autoFocus />
           </Field>
           <Field label="Rejected" error={tooMany ? `More than the ${qty(planned)} to process` : undefined}>
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={rejected} onChange={(e) => setRejected(e.target.value)} aria-label="Rejected" />
+            <AmountInput min="0" inputMode="decimal" value={rejected} onChange={(e) => setRejected(e.target.value)} aria-label="Rejected" />
           </Field>
         </div>
         {Number(rejected) > 0 && (
@@ -520,7 +519,7 @@ function FinishDialog({ order, onClose, onDone }) {
                   <SearchSelect value={c.accountId} onChange={(v) => setCost(i, { accountId: v })} options={masters.expenseOptions} loading={masters.loading} placeholder="e.g. Bending labour" aria-label={`Cost ${i + 1} expense`} noOptionsText="Add the expense account under Accounts > Chart of accounts." />
                 </Field>
                 <Field label="Amount" labelClassName="sm:sr-only">
-                  <TextInput type="number" min="0" step="0.01" inputMode="decimal" value={c.amount} onChange={(e) => setCost(i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={orgCurrency()} />
+                  <AmountInput min="0" inputMode="decimal" value={c.amount} onChange={(e) => setCost(i, { amount: e.target.value })} aria-label={`Cost ${i + 1} amount`} placeholder={orgCurrency()} />
                 </Field>
                 <Field label="Note" labelClassName="sm:sr-only" className="order-last col-span-2 sm:order-none sm:col-span-1">
                   <TextInput value={c.narration} maxLength={300} onChange={(e) => setCost(i, { narration: e.target.value })} aria-label={`Cost ${i + 1} note`} placeholder="Note (optional)" />
