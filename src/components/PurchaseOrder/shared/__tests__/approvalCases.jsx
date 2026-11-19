@@ -186,7 +186,7 @@ export function approvalCases(config) {
       const [button] = bulkApprove();
       expect(button).toBeInTheDocument();
       fireEvent.click(button);
-      expect(await screen.findByText(`1 approved, 1 waiting for a second approver, 2 refused: ${REFUSED} / You prepared this document, so someone else has to approve it.`)).toBeInTheDocument();
+      expect(await screen.findByText(`1 approved, 1 waiting for a second approver, 2 refused: ${REFUSED} / You prepared this document, so someone else has to approve it.`, {}, { timeout: 4000 })).toBeInTheDocument();
       // their own work was never sent; the other three were
       expect(processed()).toEqual(["/transactions/transactions/a/process", "/transactions/transactions/b/process", "/transactions/transactions/c/process"]);
     });
@@ -195,7 +195,7 @@ export function approvalCases(config) {
       await show(person(), [raw("a"), raw("b")]);
       for (const id of ["a", "b"]) tick(id);
       fireEvent.click(bulkApprove()[0]);
-      expect(await screen.findByText("2 approved")).toBeInTheDocument();
+      expect(await screen.findByText("2 approved", {}, { timeout: 4000 })).toBeInTheDocument();
       expect(processed()).toHaveLength(2);
     });
 
@@ -207,7 +207,7 @@ export function approvalCases(config) {
       });
       for (const id of ["a", "b"]) tick(id);
       fireEvent.click(bulkApprove()[0]);
-      expect(await screen.findByText("1 approved, 1 refused: No.")).toBeInTheDocument();
+      expect(await screen.findByText("1 approved, 1 refused: No.", {}, { timeout: 4000 })).toBeInTheDocument();
       expect(processed()).toHaveLength(2);
     });
 

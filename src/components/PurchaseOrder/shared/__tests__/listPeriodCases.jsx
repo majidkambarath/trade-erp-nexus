@@ -20,13 +20,12 @@ import { addMonths, lastDayOf } from "../../../../lib/calendarDays";
 //
 // @param module       "sales" | "purchase"
 // @param type         the transaction type the page reads
-// @param serverDates  false for the return pages
 // @param Page         the module's list page
 // @param api          the mocked axios instance
 // @param setStatus    points the file's mocked organisation status at this person
 
 export function listPeriodCases(config) {
-  const { module, type, serverDates, api, setStatus } = config;
+  const { module, type, api, setStatus } = config;
   const Page = config.Page; // a capitalised local, so the linter sees it used in the JSX below
   const month = todayInput().slice(0, 7);
   const inMonth = `${month}-01`;
@@ -40,20 +39,35 @@ export function listPeriodCases(config) {
   });
 
   let calls = [];
-  // a server over `all`: pages at the request's limit and honours the CUSTOM date range, as the real route does
+  let summaryCalls = [];
+  const inPeriodRows = (all, p) => (p.dateFilter === "CUSTOM" ? all.filter((r) => r.date >= new Date(p.startDate).toISOString() && r.date <= new Date(p.endDate).toISOString()) : all);
+  // a server over `all`, as the real route behaves: the period, the search (number or the party's name), the page and its size,
+  // and a summary route that counts the whole period
   const serve = (all) => {
     calls = [];
+    summaryCalls = [];
     api.get.mockImplementation(async (url, cfg) => {
-      if (!String(url).includes("/transactions/transactions")) return { data: { data: [] } };
+      const u = String(url);
+      if (!u.includes("/transactions/transactions")) return { data: { data: [] } };
       const p = cfg?.params || {};
+      let rows = inPeriodRows(all, p);
+      if (u.endsWith("/summary")) {
+        summaryCalls.push(p);
+        const byStatus = {};
+        rows.forEach((r) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
+        return { data: { data: { count: rows.length, draft: byStatus.DRAFT || 0, byStatus, valueByStatus: {}, totalValue: rows.length * 100 } } };
+      }
       calls.push(p);
-      let rows = all;
-      if (p.dateFilter === "CUSTOM") rows = rows.filter((r) => r.date >= new Date(p.startDate).toISOString() && r.date <= new Date(p.endDate).toISOString());
+      if (p.search) {
+        const needle = String(p.search).toLowerCase();
+        rows = rows.filter((r) => r.transactionNo.toLowerCase().includes(needle) || String(r.partyName).toLowerCase().includes(needle));
+      }
       const limit = p.limit || 20;
       const page = p.page || 1;
       return { data: { data: rows.slice((page - 1) * limit, page * limit), pagination: { current: page, pages: Math.max(1, Math.ceil(rows.length / limit)), total: rows.length, limit } } };
     });
   };
+  const pageCalls = () => calls.filter((p) => p.limit !== 1);
 
   const show = async (all, { grants = [`${module}.view`, `${module}.approve`], card = false } = {}) => {
     setStatus(statusFor(grants));
@@ -88,29 +102,28 @@ export function listPeriodCases(config) {
       expect(document.body).toHaveTextContent("All time · all dates");
     });
 
-    it(serverDates ? "asks the server for the month (a day wider each side), once a page, and never for just the newest twenty" : "asks the server for every return, with no date filter (its returnDate filter matches nothing)", async () => {
+    it("asks the server for exactly the month, one page of 25, newest first, and the cards of the month from the summary route", async () => {
       await show([raw(1, inMonth)]);
       await screen.findByText("DOC-1");
-      const first = calls.find((p) => p.limit === 200);
-      expect(first).toMatchObject({ type, page: 1, limit: 200 });
-      if (serverDates) {
-        expect(first.dateFilter).toBe("CUSTOM");
-        expect(first.startDate.slice(0, 7) <= month).toBe(true);
-      } else {
-        expect(first).not.toHaveProperty("dateFilter");
-        expect(first).not.toHaveProperty("startDate");
-      }
-      // no search / status / party goes to the server: they are applied to the whole period here
+      const first = pageCalls()[0];
+      expect(first).toMatchObject({ type, page: 1, limit: 25, dateFilter: "CUSTOM", sort: "date", order: "desc" });
+      expect(first.startDate).toBe(`${month}-01T00:00:00.000Z`);
+      expect(first.endDate).toBe(`${lastDayOf(month)}T23:59:59.999Z`);
       expect(first).not.toHaveProperty("search");
       expect(first).not.toHaveProperty("status");
+      await waitFor(() => expect(summaryCalls.length).toBeGreaterThan(0));
+      expect(summaryCalls[0]).toMatchObject({ type, dateFilter: "CUSTOM" });
     });
 
-    it("reads every page of the period, so hundreds of documents are all there", async () => {
+    it("reads one page at a time however many documents there are, never the whole period", async () => {
       const many = Array.from({ length: 230 }, (_, i) => raw(i + 1, inMonth));
       await show(many);
       await screen.findByText(/Showing 1 to 25 of 230/);
-      const pages = calls.filter((p) => p.limit === 200).map((p) => p.page);
-      expect(pages).toEqual([1, 2]);
+      expect(pageCalls().every((p) => p.limit === 25)).toBe(true);
+      expect(pageCalls().map((p) => p.page)).toEqual([1]);
+      fireEvent.click(within(pager()).getByRole("button", { name: "Next" }));
+      await screen.findByText(/Showing 26 to 50 of 230/);
+      expect(pageCalls().map((p) => p.page)).toEqual([1, 2]);
     });
 
     it("pages in the browser: which rows are shown out of how many, next, and a page size", async () => {
@@ -133,10 +146,11 @@ export function listPeriodCases(config) {
       await screen.findByText(/Showing 1 to 25 of 60/);
       fireEvent.click(within(pager()).getByRole("button", { name: "Page 3" }));
       await screen.findByText(/Showing 51 to 60 of 60/);
-      // by the PARTY'S NAME - the server's own search never matched it
+      // by the PARTY'S NAME (the server looks the party up)
       fireEvent.change(screen.getByPlaceholderText(/^Search by/), { target: { value: "zed" } });
       expect(await screen.findByText(/Showing 1 to 3 of 3/)).toBeInTheDocument();
-      expect(rowNumbers().sort()).toEqual(["DOC-1", "DOC-2", "DOC-3"]);
+      expect(pageCalls().at(-1)).toMatchObject({ search: "zed", page: 1 });
+      await waitFor(() => expect(rowNumbers().sort()).toEqual(["DOC-1", "DOC-2", "DOC-3"]));
       expect(within(pager()).queryByRole("button", { name: "Next" })).toBeNull(); // one page: no page buttons
     });
 
