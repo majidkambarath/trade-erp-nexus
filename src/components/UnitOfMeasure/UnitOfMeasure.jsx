@@ -13,7 +13,7 @@ import {
 import axiosInstance from "../../axios/axios";
 import StatCard from "../ui/stat-card";
 import { Button } from "../ui/button";
-import { ConfirmDialog, DataTable, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, useToasts } from "../accounting/kit";
+import { ConfirmDialog, DataTable, Field, Modal, PageHeader, Panel, Pill, Select, TextInput, useToasts, AmountInput } from "../accounting/kit";
 import Can from "../shell/Can";
 
 // Units of measure (Kilogram, Box, Litre...) and the conversion ratios between them. Both lists filter in
@@ -479,7 +479,7 @@ const UnitMeasureConversion = () => {
                 error={errors.conversionRatio}
                 hint={`1 ${units.find((unit) => unit._id === conversionForm.fromUOM)?.unitName || "From UOM"} = ${conversionForm.conversionRatio || "X"} ${units.find((unit) => unit._id === conversionForm.toUOM)?.unitName || "To UOM"}`}
               >
-                <TextInput type="number" name="conversionRatio" value={conversionForm.conversionRatio} onChange={handleConversionChange} placeholder="e.g., 1000" min="0" step="0.001" />
+                <AmountInput name="conversionRatio" value={conversionForm.conversionRatio} onChange={handleConversionChange} placeholder="e.g., 1000" min="0" />
               </Field>
               <Field label="Category">
                 <Select name="category" value={conversionForm.category} onChange={handleConversionChange}>

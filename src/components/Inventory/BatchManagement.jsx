@@ -4,7 +4,7 @@ import { batches } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, CURRENCY } from "../../utils/format";
 import { Button } from "../ui/button";
 import StatCard from "../ui/stat-card";
-import { DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
+import { DataTable, EmptyState, errorMessage, ErrorNote, Field, Modal, PageHeader, Panel, Pill, Select, Spinner, Textarea, TextInput, useAsync, useToasts, AmountInput } from "../accounting/kit";
 
 const WINDOWS = [{ v: "", l: "All batches in stock" }, { v: "0", l: "Expired" }, { v: "7", l: "Expire within 7 days" }, { v: "30", l: "Expire within 30 days" }, { v: "90", l: "Expire within 90 days" }];
 const qtyFmt = (n) => formatNumber(n, 3).replace(/\.?0+$/, "");
@@ -110,7 +110,7 @@ export function WriteOffModal({ batch, onClose, onDone }) {
       <form id="writeoff-form" onSubmit={submit} noValidate className="grid gap-4">
         <ErrorNote error={error && new Error(errorMessage(error))} />
         <Field label="Quantity" required error={fieldError} hint={`${qtyFmt(batch.qtyOnHand)} on hand`}>
-          <TextInput type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} data-autofocus />
+          <AmountInput min="0" value={qty} onChange={(e) => setQty(e.target.value)} data-autofocus />
         </Field>
         <Field label="Reason">
           <Select value={reason} onChange={(e) => setReason(e.target.value)}><option value="expiry">Expired</option><option value="damage">Damaged or lost</option></Select>

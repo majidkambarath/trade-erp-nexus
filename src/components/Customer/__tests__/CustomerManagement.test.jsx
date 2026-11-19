@@ -84,7 +84,7 @@ describe("Customer management", () => {
     fireEvent.mouseDown(within(dialog).getByRole("tab", { name: /^VAT/ }), { button: 0 });
     expect(within(dialog).getByLabelText(/TRN/)).toHaveValue("100123456700003");
     fireEvent.mouseDown(within(dialog).getByRole("tab", { name: /^Credit and terms/ }), { button: 0 });
-    expect(within(dialog).getByLabelText(/Credit limit/)).toHaveValue(25000);
+    expect(within(dialog).getByLabelText(/Credit limit/)).toHaveValue("25,000");
     expect(within(dialog).getByLabelText("Credit days")).toHaveValue(45);
     fireEvent.mouseDown(within(dialog).getByRole("tab", { name: /^KYC documents/ }), { button: 0 });
     expect(within(dialog).getByText(/Expired 4 days ago/)).toBeInTheDocument();

@@ -11,7 +11,7 @@ import { useOrganisation } from "../../shell/OrganisationContext";
 import FilterBar from "../../lists/FilterBar";
 import { useMasters } from "../productionShared";
 import { MaterialsEditor, StepsEditor } from "./StepsEditor";
-import { ConfirmDialog, DataTable, EmptyState, ErrorNote, Field, Modal, Panel, SearchSelect, Spinner, Textarea, TextInput, useAsync, useToasts } from "../../accounting/kit";
+import { ConfirmDialog, DataTable, EmptyState, ErrorNote, Field, Modal, Panel, SearchSelect, Spinner, Textarea, TextInput, useAsync, useToasts, AmountInput } from "../../accounting/kit";
 
 // Inventory > Production > Routes: each product's saved way through the shop - what it is made from (for a batch) and
 // its steps in order, with who usually does each and the days it takes. A new process order for the product is planned
@@ -129,7 +129,7 @@ export function RouteForm({ route, onClose, onSaved }) {
             <SearchSelect value={form.finishedId} onChange={(v) => set({ finishedId: v })} options={masters.itemOptions} loading={masters.loading} disabled={!editable} placeholder="Choose the product" aria-label="Product" autoFocus={!route} noOptionsText="Add the product under Inventory > Stock Items first." />
           </Field>
           <Field label="Materials are for" required error={errors.batchQty} hint="How many products the quantities below make.">
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={form.batchQty} onChange={(e) => set({ batchQty: e.target.value })} disabled={!editable} aria-label="Materials are for" />
+            <AmountInput min="0" inputMode="decimal" value={form.batchQty} onChange={(e) => set({ batchQty: e.target.value })} disabled={!editable} aria-label="Materials are for" />
           </Field>
         </div>
         <section aria-labelledby="route-materials">

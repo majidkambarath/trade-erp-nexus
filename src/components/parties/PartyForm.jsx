@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Field, PhoneInput, SearchSelect, Select, Textarea, TextInput } from "../accounting/kit";
+import { Field, PhoneInput, SearchSelect, Select, Textarea, TextInput, AmountInput } from "../accounting/kit";
 import { countryOptions, DEFAULT_COUNTRY, DEFAULT_EMIRATE, EMIRATES, stateOptions } from "../../lib/countries";
 import { CURRENCY } from "../../utils/format";
 import { BankAccountsSection, ContactsSection, DocumentsSection } from "./PartyRows";
@@ -210,7 +210,7 @@ function CreditSection({ kind, value, set, onChange, errors }) {
     <div className="grid gap-4 sm:grid-cols-3">
       {kind === "customer" && (
         <Field label={`Credit limit (${CURRENCY})`} error={errors.creditLimit} hint="0 means no limit is set. Credit control, in Settings, compares the balance with it.">
-          <TextInput type="number" inputMode="decimal" min="0" step="0.01" value={value.creditLimit} onChange={(e) => set({ creditLimit: e.target.value })} placeholder="0.00" />
+          <AmountInput inputMode="decimal" min="0" value={value.creditLimit} onChange={(e) => set({ creditLimit: e.target.value })} placeholder="0.00" />
         </Field>
       )}
       <Field label="Payment terms">

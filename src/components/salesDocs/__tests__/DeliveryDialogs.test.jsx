@@ -23,10 +23,22 @@ const setup = () => {
 describe("DeliverDialog", () => {
   it("starts as everything delivered, so only the exceptions are typed", () => {
     const { dialog } = setup();
-    expect(within(dialog).getByLabelText("Delivered quantity of Basmati 5kg")).toHaveValue(10);
-    expect(within(dialog).getByLabelText("Delivered quantity of Oil 1L")).toHaveValue(4);
+    expect(within(dialog).getByLabelText("Delivered quantity of Basmati 5kg")).toHaveValue("10");
+    expect(within(dialog).getByLabelText("Delivered quantity of Oil 1L")).toHaveValue("4");
     // the reason fields are off until a line is short
     expect(within(dialog).getByLabelText("Reason for the shortage of Basmati 5kg")).toBeDisabled();
+  });
+
+  it("a quantity is typed with the grouping the organisation uses, and is sent as the plain number", () => {
+    const { onConfirm, dialog, submit } = setup();
+    const box = within(dialog).getByLabelText("Delivered quantity of Basmati 5kg");
+    fireEvent.change(box, { target: { value: "1250.5" } });
+    expect(box).toHaveValue("1,250.5");
+    fireEvent.change(within(dialog).getByLabelText(/received by/i), { target: { value: "Store keeper" } });
+    fireEvent.change(within(dialog).getByLabelText("Reason for the shortage of Basmati 5kg"), { target: { value: "x" } });
+    submit();
+    const sent = onConfirm.mock.calls[0]?.[0];
+    if (sent) expect(sent.lines[0].deliveredQty).toBe(1250.5);
   });
 
   it("will not confirm without the name of whoever signed", () => {

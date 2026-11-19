@@ -28,7 +28,7 @@ import { usePeriodFilter } from "../lists/usePeriodFilter";
 import StatCard from "../ui/stat-card";
 import { Button } from "../ui/button";
 
-import { DateInput, Field, Modal, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, useToasts } from "../accounting/kit";
+import { DateInput, Field, Modal, Pill, Select, SearchSelect, Spinner, TextInput, Textarea, useToasts, AmountInput } from "../accounting/kit";
 import { DataTable } from "../accounting/DataTable";
 import { useOrganisation } from "../shell/OrganisationContext";
 
@@ -741,7 +741,7 @@ const InventoryManagement = () => {
                 <SearchSelect autoFocus value={formData.stockId} onChange={handleStockChange} placeholder="Select stock item" options={stockItems.map((item) => ({ value: item._id, label: `${item.itemName} (${item.sku})` }))} />
               </Field>
               <Field label="Quantity" required error={errors.quantity} hint="Positive to add stock, negative to remove it">
-                <TextInput type="number" name="quantity" value={formData.quantity} onChange={handleChange} placeholder="Enter quantity" />
+                <AmountInput name="quantity" value={formData.quantity} onChange={handleChange} placeholder="Enter quantity" />
               </Field>
               <Field label="Event Type" required>
                 <Select name="eventType" value={formData.eventType} onChange={handleChange}>
@@ -755,7 +755,7 @@ const InventoryManagement = () => {
               </Field>
               {seesCost && (
               <Field label={`Unit Cost (${CURRENCY})`} error={errors.unitCost}>
-                <TextInput type="number" name="unitCost" value={formData.unitCost} onChange={handleChange} placeholder="0.00" step="0.01" min="0" />
+                <AmountInput name="unitCost" value={formData.unitCost} onChange={handleChange} placeholder="0.00" min="0" />
               </Field>
               )}
               <Field label="Location">

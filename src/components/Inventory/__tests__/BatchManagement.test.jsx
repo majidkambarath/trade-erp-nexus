@@ -53,7 +53,7 @@ describe("batches", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Write off/ }));
     const dialog = await screen.findByRole("dialog", { name: "Write off stock" });
     expect(within(dialog).getByLabelText("Reason")).toHaveValue("expiry"); // chosen from the batch's state
-    expect(within(dialog).getByLabelText(/Quantity/)).toHaveValue(40); // defaults to all of it
+    expect(within(dialog).getByLabelText(/Quantity/)).toHaveValue("40"); // defaults to all of it
 
     fireEvent.change(within(dialog).getByLabelText(/Quantity/), { target: { value: "999" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Write off" }));

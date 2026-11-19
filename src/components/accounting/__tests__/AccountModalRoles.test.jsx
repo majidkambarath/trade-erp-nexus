@@ -252,7 +252,7 @@ describe("editing a customer or vendor account", () => {
     expect(screen.getByLabelText(/TRN/)).toHaveValue("100777000000001");
     expect(screen.getByLabelText("Trade licence number")).toHaveValue("TL-5");
     openTab("Credit and terms");
-    expect(screen.getByLabelText(/Credit limit/)).toHaveValue(25000);
+    expect(screen.getByLabelText(/Credit limit/)).toHaveValue("25,000");
     expect(screen.getByLabelText("Credit days")).toHaveValue(45);
     openTab("Contacts");
     expect(screen.getByLabelText(/^Name/)).toHaveValue("Huda");

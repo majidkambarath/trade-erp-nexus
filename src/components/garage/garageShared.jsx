@@ -7,7 +7,7 @@ import { api } from "../../lib/accountingApi";
 import { jobCards, partyChoices, setup } from "../../lib/garageApi";
 import { pickerLabel, isService } from "../../lib/itemTypes";
 import { garageErrorText } from "../../lib/garage";
-import { Field, Modal, TextInput, useAsync, ErrorNote } from "../accounting/kit";
+import { Field, Modal, TextInput, useAsync, ErrorNote, AmountInput } from "../accounting/kit";
 
 export function useGarageMasters() {
   const stocks = useAsync(() => api.get("/stock/stock"), []);
@@ -76,7 +76,7 @@ export function CompleteTaskDialog({ jobCardId, task, onClose, onDone }) {
         {failure && <ErrorNote error={new Error(garageErrorText(failure))} />}
         {!skip && (
           <Field label="Hours actually taken" hint="Leave blank to use the standard hours for this task.">
-            <TextInput type="number" min="0" step="any" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} aria-label="Hours actually taken" autoFocus />
+            <AmountInput min="0" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} aria-label="Hours actually taken" autoFocus />
           </Field>
         )}
         <label className="flex items-center gap-2 text-sm">

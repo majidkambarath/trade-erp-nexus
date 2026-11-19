@@ -3,7 +3,7 @@
 // components/Inventory/productionShared.jsx does for Production.
 import React, { useEffect, useMemo, useState } from "react";
 import { Phone, Users, Mail, MessageCircle, StickyNote, CheckSquare, MapPin } from "lucide-react";
-import { Field, TextInput, Textarea, Select, DateInput, SearchSelect, Modal, inputClass } from "../accounting/kit.jsx";
+import { Field, TextInput, Textarea, Select, DateInput, SearchSelect, Modal, inputClass, AmountInput } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import { statusClasses } from "../../lib/status";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
@@ -425,7 +425,7 @@ export function QualifyDialog({ lead, onClose, onSaved, notify }) {
           <TextInput value={form.customerName} onChange={set("customerName")} />
         </Field>
         <Field label="Credit limit" hint={`In ${formatCurrencyAED(0).replace(/[\d.,\s]/g, "")}`}>
-          <input className={inputClass} type="number" min="0" value={form.creditLimit} onChange={set("creditLimit")} />
+          <AmountInput inputClassName={inputClass} min="0" value={form.creditLimit} onChange={set("creditLimit")} />
         </Field>
         <Field label="Address">
           <TextInput value={form.billingAddress} onChange={set("billingAddress")} />
@@ -434,7 +434,7 @@ export function QualifyDialog({ lead, onClose, onSaved, notify }) {
           <TextInput value={form.title} onChange={set("title")} />
         </Field>
         <Field label="What it may be worth">
-          <input className={inputClass} type="number" min="0" value={form.value} onChange={set("value")} />
+          <AmountInput inputClassName={inputClass} min="0" value={form.value} onChange={set("value")} />
         </Field>
         <Field label="Expected to close">
           <DateInput value={form.expectedCloseDate} onChange={set("expectedCloseDate")} />

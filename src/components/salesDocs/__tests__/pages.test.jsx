@@ -100,7 +100,7 @@ describe("DeliveryNotesPage", () => {
     at(<DeliveryNotesPage />, "/delivery-notes?order=o1");
     expect(await screen.findByText("What goes on this note")).toBeInTheDocument();
     expect(deliveryNotes.fromOrder).toHaveBeenCalledWith("o1");
-    expect(await screen.findByLabelText("Quantity of Rice on this note")).toHaveValue(10);
+    expect(await screen.findByLabelText("Quantity of Rice on this note")).toHaveValue("10");
     expect(deliveryNotes.list).not.toHaveBeenCalled();
   });
 

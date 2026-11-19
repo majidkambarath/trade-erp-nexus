@@ -3,7 +3,7 @@ import { Check, Plus, X } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, DateInput } from "../accounting/kit";
+import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, DateInput, AmountInput } from "../accounting/kit";
 
 const TONE = { RECEIVED: "warning", ACCEPTED: "success", REJECTED: "danger" };
 const LABEL = { RECEIVED: "To review", ACCEPTED: "Accepted", REJECTED: "Rejected" };
@@ -135,9 +135,9 @@ function AddModal({ onClose, onSaved }) {
         <Field label="Supplier name" required error={errors.sellerName} className="sm:col-span-2"><TextInput value={f.sellerName} onChange={set("sellerName")} /></Field>
         <Field label="Supplier TRN" error={errors.sellerVatTrn} hint="Used to find the vendor."><TextInput inputMode="numeric" value={f.sellerVatTrn} onChange={set("sellerVatTrn")} maxLength={15} /></Field>
         <Field label="Participant ID" error={errors.sellerParticipantId}><TextInput value={f.sellerParticipantId} onChange={set("sellerParticipantId")} placeholder="0235:…" /></Field>
-        <Field label={`Net (${CURRENCY})`}><TextInput type="number" min="0" step="0.01" value={f.net} onChange={set("net")} /></Field>
-        <Field label={`VAT (${CURRENCY})`}><TextInput type="number" min="0" step="0.01" value={f.tax} onChange={set("tax")} /></Field>
-        <Field label={`Total payable (${CURRENCY})`} required error={errors.payable}><TextInput type="number" min="0" step="0.01" value={f.payable} onChange={set("payable")} /></Field>
+        <Field label={`Net (${CURRENCY})`}><AmountInput min="0" value={f.net} onChange={set("net")} /></Field>
+        <Field label={`VAT (${CURRENCY})`}><AmountInput min="0" value={f.tax} onChange={set("tax")} /></Field>
+        <Field label={`Total payable (${CURRENCY})`} required error={errors.payable}><AmountInput min="0" value={f.payable} onChange={set("payable")} /></Field>
         <Field label="Your purchase order number" hint="Optional. Helps match it."><TextInput value={f.invoiceRef} onChange={set("invoiceRef")} /></Field>
       </form>
     </Modal>

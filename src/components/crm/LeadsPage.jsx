@@ -5,7 +5,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download, Upload } from "lucide-react";
-import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, PhoneInput, TextInput, Textarea, Select, SearchSelect, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, PhoneInput, TextInput, Textarea, Select, SearchSelect, inputClass, AmountInput } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
 import { PillTabs, Note } from "../salesDocs/parts.jsx";
@@ -114,7 +114,7 @@ function LeadForm({ lead, owners, onClose, onSaved, notify }) {
           <TextInput value={form.interest} onChange={set("interest")} placeholder="Monthly rice and oil" />
         </Field>
         <Field label="What it may be worth" error={errors.expectedValue}>
-          <input className={inputClass} type="number" min="0" value={form.expectedValue} onChange={set("expectedValue")} />
+          <AmountInput inputClassName={inputClass} min="0" value={form.expectedValue} onChange={set("expectedValue")} />
         </Field>
         <Field label="Who should chase it" hint={lead ? undefined : "Left empty, it is given out automatically"}>
           <OwnerSelect value={form.ownerId} onChange={(v) => setForm((f) => ({ ...f, ownerId: v }))} owners={owners} />

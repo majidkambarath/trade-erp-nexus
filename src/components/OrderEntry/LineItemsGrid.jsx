@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 import { CURRENCY, formatNumber } from "../../utils/format";
 import { cn } from "../../lib/utils";
 
-import { DateInput } from "../accounting/kit";
+import { DateInput, AmountInput } from "../accounting/kit";
 import { WIDE, useMediaQuery } from "../accounting/DataTable";
 import { rowIsService } from "../../lib/itemTypes";
 import { lineHint } from "../../lib/reverseCharge";
@@ -251,16 +251,14 @@ export default function LineItemsGrid({
         );
       case "number":
         return (
-          <input
+          <AmountInput
             {...common}
-            type="number"
             inputMode="decimal"
             min="0"
-            step="any"
             value={value ?? ""}
             onChange={(e) => onCellChange(r, col.key, e.target.value)}
             readOnly={col.locked}
-            className={cn(fieldInput, col.align === "end" && "text-end tabular-nums", col.locked && "opacity-70")}
+            inputClassName={cn(fieldInput, col.align === "end" && "text-end tabular-nums", col.locked && "opacity-70")}
           />
         );
       case "select": {

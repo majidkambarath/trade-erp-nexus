@@ -215,7 +215,7 @@ describe("Conversion Logic", () => {
     expect(screen.getByText("Edit Conversion")).toBeInTheDocument();
     expect(screen.getByLabelText(/From UOM/)).toHaveValue("u-Kilogram");
     expect(screen.getByLabelText(/To UOM/)).toHaveValue("u-Gram");
-    expect(screen.getByPlaceholderText("e.g., 1000")).toHaveValue(1000);
+    expect(screen.getByPlaceholderText("e.g., 1000")).toHaveValue("1,000");
 
     fireEvent.change(screen.getByPlaceholderText("e.g., 1000"), { target: { value: "1001" } });
     fireEvent.click(screen.getByRole("button", { name: /Update Conversion/ }));

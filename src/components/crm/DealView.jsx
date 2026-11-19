@@ -3,7 +3,7 @@
 // touched it" has an answer on the screen rather than in a log.
 import React, { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass } from "../accounting/kit.jsx";
+import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass, AmountInput } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
@@ -263,7 +263,7 @@ function EditDealDialog({ deal, notify, onClose, onSaved }) {
           <TextInput value={form.title} onChange={set("title")} />
         </Field>
         <Field label="What it is worth" error={errors.value}>
-          <input className={inputClass} type="number" min="0" value={form.value} onChange={set("value")} />
+          <AmountInput inputClassName={inputClass} min="0" value={form.value} onChange={set("value")} />
         </Field>
         <Field label="Expected to close">
           <DateInput value={form.expectedCloseDate} onChange={set("expectedCloseDate")} />
