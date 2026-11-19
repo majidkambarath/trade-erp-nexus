@@ -214,6 +214,7 @@ const TableView = ({
                     <PaymentBadge doc={so} />
                     <AwaitingSecondBadge doc={so} state={stateOf(so)} />
                     {so.closedShort && <span className="text-xs font-medium text-status-warning">Closed short</span>}
+                    {so.recurringRef?.name && <span className="text-xs text-muted-foreground" title={`Made by the recurring invoice ${so.recurringRef.name}`}>Recurring</span>}
                     {so.status === "APPROVED" && !so.isOpening && (so.lastSend
                       ? <SentLine send={so.lastSend} />
                       : !!onSendDocument && <Can permission="sales.send" feature="messaging"><SentLine send={so.lastSend} /></Can>)}

@@ -271,6 +271,7 @@ export const MODULES = [
       },
       { label: "Invoices", to: "/sales-order", permission: "sales.view", keywords: ["sales invoice", "tax invoice", "paid", "unpaid", "outstanding", "collected", "receivable", "confirmed", "approved"] },
       { label: "Returns", to: "/sales-return", permission: "sales.view", keywords: ["sales return"] },
+      { label: "Recurring", to: "/recurring-invoices", permission: "sales.view", keywords: ["recurring invoice", "repeat", "subscription", "rent", "contract", "monthly billing", "schedule"] },
       {
         label: "Receivables",
         to: "/credit-accounts",

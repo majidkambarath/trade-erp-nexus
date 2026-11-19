@@ -174,6 +174,7 @@ export default function OrderForm({
   resetForm,
   onSuccess,
   activeView = "create",
+  extraSection = null, // (props) => a section of fields a host adds before Notes (a recurring invoice's schedule)
 }) {
   const uid = useId();
   const { me, featureOn, status, can } = useOrganisation();
@@ -245,7 +246,7 @@ export default function OrderForm({
   // Cost centres: a document that posts (an invoice or a return) may name one for itself and one per line. The field and the
   // column are drawn only once the organisation has a cost centre, so nobody else sees them. A centre the document already
   // carries stays offered after it has been switched off; a new choice is from the active ones.
-  const posts = !V.buildPayload;
+  const posts = !V.buildPayload || Boolean(V.costCentres); // a recurring invoice template names the centres its invoices will post to
   const [centres, setCentres] = useState([]);
   useEffect(() => {
     if (!posts) return undefined;
@@ -532,7 +533,9 @@ export default function OrderForm({
     // A read-only price (sales return, as before) comes from the stock record and cannot be typed here.
     const priceEditable = V.columns.some((c) => c.key === F.unitPrice && c.kind === "number");
     if (!formData.partyId) e.partyId = `${V.labels.partyNoun} is required`;
-    if (!formData.date) e.date = "Date is required";
+    if (!formData.date && !V.noDate) e.date = "Date is required";
+    // a template's own fields (a recurring invoice's name and schedule)
+    if (V.validateExtra) Object.assign(e, V.validateExtra(formData));
     // a quotation is valid until a day, which cannot come before the quotation itself
     if (V.secondDateRequired) {
       if (!formData[secondKey]) e[secondKey] = `${V.labels.secondDate} is required`;
@@ -837,6 +840,11 @@ export default function OrderForm({
               Details
             </h2>
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
+              {V.noNumber ? (
+                <Field id={fid("name")} label={V.labels.doc} error={errors.name} className="sm:col-span-2 xl:col-span-1">
+                  <input id={fid("name")} name="name" type="text" maxLength={100} value={formData.name || ""} onChange={(e) => setHeader("name", e.target.value)} placeholder="e.g. Monthly maintenance" aria-invalid={Boolean(errors.name) || undefined} className={fieldCls(Boolean(errors.name))} />
+                </Field>
+              ) : (
               <Field id={fid("transactionNo")} label={V.labels.doc}>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative min-w-[11rem] flex-1">
@@ -860,7 +868,9 @@ export default function OrderForm({
                   )}
                 </div>
               </Field>
+              )}
 
+              {!V.noDate && (
               <Field id={fid("date")} label="Date" error={errors.date}>
                 <DateInput
                   id={fid("date")}
@@ -870,6 +880,7 @@ export default function OrderForm({
                   aria-invalid={Boolean(errors.date) || undefined}
                 />
               </Field>
+              )}
 
               {V.foreignCurrency && <DocumentCurrency id={fid("currency")} formData={formData} setHeader={setHeader} locked={Boolean(V.sourceDocument)} />}
 
@@ -1015,6 +1026,9 @@ export default function OrderForm({
                   )}
                 </Field>
               ))}
+
+              {/* a section the host adds (a recurring invoice's schedule) */}
+              {extraSection ? extraSection({ formData, setHeader, errors, fid }) : null}
 
               <Field id={fid("notes")} label="Notes" className="sm:col-span-2 xl:col-span-3">
                 <textarea id={fid("notes")} name="notes" rows={2} value={formData.notes || ""} onChange={(e) => setHeader("notes", e.target.value)} placeholder="Additional notes or special instructions" className={cn(fieldCls(false), "h-auto py-2")} />

@@ -13,7 +13,7 @@ import { fetchPeriodCount, fetchTransactionPage, fetchTransactionSummary } from 
 
 const SEARCH_WAIT = 300;
 
-export default function useServerList({ http, type, period, compare = null, search = "", status = "ALL", partyId = "ALL", sort, order, page, size, onError }) {
+export default function useServerList({ http, type, period, compare = null, search = "", status = "ALL", partyId = "ALL", recurring = "", sort, order, page, size, onError }) {
   const [state, setState] = useState({ rows: [], total: 0, pages: 1 });
   const [summary, setSummary] = useState(null);
   const [previousCount, setPreviousCount] = useState(null);
@@ -38,7 +38,7 @@ export default function useServerList({ http, type, period, compare = null, sear
     if (!quiet.current) setLoading(true);
     (async () => {
       try {
-        const got = await fetchTransactionPage(http, { type, period, search: settled, status, partyId, sort, order, page, limit: size });
+        const got = await fetchTransactionPage(http, { type, period, search: settled, status, partyId, recurring, sort, order, page, limit: size });
         if (ask !== asked.current) return;
         setState(got);
       } catch (error) {
@@ -51,7 +51,7 @@ export default function useServerList({ http, type, period, compare = null, sear
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the period is read by its key
-  }, [http, type, period.key, settled, status, partyId, sort, order, page, size, tick]);
+  }, [http, type, period.key, settled, status, partyId, recurring, sort, order, page, size, tick]);
 
   const compareKey = compare ? `${compare.from || ""}|${compare.to || ""}` : "";
   useEffect(() => {

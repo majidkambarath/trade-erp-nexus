@@ -98,6 +98,7 @@ const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sale
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
 const PaymentVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.PaymentVouchers })));
 const QuotationsPage = lazy(() => import("../components/salesDocs/QuotationsPage.jsx"));
+const RecurringPage = lazy(() => import("../components/recurring/RecurringPage.jsx"));
 const DeliveryNotesPage = lazy(() => import("../components/salesDocs/DeliveryNotesPage.jsx"));
 const LearnPage = lazy(() => import("../components/learn/LearnPage.jsx"));
 const ApprovalsPage = lazy(() => import("../components/approvals/ApprovalsPage.jsx"));
@@ -148,6 +149,7 @@ export default function AdminRouter() {
         <Route path="/purchase-orders" element={<TradeOrdersPage kind="purchase" />} />
         <Route path="/goods-received" element={<GoodsReceivedPage />} />
         <Route path="/quotations" element={<QuotationsPage />} />
+        <Route path="/recurring-invoices" element={<RecurringPage />} />
         <Route path="/delivery-notes" element={<DeliveryNotesPage />} />
         <Route path="/inventory" element={<InventoryManagement />} />
         <Route path="/purchase-return" element={<PurchaseReturnPage />} />
