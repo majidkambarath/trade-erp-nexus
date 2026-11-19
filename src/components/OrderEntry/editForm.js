@@ -40,6 +40,8 @@ export function formFromSaved(V, saved) {
       vatPercent: String(c.vatPercent ?? 0),
     })),
     items: (raw.items || []).map((i) => recalcRow(V, V.rowFromSaved(i))),
+    // a template (a recurring invoice) carries fields of its own: its name and schedule
+    ...(V.fromSaved ? V.fromSaved(raw) : {}),
   };
 }
 

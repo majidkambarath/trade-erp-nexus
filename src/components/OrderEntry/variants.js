@@ -5,6 +5,7 @@
 // existing list screens keep working. Where a name is confusing (e.g. "Tax %" that the
 // backend reads as vatPercent) the translation is written out in full next to it.
 
+import { scheduleErrors, scheduleOf } from "../../lib/recurring";
 import { rowLine, documentTotals, chargesTotals } from "./lineMath";
 import { decimalRound } from "../../utils/format";
 import { SERVICE, GOODS, isService } from "../../lib/itemTypes";
@@ -53,7 +54,7 @@ const COST_COLUMN_KEYS = ["purchasePrice"];
 const COSTCENTRE_COL = col("costCentreId", "Cost centre", "select", { min: "min-w-[150px]" });
 export const columnsFor = (V, { batches = true, cost = true, centres = false } = {}) => {
   const cols = (V.columns || []).filter((c) => (batches || !BATCH_KEYS.includes(c.key)) && (cost || !COST_COLUMN_KEYS.includes(c.key)));
-  if (!centres || V.buildPayload) return cols;
+  if (!centres || (V.buildPayload && !V.costCentres)) return cols;
   const at = cols.findIndex((c) => c.key === "taxCodeId");
   const out = [...cols];
   out.splice(at >= 0 ? at + 1 : out.length, 0, COSTCENTRE_COL);
@@ -596,6 +597,40 @@ VARIANTS.quotation = {
   secondDateRequired: true,
   terms: true,
   buildPayload: pricedPayload((f) => ({ validUntil: f.validUntil, reference: f.reference || "", terms: f.terms || "" })),
+};
+
+// A recurring invoice: not a document but a TEMPLATE that makes a draft sales invoice on a schedule (/recurring-invoices). No number
+// and no date of its own (the schedule says when), a name, and the cost centres the invoices it makes will carry.
+const recurringLineInput = (row) => ({ ...pricedLineInput(row), ...(row.costCentreId ? { costCentreId: row.costCentreId } : {}) });
+VARIANTS.recurringInvoice = {
+  ...customerSide,
+  key: "recurringInvoice",
+  noun: "Recurring invoice",
+  endpoint: "/recurring-invoices",
+  noNumber: true,
+  noDate: true,
+  costCentres: true,
+  labels: { doc: "Name", partyNoun: "Customer", selectParty: "Select customer" },
+  title: { create: "New recurring invoice", edit: "Edit recurring invoice", save: "Save recurring invoice", saveEdit: "Update recurring invoice", items: "Lines on each invoice" },
+  terms: true,
+  validateExtra: (f) => ({ ...(String(f.name || "").trim() ? {} : { name: "Give it a name" }), ...scheduleErrors(f) }),
+  fromSaved: (raw) => ({
+    name: raw.name || "", frequency: raw.frequency || "monthly", interval: String(raw.interval || 1), startDay: raw.startDay || "",
+    endDay: raw.endDay || "", maxCount: raw.maxCount ? String(raw.maxCount) : "",
+  }),
+  buildPayload: (V, f, rows, _stock, { charges } = {}) => ({
+    name: String(f.name || "").trim(),
+    partyId: f.partyId,
+    items: rows.filter((r) => r.itemId && num(r.qty) > 0).map(recurringLineInput),
+    charges: chargesPayload(charges ?? f.charges),
+    discount: num(f.discount),
+    notes: f.notes || "",
+    terms: f.terms || "",
+    costCentreId: f.costCentreId || "",
+    ...scheduleOf(f),
+    endDay: f.endDay || null,
+    maxCount: String(f.maxCount ?? "").trim() ? Number(f.maxCount) : null,
+  }),
 };
 
 // The goods go first and are invoiced after. Who carries them and where to is on the note.

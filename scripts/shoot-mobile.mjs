@@ -244,6 +244,9 @@ const DEEP = {
     { name: "two-factor-new-codes", clicks: ["^Security$", "New recovery codes"], settle: 900 },
   ],
 
+  "sales-recurring": [
+    { name: "new", page: true, clicks: ["^New recurring invoice$"], settle: 1500 },
+  ],
   "sales-quotations": [
     { name: "document", page: true, clicks: ["^View$"], settle: 1500 },
     // The offer leads with one button and keeps the rest behind "More actions": converting to the order is
@@ -433,6 +436,7 @@ DEEP["bank-reconciliation"] = DEEP["finance-reconcile"];
 DEEP["accounting-setup"] = DEEP["accounts-setup"]; // check:mobile -- /accounting-setup
 DEEP["sales-order"] = DEEP["sales-invoices"]; // a single-page run (check:mobile -- /sales-order): the sales INVOICE list
 DEEP["quotations"] = DEEP["sales-quotations"]; // check:mobile -- /quotations
+DEEP["recurring-invoices"] = DEEP["sales-recurring"]; // check:mobile -- /recurring-invoices
 DEEP["purchase-order"] = DEEP["purchase-invoices"]; // ... and likewise for the other three order modules
 DEEP["sales-return"] = DEEP["sales-returns"];
 DEEP["purchase-return"] = DEEP["purchase-returns"];
@@ -2241,6 +2245,13 @@ function stubFor(pathname, search = "") {
     const rows = [row("a1", "4000", "Sales of goods with a long account name", "INCOME", 250000, 231400.5), row("a2", "6100", "Rent Expense", "EXPENSE", 36000, 36000), row("a3", "6200", "Fuel and vehicle running costs", "EXPENSE", 12000, 14850.25)];
     return { budget: { name: "Budget 2026", costCentre: null }, from: "2026-01", to: "2026-10", months: ["2026-01", "2026-10"], rows, totals: { income: { budget: 250000, actual: 231400.5, variance: -18599.5 }, expense: { budget: 48000, actual: 50850.25, variance: 2850.25 }, net: { budget: 202000, actual: 180550.25, variance: -21449.75 } } };
   }
+  // recurring invoices: a running one with a long name, a paused one, and one whose last run was refused
+  if (/\/recurring-invoices\/[^/]+$/.test(p) && !p.endsWith("/preview-dates")) return { _id: "ri1", name: "Annual maintenance contract - Al Khaleej Trading head office", partyId: "c1", frequency: "monthly", interval: 1, startDay: "2026-12-01", maxCount: 12, status: "ACTIVE", items: [], charges: [], discount: 0, totalAmount: 5250, made: 3, cursor: 3, nextRunDay: "2027-03-01" };
+  if (p.endsWith("/recurring-invoices")) return [
+    { _id: "ri1", name: "Annual maintenance contract - Al Khaleej Trading head office", partyName: "Al Khaleej General Trading LLC", describe: "Every month", status: "ACTIVE", nextRunDay: "2027-03-01", made: 3, maxCount: 12, totalAmount: 5250, lastRun: { day: "2027-02-01", transactionNo: "SO-2027-0042" } },
+    { _id: "ri2", name: "Warehouse lease", partyName: "Gulf Mills", describe: "Every quarter", status: "PAUSED", nextRunDay: "2027-04-01", made: 1, totalAmount: 63000, lastRun: null },
+    { _id: "ri3", name: "Software subscription", partyName: "Deira Foods", describe: "Every month", status: "ACTIVE", nextRunDay: "2026-10-01", made: 0, totalAmount: 1050, lastRun: null, lastError: { day: "2026-10-01", message: "Posting is closed up to 31 Oct 2026" } },
+  ];
   if (p.endsWith("/accounting/budgets/suggest")) return { from: "2025", lines: [] };
   if (/\/accounting\/budgets\/[^/]+$/.test(p)) return { _id: "b1", name: "Budget 2026", fiscalYearId: "fy26", lines: [{ accountId: "a1", accountCode: "4000", accountName: "Sales", category: "INCOME", amounts: { "2026-01": 20000, "2026-02": 21000 } }], totals: { income: 41000, expense: 0 } };
   if (p.endsWith("/accounting/budgets")) return [{ _id: "b1", name: "Budget 2026", fiscalYearId: "fy26", year: { code: "2026", startDate: "2026-01-01T00:00:00Z", endDate: "2026-12-31T23:59:59Z" }, costCentre: null, lines: [], totals: { income: 250000, expense: 48000 } }];

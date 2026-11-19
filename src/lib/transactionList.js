@@ -35,7 +35,7 @@ export const serverSortKey = (key) => SORT_KEYS[key] || "number";
  *   status   a document status, or "PAY:PAID" | "PAY:PARTIAL" | "PAY:UNPAID" | "PAY:OVERDUE" (what has been collected), or "ALL"
  *   partyId  one customer or vendor, or "ALL"
  */
-export function listParams({ type, period, search, status, partyId, sort, order, page = 1, limit = 25 } = {}) {
+export function listParams({ type, period, search, status, partyId, recurring, sort, order, page = 1, limit = 25 } = {}) {
   const params = { type, ...dateParams(period), page, limit: Math.min(SERVER_PAGE, Math.max(1, Number(limit) || 25)) };
   const needle = String(search ?? "").trim();
   if (needle) params.search = needle;
@@ -44,6 +44,7 @@ export function listParams({ type, period, search, status, partyId, sort, order,
     else params.status = status;
   }
   if (partyId && partyId !== "ALL") params.partyId = partyId;
+  if (recurring) params.recurring = recurring; // made by a recurring invoice: "1" any, or one template's id
   if (sort) {
     params.sort = serverSortKey(sort);
     params.order = order === "asc" ? "asc" : "desc";

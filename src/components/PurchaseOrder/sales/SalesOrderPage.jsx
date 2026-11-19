@@ -80,6 +80,8 @@ import { isService } from "../../../lib/itemTypes";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
 // that is on it): the list opens already narrowed to that document.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
+// ?recurring=1 (from the recurring invoices notice): only the drafts and invoices a recurring invoice made, over all time
+const linkedRecurring = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("recurring") || "");
 
 const SalesOrderManagement = () => {
   const { canAny, featureOn } = useOrganisation();
@@ -101,13 +103,14 @@ const SalesOrderManagement = () => {
   const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
+  const [recurringFilter, setRecurringFilter] = useState(linkedRecurring);
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
   // The list opens on this calendar month; a link that names a document (?search=) opens on all time, because that document
   // may be from any month. Only a change of period asks the server again: the rest is filtered, sorted and paged here.
-  const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
+  const periodFilter = usePeriodFilter({ initial: linkedSearch() || linkedRecurring() ? "all" : DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
   const [notifications, setNotifications] = useState([]);
@@ -125,6 +128,7 @@ const SalesOrderManagement = () => {
     search: searchTerm,
     status: statusFilter,
     partyId: customerFilter,
+    recurring: recurringFilter,
     sort: sortBy,
     order: sortOrder,
     page: currentPage,
@@ -299,6 +303,7 @@ const SalesOrderManagement = () => {
       discount: typeof t.discount === "number" ? t.discount : 0,
       // Set only when this invoice was raised from a garage job card; absent on every other invoice.
       jobCardRef: t.jobCardRef || null,
+      recurringRef: t.recurringRef || null, // made by a recurring invoice (its name is shown beside the number)
       tradeOrderRef: t.tradeOrderRef || null,
     })),
     );
@@ -402,7 +407,7 @@ const SalesOrderManagement = () => {
   );
 
   // FILTERING & SORTING (search, status and customer are applied here, to the whole period)
-  const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || customerFilter !== "ALL";
+  const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || customerFilter !== "ALL" || Boolean(recurringFilter);
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("ALL");
@@ -911,6 +916,12 @@ const Dashboard = () => (
                 )}
               </div>
             </div>
+            {recurringFilter && (
+              <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground" role="status">
+                Showing only the invoices made by recurring invoices.
+                <button type="button" onClick={() => setRecurringFilter("")} className="font-medium text-foreground underline underline-offset-2">Show all invoices</button>
+              </p>
+            )}
             <PeriodNote filter={periodFilter} count={statistics.total} extra={filtersOn ? `${list.total} match the search and filters` : undefined} noun="orders" one="order" className="mt-3" />
           </div>
         )}
