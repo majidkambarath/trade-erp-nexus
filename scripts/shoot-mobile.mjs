@@ -2235,6 +2235,15 @@ function stubFor(pathname, search = "") {
     };
   }
   // Cost centres: two shops (one switched off), and the profit and loss by cost centre
+  // Budgets: one for the year (whole business), its lines, last year's actuals, and budget vs actual
+  if (/\/accounting\/budgets\/[^/]+\/report$/.test(p)) {
+    const row = (id, code, name, category, budget, actual) => ({ accountId: id, accountCode: code, accountName: name, category, budget, actual, variance: actual - budget, used: Math.round((actual / budget) * 100), favourable: category === "INCOME" ? actual >= budget : actual <= budget });
+    const rows = [row("a1", "4000", "Sales of goods with a long account name", "INCOME", 250000, 231400.5), row("a2", "6100", "Rent Expense", "EXPENSE", 36000, 36000), row("a3", "6200", "Fuel and vehicle running costs", "EXPENSE", 12000, 14850.25)];
+    return { budget: { name: "Budget 2026", costCentre: null }, from: "2026-01", to: "2026-10", months: ["2026-01", "2026-10"], rows, totals: { income: { budget: 250000, actual: 231400.5, variance: -18599.5 }, expense: { budget: 48000, actual: 50850.25, variance: 2850.25 }, net: { budget: 202000, actual: 180550.25, variance: -21449.75 } } };
+  }
+  if (p.endsWith("/accounting/budgets/suggest")) return { from: "2025", lines: [] };
+  if (/\/accounting\/budgets\/[^/]+$/.test(p)) return { _id: "b1", name: "Budget 2026", fiscalYearId: "fy26", lines: [{ accountId: "a1", accountCode: "4000", accountName: "Sales", category: "INCOME", amounts: { "2026-01": 20000, "2026-02": 21000 } }], totals: { income: 41000, expense: 0 } };
+  if (p.endsWith("/accounting/budgets")) return [{ _id: "b1", name: "Budget 2026", fiscalYearId: "fy26", year: { code: "2026", startDate: "2026-01-01T00:00:00Z", endDate: "2026-12-31T23:59:59Z" }, costCentre: null, lines: [], totals: { income: 250000, expense: 48000 } }];
   if (p.endsWith("/reports/cost-centres")) {
     const row = (id, code, name, rev, exp) => ({ costCentreId: id, code, name, isActive: true, revenue: rev, directCosts: rev * 0.6, grossProfit: rev * 0.4, otherIncome: 0, operatingExpenses: exp, netProfit: rev * 0.4 - exp });
     const rows = [row("cc1", "SHOP1", "Deira shop with a longer name", 125000, 18000), row("cc2", "SHOP2", "Karama shop", 84000, 12500), { ...row(null, "", "Not assigned", 9000, 22000) }];

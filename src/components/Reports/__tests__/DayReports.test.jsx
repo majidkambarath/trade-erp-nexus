@@ -41,7 +41,7 @@ describe("where the reports are", () => {
     expect(m.dailySummary).not.toHaveBeenCalled();
     expect(m.dayEnd).not.toHaveBeenCalled();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["General ledger", "Day book", "Daily summary", "Journals", "Cash and bank", "Day end"]);
+    expect(tabs).toEqual(["General ledger", "Day book", "Daily summary", "Journals", "Cash and bank", "Day end", "Budget vs actual"]); // By cost centre is drawn only once the organisation has a cost centre
 
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Daily summary" }), { button: 0 }); // a Radix tab opens on the press
     expect(await screen.findByRole("table", { name: "Daily voucher summary" })).toBeInTheDocument();
