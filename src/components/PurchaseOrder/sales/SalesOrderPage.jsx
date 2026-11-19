@@ -51,15 +51,15 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import SaleInvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput, CURRENCY } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
 import { usePeriodFilter } from "../../lists/usePeriodFilter";
 import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
-import { fetchAllTransactions } from "../../../lib/transactionList";
+import useServerList from "../shared/useServerList";
 import { inDocumentCurrency } from "../../../lib/foreignDocument";
-import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
-import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
+import { DEFAULT_LIST_PERIOD, compareCount, previousPeriod } from "../../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageFigures } from "../../../lib/pagination";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 import { useCompanyProfile } from "../shared/useCompanyProfile";
 import { buildSalesDocument } from "../shared/invoiceDocuments";
@@ -75,7 +75,6 @@ import Can from "../../shell/Can";
 import { useOrganisation } from "../../shell/OrganisationContext";
 import { isPostedDocument, planBulkDelete, postedDeleteText, skippedPostedText } from "../../../lib/permissions";
 import { orgCurrency } from "../../../utils/orgLocale";
-import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
 import { isService } from "../../../lib/itemTypes";
 // Other screens link here with ?search=<number> (a quotation that became this order, a delivery note
@@ -111,13 +110,29 @@ const SalesOrderManagement = () => {
   const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
-  const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
-  const listRequest = useRef(0);
   const [notifications, setNotifications] = useState([]);
   const [selectedSOs, setSelectedSOs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
+  // The server filters, sorts and pages: this is ONE page of the period, the cards of the whole period, and the count before it
+  // (components/PurchaseOrder/shared/useServerList.js).
+  const list = useServerList({
+    http: axiosInstance,
+    type: "sales_order",
+    period,
+    compare: previous,
+    search: searchTerm,
+    status: statusFilter,
+    partyId: customerFilter,
+    sort: sortBy,
+    order: sortOrder,
+    page: currentPage,
+    size: itemsPerPage,
+    onError: (error) => addNotification("Failed to fetch transactions: " + (error.response?.data?.message || error.message), "error"),
+  });
+  const everRead = useRef(false);
+  if (!list.loading) everRead.current = true;
   // Starts true (D22): the first paint, before fetchTransactions has even run once, used to take the
   // non-loading branch and show "0 orders" rather than a loading state.
   const [isLoading, setIsLoading] = useState(true);
@@ -164,11 +179,6 @@ const SalesOrderManagement = () => {
     fetchCustomers();
     fetchStockItems();
   }, []);
-
-  // Read the list for the period shown, on mount and whenever the period changes
-  useEffect(() => {
-    fetchTransactions();
-  }, [period.key]);
 
   // A new search, filter or period starts at the first page and drops a selection made on other rows: a bulk action must act
   // on what is seen
@@ -234,22 +244,13 @@ const SalesOrderManagement = () => {
     }
   };
 
-  const fetchTransactions = async ({ quiet } = {}) => {
-    const ask = ++listRequest.current;
-    if (quiet !== true) setIsLoading(true); // a refresh after an approval keeps the rows on screen
-    try {
-      // every page of the period (the server returns 20 unless asked, and 200 at most), not the newest twenty
-      const { rows: transactions, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
-        type: "sales_order",
-        period,
-        serverDates: true,
-        compare: previous,
-      });
-      if (ask !== listRequest.current) return; // a newer read is on its way
-      setListInfo({ total, truncated, previousTotal });
-      setSalesOrders(
-  transactions.map(inDocumentCurrency).map((t) => {
-    return {
+  // Reading again after a save, an approval or a delete (quiet: the rows stay on screen while it happens)
+  const fetchTransactions = (opts) => list.refresh(opts);
+
+  // The server's page, shaped for the screen. Kept in state because the form and the send dialog update a row in place.
+  useEffect(() => {
+    setSalesOrders(
+      list.rows.map(inDocumentCurrency).map((t) => ({
       id: t._id,
       currency: t.currency || "",
       exchangeRate: t.exchangeRate || null,
@@ -299,19 +300,9 @@ const SalesOrderManagement = () => {
       // Set only when this invoice was raised from a garage job card; absent on every other invoice.
       jobCardRef: t.jobCardRef || null,
       tradeOrderRef: t.tradeOrderRef || null,
-    };
-  })
-);
-    } catch (error) {
-      addNotification(
-        "Failed to fetch transactions: " +
-          (error.response?.data?.message || error.message),
-        "error"
-      );
-    } finally {
-      if (ask === listRequest.current) setIsLoading(false);
-    }
-  };
+    })),
+    );
+  }, [list.rows]);
 
   const generateTransactionNumber = () => {
     // The number is assigned by the server's numbering series when the document is saved.
@@ -389,55 +380,26 @@ const SalesOrderManagement = () => {
     };
   };
 
-  // The documents of the period, exactly: the server is asked for a day either side, and this is the test that counts.
-  // Everything below (the cards, the list, the pages) is these rows.
-  const periodRows = useMemo(
-    () => salesOrders.filter((so) => inPeriod(toInputDate(so.date), period)),
-    [salesOrders, period]
+  // STATISTICS - of the period shown, against the period before it. The server counts them over the whole period (not the page).
+  const cards = useMemo(() => list.summary || {}, [list.summary]);
+  const statistics = useMemo(
+    () => ({
+      total: cards.count ?? 0,
+      draft: cards.draft ?? 0,
+      confirmed: cards.confirmed ?? 0,
+      invoiced: cards.invoiced ?? 0,
+      paid: cards.paid ?? 0,
+      partial: cards.partial ?? 0,
+      unpaid: cards.unpaid ?? 0,
+      open: cards.open ?? 0,
+      overdue: cards.overdue ?? 0,
+      overdueValue: cards.overdueValue ?? 0,
+      totalValue: cards.totalValue ?? 0,
+      invoicedValue: cards.invoicedValue ?? 0,
+      compare: compareCount(cards.count ?? 0, list.previousCount, previous?.name),
+    }),
+    [cards, list.previousCount, previous?.name]
   );
-
-  // STATISTICS - of the period shown, against the period before it
-  const statistics = useMemo(() => {
-    const total = periodRows.length;
-    const draft = periodRows.filter((so) => so.status === "DRAFT").length;
-    const confirmed = periodRows.filter((so) => so.status === "APPROVED").length;
-    // An approved sale IS its invoice (approval is what issues it and posts it), so "invoiced" is what has been approved.
-    // It used to count a status nothing ever writes, and read 0 beside four approved invoices.
-    const isInvoiced = (so) => so.status === "INVOICED" || (so.status === "APPROVED" && !so.isOpening);
-    const invoiced = periodRows.filter(isInvoiced).length;
-    const totalValue = periodRows.reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-    const invoicedValue = periodRows.filter(isInvoiced).reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-    // what has been collected, from the amounts (never from a stored status): lib/paymentStatus.js
-    const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
-    let open = 0;
-    let overdue = 0;
-    let overdueValue = 0;
-    for (const so of periodRows) {
-      const p = paymentStatus(so);
-      if (!p) continue;
-      payment[p.key] += 1;
-      open += p.outstanding ?? 0;
-      if (isPastDue(so)) {
-        overdue += 1;
-        overdueValue += p.outstanding ?? 0;
-      }
-    }
-    return {
-      total,
-      draft,
-      confirmed,
-      invoiced,
-      paid: payment.PAID,
-      partial: payment.PARTIAL,
-      unpaid: payment.UNPAID,
-      open,
-      overdue,
-      overdueValue,
-      totalValue,
-      invoicedValue,
-      compare: compareCount(total, listInfo.previousTotal, previous?.name),
-    };
-  }, [periodRows, listInfo.previousTotal, previous?.name]);
 
   // FILTERING & SORTING (search, status and customer are applied here, to the whole period)
   const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || customerFilter !== "ALL";
@@ -447,82 +409,13 @@ const SalesOrderManagement = () => {
     setCustomerFilter("ALL");
     setCurrentPage(1);
   };
-  const filteredAndSortedSOs = useMemo(
-    () => () => {
-      const needle = searchTerm.trim().toLowerCase();
-      const has = (v) => String(v ?? "").toLowerCase().includes(needle);
-      let filtered = periodRows.filter((so) => {
-        const matchesSearch =
-          !needle ||
-          has(so.transactionNo) ||
-                    has(so.customerName) ||
-          has(so.createdByName) ||
-          has(so.refNo) ||
-          has(so.docNo) ||
-          has(so.notes) ||
-          (so.items || []).some((i) => has(i.description) || has(i.itemName));
-
-        // "PAY:PAID" and friends filter by what has been collected; anything else is the document's own status
-        const matchesStatus =
-          statusFilter === "ALL" ||
-          (statusFilter.startsWith("PAY:") ? paymentStatus(so)?.key === statusFilter.slice(4) : so.status === statusFilter);
-        const matchesCustomer =
-          customerFilter === "ALL" || so.customerId === customerFilter;
-
-        return matchesSearch && matchesStatus && matchesCustomer;
-      });
-
-      filtered.sort((a, b) => {
-        let aVal, bVal;
-        switch (sortBy) {
-          case "date":
-            aVal = new Date(a.date);
-            bVal = new Date(b.date);
-            break;
-          case "amount":
-            aVal = parseFloat(a.totalAmount);
-            bVal = parseFloat(b.totalAmount);
-            break;
-          case "customer":
-            aVal = a.customerName;
-            bVal = b.customerName;
-            break;
-          case "status":
-            aVal = a.status;
-            bVal = b.status;
-            break;
-          default:
-            aVal = a.transactionNo;
-            bVal = b.transactionNo;
-        }
-        return sortOrder === "asc"
-          ? aVal < bVal
-            ? -1
-            : 1
-          : aVal > bVal
-          ? -1
-          : 1;
-      });
-
-      return filtered;
-    },
-    [
-      periodRows,
-      searchTerm,
-      statusFilter,
-      customerFilter,
-      sortBy,
-      sortOrder,
-    ]
-  );
-
-  const filteredSOs = filteredAndSortedSOs();
+  // the page the server sent: already filtered, sorted and cut
+  const pageView = pageFigures({ page: currentPage, size: itemsPerPage, total: list.total });
+  const paginatedSOs = salesOrders;
   // the page shown is always one that exists: a filter that leaves fewer rows, or a deleted last row, never leaves an empty page
-  const pageView = pageSlice(filteredSOs, currentPage, itemsPerPage);
-  const paginatedSOs = pageView.rows;
   useEffect(() => {
-    if (currentPage !== pageView.page) setCurrentPage(pageView.page);
-  }, [currentPage, pageView.page]);
+    if (!list.loading && currentPage !== pageView.page) setCurrentPage(pageView.page);
+  }, [list.loading, currentPage, pageView.page]);
 
   const getStatusColor = (status) => statusClasses(status);
 
@@ -1018,14 +911,14 @@ const Dashboard = () => (
                 )}
               </div>
             </div>
-            <PeriodNote filter={periodFilter} count={periodRows.length} extra={filtersOn ? `${filteredSOs.length} match the search and filters` : undefined} noun="orders" one="order" limited={listInfo.truncated} className="mt-3" />
+            <PeriodNote filter={periodFilter} count={statistics.total} extra={filtersOn ? `${list.total} match the search and filters` : undefined} noun="orders" one="order" className="mt-3" />
           </div>
         )}
       </div>
       )}
 
       <div className="p-4 sm:p-6 lg:p-8">
-        {isLoading ? (
+        {isLoading || (list.loading && !everRead.current) ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
           </div>
@@ -1033,17 +926,17 @@ const Dashboard = () => (
           <>
             {(activeView === "dashboard" || activeView === "list") && <Cards />}
             {activeView === "dashboard" && <Dashboard />}
-            {activeView === "list" && filteredSOs.length === 0 && (
+            {activeView === "list" && list.total === 0 && !list.loading && (
               <ListEmpty
                 filter={periodFilter}
                 noun="sales invoices"
-                inPeriod={periodRows.length}
+                inPeriod={statistics.total}
                 filtered={filtersOn}
                 onClearFilters={clearFilters}
                 createText="Create the first one with New sales invoice."
               />
             )}
-            {activeView === "list" && filteredSOs.length > 0 && (
+            {activeView === "list" && list.total > 0 && (
               <>
                 {wide && viewMode === "table" ? (
                   <TableView

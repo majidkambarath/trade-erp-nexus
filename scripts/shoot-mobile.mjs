@@ -843,6 +843,14 @@ function stubFor(pathname, search = "") {
   const q = new URLSearchParams(search);
   const page = { total: 6, current: 1, pages: 1, limit: 20 };
 
+  // The cards above an invoice or return list: counted by the server over the whole period (GET /transactions/transactions/summary).
+  if (p.endsWith("/transactions/summary")) {
+    return {
+      count: 6, draft: 2, confirmed: 4, invoiced: 4, paid: 1, partial: 1, unpaid: 2, open: 2400, overdue: 1, overdueValue: 800,
+      totalValue: 9000, invoicedValue: 6000, byStatus: { APPROVED: 4, DRAFT: 2 }, valueByStatus: { APPROVED: 6000, DRAFT: 3000 },
+    };
+  }
+
   // Van sales. Answered FIRST: "/van-sales/customers" and "/van-sales/trips" would otherwise be read by the generic
   // customer and document rules further down. The shapes are what vanTripService.present() and the list really send,
   // so the trip tiles, the route with its stops, the long customer name and the count-back table are all measured.

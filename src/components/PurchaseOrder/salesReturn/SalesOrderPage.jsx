@@ -50,7 +50,7 @@ import SOForm from "./SOForm";
 import TableView from "./TableView";
 import GridView from "./GridView";
 import InvoiceView from "./InvoiceView";
-import { decimalRound, downloadCSV, formatDateGB, formatNumber, toInputDate, todayInput, CURRENCY } from "../../../utils/format";
+import { decimalRound, downloadCSV, formatDateGB, formatNumber, todayInput, CURRENCY } from "../../../utils/format";
 import { priorityDotClass, statusClasses, toastClasses } from "../../../lib/status";
 
 import { useDeleteConfirm } from "../shared/useDeleteConfirm";
@@ -63,10 +63,10 @@ import { usePeriodFilter } from "../../lists/usePeriodFilter";
 import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
-import { fetchAllTransactions } from "../../../lib/transactionList";
+import useServerList from "../shared/useServerList";
 import { inDocumentCurrency } from "../../../lib/foreignDocument";
-import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
-import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
+import { DEFAULT_LIST_PERIOD, compareCount, previousPeriod } from "../../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageFigures } from "../../../lib/pagination";
 const SalesReturnOrderManagement = () => {
   const { canAny } = useOrganisation();
   const { stateOf, me } = useApproval();
@@ -90,13 +90,29 @@ const SalesReturnOrderManagement = () => {
   const periodFilter = usePeriodFilter({ initial: DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
-  const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
-  const listRequest = useRef(0);
   const [notifications, setNotifications] = useState([]);
   const [selectedSOs, setSelectedSOs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [salesReturnOrders, setSalesReturnOrders] = useState([]);
+  // The server filters, sorts and pages: this is ONE page of the period, the cards of the whole period, and the count before it
+  // (components/PurchaseOrder/shared/useServerList.js).
+  const list = useServerList({
+    http: axiosInstance,
+    type: "sales_return",
+    period,
+    compare: previous,
+    search: searchTerm,
+    status: statusFilter,
+    partyId: customerFilter,
+    sort: sortBy,
+    order: sortOrder,
+    page: currentPage,
+    size: itemsPerPage,
+    onError: (error) => addNotification(`Transactions load error: ${error.response?.data?.message || error.message}`, "error"),
+  });
+  const everRead = useRef(false);
+  if (!list.loading) everRead.current = true;
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [createdSO, setCreatedSO] = useState(null); // Track newly created return order
@@ -128,11 +144,6 @@ const SalesReturnOrderManagement = () => {
     fetchCustomers();
     fetchStockItems();
   }, []);
-
-  // Read the list for the period shown, on mount and whenever the period changes
-  useEffect(() => {
-    fetchTransactions();
-  }, [period.key]);
 
   // A new search, filter or period starts at the first page and drops a selection made on other rows: a bulk action must
   // act on what is seen
@@ -196,18 +207,13 @@ const SalesReturnOrderManagement = () => {
   };
 
   // Fetch transactions from backend
-  const fetchTransactions = async ({ quiet } = {}) => {
-    const ask = ++listRequest.current;
-    if (quiet !== true) setIsLoading(true); // a refresh after an approval keeps the rows on screen
-    try {
-      const { rows: fetched, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
-        type: "sales_return",
-        period,
-        serverDates: false,
-        compare: previous,
-      });
-      if (ask !== listRequest.current) return; // a newer read is on its way
-      setListInfo({ total, truncated, previousTotal });
+  // Reading again after a save, an approval or a delete (quiet: the rows stay on screen while it happens)
+  const fetchTransactions = (opts) => list.refresh(opts);
+
+  // The server's page, shaped for the screen (and enriched with the party and item lists as they arrive). Kept in state because
+  // the form and the send dialog update a row in place.
+  useEffect(() => {
+    const fetched = list.rows;
       setSalesReturnOrders(
         fetched.map(inDocumentCurrency).map((transaction) => {
           return {
@@ -250,17 +256,7 @@ const SalesReturnOrderManagement = () => {
           };
         })
       );
-    } catch (error) {
-      console.error("Fetch Transactions Error:", error);
-      addNotification(
-        "Failed to fetch sales return orders: " +
-          (error.response?.data?.message || error.message),
-        "error"
-      );
-    } finally {
-      if (ask === listRequest.current) setIsLoading(false);
-    }
-  };
+  }, [list.rows, customers, stockItems]);
 
   // Generate transaction number on create view
   useEffect(() => {
@@ -298,23 +294,21 @@ const SalesReturnOrderManagement = () => {
     setTimeout(resetForm, 0);
   };
 
-  // The documents of the period, exactly (returns are read without a date filter: see lib/transactionList.js).
-  // Everything below (the cards, the list, the pages) is these rows.
-  const periodRows = useMemo(() => salesReturnOrders.filter((row) => inPeriod(toInputDate(row.date), period)), [salesReturnOrders, period]);
-
-  // STATISTICS - of the period shown, against the period before it
+  // STATISTICS - of the period shown, against the period before it. The server counts them over the whole period (not the page).
+  const cards = useMemo(() => list.summary || {}, [list.summary]);
   const statistics = useMemo(() => {
-    const total = periodRows.length;
-    const draft = periodRows.filter((so) => so.status === "DRAFT").length;
-    const confirmed = periodRows.filter((so) => so.status === "APPROVED").length;
-    const invoiced = periodRows.filter((so) => so.status === "INVOICED").length;
-    const totalValue = periodRows.reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
-    const invoicedValue = periodRows.filter((so) => so.status === "INVOICED").reduce((sum, so) => sum + parseFloat(so.totalAmount), 0);
+    const by = cards.byStatus || {};
+    const val = cards.valueByStatus || {};
     return {
-      total, draft, confirmed, invoiced, totalValue, invoicedValue,
-      compare: compareCount(total, previous ? salesReturnOrders.filter((r) => inPeriod(toInputDate(r.date), previous)).length : null, previous?.name),
+      total: cards.count ?? 0,
+      draft: by.DRAFT ?? 0,
+      confirmed: by.APPROVED ?? 0,
+      invoiced: by.INVOICED ?? 0,
+      totalValue: cards.totalValue ?? 0,
+      invoicedValue: val.INVOICED ?? 0,
+      compare: compareCount(cards.count ?? 0, list.previousCount, previous?.name),
     };
-  }, [periodRows, salesReturnOrders, previous]);
+  }, [cards, list.previousCount, previous?.name]);
 
   // FILTERING & SORTING (search, status and party are applied here, to the whole period)
   const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || customerFilter !== "ALL";
@@ -324,68 +318,13 @@ const SalesReturnOrderManagement = () => {
     setCustomerFilter("ALL");
     setCurrentPage(1);
   };
-  const filteredAndSortedSOs = useMemo(
-    () => () => {
-      const needle = searchTerm.trim().toLowerCase();
-      const has = (v) => String(v ?? "").toLowerCase().includes(needle);
-      let filtered = periodRows.filter((row) => {
-        const matchesSearch =
-          !needle ||
-          has(row.transactionNo) ||
-          has(row.customerName) ||
-          has(row.createdByName) ||
-          has(row.reason) ||
-          has(row.notes) ||
-          (row.items || []).some((i) => has(i.description) || has(i.itemName));
-
-        const matchesStatus = statusFilter === "ALL" || row.status === statusFilter;
-        const matchesParty = customerFilter === "ALL" || row.customerId === customerFilter;
-
-        return matchesSearch && matchesStatus && matchesParty;
-      });
-
-      filtered.sort((a, b) => {
-        let aVal, bVal;
-
-        switch (sortBy) {
-          case "date":
-            aVal = new Date(a.date);
-            bVal = new Date(b.date);
-            break;
-          case "amount":
-            aVal = parseFloat(a.totalAmount);
-            bVal = parseFloat(b.totalAmount);
-            break;
-          case "customer":
-            aVal = a.customerName || "";
-            bVal = b.customerName || "";
-            break;
-          case "status":
-            aVal = a.status;
-            bVal = b.status;
-            break;
-          default:
-            aVal = a.transactionNo;
-            bVal = b.transactionNo;
-        }
-
-        if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-        return 0;
-      });
-
-      return filtered;
-    },
-    [periodRows, searchTerm, statusFilter, customerFilter, sortBy, sortOrder]
-  );
-
-  const filteredSOs = filteredAndSortedSOs();
+  // the page the server sent: already filtered, sorted and cut
+  const pageView = pageFigures({ page: currentPage, size: itemsPerPage, total: list.total });
+  const paginatedSOs = salesReturnOrders;
   // the page shown is always one that exists: a filter that leaves fewer rows, or a deleted last row, never leaves an empty page
-  const pageView = pageSlice(filteredSOs, currentPage, itemsPerPage);
-  const paginatedSOs = pageView.rows;
   useEffect(() => {
-    if (currentPage !== pageView.page) setCurrentPage(pageView.page);
-  }, [currentPage, pageView.page]);
+    if (!list.loading && currentPage !== pageView.page) setCurrentPage(pageView.page);
+  }, [list.loading, currentPage, pageView.page]);
 
   const getStatusColor = (status) => statusClasses(status);
 
@@ -881,14 +820,14 @@ const Dashboard = () => (
                 )}
               </div>
             </div>
-            <PeriodNote filter={periodFilter} count={periodRows.length} extra={filtersOn ? `${filteredSOs.length} match the search and filters` : undefined} noun="returns" one="return" limited={listInfo.truncated} className="mt-3" />
+            <PeriodNote filter={periodFilter} count={statistics.total} extra={filtersOn ? `${list.total} match the search and filters` : undefined} noun="returns" one="return" className="mt-3" />
           </div>
         )}
       </div>
       )}
 
       <div className="p-4 sm:p-6 lg:p-8">
-        {isLoading ? (
+        {isLoading || (list.loading && !everRead.current) ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
@@ -896,17 +835,17 @@ const Dashboard = () => (
           <>
             {(activeView === "dashboard" || activeView === "list") && <Cards />}
             {activeView === "dashboard" && <Dashboard />}
-            {activeView === "list" && filteredSOs.length === 0 && (
+            {activeView === "list" && list.total === 0 && !list.loading && (
               <ListEmpty
                 filter={periodFilter}
                 noun="sales returns"
-                inPeriod={periodRows.length}
+                inPeriod={statistics.total}
                 filtered={filtersOn}
                 onClearFilters={clearFilters}
                 createText="Create the first one with New sales return."
               />
             )}
-            {activeView === "list" && filteredSOs.length > 0 && (
+            {activeView === "list" && list.total > 0 && (
               <>
                 {wide && viewMode === "table" ? (
                   <TableView

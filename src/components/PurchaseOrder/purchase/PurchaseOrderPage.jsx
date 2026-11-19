@@ -63,13 +63,12 @@ import { usePeriodFilter } from "../../lists/usePeriodFilter";
 import { PeriodNote, PeriodSelect } from "../../lists/PeriodFilter";
 import ListPager from "../../lists/ListPager";
 import ListEmpty from "../../lists/ListEmpty";
-import { fetchAllTransactions } from "../../../lib/transactionList";
+import useServerList from "../shared/useServerList";
 import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { isRecordId } from "../../../lib/people";
-import { isPastDue, paymentStatus } from "../../../lib/paymentStatus";
 import StatusOverview from "../../lists/StatusOverview";
-import { DEFAULT_LIST_PERIOD, compareCount, inPeriod, previousPeriod } from "../../../lib/listPeriod";
-import { DEFAULT_PAGE_SIZE, pageSlice } from "../../../lib/pagination";
+import { DEFAULT_LIST_PERIOD, compareCount, previousPeriod } from "../../../lib/listPeriod";
+import { DEFAULT_PAGE_SIZE, pageFigures } from "../../../lib/pagination";
 // Other screens link here with ?search=<number> (the purchase invoice made from goods received, or from an order): the list
 // opens already narrowed to that document, over all time.
 const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
@@ -97,13 +96,29 @@ const PurchaseOrderManagement = () => {
   const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
-  const [listInfo, setListInfo] = useState({ total: 0, truncated: false, previousTotal: null });
-  const listRequest = useRef(0);
   const [notifications, setNotifications] = useState([]);
   const [selectedPOs, setSelectedPOs] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  // The server filters, sorts and pages: this is ONE page of the period, the cards of the whole period, and the count before it
+  // (components/PurchaseOrder/shared/useServerList.js).
+  const list = useServerList({
+    http: axiosInstance,
+    type: "purchase_order",
+    period,
+    compare: previous,
+    search: searchTerm,
+    status: statusFilter,
+    partyId: vendorFilter,
+    sort: sortBy,
+    order: sortOrder,
+    page: currentPage,
+    size: itemsPerPage,
+    onError: (error) => addNotification(`Transactions load error: ${error.response?.data?.message || error.message}`, "error"),
+  });
+  const everRead = useRef(false);
+  if (!list.loading) everRead.current = true;
   const [isLoading, setIsLoading] = useState(false);
   const [createdPO, setCreatedPO] = useState(null);
 
@@ -141,11 +156,6 @@ const PurchaseOrderManagement = () => {
     fetchVendors();
     fetchStockItems();
   }, []);
-
-  // Read the list for the period shown, on mount and whenever the period changes
-  useEffect(() => {
-    fetchTransactions();
-  }, [period.key]);
 
   // A new search, filter or period starts at the first page and drops a selection made on other rows: a bulk action must
   // act on what is seen
@@ -203,18 +213,13 @@ const PurchaseOrderManagement = () => {
     }
   };
 
-  const fetchTransactions = async ({ quiet } = {}) => {
-    const ask = ++listRequest.current;
-    if (quiet !== true) setIsLoading(true); // a refresh after an approval keeps the rows on screen
-    try {
-      const { rows: fetched, total, truncated, previousTotal } = await fetchAllTransactions(axiosInstance, {
-        type: "purchase_order",
-        period,
-        serverDates: true,
-        compare: previous,
-      });
-      if (ask !== listRequest.current) return; // a newer read is on its way
-      setListInfo({ total, truncated, previousTotal });
+  // Reading again after a save, an approval or a delete (quiet: the rows stay on screen while it happens)
+  const fetchTransactions = (opts) => list.refresh(opts);
+
+  // The server's page, shaped for the screen (and enriched with the party and item lists as they arrive). Kept in state because
+  // the form and the send dialog update a row in place.
+  useEffect(() => {
+    const fetched = list.rows;
 
 
       const enrichedPOs = fetched.map(inDocumentCurrency).map((t) => {
@@ -314,18 +319,8 @@ const PurchaseOrderManagement = () => {
           linkedRef: t.linkedRef || null,
         };
       });
-
-      console.log("DEBUG: Enriched POs sample:", enrichedPOs[0]?.items?.[0]);  // TEMP: Check first item's code fields
       setPurchaseOrders(enrichedPOs);
-    } catch (e) {
-      addNotification(
-        `Transactions load error: ${e.response?.data?.message || e.message}`,
-        "error"
-      );
-    } finally {
-      if (ask === listRequest.current) setIsLoading(false);
-    }
-  };
+  }, [list.rows, vendors, stockItems]);
 
   // Generate transaction number on create view
   useEffect(() => {
@@ -362,43 +357,28 @@ const PurchaseOrderManagement = () => {
     setTimeout(resetForm, 0);
   };
 
-  // The documents of the period, exactly: the server is asked for a day either side, and this is the test that counts.
-  // Everything below (the cards, the list, the pages) is these rows.
-  const periodRows = useMemo(() => purchaseOrders.filter((row) => inPeriod(toInputDate(row.date), period)), [purchaseOrders, period]);
-
-  // STATISTICS - of the period shown, against the period before it
+  // STATISTICS - of the period shown, against the period before it. The server counts them over the whole period (not the page).
+  const cards = useMemo(() => list.summary || {}, [list.summary]);
   const statistics = useMemo(() => {
-    const total = periodRows.length;
-    const pending = periodRows.filter((po) => po.status === "PENDING").length;
-    // what has been paid to the vendor, from the amounts (never from a stored status): lib/paymentStatus.js.
-    // This used to count status "paid", which no document ever has.
-    const payment = { PAID: 0, PARTIAL: 0, UNPAID: 0 };
-    let open = 0;
-    let overdue = 0;
-    let overdueValue = 0;
-    for (const po of periodRows) {
-      const p = paymentStatus(po);
-      if (!p) continue;
-      payment[p.key] += 1;
-      open += p.outstanding ?? 0;
-      if (isPastDue(po)) {
-        overdue += 1;
-        overdueValue += p.outstanding ?? 0;
-      }
-    }
-    const paid = payment.PAID;
-    const partial = payment.PARTIAL;
-    const unpaid = payment.UNPAID;
-    const approved = periodRows.filter((po) => po.status === "APPROVED").length;
-    const draft = periodRows.filter((po) => po.status === "DRAFT").length;
-    const rejected = periodRows.filter((po) => po.status === "REJECTED").length;
-    const totalValue = periodRows.reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
-    const approvedValue = periodRows.filter((po) => po.status === "APPROVED").reduce((sum, po) => sum + parseFloat(po.totalAmount), 0);
+    const by = cards.byStatus || {};
+    const val = cards.valueByStatus || {};
     return {
-      total, pending, approved, draft, paid, partial, unpaid, open, overdue, overdueValue, rejected, totalValue, approvedValue,
-      compare: compareCount(total, listInfo.previousTotal, previous?.name),
+      total: cards.count ?? 0,
+      pending: by.PENDING ?? 0,
+      approved: by.APPROVED ?? 0,
+      draft: by.DRAFT ?? 0,
+      rejected: by.REJECTED ?? 0,
+      paid: cards.paid ?? 0,
+      partial: cards.partial ?? 0,
+      unpaid: cards.unpaid ?? 0,
+      open: cards.open ?? 0,
+      overdue: cards.overdue ?? 0,
+      overdueValue: cards.overdueValue ?? 0,
+      totalValue: cards.totalValue ?? 0,
+      approvedValue: val.APPROVED ?? 0,
+      compare: compareCount(cards.count ?? 0, list.previousCount, previous?.name),
     };
-  }, [periodRows, listInfo.previousTotal, previous?.name]);
+  }, [cards, list.previousCount, previous?.name]);
 
   // FILTERING & SORTING (search, status and party are applied here, to the whole period)
   const filtersOn = Boolean(searchTerm.trim()) || statusFilter !== "ALL" || vendorFilter !== "ALL";
@@ -408,70 +388,13 @@ const PurchaseOrderManagement = () => {
     setVendorFilter("ALL");
     setCurrentPage(1);
   };
-  const filteredAndSortedPOs = useMemo(
-    () => () => {
-      const needle = searchTerm.trim().toLowerCase();
-      const has = (v) => String(v ?? "").toLowerCase().includes(needle);
-      let filtered = periodRows.filter((row) => {
-        const matchesSearch =
-          !needle ||
-          has(row.transactionNo) ||
-          has(row.vendorName) ||
-          has(row.createdByName) ||
-          has(row.vendorReference) ||
-          has(row.notes) ||
-          (row.items || []).some((i) => has(i.description) || has(i.itemName));
-
-        const matchesStatus =
-          statusFilter === "ALL" ||
-          (statusFilter.startsWith("PAY:") ? paymentStatus(row)?.key === statusFilter.slice(4) : row.status === statusFilter);
-        const matchesParty = vendorFilter === "ALL" || row.vendorId === vendorFilter;
-
-        return matchesSearch && matchesStatus && matchesParty;
-      });
-
-      filtered.sort((a, b) => {
-        let aVal, bVal;
-
-        switch (sortBy) {
-          case "date":
-            aVal = new Date(a.date);
-            bVal = new Date(b.date);
-            break;
-          case "amount":
-            aVal = parseFloat(a.totalAmount);
-            bVal = parseFloat(b.totalAmount);
-            break;
-          case "vendor":
-            aVal = a.vendorName;
-            bVal = b.vendorName;
-            break;
-          case "status":
-            aVal = a.status;
-            bVal = b.status;
-            break;
-          default:
-            aVal = a.transactionNo;
-            bVal = b.transactionNo;
-        }
-
-        if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-        return 0;
-      });
-
-      return filtered;
-    },
-    [periodRows, searchTerm, statusFilter, vendorFilter, sortBy, sortOrder]
-  );
-
-  const filteredPOs = filteredAndSortedPOs();
+  // the page the server sent: already filtered, sorted and cut
+  const pageView = pageFigures({ page: currentPage, size: itemsPerPage, total: list.total });
+  const paginatedPOs = purchaseOrders;
   // the page shown is always one that exists: a filter that leaves fewer rows, or a deleted last row, never leaves an empty page
-  const pageView = pageSlice(filteredPOs, currentPage, itemsPerPage);
-  const paginatedPOs = pageView.rows;
   useEffect(() => {
-    if (currentPage !== pageView.page) setCurrentPage(pageView.page);
-  }, [currentPage, pageView.page]);
+    if (!list.loading && currentPage !== pageView.page) setCurrentPage(pageView.page);
+  }, [list.loading, currentPage, pageView.page]);
 
   const getStatusColor = (status) => statusClasses(status);
 
@@ -990,14 +913,14 @@ const Dashboard = () => (
                 )}
               </div>
             </div>
-            <PeriodNote filter={periodFilter} count={periodRows.length} extra={filtersOn ? `${filteredPOs.length} match the search and filters` : undefined} noun="orders" one="order" limited={listInfo.truncated} className="mt-3" />
+            <PeriodNote filter={periodFilter} count={statistics.total} extra={filtersOn ? `${list.total} match the search and filters` : undefined} noun="orders" one="order" className="mt-3" />
           </div>
         )}
       </div>
       )}
 
       <div className="p-4 sm:p-6 lg:p-8">
-        {isLoading ? (
+        {isLoading || (list.loading && !everRead.current) ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground"></div>
           </div>
@@ -1005,17 +928,17 @@ const Dashboard = () => (
           <>
             {(activeView === "dashboard" || activeView === "list") && <Cards />}
             {activeView === "dashboard" && <Dashboard />}
-            {activeView === "list" && filteredPOs.length === 0 && (
+            {activeView === "list" && list.total === 0 && !list.loading && (
               <ListEmpty
                 filter={periodFilter}
                 noun="purchase invoices"
-                inPeriod={periodRows.length}
+                inPeriod={statistics.total}
                 filtered={filtersOn}
                 onClearFilters={clearFilters}
                 createText="Create the first one with New purchase invoice."
               />
             )}
-            {activeView === "list" && filteredPOs.length > 0 && (
+            {activeView === "list" && list.total > 0 && (
               <>
                 {wide && viewMode === "table" ? (
                   <TableView
