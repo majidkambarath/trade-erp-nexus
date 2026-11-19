@@ -11,6 +11,7 @@ import { Balance, EmptyState, ErrorNote, Field, Modal, PageHeader, Panel, Pill, 
 import { LedgerModal } from "../accounting/ChartOfAccounts";
 import { ClosingEntriesToggle, DateRange, Frame, useExportPreamble, ViewBar, useYearToDate } from "./reportKit";
 import { DailySummary, DayEnd } from "./DayReports";
+import BudgetVsActual from "./BudgetVsActual";
 import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import SavedViews from "../lists/SavedViews";
 import { useListView } from "../../lib/useListView";
@@ -29,7 +30,7 @@ const VOUCHER_TYPES = [
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
 ];
 const TYPE_OPTIONS = VOUCHER_TYPES.map(([value, label]) => ({ value, label }));
-const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend", "centres"];
+const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend", "centres", "budget"];
 
 // Reports read from the general ledger: every account, every voucher, the journals, and cash and bank.
 export default function LedgerReports() {
@@ -48,10 +49,11 @@ export default function LedgerReports() {
       <DateRange value={range} onChange={setRange} asAt={tab === "dayend"} label={tab === "dayend" ? "Day" : undefined} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList>
-          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="daily">Daily summary</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger><TabsTrigger value="dayend">Day end</TabsTrigger>{(cc.uses || tab === "centres") && <TabsTrigger value="centres">By cost centre</TabsTrigger>}
+          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="daily">Daily summary</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger><TabsTrigger value="dayend">Day end</TabsTrigger>{(cc.uses || tab === "centres") && <TabsTrigger value="centres">By cost centre</TabsTrigger>}<TabsTrigger value="budget">Budget vs actual</TabsTrigger>
         </TabsList></div>
         <TabsContent value="gl">{tab === "gl" && <GeneralLedger range={range} onLedger={openLedger} cc={cc} />}</TabsContent>
         <TabsContent value="centres">{tab === "centres" && <ByCostCentre range={range} />}</TabsContent>
+        <TabsContent value="budget">{tab === "budget" && <BudgetVsActual range={range} />}</TabsContent>
         <TabsContent value="daybook">{tab === "daybook" && <DayBook range={range} />}</TabsContent>
         <TabsContent value="daily">{tab === "daily" && <DailySummary range={range} onDay={openDay} />}</TabsContent>
         <TabsContent value="journals">{tab === "journals" && <Journals range={range} />}</TabsContent>

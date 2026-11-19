@@ -6,6 +6,7 @@ import PostingAccounts from "./setup/PostingAccounts";
 import FiscalYears from "./setup/FiscalYears";
 import TaxCodes from "./setup/TaxCodes";
 import CostCentres from "./setup/CostCentres";
+import Budgets from "./setup/Budgets";
 import Numbering from "./setup/Numbering";
 import AuditLog from "./setup/AuditLog";
 
@@ -14,6 +15,7 @@ const TABS = [
   { id: "years", label: "Fiscal years", Component: FiscalYears },
   { id: "tax", label: "Tax codes", Component: TaxCodes },
   { id: "cost-centres", label: "Cost centres", Component: CostCentres },
+  { id: "budgets", label: "Budgets", Component: Budgets },
   { id: "numbering", label: "Numbering", Component: Numbering },
   { id: "audit", label: "Audit log", Component: AuditLog },
 ];
