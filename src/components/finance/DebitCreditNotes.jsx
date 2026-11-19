@@ -14,6 +14,7 @@ import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { taxWord } from "../../lib/taxTerms";
+import { CostCentreField, useCostCentres } from "../accounting/CostCentreSelect";
 
 // Debit and credit notes. The party is debited by a debit note and credited by a credit note; the
 // lines on the other side say what it was for (a price difference, damaged goods, a charge).
@@ -106,6 +107,8 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
   const [partyId, setPartyId] = useState(copied?.partyId || "");
   const [invoiceId, setInvoiceId] = useState("");
   const [date, setDate] = useState(copied?.date || todayInput());
+  const cc = useCostCentres();
+  const [costCentreId, setCostCentreId] = useState("");
   const [narration, setNarration] = useState(copied?.narration || "");
   const [lines, setLines] = useState(() => copied?.lines || [emptyNoteLine()]);
   const [errors, setErrors] = useState({});
@@ -156,6 +159,7 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
       const saved = await vouchers.create({
         voucherType: type, partyType, partyId, date, narration: narration.trim() || undefined,
         referenceInvoiceId: canSettle && invoiceId ? invoiceId : undefined,
+        ...(costCentreId ? { costCentreId } : {}),
         lines: lines.filter((l) => l.accountId || toCents(l.amount)).map((l) => ({ accountId: l.accountId, description: l.description.trim() || undefined, amount: toCents(l.amount) / 100, taxCodeId: l.taxCodeId || undefined })),
       });
       onSaved(`${TYPES[type].one[0].toUpperCase() + TYPES[type].one.slice(1)} ${saved.voucherNo} ${savedVerb(saved)}`, type);
@@ -188,6 +192,7 @@ export function NoteForm({ initialType = "credit_note", copyOf, onClose, onSaved
           </Field>
           <Field label="Date" required><DateInput value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
+        {cc.uses && <div className="grid gap-4 sm:grid-cols-2"><CostCentreField cc={cc} value={costCentreId} onChange={setCostCentreId} /></div>}
 
         <EntryGrid
           ref={grid} ariaLabel="Note lines" rows={lines} rowErrors={errors} minRows={1} addLabel="Add line"

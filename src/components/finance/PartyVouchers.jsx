@@ -13,6 +13,7 @@ import { currencies } from "../../lib/currencyApi";
 import { convertToBaseCents, currencyOptions, foreignForBase, formatForeign, formatRate, fxPayload, hasForeignOptions, isForeign, rateCheck, typedAmount, typedRate, validateForeign } from "../../lib/currencyForms";
 import { PAYMENT_MODES, describePayment, emptyPayment, fromCents, money, modeLabel, partyVoucherCopy, paymentPayload, savedVerb, toCents, validatePayment } from "../../lib/voucherForms";
 import { amountsIn, CURRENCY, formatDate, formatDateGB } from "../../utils/format";
+import { CostCentreField, useCostCentres } from "../accounting/CostCentreSelect";
 
 // Receipts (money in from a customer) and payments (money out to a vendor) are the same screen
 // with the direction turned round. `amountLabel` carries no currency: the form adds the one in use
@@ -117,6 +118,8 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
   const { data: opts, error: optsError } = useBankingOptions();
   const [partyId, setPartyId] = useState(initial?.partyId || "");
   const [date, setDate] = useState(initial?.date || todayInput());
+  const cc = useCostCentres();
+  const [costCentreId, setCostCentreId] = useState("");
   const [amount, setAmount] = useState(initial?.amount || "");
   // A copy brings no allocations: those settled the original's invoices, so this one is spread over
   // whatever is open today (the amount sits on account until it is).
@@ -281,6 +284,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
         })),
         ...paymentPayload(payment),
         ...fxPayload(fxForm, master),
+        ...(costCentreId ? { costCentreId } : {}),
       });
       onSaved(`${cfg.one[0].toUpperCase() + cfg.one.slice(1)} ${saved.voucherNo} ${savedVerb(saved)}`);
     } catch (err) {
@@ -312,6 +316,7 @@ export function PartyVoucherForm({ cfg, direction, onClose, onSaved, initial = n
           </Field>
           <Field label="Date" required><DateInput value={date} onChange={(e) => changeDate(e.target.value)} /></Field>
         </div>
+        {cc.uses && <div className="grid gap-4 sm:grid-cols-2"><CostCentreField cc={cc} value={costCentreId} onChange={setCostCentreId} /></div>}
 
         {currency && (
           <section aria-label="Foreign currency" className="space-y-3 rounded-xl border border-border bg-secondary/40 p-4">

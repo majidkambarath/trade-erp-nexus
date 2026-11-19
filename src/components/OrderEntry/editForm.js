@@ -31,6 +31,7 @@ export function formFromSaved(V, saved) {
     refNo: raw.lpono || "",
     docNo: raw.docno || "",
     serialNo: raw.serialNo || "",
+    ...(raw.costCentreId ? { costCentreId: String(raw.costCentreId) } : {}),
     discount: String(raw.discount ?? 0),
     charges: (raw.charges || []).map((c) => ({
       code: c.code,

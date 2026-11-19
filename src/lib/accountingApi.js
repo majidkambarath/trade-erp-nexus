@@ -84,6 +84,12 @@ export const accounting = {
   numberRegister: (params) => api.get("/accounting/number-register", params),
   numberGaps: (params) => api.get("/accounting/number-register/gaps", params),
   taxCodes: () => api.get("/accounting/tax-codes"),
+  // cost centres: the master (organisation-wide), and the profit and loss by centre
+  costCentres: (params) => api.get("/accounting/cost-centres", params),
+  createCostCentre: (body) => api.post("/accounting/cost-centres", body),
+  updateCostCentre: (id, body) => api.put(`/accounting/cost-centres/${id}`, body),
+  removeCostCentre: (id) => api.del(`/accounting/cost-centres/${id}`),
+  byCostCentre: (params) => api.get("/accounting/reports/cost-centres", params),
   createTaxCode: (body) => api.post("/accounting/tax-codes", body),
   updateTaxCode: (id, body) => api.put(`/accounting/tax-codes/${id}`, body),
   settings: () => api.get("/accounting/settings"),

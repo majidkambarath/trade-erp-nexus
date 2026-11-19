@@ -14,6 +14,7 @@ import { describePayment, emptyPayment, expenseCopy, idOf, money, paymentFromVou
 import { CURRENCY, formatDateGB } from "../../utils/format";
 import { isReverseCharge } from "../../lib/reverseCharge";
 import { taxWord } from "../../lib/taxTerms";
+import { CostCentreField, useCostCentres } from "../accounting/CostCentreSelect";
 
 // Expense vouchers: an expense account of the chart, the VAT on it, and how it was paid - cash,
 // bank, transfer, cheque or card, like any other payment.
@@ -89,6 +90,8 @@ export function ExpenseForm({ voucher, copyOf, prefill = null, onClose, onSaved 
     vendorId: voucher?.partyType === "Vendor" ? idOf(voucher.partyId) : "",
   });
   const [payment, setPayment] = useState(() => copied?.payment || (voucher ? paymentFromVoucher(voucher) : emptyPayment()));
+  const cc = useCostCentres();
+  const [costCentreId, setCostCentreId] = useState(() => (voucher?.costCentreId ? String(voucher.costCentreId) : copyOf?.costCentreId ? String(copyOf.costCentreId) : ""));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
@@ -117,6 +120,7 @@ export function ExpenseForm({ voucher, copyOf, prefill = null, onClose, onSaved 
       const body = {
         voucherType: "expense", ledgerBased: true, date: f.date, expenseAccountId: f.expenseAccountId, description: f.description.trim(),
         amount: net / 100, taxCodeId: f.taxCodeId || undefined, vendorId: f.vendorId || undefined, ...paymentPayload(payment),
+        ...(costCentreId ? { costCentreId } : {}),
       };
       const saved = voucher ? await vouchers.update(voucher._id, body) : await vouchers.create(body);
       onSaved(`Expense ${saved.voucherNo} ${savedVerb(saved, { updated: Boolean(voucher) })}`);
@@ -167,6 +171,7 @@ export function ExpenseForm({ voucher, copyOf, prefill = null, onClose, onSaved 
             <SearchSelect value={f.vendorId} onChange={(v) => set({ vendorId: v })} options={vendorOptions} clearable placeholder="Search vendors…" loading={vendors.loading} />
           </Field>
         </div>
+        {cc.uses && <div className="grid gap-4 sm:grid-cols-2"><CostCentreField cc={cc} value={costCentreId} onChange={setCostCentreId} /></div>}
         {opts && <PaymentModeFields value={payment} onChange={setPayment} direction="payment" options={opts} errors={errors} voucherDate={f.date} amount={total / 100} />}
       </div>
     </Modal>

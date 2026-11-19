@@ -15,6 +15,7 @@ import * as TB from "../../lib/trialBalance";
 import * as BSL from "../../lib/balanceSheet";
 import SavedViews from "../lists/SavedViews";
 import { useListView } from "../../lib/useListView";
+import { CostCentrePicker, useCostCentres } from "../accounting/CostCentreSelect";
 
 const money = (n) => formatNumber(n, 2);
 const CAT = { ASSET: "Assets", LIABILITY: "Liabilities", EQUITY: "Equity", INCOME: "Income", EXPENSE: "Expenses" };
@@ -237,8 +238,17 @@ function ResultRow({ label, amount, note, tone }) {
 }
 
 function ProfitLoss({ range, onLedger }) {
-  const state = useAsync(() => accounting.profitLossDetail({ from: range.from, to: range.to }), [range.from, range.to]);
-  const preambleFor = useExportPreamble("Profit and loss");
+  // one cost centre's profit and loss, "none" for what carries no centre, or the whole business (empty)
+  const cc = useCostCentres();
+  const [centre, setCentre] = useState("");
+  const state = useAsync(() => accounting.profitLossDetail({ from: range.from, to: range.to, ...(centre ? { costCentre: centre } : {}) }), [range.from, range.to, centre]);
+  const preambleFor = useExportPreamble(centre ? `Profit and loss - ${centre === "none" ? "not assigned to a cost centre" : cc.choices([centre]).find((c) => c.value === centre)?.label || "cost centre"}` : "Profit and loss");
+  const centrePicker = cc.uses ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <label htmlFor="pl-cost-centre" className="text-sm font-medium">Cost centre</label>
+      <CostCentrePicker id="pl-cost-centre" value={centre} onChange={setCentre} choices={[...cc.choices([centre]), { value: "none", label: "Not assigned" }]} emptyLabel="Whole business" className="w-auto min-w-56" />
+    </div>
+  ) : null;
   return (
     <Frame state={state}>
       {(d) => {
@@ -252,6 +262,7 @@ function ProfitLoss({ range, onLedger }) {
         };
         return (
           <div className="space-y-4">
+            {centrePicker}
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <StatCard title="Revenue" count={money(d.revenue.total)} tone="olive" subText={CURRENCY} />
               <StatCard title="Gross profit" count={money(d.grossProfit)} tone="teal" subText={d.grossMargin == null ? "No revenue yet" : `${formatNumber(d.grossMargin, 1)}% margin`} />

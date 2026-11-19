@@ -48,8 +48,17 @@ const BATCH_KEYS = ["batchNumber", "expiryDate"];
 // A person who may not see what an item costs (inventory.viewCost) is not drawn the cost column either: the server no longer sends the figure,
 // and a column of zeros would read as "free".
 const COST_COLUMN_KEYS = ["purchasePrice"];
-export const columnsFor = (V, { batches = true, cost = true } = {}) =>
-  (V.columns || []).filter((c) => (batches || !BATCH_KEYS.includes(c.key)) && (cost || !COST_COLUMN_KEYS.includes(c.key)));
+// A document that posts gets a Cost centre column after its tax code once the organisation has a cost centre (`centres`);
+// a line left on "Same as the document" carries none of its own.
+const COSTCENTRE_COL = col("costCentreId", "Cost centre", "select", { min: "min-w-[150px]" });
+export const columnsFor = (V, { batches = true, cost = true, centres = false } = {}) => {
+  const cols = (V.columns || []).filter((c) => (batches || !BATCH_KEYS.includes(c.key)) && (cost || !COST_COLUMN_KEYS.includes(c.key)));
+  if (!centres || V.buildPayload) return cols;
+  const at = cols.findIndex((c) => c.key === "taxCodeId");
+  const out = [...cols];
+  out.splice(at >= 0 ? at + 1 : out.length, 0, COSTCENTRE_COL);
+  return out;
+};
 
 const PURCHASE_COLUMNS = [
   col("itemId", "Item", "item", { min: "min-w-[240px]" }),
@@ -174,6 +183,7 @@ const extras = (row) => {
   if (row.batchNumber) out.batchNumber = String(row.batchNumber).trim();
   if (row.expiryDate) out.expiryDate = row.expiryDate;
   if (row.returnOfLineId) out.returnOfLineId = row.returnOfLineId;
+  if (row.costCentreId) out.costCentreId = row.costCentreId;
   return out;
 };
 
@@ -257,6 +267,7 @@ const savedBase = (i) => ({
   batchNumber: i.batchNumber || "",
   expiryDate: i.expiryDate ? String(i.expiryDate).slice(0, 10) : "",
   returnOfLineId: i.returnOfLineId || "",
+  costCentreId: i.costCentreId ? String(i.costCentreId) : "",
   maxQty: "",
   brand: i.brand || "",
   origin: i.origin || "",
@@ -500,6 +511,8 @@ export const buildPayload = (V, f, rows, stockById, { linkedRef, charges, manual
     totalAmount: decimalRound(num(V.totalAmount(totals, f)) + chargesTotal),
     items,
     ...V.payloadHeader(f),
+    // the document's cost centre: sent when the form holds one (blank clears it on an edit); absent when the form never had the field
+    ...(f.costCentreId !== undefined ? { costCentreId: f.costCentreId || "" } : {}),
   };
   if (headerCharges.length) payload.charges = headerCharges;
   if (linkedRef !== undefined) payload.linkedRef = linkedRef || null;
