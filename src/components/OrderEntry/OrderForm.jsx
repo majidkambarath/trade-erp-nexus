@@ -242,6 +242,28 @@ export default function OrderForm({
     return () => { live = false; };
   }, []);
 
+  // Cost centres: a document that posts (an invoice or a return) may name one for itself and one per line. The field and the
+  // column are drawn only once the organisation has a cost centre, so nobody else sees them. A centre the document already
+  // carries stays offered after it has been switched off; a new choice is from the active ones.
+  const posts = !V.buildPayload;
+  const [centres, setCentres] = useState([]);
+  useEffect(() => {
+    if (!posts) return undefined;
+    let live = true;
+    axiosInstance
+      .get("/accounting/cost-centres")
+      .then((r) => live && setCentres(Array.isArray(r.data?.data) ? r.data.data : []))
+      .catch(() => {});
+    return () => { live = false; };
+  }, [posts]);
+  const usesCentres = posts && centres.some((c) => c.isActive !== false);
+  const centreChoices = useMemo(() => {
+    const inUse = new Set([formData.costCentreId, ...rows.map((r) => r.costCentreId)].filter(Boolean).map(String));
+    return centres
+      .filter((c) => c.isActive !== false || inUse.has(String(c._id)))
+      .map((c) => ({ value: String(c._id), label: `${c.code} · ${c.name}${c.isActive === false ? " (switched off)" : ""}` }));
+  }, [centres, formData.costCentreId, rows]);
+
   // May this document's number be typed? A failure leaves it false, so the form falls back to the
   // number the server allocates - never to an editable box the server would refuse.
   useEffect(() => {
@@ -257,8 +279,8 @@ export default function OrderForm({
     return () => { live = false; };
   }, [V.series]);
   const selectOptions = useMemo(
-    () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: taxCodeLabel(c) })) }),
-    [taxCodes]
+    () => ({ taxCodeId: taxCodes.map((c) => ({ value: c._id, label: taxCodeLabel(c) })), costCentreId: centreChoices }),
+    [taxCodes, centreChoices]
   );
 
   // The organisation's own default tax code (Setup > Tax codes > "Use as the default for new
@@ -438,7 +460,7 @@ export default function OrderForm({
   // The grid's own columns - computed once so Alt+N and the header's Enter know which column
   // a new line's cursor belongs in without duplicating columnsFor's rules.
   const seesCost = can("inventory.viewCost");
-  const columns = useMemo(() => columnsFor(V, { batches: !noBatches, cost: seesCost }), [V, noBatches, seesCost]);
+  const columns = useMemo(() => columnsFor(V, { batches: !noBatches, cost: seesCost, centres: usesCentres }), [V, noBatches, seesCost, usesCentres]);
   // the tax code is required once the company is registered (no blank choice), and read-only while it sells without VAT
   const gridColumns = useMemo(
     () => columns.map((c) => {
@@ -936,6 +958,15 @@ export default function OrderForm({
               {V.labels.serial && (
                 <Field id={fid("serialNo")} label={V.labels.serial} hint="Your own reference. The document number is still given automatically.">
                   <input id={fid("serialNo")} name="serialNo" type="text" maxLength={50} value={formData.serialNo || ""} onChange={(e) => setHeader("serialNo", e.target.value)} placeholder="Optional" className={fieldCls(false)} />
+                </Field>
+              )}
+
+              {usesCentres && (
+                <Field id={fid("costCentreId")} label="Cost centre" hint="For the whole document; a line can name its own.">
+                  <select id={fid("costCentreId")} name="costCentreId" value={formData.costCentreId || ""} onChange={(e) => setHeader("costCentreId", e.target.value)} className={fieldCls(false)}>
+                    <option value="">None</option>
+                    {centreChoices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
                 </Field>
               )}
 

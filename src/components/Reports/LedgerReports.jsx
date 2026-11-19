@@ -15,6 +15,7 @@ import FilterBar, { FilterSelect } from "../lists/FilterBar";
 import SavedViews from "../lists/SavedViews";
 import { useListView } from "../../lib/useListView";
 import * as LF from "../../lib/ledgerFilters";
+import { CostCentrePicker, useCostCentres } from "../accounting/CostCentreSelect";
 
 const money = (n) => formatNumber(n, 2);
 const CATEGORIES = [["", "All categories"], ["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]];
@@ -28,11 +29,12 @@ const VOUCHER_TYPES = [
   ["receipt", "Receipt"], ["payment", "Payment"], ["expense", "Expense"], ["journal", "Journal"], ["contra", "Contra"], ["debit_note", "Debit note"], ["credit_note", "Credit note"],
 ];
 const TYPE_OPTIONS = VOUCHER_TYPES.map(([value, label]) => ({ value, label }));
-const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend"];
+const TAB_IDS = ["gl", "daybook", "daily", "journals", "cash", "dayend", "centres"];
 
 // Reports read from the general ledger: every account, every voucher, the journals, and cash and bank.
 export default function LedgerReports() {
   const [params, setParams] = useSearchParams();
+  const cc = useCostCentres();
   const tab = TAB_IDS.includes(params.get("tab")) ? params.get("tab") : "gl";
   const [range, setRange] = useYearToDate(); // from the start of the fiscal year, once known
   const [ledgerFor, setLedgerFor] = useState(null);
@@ -46,9 +48,10 @@ export default function LedgerReports() {
       <DateRange value={range} onChange={setRange} asAt={tab === "dayend"} label={tab === "dayend" ? "Day" : undefined} />
       <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })}>
         <div className="erp-scroll table-pin-first overflow-x-auto"><TabsList>
-          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="daily">Daily summary</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger><TabsTrigger value="dayend">Day end</TabsTrigger>
+          <TabsTrigger value="gl">General ledger</TabsTrigger><TabsTrigger value="daybook">Day book</TabsTrigger><TabsTrigger value="daily">Daily summary</TabsTrigger><TabsTrigger value="journals">Journals</TabsTrigger><TabsTrigger value="cash">Cash and bank</TabsTrigger><TabsTrigger value="dayend">Day end</TabsTrigger>{(cc.uses || tab === "centres") && <TabsTrigger value="centres">By cost centre</TabsTrigger>}
         </TabsList></div>
-        <TabsContent value="gl">{tab === "gl" && <GeneralLedger range={range} onLedger={openLedger} />}</TabsContent>
+        <TabsContent value="gl">{tab === "gl" && <GeneralLedger range={range} onLedger={openLedger} cc={cc} />}</TabsContent>
+        <TabsContent value="centres">{tab === "centres" && <ByCostCentre range={range} />}</TabsContent>
         <TabsContent value="daybook">{tab === "daybook" && <DayBook range={range} />}</TabsContent>
         <TabsContent value="daily">{tab === "daily" && <DailySummary range={range} onDay={openDay} />}</TabsContent>
         <TabsContent value="journals">{tab === "journals" && <Journals range={range} />}</TabsContent>
@@ -62,7 +65,8 @@ export default function LedgerReports() {
 
 // ---------------------------------------------------------------- general ledger
 
-function GeneralLedger({ range, onLedger }) {
+function GeneralLedger({ range, onLedger, cc }) {
+  const [centre, setCentre] = useState(""); // one cost centre's postings, "none", or all (empty)
   // The same state platform, vocabulary and saved views as the trial balance, so the two reports
   // are narrowed the same way (lib/useListView.js, lib/ledgerFilters.js).
   const list = useListView("general-ledger", { filters: DEFAULT_GL_FILTERS });
@@ -72,9 +76,15 @@ function GeneralLedger({ range, onLedger }) {
   const groupsOnly = f.layout === "groups";
   // The category is the one choice the SERVER applies, so it stays a request parameter. Everything
   // else narrows what has already arrived, which is instant and asks the server for nothing.
-  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: f.category || undefined, includeClosing: f.closing || undefined }), [range.from, range.to, f.category, f.closing]);
+  const state = useAsync(() => accounting.generalLedger({ from: range.from, to: range.to, category: f.category || undefined, includeClosing: f.closing || undefined, costCentre: centre || undefined }), [range.from, range.to, f.category, f.closing, centre]);
   return (
     <div className="space-y-4">
+      {cc?.uses && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="gl-cost-centre" className="text-sm font-medium">Cost centre</label>
+          <CostCentrePicker id="gl-cost-centre" value={centre} onChange={setCentre} choices={[...cc.choices([centre]), { value: "none", label: "Not assigned" }]} emptyLabel="All" className="w-auto min-w-56" />
+        </div>
+      )}
       <Frame state={state}>
         {(all) => {
           const groups = LF.filterGroups(all.groups, choices);
@@ -405,5 +415,57 @@ function CashAndBankBook({ range, onLedger }) {
         }}
       </Frame>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- profit and loss by cost centre
+
+// Each column is the profit and loss narrowed to one cost centre; "Not assigned" is what carries none, so the rows add up to
+// the whole profit and loss for the period.
+function ByCostCentre({ range }) {
+  const state = useAsync(() => accounting.byCostCentre({ from: range.from, to: range.to }), [range.from, range.to]);
+  const preambleFor = useExportPreamble("Profit and loss by cost centre");
+  const COLS = [["revenue", "Revenue"], ["directCosts", "Cost of sales"], ["grossProfit", "Gross profit"], ["otherIncome", "Other income"], ["operatingExpenses", "Operating expenses"], ["netProfit", "Net profit"]];
+  return (
+    <Frame state={state}>
+      {(d) => {
+        const exportCsv = () => downloadCSV(`cost-centres-${range.from}-${range.to}.csv`, ["Code", "Cost centre", ...COLS.map(([, l]) => l)],
+          [...d.rows.map((r) => [r.code, r.name, ...COLS.map(([k]) => r[k])]), ["", "Total", ...COLS.map(([k]) => d.totals[k])]],
+          { preamble: preambleFor(`${formatDate(range.from)} to ${formatDate(range.to)}`) });
+        return (
+          <Panel bodyClassName="p-0" title="Profit and loss by cost centre"
+            description={`What each cost centre earned and spent in the period. "Not assigned" is everything posted without one. ${amountsIn()}.`}
+            actions={d.rows.length ? <Button size="sm" variant="outline" onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden="true" />CSV</Button> : null}>
+            {d.rows.length === 0 ? (
+              <EmptyState title="Nothing posted in this period" text="Choose a cost centre on invoices and vouchers to see their results here." />
+            ) : (
+              <div className="erp-scroll table-pin-first overflow-x-auto">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">Profit and loss by cost centre</caption>
+                  <thead>
+                    <tr className="border-b border-border text-xs text-muted-foreground">
+                      <th scope="col" className="px-4 py-2.5 text-start font-medium">Cost centre</th>
+                      {COLS.map(([k, l]) => <th key={k} scope="col" className="px-4 py-2.5 text-end font-medium">{l}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.rows.map((r) => (
+                      <tr key={r.costCentreId || "none"} className="border-b border-border">
+                        <td className="px-4 py-2.5">{r.code && <span className="me-2 font-mono text-xs text-muted-foreground">{r.code}</span>}{r.name}{r.isActive === false && <Pill className="ms-2">Switched off</Pill>}</td>
+                        {COLS.map(([k]) => <td key={k} className={`px-4 py-2.5 text-end tabular-nums ${k === "netProfit" && r[k] < 0 ? "text-status-danger" : ""}`}>{money(r[k])}</td>)}
+                      </tr>
+                    ))}
+                    <tr className="bg-secondary/70 font-semibold">
+                      <td className="px-4 py-2.5">Total</td>
+                      {COLS.map(([k]) => <td key={k} className="px-4 py-2.5 text-end tabular-nums">{money(d.totals[k])}</td>)}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        );
+      }}
+    </Frame>
   );
 }

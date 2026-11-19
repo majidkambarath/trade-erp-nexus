@@ -8,6 +8,7 @@ import { ListBody, ListToolbar, StatusPill, VoucherView, todayInput, useChartAcc
 import { vouchers } from "../../lib/bankingApi";
 import { emptyJournalRow, fromCents, journalCopy, journalPayload, journalRowsFromVoucher, journalTotals, money, savedVerb, suggestBalance, toCents, validateJournal } from "../../lib/voucherForms";
 import { drCr, formatDateGB, moneyHeading } from "../../utils/format";
+import { CostCentreField, CostCentrePicker, useCostCentres } from "../accounting/CostCentreSelect";
 
 // Journal vouchers: any number of rows, each a debit or a credit on an account of the chart.
 // Saving is allowed only when debits equal credits.
@@ -70,6 +71,9 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
   const totals = useMemo(() => journalTotals(rows), [rows]);
+  // cost centres: one for the journal, and one per line ("Same as the journal" leaves the line on the journal's)
+  const cc = useCostCentres();
+  const [costCentreId, setCostCentreId] = useState(() => (voucher?.costCentreId ? String(voucher.costCentreId) : ""));
 
   const patch = (i, p) => setRows((rs) => rs.map((r, k) => (k === i ? { ...r, ...p } : r)));
 
@@ -105,7 +109,7 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
     setBusy(true);
     setProblem(null);
     try {
-      const body = journalPayload({ date, narration: narration.trim() || undefined, rows });
+      const body = journalPayload({ date, narration: narration.trim() || undefined, rows, costCentreId });
       const saved = voucher ? await vouchers.update(voucher._id, body) : await vouchers.create(body);
       onSaved(`Journal ${saved.voucherNo} ${savedVerb(saved, { updated: Boolean(voucher) })}`);
     } catch (e) {
@@ -134,12 +138,14 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
           <Field label="Date" required><DateInput value={date} onChange={(e) => setDate(e.target.value)} data-autofocus /></Field>
           <Field label="Narration" hint="What this journal is for."><TextInput value={narration} onChange={(e) => setNarration(e.target.value)} maxLength={200} placeholder="e.g. Month-end accrual" /></Field>
         </div>
+        {cc.uses && <div className="grid gap-4 sm:grid-cols-2"><CostCentreField cc={cc} value={costCentreId} onChange={setCostCentreId} hint="Every line is reported under it, unless the line names its own." /></div>}
 
         <EntryGrid
           ref={grid} ariaLabel="Journal rows" rows={rows} rowErrors={errors}
           columns={[
             { key: "account", label: "Account", className: "min-w-64 w-[38%]" },
             { key: "narration", label: "Narration / remarks" },
+            ...(cc.uses ? [{ key: "costCentre", label: "Cost centre", className: "min-w-40" }] : []),
             // A money column names the currency in its HEADING, once. `name` is what the cell is
             // called to a screen reader, so it does not repeat "(AED)" on every row.
             { key: "debit", label: moneyHeading("Debit"), name: "Debit", align: "end", className: "w-36" },
@@ -156,6 +162,9 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
                 />
               );
             }
+            if (col.key === "costCentre") {
+              return <CostCentrePicker aria-label={`Cost centre, row ${i + 1}`} value={row.costCentreId} onChange={(v) => patch(i, { costCentreId: v })} choices={cc.choices([row.costCentreId, costCentreId])} emptyLabel="Same as the journal" />;
+            }
             if (col.key === "narration") {
               return <TextInput aria-label={`Narration, row ${i + 1}`} value={row.narration} onChange={(e) => patch(i, { narration: e.target.value })} maxLength={200} placeholder="Narration…" />;
             }
@@ -169,13 +178,13 @@ export function JournalForm({ voucher, copyOf, onClose, onSaved }) {
           footer={
             <>
               <tr>
-                <td colSpan={3} className="px-3 py-2.5">Total</td>
+                <td colSpan={cc.uses ? 4 : 3} className="px-3 py-2.5">Total</td>
                 <td className="px-4 py-2.5 text-end tabular-nums">{money(totals.debit)}</td>
                 <td className="px-4 py-2.5 text-end tabular-nums">{money(totals.credit)}</td>
                 <td />
               </tr>
               <tr>
-                <td colSpan={3} className="px-3 py-2 text-sm font-medium">{totals.balanced ? "Balanced" : "Difference"}</td>
+                <td colSpan={cc.uses ? 4 : 3} className="px-3 py-2 text-sm font-medium">{totals.balanced ? "Balanced" : "Difference"}</td>
                 <td colSpan={2} className={totals.balanced ? "px-4 py-2 text-end text-status-success" : "px-4 py-2 text-end text-status-danger"} aria-live="polite">
                   {totals.balanced ? "0.00" : `${diff.text} ${diff.side === "Dr" ? "more debit" : "more credit"}`}
                 </td>

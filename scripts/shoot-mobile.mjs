@@ -2234,6 +2234,20 @@ function stubFor(pathname, search = "") {
       total: 2, page: 1, pages: 1, summary: { issued: 42, released: 1, cancelled: 1 },
     };
   }
+  // Cost centres: two shops (one switched off), and the profit and loss by cost centre
+  if (p.endsWith("/reports/cost-centres")) {
+    const row = (id, code, name, rev, exp) => ({ costCentreId: id, code, name, isActive: true, revenue: rev, directCosts: rev * 0.6, grossProfit: rev * 0.4, otherIncome: 0, operatingExpenses: exp, netProfit: rev * 0.4 - exp });
+    const rows = [row("cc1", "SHOP1", "Deira shop with a longer name", 125000, 18000), row("cc2", "SHOP2", "Karama shop", 84000, 12500), { ...row(null, "", "Not assigned", 9000, 22000) }];
+    const sum = (k) => rows.reduce((t, r) => t + r[k], 0);
+    return { rows, totals: { revenue: sum("revenue"), directCosts: sum("directCosts"), grossProfit: sum("grossProfit"), otherIncome: 0, operatingExpenses: sum("operatingExpenses"), netProfit: sum("netProfit") } };
+  }
+  if (p.endsWith("/accounting/cost-centres")) {
+    return [
+      { _id: "cc1", code: "SHOP1", name: "Deira shop with a longer name", isActive: true, parentId: null },
+      { _id: "cc2", code: "SHOP2", name: "Karama shop", isActive: true, parentId: null },
+      { _id: "cc3", code: "OLD", name: "Closed branch", isActive: false, parentId: null },
+    ];
+  }
   if (p.includes("tax-code")) return [{ _id: "t1", name: "Standard 5%", kind: "standard", ratePercent: 5, isActive: true, isDefault: true, rateHistory: [] }, { _id: "t2", name: "Reverse charge 5%", kind: "reverse_charge", ratePercent: 5, isActive: true, isDefault: false, rateHistory: [] }];
   if (p.includes("audit-log")) return { rows: [], pagination: { total: 0, current: 1, pages: 1 } };
 

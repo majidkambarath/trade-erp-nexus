@@ -151,13 +151,16 @@ export function suggestBalance(rows, index) {
   return diff > 0 ? { side: "credit", amount: fromCents(diff) } : { side: "debit", amount: fromCents(-diff) };
 }
 
-export function journalPayload({ date, narration, rows }) {
+export function journalPayload({ date, narration, rows, costCentreId }) {
   return {
     voucherType: "journal", date, narration,
+    // the journal's cost centre, and a line's own when it names one (absent = none / the journal's)
+    ...(costCentreId ? { costCentreId } : {}),
     lines: rows.filter(used).map((r) => ({
       accountId: r.accountId, narration: r.narration?.trim() || undefined,
       debit: toCents(r.debit) ? fromCents(toCents(r.debit)) : 0,
       credit: toCents(r.credit) ? fromCents(toCents(r.credit)) : 0,
+      ...(r.costCentreId ? { costCentreId: r.costCentreId } : {}),
     })),
   };
 }
@@ -166,6 +169,7 @@ export function journalRowsFromVoucher(v) {
   return (v?.entries || []).map((e) => ({
     accountId: idOf(e.accountId), narration: e.description || "",
     debit: e.debitAmount ? String(e.debitAmount) : "", credit: e.creditAmount ? String(e.creditAmount) : "",
+    ...(e.costCentreId ? { costCentreId: String(e.costCentreId) } : {}),
   }));
 }
 
