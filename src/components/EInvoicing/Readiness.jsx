@@ -58,7 +58,7 @@ export default function Readiness({ notify, onChanged }) {
 }
 
 function PartyModal({ party, onClose, onSaved }) {
-  const [f, setF] = useState({ trnNumber: "", billingAddress: "", city: "", countryCode: "AE", participantId: "" });
+  const [f, setF] = useState({ trnNumber: "", billingAddress: "", city: "", countryCode: "AE", participantId: "", buyerIdentifier: "" });
   const [errors, setErrors] = useState({});
   const [topError, setTopError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -88,6 +88,7 @@ function PartyModal({ party, onClose, onSaved }) {
         {topError && <div className="sm:col-span-2"><ErrorNote error={topError} /></div>}
         <Field label="VAT number (TRN)" error={errors.trnNumber}><TextInput inputMode="numeric" maxLength={15} value={f.trnNumber} onChange={set("trnNumber")} data-autofocus /></Field>
         <Field label="Participant ID" error={errors.participantId} hint="Their Peppol id."><TextInput value={f.participantId} onChange={set("participantId")} placeholder="0235:…" /></Field>
+        <Field label="Identifier (no TRN)" hint="For a customer without a TRN: a trade licence number or similar. Sent to the tax authority only." className="sm:col-span-2"><TextInput value={f.buyerIdentifier} onChange={set("buyerIdentifier")} /></Field>
         <Field label="Address" className="sm:col-span-2"><TextInput value={f.billingAddress} onChange={set("billingAddress")} /></Field>
         <Field label="City"><TextInput value={f.city} onChange={set("city")} /></Field>
         <Field label="Country code" hint="Two letters, e.g. AE."><TextInput value={f.countryCode} onChange={(e) => setF((x) => ({ ...x, countryCode: e.target.value.toUpperCase().slice(0, 2) }))} maxLength={2} /></Field>

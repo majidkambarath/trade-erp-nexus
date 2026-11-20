@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { CalendarClock, Network, ShieldCheck } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { Button } from "../ui/button";
 import { ErrorNote, Field, Panel, Pill, TextInput } from "../accounting/kit";
+import WafeqConnection from "./WafeqConnection";
 
 export default function EInvoiceSettings({ settings, notify, onSaved }) {
   const [participantId, setParticipantId] = useState(settings.participantId);
@@ -54,21 +54,12 @@ export default function EInvoiceSettings({ settings, notify, onSaved }) {
       </Panel>
 
       <Panel title="Connection" description="How invoices leave the system.">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-ring bg-accent p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold"><Network className="h-4 w-4" aria-hidden="true" />Sandbox <Pill tone="info">In use</Pill></p>
-            <p className="mt-1 text-sm text-muted-foreground">Built in. Invoices go through the full process (checks, sending, delivery and tax-authority confirmation) but are not delivered to any real access point. Use it to test.</p>
-          </div>
-          <div className="rounded-xl border border-dashed border-border p-4 opacity-80" aria-disabled="true">
-            <p className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4" aria-hidden="true" />Accredited service provider <Pill><CalendarClock className="h-3 w-3" aria-hidden="true" />Coming soon</Pill></p>
-            <p className="mt-1 text-sm text-muted-foreground">Live exchange over the Peppol network through a Ministry-accredited provider is not connected yet. Until then, nothing here is a valid tax e-invoice.</p>
-          </div>
-        </div>
+        <WafeqConnection settings={settings} notify={notify} onSaved={onSaved} />
       </Panel>
 
       <Panel title="Your identity and preferences">
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="Your Participant ID" error={errors.participantId} hint="Your Peppol identifier, e.g. 0235:100123456700003."><TextInput value={participantId} onChange={(e) => setParticipantId(e.target.value.trim())} placeholder="0235:…" /></Field>
+          <Field label="Your Participant ID" error={errors.participantId} hint={settings.connected ? "Taken from Wafeq's record of your business." : "Your Peppol identifier, e.g. 0235:100123456700003."}><TextInput value={participantId} onChange={(e) => setParticipantId(e.target.value.trim())} placeholder="0235:…" disabled={settings.connected} /></Field>
           <Field label="Send within (days)" error={errors.dueDays} hint="Invoices not sent by then are flagged. 0 turns the reminder off."><TextInput type="number" min="0" step="1" value={dueDays} onChange={(e) => setDueDays(e.target.value)} /></Field>
           <div className="sm:col-span-2">
             <Field label="Signing secret for received invoices" hint="Deliveries to /einvoice/inbound/webhook must be signed with this secret (HMAC-SHA256 of the body in the x-einvoice-signature header). It is stored encrypted and can never be read back.">

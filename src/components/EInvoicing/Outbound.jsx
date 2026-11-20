@@ -4,7 +4,7 @@ import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
-import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
+import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill, deliveryText, ftaText } from "./shared";
 
 // The server returns the newest documents a page at a time (25 unless asked, 100 at most) as a plain list with no total, so
 // the screen asks for 50 and offers older ones while a page comes back full. (It used to ask for none and show only the
@@ -77,7 +77,7 @@ export default function Outbound({ notify, enabled }) {
               { key: "customer", header: "Customer", card: "title", cell: (d) => <>{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (d) => <>{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</> },
               { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
-              { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.deliveryStatus && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{deliveryText(d.deliveryStatus)}{d.taxStatus ? ` · ${ftaText(d.taxStatus)}` : ""}</span>}{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
               {
       key: "actions", header: "Actions", align: "end", card: "actions",
       cell: (d) => {
@@ -128,7 +128,7 @@ export default function Outbound({ notify, enabled }) {
   );
 }
 
-function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSend }) {
+function PreviewModal({ doc, issues = [], payload, ready, wafeq, enabled, onClose, onSend }) {
   return (
     <Modal size="lg" onClose={onClose} title={`${doc.transactionNo} · ${DOC_TYPE[doc.invoiceTypeCode]}`}
       description={ready ? "Checked and ready to send." : `${issues.length} problem${issues.length === 1 ? "" : "s"} to fix before this can be sent.`}
@@ -141,6 +141,15 @@ function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSe
             </li>
           ))}
         </ul>
+      )}
+      {wafeq && !wafeq.checked && <p className="mb-4 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">{wafeq.note}</p>}
+      {wafeq?.checked && (
+        <div className="mb-4 space-y-2" aria-label="Wafeq check">
+          <p className="text-sm"><span className="font-medium">Checked with Wafeq:</span> {wafeq.valid ? "passes the PINT-AE rules" : "does not pass the PINT-AE rules"}{wafeq.route === "reporting_only" ? ". It will be reported to the tax authority only: the buyer is not on Peppol." : ""}</p>
+          {[...wafeq.errors, ...wafeq.warnings].map((i, k) => (
+            <p key={k} className={`rounded-lg px-3 py-2 text-sm ${wafeq.errors.includes(i) ? "border border-status-danger/25 bg-status-danger-soft text-status-danger" : "bg-secondary text-muted-foreground"}`}><span className="font-mono text-xs opacity-80">{i.code}</span> {i.message}</p>
+          ))}
+        </div>
       )}
       {payload && (
         <div className="space-y-4 text-sm">
@@ -191,8 +200,13 @@ function SubmissionModal({ id, onClose }) {
           <dl className="grid gap-2 text-sm sm:grid-cols-3">
             <div><dt className="text-xs text-muted-foreground">Attempts</dt><dd className="font-medium">{data.attempts}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Reference</dt><dd className="font-mono text-xs font-medium">{data.providerEntryId || "—"}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Tax authority</dt><dd className="font-medium">{data.taxStatus || "—"}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Tax authority</dt><dd className="font-medium">{ftaText(data.taxStatus) || "—"}</dd></div>
+            {data.deliveryStatus && <div><dt className="text-xs text-muted-foreground">Delivery</dt><dd className="font-medium">{deliveryText(data.deliveryStatus)}</dd></div>}
+            {data.route === "reporting_only" && <div><dt className="text-xs text-muted-foreground">Route</dt><dd className="font-medium">Tax authority only</dd></div>}
           </dl>
+          {data.providerIssues?.length > 0 && (
+            <ul className="space-y-2" aria-label="Refused by Wafeq">{data.providerIssues.map((i, k) => <li key={k} className="rounded-lg border border-status-danger/25 bg-status-danger-soft px-3 py-2 text-sm text-status-danger"><span className="font-mono text-xs opacity-80">{i.code}</span> {i.message}</li>)}</ul>
+          )}
           {data.lastError && <p className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm text-status-danger">{data.lastError}</p>}
           {data.nextRetryAt && data.status === "FAILED" && <Pill tone="warning">Automatic retry at {formatDateTime(data.nextRetryAt)}</Pill>}
           <div>

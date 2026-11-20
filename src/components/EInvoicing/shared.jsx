@@ -29,3 +29,13 @@ export const NEXT_STEP = {
   FAILED: "Could not be sent. Retry once the cause is fixed.",
   REJECTED: "Rejected. Issue a credit note and a corrected invoice.",
 };
+
+// Wafeq's delivery leg and the tax authority's leg, in words. The sandbox never reports to the tax authority, and says so.
+export const DELIVERY = {
+  queued: "Queued at Wafeq", sending: "Sending", retrying: "Retrying", sent: "Delivered", received_by_ap: "Received by the buyer's provider",
+  forwarded: "Forwarded", delivered_confirmed: "Delivery confirmed", rejected: "Rejected by the buyer", failed: "Buyer not reached (still reported to the tax authority)",
+  attention_required: "Needs attention at Wafeq", delivered: "Delivered",
+};
+export const FTA = { reporting: "Being reported", reported: "Reported", rejected: "Not compliant", withdrawn: "Withdrawn", unresolved: "Unresolved", not_reported: "Not reported (Wafeq sandbox)" };
+export const deliveryText = (s) => DELIVERY[s] || s || "";
+export const ftaText = (s) => FTA[String(s || "").toLowerCase()] || s || "";

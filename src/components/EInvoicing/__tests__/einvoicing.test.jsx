@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   settings: vi.fn(), saveSettings: vi.fn(), readiness: vi.fn(), fixParty: vi.fn(), documents: vi.fn(), preview: vi.fn(),
   submit: vi.fn(), submissions: vi.fn(), submission: vi.fn(), retry: vi.fn(), refresh: vi.fn(), dashboard: vi.fn(),
   inbound: vi.fn(), addInbound: vi.fn(), accept: vi.fn(), reject: vi.fn(),
+  wafeqStart: vi.fn(), wafeqFinish: vi.fn(), wafeqDisconnect: vi.fn(),
 }));
 vi.mock("../../../lib/accountingApi", () => ({ einvoice: m }));
 
@@ -27,10 +28,10 @@ const PAYLOAD = {
 };
 
 describe("the page", () => {
-  it("says honestly that only a sandbox is connected", async () => {
+  it("says honestly that only the built-in sandbox is in use until Wafeq is connected", async () => {
     m.dashboard.mockResolvedValue({ outbound: { total: 0, byStatus: {}, net: 0, tax: 0, payable: 0, successRate: null, needsAttention: 0 }, inbound: {}, recent: [] });
     at();
-    expect(await screen.findByText(/Sandbox only · live connection coming soon/)).toBeInTheDocument();
+    expect(await screen.findByText(/Built-in sandbox · connect Wafeq in Settings/)).toBeInTheDocument();
     expect(await screen.findByText("UAE mandate timeline")).toBeInTheDocument();
   });
 
@@ -242,11 +243,56 @@ describe("readiness", () => {
 });
 
 describe("settings", () => {
-  it("shows the sandbox in use and the real connection as coming soon", async () => {
+  it("shows the built-in sandbox in use, and offers to connect Wafeq when the server is set up for it", async () => {
+    m.settings.mockResolvedValue({ ...SETTINGS, wafeq: { status: "disconnected", modes: { sandbox: { available: true, oauth: true }, live: { available: false, oauth: false } } } });
     at("/e-invoicing?tab=settings");
-    expect(await screen.findByText("Coming soon")).toBeInTheDocument();
-    expect(screen.getByText("In use")).toBeInTheDocument();
-    expect(screen.getByText(/nothing here is a valid tax e-invoice/)).toBeInTheDocument();
+    expect(await screen.findByText("In use")).toBeInTheDocument();
+    expect(screen.getByText(/Nothing here is a valid tax e-invoice/)).toBeInTheDocument();
+    expect(screen.getByText(/Wafeq FZ LLC/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect with Wafeq" })).toBeEnabled();
+    expect(screen.getByRole("option", { name: /Live \(not available yet\)/ })).toBeDisabled();
+  });
+
+  it("sends the person to Wafeq's approval page, and shows nothing connected until they come back", async () => {
+    m.settings.mockResolvedValue({ ...SETTINGS, wafeq: { status: "disconnected", modes: { sandbox: { available: true, oauth: true } } } });
+    m.wafeqStart.mockResolvedValue({ url: "https://einvoicing.wafeq.com/sandbox/oauth/authorize?x=1", mode: "sandbox" });
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", { configurable: true, value: { ...original, assign } });
+    at("/e-invoicing?tab=settings");
+    fireEvent.click(await screen.findByRole("button", { name: "Connect with Wafeq" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://einvoicing.wafeq.com/sandbox/oauth/authorize?x=1"));
+    expect(m.wafeqStart).toHaveBeenCalledWith({ mode: "sandbox" });
+    Object.defineProperty(window, "location", { configurable: true, value: original });
+  });
+
+  it("cannot connect when the server has no OAuth client for the mode, and says so", async () => {
+    m.settings.mockResolvedValue({ ...SETTINGS, wafeq: { status: "disconnected", modes: { sandbox: { available: true, oauth: false } } } });
+    at("/e-invoicing?tab=settings");
+    expect(await screen.findByRole("button", { name: "Connect with Wafeq" })).toBeDisabled();
+    expect(screen.getByText(/not set up for test connections yet/)).toBeInTheDocument();
+  });
+
+  it("shows a connected business with its Peppol id, locks the typed participant id, and can disconnect", async () => {
+    m.settings.mockResolvedValue({
+      ...SETTINGS, provider: "wafeq", connected: true, participantId: "0235:1716865504",
+      wafeq: { status: "active", mode: "sandbox", name: "Sandbox taxpayer 5504", participantId: "0235:1716865504", modes: {} },
+    });
+    m.wafeqDisconnect.mockResolvedValue({ connected: false });
+    at("/e-invoicing?tab=settings");
+    expect(await screen.findByText("Sandbox taxpayer 5504")).toBeInTheDocument();
+    expect(screen.getByText("Test mode: invoices are checked and delivered in simulation. Nothing reaches the tax authority.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Your Participant ID/)).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Disconnect" }));
+    await waitFor(() => expect(m.wafeqDisconnect).toHaveBeenCalledTimes(1));
+  });
+
+  it("says a lost connection needs connecting again", async () => {
+    m.settings.mockResolvedValue({ ...SETTINGS, wafeq: { status: "revoked", lastError: "The Wafeq connection was withdrawn; connect again", modes: { sandbox: { available: true, oauth: true } } } });
+    at("/e-invoicing?tab=settings");
+    expect(await screen.findByText("Connection lost")).toBeInTheDocument();
+    expect(screen.getByText(/withdrawn; connect again/)).toBeInTheDocument();
   });
 
   it("never shows a stored secret; replacing it sends the new one", async () => {

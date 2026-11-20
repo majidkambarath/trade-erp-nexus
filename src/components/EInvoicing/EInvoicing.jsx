@@ -28,7 +28,7 @@ export default function EInvoicing() {
       <PageHeader
         title="e-Invoicing"
         description="Check, send and track UAE electronic invoices, and review the ones your suppliers send you."
-        actions={settings.data && <Pill tone="info">Sandbox only · live connection coming soon</Pill>}
+        actions={settings.data && (settings.data.connected ? <Pill tone={settings.data.environment === "live" ? "success" : "info"}>Wafeq · {settings.data.environment === "live" ? "live" : "test mode"}</Pill> : <Pill tone="info">Built-in sandbox · connect Wafeq in Settings</Pill>)}
       />
       {settings.loading && !settings.data && <Spinner />}
       {settings.error && <ErrorNote error={settings.error} onRetry={settings.reload} />}

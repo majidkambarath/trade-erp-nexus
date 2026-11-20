@@ -80,6 +80,9 @@ export const platform = {
   setStatus: async (code, status) => data(await client.post(`/organisations/${code}/status`, { status })),
   provision: async (code) => data(await client.post(`/organisations/${code}/provision`)),
   saveProfile: async (code, body) => data(await client.put(`/organisations/${code}/profile`, body)),
+  wafeqLink: async (code) => data(await client.get(`/organisations/${code}/einvoice/wafeq`)),
+  linkWafeq: async (code, body) => data(await client.put(`/organisations/${code}/einvoice/wafeq`, body)),
+  unlinkWafeq: async (code) => data(await client.delete(`/organisations/${code}/einvoice/wafeq`)),
 
   users: async (code) => data(await client.get(`/organisations/${code}/users`)),
   roles: async (code) => data(await client.get(`/organisations/${code}/roles`)),

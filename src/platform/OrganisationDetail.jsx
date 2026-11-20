@@ -5,13 +5,14 @@ import { cn } from "../lib/utils";
 import { ConfirmDialog, ErrorNote, PageHeader, Pill, Spinner, useAsync, useToasts } from "../components/accounting/kit";
 import { consoleError, platform } from "./platformApi";
 import { stateLabel } from "./platformForms";
-import { ActivityTab, BranchesTab, CompanyTab, OverviewTab, PeopleTab, PlanTab, SubscriptionTab } from "./detailTabs";
+import { ActivityTab, BranchesTab, CompanyTab, EInvoiceTab, OverviewTab, PeopleTab, PlanTab, SubscriptionTab } from "./detailTabs";
 
 const TABS = [
   { id: "overview", label: "Overview", Component: OverviewTab },
   { id: "plan", label: "Plan and modules", Component: PlanTab },
   { id: "subscription", label: "Subscription", Component: SubscriptionTab },
   { id: "company", label: "Company", Component: CompanyTab },
+  { id: "einvoicing", label: "E-invoicing", Component: EInvoiceTab },
   { id: "people", label: "People", Component: PeopleTab },
   { id: "branches", label: "Branches", Component: BranchesTab },
   { id: "activity", label: "Activity", Component: ActivityTab },

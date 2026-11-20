@@ -93,6 +93,7 @@ const CrmCalendar = lazy(() => import("../components/crm/CrmCalendar.jsx"));
 const CrmReports = lazy(() => import("../components/crm/CrmReports.jsx"));
 const CrmSetup = lazy(() => import("../components/crm/CrmSetup.jsx"));
 const GoogleCallback = lazy(() => import("../components/crm/GoogleCallback.jsx"));
+const WafeqCallback = lazy(() => import("../components/EInvoicing/WafeqCallback.jsx"));
 const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
 const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
@@ -244,6 +245,7 @@ export default function AdminRouter() {
         {/* Where Google returns the browser after consent. Not a page anybody navigates to: it finishes the
             connection and sends the person back to Settings. */}
         <Route path="/crm/google/callback" element={<GoogleCallback />} />
+        <Route path="/settings/einvoicing/wafeq/callback" element={<WafeqCallback />} />
       </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
