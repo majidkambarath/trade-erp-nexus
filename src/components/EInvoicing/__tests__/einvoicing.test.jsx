@@ -8,8 +8,9 @@ const m = vi.hoisted(() => ({
   submit: vi.fn(), submissions: vi.fn(), submission: vi.fn(), retry: vi.fn(), refresh: vi.fn(), dashboard: vi.fn(),
   inbound: vi.fn(), addInbound: vi.fn(), accept: vi.fn(), reject: vi.fn(),
   wafeqStart: vi.fn(), wafeqFinish: vi.fn(), wafeqDisconnect: vi.fn(),
+  inboundPull: vi.fn(), inboundToPurchase: vi.fn(), correct: vi.fn(), creditInFull: vi.fn(), apiGet: vi.fn(),
 }));
-vi.mock("../../../lib/accountingApi", () => ({ einvoice: m }));
+vi.mock("../../../lib/accountingApi", () => ({ einvoice: m, api: { get: m.apiGet } }));
 
 import EInvoicing from "../EInvoicing";
 
@@ -320,5 +321,96 @@ describe("settings", () => {
     at("/e-invoicing?tab=settings");
     fireEvent.click(await screen.findByRole("button", { name: "Switch on" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Not ready to enable: Company TRN (15 digits)");
+  });
+});
+
+describe("received invoices through Wafeq", () => {
+  const WAFEQ_INV = {
+    _id: "i9", documentId: "SUP-77", status: "RECEIVED", source: "wafeq", kind: "invoice", sellerName: "Mill", currency: "AED", issueDate: "2026-11-20",
+    totals: { payable: 105, tax: 5 }, matchedVendorId: { _id: "v1", vendorName: "Mill" }, matchNote: "Matched to Mill; no single purchase order matches",
+    lines: [{ itemName: "Basmati Rice 25 kg", sellerItemId: "RICE", quantity: 1, unitPrice: 100, lineNetAmount: 100, taxCategory: "S", taxRatePercent: 5 }],
+  };
+
+  it("checks Wafeq for new invoices and says what arrived", async () => {
+    m.inbound.mockResolvedValue({ rows: [], total: 0 });
+    m.inboundPull.mockResolvedValue({ found: 2, added: 2, errors: [] });
+    at("/e-invoicing?tab=inbound");
+    fireEvent.click(await screen.findByRole("button", { name: "Check for new" }));
+    expect(await screen.findByText("2 new invoices received")).toBeInTheDocument();
+    expect(m.inboundPull).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so when Wafeq is not connected", async () => {
+    m.inbound.mockResolvedValue({ rows: [], total: 0 });
+    m.inboundPull.mockResolvedValue({ skipped: true, reason: "Wafeq is not connected" });
+    at("/e-invoicing?tab=inbound");
+    fireEvent.click(await screen.findByRole("button", { name: "Check for new" }));
+    expect(await screen.findByText(/Connect Wafeq in Settings/)).toBeInTheDocument();
+  });
+
+  it("records a received invoice as a draft purchase invoice, the item chosen for the line by its code", async () => {
+    m.inbound.mockResolvedValue({ rows: [WAFEQ_INV], total: 1 });
+    m.apiGet.mockResolvedValue({ stocks: [{ _id: "st1", itemId: "RICE", sku: "RICE", itemName: "Basmati Rice 25 kg" }, { _id: "st2", itemId: "OIL", sku: "OIL", itemName: "Oil" }] });
+    m.inboundToPurchase.mockResolvedValue({ transactionId: "t1", transactionNo: "PO-2026-0009", total: 105, receivedTotal: 105, difference: 0 });
+    at("/e-invoicing?tab=inbound");
+    expect(await screen.findByText("From Wafeq")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Record as purchase invoice/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Record SUP-77 as a purchase invoice/ });
+    const make = within(dialog).getByRole("button", { name: "Make draft purchase invoice" });
+    await waitFor(() => expect(make).toBeEnabled()); // the supplier's own item code matched our SKU
+    fireEvent.click(make);
+    await waitFor(() => expect(m.inboundToPurchase).toHaveBeenCalledWith("i9", { lines: [{ itemId: "st1" }] }));
+    expect(await screen.findByText(/equals what the supplier billed/)).toBeInTheDocument();
+  });
+
+  it("shows a difference between the draft and the supplier's total instead of hiding it", async () => {
+    m.inbound.mockResolvedValue({ rows: [WAFEQ_INV], total: 1 });
+    m.apiGet.mockResolvedValue({ stocks: [{ _id: "st1", itemId: "RICE", sku: "RICE", itemName: "Basmati Rice 25 kg" }] });
+    m.inboundToPurchase.mockResolvedValue({ transactionId: "t1", transactionNo: "PO-2026-0009", total: 104.99, receivedTotal: 105, difference: -0.01 });
+    at("/e-invoicing?tab=inbound");
+    fireEvent.click(await screen.findByRole("button", { name: /Record as purchase invoice/ }));
+    const dialog = await screen.findByRole("dialog", { name: /Record SUP-77/ });
+    const make = within(dialog).getByRole("button", { name: "Make draft purchase invoice" });
+    await waitFor(() => expect(make).toBeEnabled());
+    fireEvent.click(make);
+    expect(await screen.findByText(/a difference of/)).toBeInTheDocument();
+  });
+
+  it("offers no purchase-invoice button for a credit note or an unmatched supplier", async () => {
+    m.inbound.mockResolvedValue({ rows: [{ ...WAFEQ_INV, kind: "credit_note" }, { ...WAFEQ_INV, _id: "i10", documentId: "SUP-78", matchedVendorId: null }], total: 2 });
+    at("/e-invoicing?tab=inbound");
+    expect(await screen.findByText("SUP-77")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Record as purchase invoice/ })).toBeNull();
+  });
+});
+
+describe("fix and resend, and credit in full", () => {
+  it("offers a correction only for a buyer's BV or SV rejection, and sends it for that invoice", async () => {
+    m.documents.mockResolvedValue([
+      doc({ status: "REJECTED", submissionId: "s1", rejectedBy: "buyer", deliveryReasonCode: "BV", deliveryReasonText: "Buyer TRN does not match" }),
+      doc({ _id: "d2", transactionNo: "SO-2026-0002", status: "REJECTED", submissionId: "s2", rejectedBy: "fta" }),
+      doc({ _id: "d3", transactionNo: "SO-2026-0003", status: "REJECTED", submissionId: "s3", rejectedBy: "buyer", deliveryReasonCode: "FD" }),
+    ]);
+    m.correct.mockResolvedValue({});
+    at("/e-invoicing?tab=outbound");
+    const buttons = await screen.findAllByRole("button", { name: /Resend correction/ });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+    const dialog = await screen.findByRole("dialog", { name: /Resend SO-2026-0001 as a correction/ });
+    expect(within(dialog).getByText(/Buyer TRN does not match/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Resend correction" }));
+    await waitFor(() => expect(m.correct).toHaveBeenCalledWith("s1"));
+  });
+
+  it("credits an invoice that was sent in full, after confirming", async () => {
+    m.documents.mockResolvedValue([doc({ status: "REPORTED", submissionId: "s1" }), doc({ _id: "d2", transactionNo: "SO-2026-0002", status: "NOT_SENT" })]);
+    m.creditInFull.mockResolvedValue({ _id: "r1", transactionNo: "SR-2026-0001" });
+    at("/e-invoicing?tab=outbound");
+    const buttons = await screen.findAllByRole("button", { name: /Credit in full/ });
+    expect(buttons).toHaveLength(1); // not offered for an invoice that was never sent
+    fireEvent.click(buttons[0]);
+    const dialog = await screen.findByRole("dialog", { name: /Credit SO-2026-0001 in full/ });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Make the credit note" }));
+    await waitFor(() => expect(m.creditInFull).toHaveBeenCalledWith("d1"));
   });
 });

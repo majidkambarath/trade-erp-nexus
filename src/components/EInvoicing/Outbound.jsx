@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Eye, History, RefreshCw, RotateCcw, Search, Send } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Eye, FileMinus2, History, RefreshCw, RotateCcw, Search, Send, Wrench } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
@@ -12,6 +13,7 @@ import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill, deliveryText, ftaText } from "
 const PAGE = 50;
 
 export default function Outbound({ notify, enabled }) {
+  const navigate = useNavigate();
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -90,6 +92,8 @@ export default function Outbound({ notify, enabled }) {
                 <Button size="sm" onClick={() => setPreview({ doc: d, confirmSend: true })} disabled={busy || !enabled}><Send className="h-3.5 w-3.5" aria-hidden="true" />Send</Button>
               </>
             )}
+            {d.status === "REJECTED" && d.rejectedBy === "buyer" && ["BV", "SV"].includes(d.deliveryReasonCode) && <Button size="sm" onClick={() => setPreview({ doc: d, confirmCorrect: true })} disabled={busy || !enabled}><Wrench className="h-3.5 w-3.5" aria-hidden="true" />Resend correction</Button>}
+            {["SUBMITTED", "ACKNOWLEDGED", "REPORTED"].includes(d.status) && d.type === "sales_order" && <Button size="sm" variant="outline" onClick={() => setPreview({ doc: d, confirmCredit: true })} disabled={busy}><FileMinus2 className="h-3.5 w-3.5" aria-hidden="true" />Credit in full</Button>}
             {d.status === "FAILED" && <Button size="sm" onClick={() => act(() => einvoice.retry(d.submissionId), d, `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
             {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Check status</Button>}
             {d.submissionId && <Button size="sm" variant="ghost" onClick={() => setDetail(d.submissionId)} aria-label={`History of ${d.transactionNo}`}><History className="h-3.5 w-3.5" aria-hidden="true" />History</Button>}
@@ -114,9 +118,19 @@ export default function Outbound({ notify, enabled }) {
         </nav>
       )}
 
-      {preview && !preview.confirmSend && (
+      {preview && !preview.confirmSend && !preview.confirmCorrect && !preview.confirmCredit && (
         <PreviewModal {...preview} enabled={enabled} onClose={() => setPreview(null)}
           onSend={() => { const d = preview.doc; setPreview(null); act(() => einvoice.submit(d._id), d, `${d.transactionNo} sent`); }} />
+      )}
+      {preview?.confirmCorrect && (
+        <ConfirmDialog title={`Resend ${preview.doc.transactionNo} as a correction?`} confirmLabel="Resend correction"
+          text={`The buyer rejected it${preview.doc.deliveryReasonText ? `: ${preview.doc.deliveryReasonText}` : ""}. Fix the customer's details first (Readiness, or the customer itself): the invoice is rebuilt from what is saved now. The number stays the same and Wafeq links it to the rejected one.`}
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(() => einvoice.correct(d.submissionId), d, `${d.transactionNo} corrected and sent again`); }} />
+      )}
+      {preview?.confirmCredit && (
+        <ConfirmDialog title={`Credit ${preview.doc.transactionNo} in full?`} confirmLabel="Make the credit note"
+          text="This makes a draft credit note (sales return) for everything on the invoice not yet credited. Review and approve it on Sales > Returns, then send it from here. The invoice itself stays as it was issued."
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(async () => { const r = await einvoice.creditInFull(d._id); navigate(`/sales-return?search=${encodeURIComponent(r.transactionNo)}`); }, d, ""); }} />
       )}
       {preview?.confirmSend && (
         <ConfirmDialog title={`Send ${preview.doc.transactionNo}?`} confirmLabel="Send e-invoice"

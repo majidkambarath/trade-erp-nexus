@@ -1,9 +1,11 @@
-import React, { useState } from "react";
-import { Check, Plus, X } from "lucide-react";
-import { einvoice } from "../../lib/accountingApi";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Check, FilePlus2, Plus, RefreshCw, X } from "lucide-react";
+import { api, einvoice } from "../../lib/accountingApi";
+import { pickerLabel } from "../../lib/itemTypes";
 import { CURRENCY, formatDateGB, formatNumber } from "../../utils/format";
 import { Button } from "../ui/button";
-import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, DateInput, AmountInput } from "../accounting/kit";
+import { EmptyState, ErrorNote, Field, Modal, Panel, Pill, Select, Spinner, TextInput, Textarea, errorMessage, useAsync, DateInput, AmountInput, SearchSelect } from "../accounting/kit";
 
 const TONE = { RECEIVED: "warning", ACCEPTED: "success", REJECTED: "danger" };
 const LABEL = { RECEIVED: "To review", ACCEPTED: "Accepted", REJECTED: "Rejected" };
@@ -16,6 +18,24 @@ export default function Inbound({ notify }) {
   const list = useAsync(() => einvoice.inbound({ status: status || undefined }), [status]);
   const [adding, setAdding] = useState(false);
   const [deciding, setDeciding] = useState(null); // { invoice, decision }
+  const [recording, setRecording] = useState(null); // the received invoice being recorded as a purchase invoice
+  const [checking, setChecking] = useState(false);
+
+  // Ask Wafeq for what has arrived (it also happens by itself every ten minutes).
+  async function checkForNew() {
+    setChecking(true);
+    try {
+      const r = await einvoice.inboundPull();
+      if (r.skipped) notify(r.reason === "Wafeq is not connected" ? "Connect Wafeq in Settings to receive supplier invoices" : "Checked a moment ago");
+      else if (r.errors?.length) notify(`${r.added} new. ${r.errors[0]}`, "error");
+      else notify(r.added ? `${r.added} new invoice${r.added === 1 ? "" : "s"} received` : "Nothing new");
+      list.reload();
+    } catch (e) {
+      notify(errorMessage(e), "error");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   return (
     <Panel
@@ -26,6 +46,7 @@ export default function Inbound({ notify }) {
           <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 w-36 rounded-full">
             <option value="">All</option>{Object.entries(LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
+          <Button size="sm" variant="outline" onClick={checkForNew} disabled={checking}><RefreshCw className="h-4 w-4" aria-hidden="true" />{checking ? "Checking…" : "Check for new"}</Button>
           <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus className="h-4 w-4" aria-hidden="true" />Add received invoice</Button>
         </>
       }
@@ -41,6 +62,8 @@ export default function Inbound({ notify }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-semibold">{i.documentId}</span>
                   <Pill tone={TONE[i.status]}>{LABEL[i.status]}</Pill>
+                  {i.kind === "credit_note" && <Pill tone="info">Credit note</Pill>}
+                  {i.source === "wafeq" && <Pill>From Wafeq</Pill>}
                   <span className="text-sm text-muted-foreground">{i.sellerName || "Unknown supplier"}{i.sellerVatTrn ? ` · TRN ${i.sellerVatTrn}` : ""}</span>
                 </div>
                 <p className="mt-1 text-sm text-foreground">
@@ -50,8 +73,9 @@ export default function Inbound({ notify }) {
                 {i.status === "REJECTED" && i.decision?.reason && <p className="mt-1 text-xs text-muted-foreground">Reason: {i.decision.reason}</p>}
               </div>
               {i.status === "RECEIVED" && (
-                <div className="flex items-start gap-2">
-                  <Button size="sm" onClick={() => setDeciding({ invoice: i, decision: "accept" })}><Check className="h-3.5 w-3.5" aria-hidden="true" />Accept</Button>
+                <div className="flex flex-wrap items-start gap-2">
+                  {i.matchedVendorId && i.kind !== "credit_note" && <Button size="sm" onClick={() => setRecording(i)}><FilePlus2 className="h-3.5 w-3.5" aria-hidden="true" />Record as purchase invoice</Button>}
+                  <Button size="sm" variant="outline" onClick={() => setDeciding({ invoice: i, decision: "accept" })}><Check className="h-3.5 w-3.5" aria-hidden="true" />Accept</Button>
                   <Button size="sm" variant="outline" onClick={() => setDeciding({ invoice: i, decision: "reject" })}><X className="h-3.5 w-3.5" aria-hidden="true" />Reject</Button>
                 </div>
               )}
@@ -59,6 +83,7 @@ export default function Inbound({ notify }) {
           ))}
         </ul>
       )}
+      {recording && <RecordModal invoice={recording} onClose={() => setRecording(null)} onDone={(m) => { setRecording(null); notify(m); list.reload(); }} />}
       {adding && <AddModal onClose={() => setAdding(false)} onSaved={(m) => { setAdding(false); notify(m); list.reload(); }} />}
       {deciding && <DecisionModal {...deciding} onClose={() => setDeciding(null)} onDone={(m) => { setDeciding(null); notify(m); list.reload(); }} />}
     </Panel>
@@ -145,3 +170,60 @@ function AddModal({ onClose, onSaved }) {
 }
 
 export { errorMessage };
+
+// One item for each line the supplier billed; the tax comes from the supplier's own category and rate. It makes a DRAFT purchase invoice
+// (approving it is the ordinary purchase approval) and says plainly if its total differs from what the supplier billed.
+function RecordModal({ invoice, onClose, onDone }) {
+  const navigate = useNavigate();
+  const stocks = useAsync(() => api.get("/stock/stock"), []);
+  const options = useMemo(() => (stocks.data?.stocks || []).map((s) => ({ value: s._id, label: pickerLabel(s), hint: s.itemId, sku: String(s.sku || s.itemId || "").toLowerCase(), name: String(s.itemName || "").toLowerCase() })), [stocks.data]);
+  const [chosen, setChosen] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  // an item already chosen by hand wins; else the supplier's own item code or name, matched to our SKU or name
+  const pick = (l, i) => chosen[i] ?? options.find((o) => (l.sellerItemId && o.sku === String(l.sellerItemId).toLowerCase()) || (l.itemName && o.name === String(l.itemName).toLowerCase()))?.value ?? "";
+  const lines = invoice.lines || [];
+  const ready = lines.length > 0 && lines.every((l, i) => pick(l, i));
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await einvoice.inboundToPurchase(invoice._id, { lines: lines.map((l, i) => ({ itemId: pick(l, i) })) }));
+    } catch (e) {
+      setError(e);
+      setBusy(false);
+    }
+  }
+  if (result) {
+    return (
+      <Modal size="md" onClose={() => onDone(`${invoice.documentId} recorded as ${result.transactionNo}`)} title="Recorded as a draft purchase invoice"
+        footer={<><Button variant="outline" onClick={() => onDone(`${invoice.documentId} recorded as ${result.transactionNo}`)}>Close</Button><Button onClick={() => navigate(`/purchase-order?search=${encodeURIComponent(result.transactionNo)}`)}>Open {result.transactionNo}</Button></>}>
+        <p className="text-sm">Draft <span className="font-mono font-semibold">{result.transactionNo}</span> was made from {invoice.documentId}. Review it and approve it like any purchase invoice.</p>
+        <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${Math.abs(result.difference) < 0.005 ? "bg-status-success-soft text-status-success" : "bg-status-warning-soft text-status-warning"}`}>
+          {Math.abs(result.difference) < 0.005 ? `Its total, ${formatNumber(result.total, 2)}, equals what the supplier billed.` : `Its total is ${formatNumber(result.total, 2)} but the supplier billed ${formatNumber(result.receivedTotal, 2)}: a difference of ${formatNumber(result.difference, 2)}. Check the lines before approving.`}
+        </p>
+      </Modal>
+    );
+  }
+  return (
+    <Modal size="lg" onClose={onClose} title={`Record ${invoice.documentId} as a purchase invoice`} description="Choose the item for each line. The supplier's quantity, price and tax are used as billed."
+      footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !ready}>{busy ? "Saving…" : "Make draft purchase invoice"}</Button></>}>
+      <div className="space-y-3">
+        {error && <ErrorNote error={error} />}
+        {stocks.loading && !stocks.data && <Spinner />}
+        {lines.map((l, i) => (
+          <div key={i} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-center">
+            <div className="min-w-0 text-sm">
+              <p className="font-medium">{l.itemName || "(no name)"}</p>
+              <p className="text-xs text-muted-foreground">{formatNumber(l.quantity, 2)} × {formatNumber(l.unitPrice, 2)} · {l.taxCategory || "no tax"} {l.taxRatePercent}% · net {formatNumber(l.lineNetAmount, 2)}</p>
+            </div>
+            <SearchSelect aria-label={`Item for line ${i + 1}`} value={pick(l, i)} options={options} placeholder="Choose our item" onChange={(v) => setChosen((c) => ({ ...c, [i]: v || "" }))} />
+          </div>
+        ))}
+        <p className="text-sm text-muted-foreground">Supplier total: <span className="font-semibold tabular-nums">{formatNumber(invoice.totals?.payable, 2)}</span> {invoice.currency}</p>
+      </div>
+    </Modal>
+  );
+}

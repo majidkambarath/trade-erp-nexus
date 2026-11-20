@@ -67,6 +67,9 @@ import useServerList from "../shared/useServerList";
 import { inDocumentCurrency } from "../../../lib/foreignDocument";
 import { DEFAULT_LIST_PERIOD, compareCount, previousPeriod } from "../../../lib/listPeriod";
 import { DEFAULT_PAGE_SIZE, pageFigures } from "../../../lib/pagination";
+// a link from another screen (e-Invoicing > Credit in full) opens the list already searched for its document, over every date
+const linkedSearch = () => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("search") || "");
+
 const SalesReturnOrderManagement = () => {
   const { canAny } = useOrganisation();
   const { stateOf, me } = useApproval();
@@ -78,7 +81,7 @@ const SalesReturnOrderManagement = () => {
   const [selectedSO, setSelectedSO] = useState(null);
   // The document whose audit trail is open, or null.
   const [auditSO, setAuditSO] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(linkedSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("date");
@@ -87,7 +90,7 @@ const SalesReturnOrderManagement = () => {
   const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_PAGE_SIZE);
   // The list opens on this calendar month. Only a change of period asks the server again: search, status and party are
   // applied here, to the whole period, and the pages are cut here.
-  const periodFilter = usePeriodFilter({ initial: DEFAULT_LIST_PERIOD });
+  const periodFilter = usePeriodFilter({ initial: linkedSearch() ? "all" : DEFAULT_LIST_PERIOD });
   const { period } = periodFilter;
   const previous = previousPeriod(period, periodFilter.today);
   const [notifications, setNotifications] = useState([]);
