@@ -145,10 +145,8 @@ export const addressLines = (p = {}) => {
   });
 };
 
-// Where a party is, for the line under their address. Only a customer has this: it is
-// `Customer.eInvoice.city` / `.countryCode` (customerModel.js), the very two fields the e-invoice
-// validator reads. A vendor record has no structured locality at all, so a purchase document prints
-// the free-text address it always did and this stays empty.
+// Where a party is, for the line under their address: the city, the emirate and the country chosen on
+// the address (customers and vendors alike), else a customer's older `eInvoice.city` / `.countryCode`.
 //
 // The CITY is what makes the line worth printing. `countryCode` carries a schema default of "AE", so
 // every customer has one whether anybody filled it in or not - printing the country on its own would
@@ -157,9 +155,12 @@ export const localityOf = (party = {}) => {
   // A country CHOSEN on the address (party.country, which has no default) is printed whole: "Dubai, United Arab Emirates", or just the
   // country name for one with no emirate. Only the older e-invoice fields need the city to be worth printing.
   if (String(party?.country ?? "").trim()) {
-    return [String(party?.emirate ?? "").trim() || String(party?.eInvoice?.city ?? "").trim(), countryLabel(party.country)].filter(Boolean).join(", ");
+    const seen = new Set();
+    return [String(party?.city ?? "").trim(), String(party?.emirate ?? "").trim() || String(party?.eInvoice?.city ?? "").trim(), countryLabel(party.country)]
+      .filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()))
+      .join(", ");
   }
-  const city = String(party?.eInvoice?.city ?? "").trim();
+  const city = String(party?.city ?? "").trim() || String(party?.eInvoice?.city ?? "").trim();
   if (!city) return "";
   const country = String(party?.eInvoice?.countryCode ?? "").trim();
   return country ? `${city}, ${country}` : city;

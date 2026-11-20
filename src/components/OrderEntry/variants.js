@@ -596,7 +596,8 @@ VARIANTS.quotation = {
   secondDateKey: "validUntil",
   secondDateRequired: true,
   terms: true,
-  buildPayload: pricedPayload((f) => ({ validUntil: f.validUntil, reference: f.reference || "", terms: f.terms || "" })),
+  // a quotation raised from a CRM deal names it, so the deal is linked whatever else the customer has open
+  buildPayload: pricedPayload((f) => ({ validUntil: f.validUntil, reference: f.reference || "", terms: f.terms || "", ...(f.opportunityId ? { opportunityId: f.opportunityId } : {}) })),
 };
 
 // A recurring invoice: not a document but a TEMPLATE that makes a draft sales invoice on a schedule (/recurring-invoices). No number

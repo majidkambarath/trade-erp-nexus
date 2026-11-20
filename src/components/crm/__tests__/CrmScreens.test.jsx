@@ -34,7 +34,11 @@ const m = vi.hoisted(() => ({
   customers: vi.fn(),
   createDeal: vi.fn(),
   grants: { allow: () => true },
+  features: {},
+  navigate: vi.fn(),
 }));
+
+vi.mock("react-router-dom", async (orig) => ({ ...(await orig()), useNavigate: () => m.navigate }));
 
 vi.mock("../../../lib/crmApi", () => ({
   crm: {
@@ -53,6 +57,7 @@ vi.mock("../../../lib/crmApi", () => ({
 vi.mock("../../shell/OrganisationContext.jsx", () => ({
   useOrganisation: () => ({
     can: (key) => m.grants.allow(key),
+    featureOn: (key) => m.features[key] !== false,
     canAny: (keys) => [].concat(keys || []).some((k) => m.grants.allow(k)),
     me: { id: "u1", name: "Asif" },
   }),
@@ -245,6 +250,44 @@ describe("one deal's own page", () => {
     expect(m.updateDeal.mock.calls[0][1].customerId).toBeUndefined();
   });
 
+  it("carries what the deal is for, line by line, and is worth their total", async () => {
+    m.deal.mockResolvedValue(full());
+    m.updateDeal.mockResolvedValue(full());
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Add a line/ }));
+    fireEvent.change(within(dialog).getByLabelText("Line 1 description"), { target: { value: "Fitting" } });
+    fireEvent.change(within(dialog).getByLabelText("Line 1 quantity"), { target: { value: "3" } });
+    fireEvent.change(within(dialog).getByLabelText("Line 1 price"), { target: { value: "40" } });
+    // with lines the worth is their total, not a box to type in
+    expect(within(dialog).getByDisplayValue(/120\.00/)).toHaveAttribute("readonly");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(m.updateDeal).toHaveBeenCalledWith("d1", expect.objectContaining({ items: [{ description: "Fitting", qty: 3, price: 40 }] })));
+  });
+
+  it("raises a quotation from an open deal only where Quotations and adding sales documents are allowed", async () => {
+    m.deal.mockResolvedValue(full());
+    const first = render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Create quotation" }));
+    expect(m.navigate).toHaveBeenCalledWith("/quotations?mode=create&deal=d1");
+    first.unmount();
+
+    // a CRM-only organisation: no Quotations, no button
+    m.features = { quotations: false };
+    const crmOnly = render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Monthly rice" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create quotation" })).toBeNull();
+    crmOnly.unmount();
+    m.features = {};
+
+    // once a quotation is linked it is opened, not raised again
+    m.deal.mockResolvedValue({ ...full(), links: { quotationId: "q9", quotationNo: "QT-2026-0009" } });
+    render(<MemoryRouter initialEntries={["/crm/pipeline?deal=d1"]}>{<CrmPipeline />}</MemoryRouter>);
+    expect(await screen.findByRole("button", { name: "Open quotation" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create quotation" })).toBeNull();
+  });
+
   it("marks a move that was taken back rather than hiding it", async () => {
     m.deal.mockResolvedValue({
       ...full(),
@@ -271,6 +314,18 @@ describe("one deal's own page", () => {
 });
 
 describe("leads", () => {
+  it("is on the list platform: the status tab and the filters go to the server, and a view can be saved", async () => {
+    render_(<LeadsPage />);
+    await screen.findByRole("table", { name: "Leads" });
+    expect(m.leads.mock.calls[0][0]).toMatchObject({ view: "open" });
+    fireEvent.click(screen.getByRole("tab", { name: "New" }));
+    await waitFor(() => expect(m.leads.mock.calls[m.leads.mock.calls.length - 1][0]).toMatchObject({ status: "NEW" }));
+    fireEvent.change(screen.getByLabelText("How warm"), { target: { value: "hot" } });
+    await waitFor(() => expect(m.leads.mock.calls[m.leads.mock.calls.length - 1][0]).toMatchObject({ status: "NEW", band: "hot" }));
+    // the platform's own controls are there: saved views and the column chooser
+    expect(screen.getByRole("button", { name: /save view|views/i })).toBeInTheDocument();
+  });
+
   it("lists the enquiries with how warm each is and what is owed", async () => {
     render_(<LeadsPage />);
     expect(await screen.findByRole("heading", { name: "Leads" })).toBeInTheDocument();

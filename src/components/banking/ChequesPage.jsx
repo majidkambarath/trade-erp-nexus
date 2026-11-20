@@ -23,7 +23,7 @@ export default function ChequesPage() {
     <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
       <PageHeader title="Cheques" description={DESCRIPTION[view]} />
       <div className="mb-5"><PillTabs tabs={VIEWS} value={view} onChange={choose} label="Cheque views" /></div>
-      {view === "register" && <ChequeRegister embedded />}
+      {view === "register" && <ChequeRegister embedded initialTrip={params.get("vanTrip") || ""} />}
       {view === "due" && <DueDates />}
       {view === "forecast" && <CashForecast />}
     </div>

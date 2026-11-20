@@ -49,19 +49,21 @@ export function settledInvoiceRows(v) {
 // the handful of fields a printed voucher shows; on a LIST row it is a bare id string, so every
 // field but the name is read defensively and simply goes missing rather than throwing.
 //
-// The NAME is the voucher's own `partyName` - the snapshot taken when it was written. The address
-// and tax number are not snapshotted anywhere, so they are read live and a reprint shows today's
-// address. Customer keeps them in `billingAddress` / `trnNumber`, Vendor in `address` / `trnNO`;
-// both also carry `vat.trn`, which is the one kept in step by the party master service.
+// The NAME is the voucher's own `partyName`. The address and tax number come from `partySnapshot`,
+// taken when the voucher was written (FinancialService.partySnapshotOf), so a reprint shows the
+// address it was issued to. A voucher made before the snapshot existed reads them live from the
+// populated party: Customer keeps them in `billingAddress` / `trnNumber`, Vendor in `address` /
+// `trnNO`; both also carry `vat.trn`, which is the one kept in step by the party master service.
 export function partyBlock(v = {}) {
   if (!v.partyName) return null;
   const p = v.partyId && typeof v.partyId === "object" ? v.partyId : {};
+  const snap = v.partySnapshot || null;
   const text = (s) => String(s ?? "").trim();
   return {
     heading: partyLabelFor(v.voucherType),
     name: v.partyName,
-    address: text(p.billingAddress || p.address),
-    taxId: text(p.vat?.trn || p.trnNumber || p.trnNO),
+    address: snap ? text(snap.address) : text(p.billingAddress || p.address),
+    taxId: snap ? text(snap.trn) : text(p.vat?.trn || p.trnNumber || p.trnNO),
     email: text(p.email),
   };
 }
@@ -72,6 +74,10 @@ export function partyBlock(v = {}) {
 // back with no `credit` at all and the label is parsed here instead. "Prepaid" and "Cash on
 // Delivery" carry no number and give 0, which the meta row then drops rather than printing "0".
 export function creditDaysOf(v = {}) {
+  if (v.partySnapshot) {
+    const days = Number(v.partySnapshot.creditDays);
+    return days > 0 ? String(days) : "";
+  }
   const p = v.partyId && typeof v.partyId === "object" ? v.partyId : {};
   const stored = Number(p.credit?.days);
   const days = Number.isFinite(stored) ? stored : termDays(p.paymentTerms);

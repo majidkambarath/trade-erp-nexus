@@ -186,6 +186,36 @@ export const leadBody = (form = {}) => ({
 
 export const emptyDeal = (customerId = "") => ({ title: "", customerId, value: "", expectedCloseDate: "", source: "other", ownerId: "", notes: "" });
 
+// ---- a deal's lines -----------------------------------------------------------------------------------
+// What a deal is for, line by line (the server's rule: utils/crm.js validateDealLines). An item is optional; a line with
+// neither an item nor words is blank and is not sent. When a deal has lines it is worth their total before tax.
+export const emptyDealLine = () => ({ itemId: "", description: "", qty: "1", price: "" });
+const lineFilled = (l) => Boolean(l.itemId || String(l.description || "").trim());
+export const dealLinesTotal = (lines = []) =>
+  Math.round(lines.filter(lineFilled).reduce((t, l) => t + (Number(l.qty) || 0) * (Number(l.price) || 0), 0) * 100) / 100;
+export const dealLinesBody = (lines = []) =>
+  lines.filter(lineFilled).map((l) => ({ ...(l.itemId ? { itemId: l.itemId } : {}), description: String(l.description || "").trim(), qty: Number(l.qty) || 0, price: Number(l.price) || 0 }));
+export const dealLinesFrom = (deal = {}) =>
+  (deal.items || []).map((l) => ({ itemId: l.itemId ? String(l.itemId) : "", description: l.description || "", qty: String(l.qty ?? 1), price: String(l.price ?? "") }));
+export function dealLineErrors(lines = []) {
+  const errors = {};
+  lines.forEach((l, i) => {
+    if (!lineFilled(l)) return;
+    if (!(Number(l.qty) > 0)) errors[`items.${i}.qty`] = "More than nothing";
+    if (Number(l.price) < 0) errors[`items.${i}.price`] = "Not negative";
+  });
+  return errors;
+}
+// What a quotation raised from the deal starts with: the lines that name an item (a quotation line must be an item), and
+// the words of the ones that do not, so the person can see what still has to be added by hand.
+export function quoteLinesFromDeal(deal = {}) {
+  const items = deal.items || [];
+  return {
+    lines: items.filter((l) => l.itemId).map((l) => ({ itemId: String(l.itemId), description: l.description || "", qty: Number(l.qty) || 1, price: Number(l.price) || 0 })),
+    skipped: items.filter((l) => !l.itemId).map((l) => l.description).filter(Boolean),
+  };
+}
+
 export function validateDeal(form = {}) {
   const errors = {};
   if (!String(form.title || "").trim()) errors.title = "What is the deal for?";

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
-  isPartyCopy, partyLabelFor, settledInvoiceRows, signaturesFor, voucherFileName, voucherSheet,
+  creditDaysOf, isPartyCopy, partyBlock, partyLabelFor, settledInvoiceRows, signaturesFor, voucherFileName, voucherSheet,
 } from "../voucherModel";
 import { resetOrgLocale, setOrgLocale } from "../../../utils/orgLocale";
 
@@ -80,6 +80,20 @@ describe("who the voucher names", () => {
   it("does not fall over when the party was never populated", () => {
     expect(sheet({ partyId: "68f0c1a2b3c4d5e6f7a8b9c0" }).party)
       .toEqual({ heading: "Received from", name: "Al Noor Trading", address: "", taxId: "", email: "" });
+  });
+});
+
+describe("the party as it was when the voucher was made", () => {
+  const live = { billingAddress: "New office, Deira", vat: { trn: "100000000000009" }, credit: { days: 60 } };
+  it("prints the snapshot, not today's address, tax number or terms", () => {
+    const v = { voucherType: "receipt", partyName: "Al Noor", partyId: live, partySnapshot: { address: "Old shop, Karama", trn: "100123456700003", creditDays: 30 } };
+    expect(partyBlock(v)).toMatchObject({ address: "Old shop, Karama", taxId: "100123456700003" });
+    expect(creditDaysOf(v)).toBe("30");
+  });
+  it("reads the live party for a voucher made before the snapshot existed", () => {
+    const v = { voucherType: "receipt", partyName: "Al Noor", partyId: live };
+    expect(partyBlock(v)).toMatchObject({ address: "New office, Deira", taxId: "100000000000009" });
+    expect(creditDaysOf(v)).toBe("60");
   });
 });
 

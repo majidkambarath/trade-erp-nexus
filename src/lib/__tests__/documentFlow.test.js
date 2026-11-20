@@ -427,3 +427,22 @@ describe("with a feature switched off", () => {
     expect(dealTitle(deal({ order: order() }), { taxInvoice: false }).kind).toBe("Sales order");
   });
 });
+
+describe("a deal headed by an order document", () => {
+  const tOrder = (over = {}) => ({ _id: "t1", orderNo: "SORD-2026-0004", status: "CONFIRMED", totalAmount: 300, ...over });
+  it("shows the order document on the order step, its draft invoice on the invoice step, and asks to approve it", () => {
+    const c = deal({ stage: "delivered", mode: "order_first", tradeOrder: tOrder(), order: order({ status: "DRAFT" }), invoices: [order({ status: "DRAFT" })], notes: [note()], delivery: { started: true, complete: true, remaining: [] } });
+    expect(step(c, "order").docs[0]).toMatchObject({ no: "SORD-2026-0004", status: "Confirmed", to: "/sales-orders?open=t1" });
+    expect(step(c, "invoice")).toMatchObject({ state: "doing", hint: "Draft invoice: approve it to book the sale" });
+    expect(nextAction(c, Date.now())).toMatchObject({ label: "Approve the invoice" });
+    expect(dealTitle(c)).toEqual({ no: "SO-2026-0031", kind: "Draft invoice" });
+    expect(canCloseShort(c)).toBe(false);
+  });
+  it("before the invoice: deliver it, deliver the rest, or confirm a draft", () => {
+    expect(nextAction(deal({ stage: "ordered", mode: "order_first", tradeOrder: tOrder() }))).toMatchObject({ label: "Deliver the order", to: "/delivery-notes?tradeOrder=t1" });
+    const part = deal({ stage: "delivering", mode: "order_first", tradeOrder: tOrder(), notes: [note()], delivery: { started: true, complete: false, remaining: [{ description: "Rice", qty: 6 }] } });
+    expect(nextAction(part)).toMatchObject({ label: "Deliver the rest", why: "Still to deliver: 6 x Rice" });
+    expect(nextAction(deal({ stage: "ordered", tradeOrder: tOrder({ status: "DRAFT" }) }))).toMatchObject({ label: "Confirm the order", to: "/sales-orders?open=t1" });
+    expect(dealTitle(deal({ tradeOrder: tOrder() }))).toEqual({ no: "SORD-2026-0004", kind: "Sales order" });
+  });
+});

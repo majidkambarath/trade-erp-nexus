@@ -176,6 +176,9 @@ describe("where a party is", () => {
     // a country chosen on the address prints whole, by name; a vendor has the same two fields and no e-invoice block
     expect(localityOf({ country: "AE", emirate: "Dubai" })).toBe("Dubai, United Arab Emirates");
     expect(localityOf({ country: "IN", emirate: null })).toBe("India");
-    expect(localityOf({ country: "AE", emirate: "Sharjah", eInvoice: { city: "Old", countryCode: "AE" } })).toBe("Sharjah, United Arab Emirates");
+    expect(localityOf({ country: "AE", emirate: "Sharjah", eInvoice: { city: "Old", countryCode: "AE" } })).toBe("Sharjah, United Arab Emirates");    // the city on the address leads; a city that repeats the emirate is printed once
+    expect(localityOf({ country: "AE", emirate: "Dubai", city: "Jebel Ali" })).toBe("Jebel Ali, Dubai, United Arab Emirates");
+    expect(localityOf({ country: "AE", emirate: "Dubai", city: "dubai" })).toBe("dubai, United Arab Emirates");
+    expect(localityOf({ country: "IN", city: "Pune" })).toBe("Pune, India");
   });
 });

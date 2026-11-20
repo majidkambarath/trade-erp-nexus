@@ -320,3 +320,13 @@ describe("the GST state of an Indian address", () => {
     expect(emptyParty("customer")).toMatchObject({ country: "AE", emirate: "Abu Dhabi" });
   });
 });
+
+describe("the city on the address", () => {
+  it("is read from the record and sent for both kinds", () => {
+    expect(emptyParty("vendor").city).toBe("");
+    const form = partyToForm("vendor", { vendorName: "Gulf Mills", country: "AE", emirate: "Dubai", city: "Al Quoz" });
+    expect(form.city).toBe("Al Quoz");
+    expect(formToPayload("vendor", { ...form, city: "  Jebel Ali " }).city).toBe("Jebel Ali");
+    expect(formToPayload("customer", { ...emptyParty("customer"), name: "X", city: "Pune" }).city).toBe("Pune");
+  });
+});

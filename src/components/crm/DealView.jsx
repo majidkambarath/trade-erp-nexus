@@ -1,9 +1,12 @@
 // One deal: what it is worth, where it stands, and - the part that answers the question people actually ask - WHY it
 // got there. `autoMoves` is the record of every stage the documents moved it through, so "it says Won and I never
 // touched it" has an answer on the screen rather than in a log.
-import React, { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass, AmountInput } from "../accounting/kit.jsx";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { PageHeader, Panel, PageSpinner, ErrorNote, useAsync, useToasts, Field, TextInput, Textarea, DateInput, inputClass, AmountInput, SearchSelect } from "../accounting/kit.jsx";
+import { api } from "../../lib/accountingApi";
+import { pickerLabel } from "../../lib/itemTypes";
 import { Note } from "../salesDocs/parts.jsx";
 import Can from "../shell/Can.jsx";
 import { formatCurrencyAED, formatDate, formatDateTime } from "../../utils/format";
@@ -54,7 +57,8 @@ function HowItGotHere({ moves = [], stages = [] }) {
 }
 
 export default function DealView({ id, onBack, onChanged }) {
-  const { can } = useOrganisation();
+  const { can, featureOn } = useOrganisation();
+  const navigate = useNavigate();
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
   const [dialog, setDialog] = useState(null);
@@ -70,6 +74,10 @@ export default function DealView({ id, onBack, onChanged }) {
   if (!deal) return null;
 
   const open = deal.status === "OPEN";
+  // A quotation is a Sales document: offered only where the organisation has Quotations and the person may add sales
+  // documents (a CRM-only organisation has neither, and keeps a hand-typed value). Once one is linked, it is opened instead.
+  const mayQuote = featureOn("quotations") && can("sales.create");
+  const quoteLinked = Boolean(deal.links?.quotationId);
   return (
     <div className="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
       <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">
@@ -113,6 +121,16 @@ export default function DealView({ id, onBack, onChanged }) {
                 </button>
               </Can>
             )}
+            {open && mayQuote && !quoteLinked && (
+              <button type="button" onClick={() => navigate(`/quotations?mode=create&deal=${deal._id}`)} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                Create quotation
+              </button>
+            )}
+            {quoteLinked && featureOn("quotations") && can("sales.view") && (
+              <button type="button" onClick={() => navigate(`/quotations?open=${deal.links.quotationId}`)} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                Open quotation
+              </button>
+            )}
             {open && (
               <Can permission="crm.edit">
                 <button type="button" onClick={() => setDialog("edit")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
@@ -148,6 +166,20 @@ export default function DealView({ id, onBack, onChanged }) {
             <Fact label="Where it came from">{rules.sourceLabel(deal.source)}</Fact>
             {deal.lostReason && <Fact label="Lost because">{rules.lostLabel(deal.lostReason)}{deal.lostNote ? ` · ${deal.lostNote}` : ""}</Fact>}
           </dl>
+
+          {deal.items?.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-1 text-xs text-muted-foreground">What it is for</p>
+              <ul className="divide-y divide-border/60 text-sm" aria-label="Deal lines">
+                {deal.items.map((l, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2 py-1">
+                    <span className="min-w-0 truncate">{l.description || "Item"}</span>
+                    <span className="shrink-0 whitespace-nowrap text-muted-foreground">{l.qty} x {formatCurrencyAED(l.price)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="mt-3 flex flex-wrap gap-1.5">
             {deal.stale?.isStale && <Tag tone="warning">Quiet {deal.stale.days} days</Tag>}
@@ -228,14 +260,16 @@ function EditDealDialog({ deal, notify, onClose, onSaved }) {
     value: deal.value ?? "",
     expectedCloseDate: deal.expectedCloseDate || "",
     notes: deal.notes || "",
+    items: rules.dealLinesFrom(deal),
   }));
+  const hasLines = form.items.some((l) => l.itemId || String(l.description || "").trim());
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState(null);
   const set = (key) => (event) => setForm((f) => ({ ...f, [key]: event?.target ? event.target.value : event }));
 
   const save = async () => {
-    const found = rules.validateDeal({ ...form, customerId: deal.customerId });
+    const found = { ...rules.validateDeal({ ...form, customerId: deal.customerId }), ...rules.dealLineErrors(form.items) };
     setErrors(found);
     if (Object.keys(found).length) return;
     setBusy(true);
@@ -246,6 +280,7 @@ function EditDealDialog({ deal, notify, onClose, onSaved }) {
         value: Number(form.value) || 0,
         expectedCloseDate: form.expectedCloseDate || undefined,
         notes: form.notes.trim(),
+        items: rules.dealLinesBody(form.items),
       });
       notify?.("Saved");
       onSaved?.();
@@ -262,8 +297,12 @@ function EditDealDialog({ deal, notify, onClose, onSaved }) {
         <Field label="What the deal is for" required error={errors.title} className="sm:col-span-2">
           <TextInput value={form.title} onChange={set("title")} />
         </Field>
-        <Field label="What it is worth" error={errors.value}>
-          <AmountInput inputClassName={inputClass} min="0" value={form.value} onChange={set("value")} />
+        <Field label="What it is worth" error={errors.value} hint={hasLines ? "The total of the lines below" : undefined}>
+          {hasLines ? (
+            <TextInput value={formatCurrencyAED(rules.dealLinesTotal(form.items))} readOnly aria-readonly="true" />
+          ) : (
+            <AmountInput inputClassName={inputClass} min="0" value={form.value} onChange={set("value")} />
+          )}
         </Field>
         <Field label="Expected to close">
           <DateInput value={form.expectedCloseDate} onChange={set("expectedCloseDate")} />
@@ -271,8 +310,55 @@ function EditDealDialog({ deal, notify, onClose, onSaved }) {
         <Field label="Notes" className="sm:col-span-2">
           <Textarea rows={3} value={form.notes} onChange={set("notes")} />
         </Field>
+        <div className="sm:col-span-2">
+          <DealLines lines={form.items} errors={errors} onChange={(items) => setForm((f) => ({ ...f, items }))} />
+        </div>
       </div>
     </CrmDialog>
+  );
+}
+
+/** What the deal is for, line by line: an item from the list or plain words, a quantity and a price before tax. */
+function DealLines({ lines, errors = {}, onChange }) {
+  const stocks = useAsync(() => api.get("/stock/stock"), []);
+  const options = useMemo(() => (stocks.data?.stocks || []).map((s) => ({ value: s._id, label: pickerLabel(s), hint: s.itemId, price: s.salesPrice })), [stocks.data]);
+  const put = (i, patch) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-1 text-sm font-medium">What it is for</legend>
+      {lines.length === 0 && <p className="text-sm text-muted-foreground">No lines: the deal is worth what you type above.</p>}
+      {lines.map((l, i) => (
+        <div key={i} className="grid grid-cols-1 gap-2 rounded-lg border border-border p-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_5rem_7rem_auto] sm:items-end">
+          <Field label="Item">
+            <SearchSelect
+              aria-label={`Line ${i + 1} item`}
+              value={l.itemId}
+              options={options}
+              placeholder="None: describe it"
+              onChange={(v) => {
+                const o = options.find((x) => x.value === v);
+                put(i, { itemId: v || "", ...(o && !l.description ? { description: o.label } : {}), ...(o && l.price === "" && o.price != null ? { price: String(o.price) } : {}) });
+              }}
+            />
+          </Field>
+          <Field label="Description">
+            <TextInput aria-label={`Line ${i + 1} description`} value={l.description} maxLength={200} onChange={(e) => put(i, { description: e.target.value })} />
+          </Field>
+          <Field label="Qty" error={errors[`items.${i}.qty`]}>
+            <AmountInput aria-label={`Line ${i + 1} quantity`} inputClassName={inputClass} value={l.qty} onChange={(e) => put(i, { qty: e.target.value })} />
+          </Field>
+          <Field label="Price" error={errors[`items.${i}.price`]}>
+            <AmountInput aria-label={`Line ${i + 1} price`} inputClassName={inputClass} value={l.price} onChange={(e) => put(i, { price: e.target.value })} />
+          </Field>
+          <button type="button" aria-label={`Remove line ${i + 1}`} onClick={() => onChange(lines.filter((_, j) => j !== i))} className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-status-danger lg:h-10 lg:w-10">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...lines, rules.emptyDealLine()])} className="inline-flex h-11 w-fit items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium lg:h-10">
+        <Plus className="h-4 w-4" aria-hidden="true" /> Add a line
+      </button>
+    </fieldset>
   );
 }
 

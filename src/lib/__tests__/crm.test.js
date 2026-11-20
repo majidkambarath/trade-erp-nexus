@@ -393,3 +393,18 @@ describe("the setup screen's rules", () => {
     expect(crm.settingsDirty(saved, { ...saved, staleDays: "30" })).toBe(true);
   });
 });
+
+describe("a deal's lines", () => {
+  it("total and send only the filled lines, and read a saved deal back", () => {
+    const lines = [{ itemId: "s1", description: "Rice", qty: "2", price: "12.5" }, { itemId: "", description: "Fitting", qty: "1", price: "40" }, crm.emptyDealLine()];
+    expect(crm.dealLinesTotal(lines)).toBe(65);
+    expect(crm.dealLinesBody(lines)).toEqual([{ itemId: "s1", description: "Rice", qty: 2, price: 12.5 }, { description: "Fitting", qty: 1, price: 40 }]);
+    expect(crm.dealLineErrors([{ description: "x", qty: "0", price: "1" }])).toEqual({ "items.0.qty": "More than nothing" });
+    expect(crm.dealLinesFrom({ items: [{ itemId: "s1", description: "Rice", qty: 2, price: 12.5 }] })).toEqual([{ itemId: "s1", description: "Rice", qty: "2", price: "12.5" }]);
+  });
+  it("a quotation from the deal takes the lines that name an item and lists the rest", () => {
+    const out = crm.quoteLinesFromDeal({ items: [{ itemId: "s1", description: "Rice", qty: 2, price: 12.5 }, { description: "Fitting", qty: 1, price: 40 }] });
+    expect(out.lines).toEqual([{ itemId: "s1", description: "Rice", qty: 2, price: 12.5 }]);
+    expect(out.skipped).toEqual(["Fitting"]);
+  });
+});
