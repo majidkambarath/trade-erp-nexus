@@ -5,6 +5,7 @@ import Can from "../shell/Can";
 import StatCard from "../ui/stat-card";
 import { ConfirmDialog, DataTable, DateInput, EmptyState, errorMessage, ErrorNote, Field, inputClass, Modal, PageHeader, Panel, Pill, Spinner, Textarea, TextInput, useAsync, useToasts } from "../accounting/kit";
 import { banking } from "../../lib/bankingApi";
+import { trips as vanTrips } from "../../lib/vanSalesApi";
 import { formatForeign, formatRate } from "../../lib/currencyForms";
 import { cn } from "../../lib/utils";
 import { CURRENCY, formatDateGB, formatNumber, todayInput } from "../../utils/format";
@@ -54,8 +55,27 @@ const dueRangeFor = (value, today = todayInput()) => {
   return {};
 };
 
-export default function ChequeRegister({ embedded = false }) {
-  const [status, setStatus] = useState("pending");
+// "Van trip" filter: the cheques a van took on the road (the server filters by `vanTripId`). Drawn only for a person who may
+// look at van sales, and left out if the trips cannot be read (an organisation without the module answers 403).
+function VanTripFilter({ value, onChange }) {
+  const { data } = useAsync(() => vanTrips.list({ limit: 100 }).catch(() => []), []);
+  const rows = Array.isArray(data) ? data : data?.rows || data?.trips || [];
+  if (!rows.length && !value) return null;
+  return (
+    <Field label="Van trip" className="w-full sm:w-52">
+      <select className={inputClass} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Any trip</option>
+        {rows.map((t) => <option key={t.id || t._id} value={t.id || t._id}>{t.tripNo}{t.vanCode ? ` · ${t.vanCode}` : ""}</option>)}
+        {value && !rows.some((t) => (t.id || t._id) === value) && <option value={value}>This trip</option>}
+      </select>
+    </Field>
+  );
+}
+
+export default function ChequeRegister({ embedded = false, initialTrip = "" }) {
+  // arriving from a van trip ("Cheques on this trip") shows all of its cheques, not only the pending ones
+  const [vanTripId, setVanTripId] = useState(initialTrip);
+  const [status, setStatus] = useState(initialTrip ? "" : "pending");
   // the cheque whose voucher's audit trail is open, or null
   const [audit, setAudit] = useState(null);
   const [direction, setDirection] = useState("");
@@ -72,24 +92,25 @@ export default function ChequeRegister({ embedded = false }) {
   const [dueFilter, setDueFilter] = useState("any");
   const showDue = isWorklist(status);
   const dueRange = showDue ? dueRangeFor(dueFilter) : {};
-  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${dated ? period.key : showDue ? dueFilter : "any"}`);
+  const { page, pageSize, setPage, setPageSize } = useServerPage(`${status}|${direction}|${q}|${vanTripId}|${dated ? period.key : showDue ? dueFilter : "any"}`);
   const { data, loading, error, reload } = useAsync(
     () => banking.cheques({
-      status: status || undefined, direction: direction || undefined, q: q || undefined,
+      status: status || undefined, direction: direction || undefined, q: q || undefined, vanTripId: vanTripId || undefined,
       from: (dated && period.from) || dueRange.from || undefined,
       to: (dated && period.to ? `${period.to}T23:59:59.999Z` : undefined) || dueRange.to || undefined,
       page, limit: pageSize,
     }),
-    [status, direction, q, dated, period.key, showDue, dueFilter, page, pageSize]
+    [status, direction, q, vanTripId, dated, period.key, showDue, dueFilter, page, pageSize]
   );
   const rows = data?.rows || [];
   useClampPage({ pagination: data && { pages: Math.max(1, Math.ceil((data.total || 0) / pageSize)), total: data.total }, loaded: Boolean(data) && !loading, page, setPage });
   // Ticked rows are for ONE view of the list: a new filter, page or tab starts with nothing ticked, so a bulk act can
   // never reach a row the person can no longer see.
   const [selection, setSelection] = useState([]);
-  useEffect(() => { setSelection([]); }, [status, direction, q, page, pageSize, period.key, dueFilter]);
+  useEffect(() => { setSelection([]); }, [status, direction, q, vanTripId, page, pageSize, period.key, dueFilter]);
   const { can } = useOrganisation();
   const canAct = can("finance.approve");
+  const canSeeTrips = can("vansales.view");
   const done = (msg) => { setAction(null); setSelection([]); notify(msg); reload(); };
 
   return (
@@ -120,6 +141,7 @@ export default function ChequeRegister({ embedded = false }) {
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <TextInput aria-label="Search cheques" className="ps-9" placeholder="Cheque no., party, voucher or bank…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
+        {canSeeTrips && <VanTripFilter value={vanTripId} onChange={setVanTripId} />}
         {dated && <PeriodSelect filter={periodFilter} labelled />}
         {showDue && (
           <Field label="Due" className="w-full sm:w-44">

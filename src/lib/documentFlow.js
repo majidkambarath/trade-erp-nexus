@@ -33,6 +33,9 @@ export const STAGE_TONE = { quoted: "info", ordered: "info", delivering: "info",
 export const quotationTo = (q) => `/quotations?open=${q._id}`;
 export const orderTo = (o) => `/sales-order?search=${encodeURIComponent(o.transactionNo)}`;
 export const noteTo = (n) => `/delivery-notes?open=${n._id}`;
+const TRADE_ORDER_LABEL = { DRAFT: "Draft", CONFIRMED: "Confirmed", CLOSED: "Closed", CANCELLED: "Cancelled" };
+// an order DOCUMENT (TradeOrder: sales order that posts nothing) lives on Sales > Orders
+export const tradeOrderTo = (t) => `/sales-orders?open=${t._id}`;
 export const INVOICE_QUEUE = "/delivery-notes?status=UNINVOICED";
 
 // ---- the documents of a deal, as a step shows them -----------------------------------------
@@ -44,6 +47,10 @@ const quoteDoc = (q, opts = {}) => {
 const orderDoc = (o, status) => ({
   kind: "order", no: o.transactionNo, status: status || (o.status === "APPROVED" ? "Approved" : "Draft"), tone: o.status === "APPROVED" ? "success" : "neutral",
   to: orderTo(o), meta: `${orgCurrency()} ${formatNumber(o.totalAmount, 2)}`,
+});
+const tradeOrderDoc = (t) => ({
+  kind: "order", no: t.orderNo, status: TRADE_ORDER_LABEL[t.status] || t.status, tone: t.status === "DRAFT" ? "neutral" : "success",
+  to: tradeOrderTo(t), meta: `${orgCurrency()} ${formatNumber(t.totalAmount, 2)}`,
 });
 const noteDoc = (n, opts = {}) => ({
   kind: "note", no: n.deliveryNoteNo, status: statusLabel(n.status), tone: statusTone(n.status), to: href(opts, "deliveryNotes", noteTo(n)),
@@ -63,7 +70,7 @@ const delivered = (n) => n.status === "DELIVERED";
 // not been closed already.
 export const canCloseShort = (c) =>
   Boolean(
-    c.order && ["DRAFT", "APPROVED"].includes(c.order.status) && c.mode === "order_first" && !c.closeShort &&
+    !c.tradeOrder && c.order && ["DRAFT", "APPROVED"].includes(c.order.status) && c.mode === "order_first" && !c.closeShort &&
     c.delivery && c.delivery.started && !c.delivery.complete && (c.notes || []).length > 0 && c.notes.every(delivered)
   );
 // Undoing it: a cut-down draft can be put back until it is approved; an invoiced order until a sales return exists.
@@ -84,9 +91,11 @@ const partDelivered = (c) => Boolean(c.delivery && c.delivery.started && !c.deli
 export function dealSteps(c, opts = {}) {
   const q = c.quotation;
   const o = c.order;
+  const t = c.tradeOrder || null; // an order document: the order step is IT, and `order` is the invoice raised from it
   const notes = c.notes || [];
   const invoiced = o?.status === "APPROVED";
   const goodsFirst = c.mode === "delivery_first";
+  const draftInvoice = Boolean(o && !invoiced && (goodsFirst || t));
   const steps = [];
 
   // quoteState is read by every later step, so it is worked out whether or not the step itself is shown.
@@ -99,7 +108,8 @@ export function dealSteps(c, opts = {}) {
 
   if (!goodsFirst) {
     const orderHint = q && q.status === "ACCEPTED" ? "Accepted: convert it to a sales order" : q && quoteState === "doing" ? "Not ordered yet" : "";
-    steps.push({ key: "order", label: "Sales order", state: o ? "done" : quoteState === "stopped" ? "none" : "todo", docs: o ? [orderDoc(o)] : [], hint: o ? "" : orderHint });
+    if (t) steps.push({ key: "order", label: "Sales order", state: t.status === "DRAFT" ? "doing" : "done", docs: [tradeOrderDoc(t)], hint: t.status === "DRAFT" ? "Confirm the order" : "" });
+    else steps.push({ key: "order", label: "Sales order", state: o ? "done" : quoteState === "stopped" ? "none" : "todo", docs: o ? [orderDoc(o)] : [], hint: o ? "" : orderHint });
   }
 
   // Same rule for the delivery stage: an organisation without Delivery notes invoices straight from the order,
@@ -107,7 +117,7 @@ export function dealSteps(c, opts = {}) {
   if (on(opts, "deliveryNotes") || notes.length) {
     const deliveryHint = c.closeShort
       ? `Closed short: ${leftText(c.closeShort.left)} will not be delivered`
-      : o && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
+      : (o || t) && !notes.length ? "Nothing delivered yet" : partDelivered(c) ? `Still to deliver: ${leftText(c.delivery.remaining)}` : "";
     steps.push({
       key: "delivery", label: "Delivery",
       state: !notes.length ? (quoteState === "stopped" && !o ? "none" : "todo") : notes.every(delivered) && !partDelivered(c) ? "done" : "doing",
@@ -117,14 +127,14 @@ export function dealSteps(c, opts = {}) {
 
   let invoiceHint = "";
   if (!invoiced) {
-    if (o && goodsFirst) invoiceHint = "Draft invoice: approve it to book the sale";
+    if (draftInvoice) invoiceHint = "Draft invoice: approve it to book the sale";
     else if (o) invoiceHint = "Approve the order to invoice";
     else if (c.invoiceClock) invoiceHint = clockText(c.invoiceClock);
   }
   steps.push({
     key: "invoice", label: "Invoice",
-    state: invoiced ? "done" : o && goodsFirst ? "doing" : quoteState === "stopped" && !o && !notes.length ? "none" : "todo",
-    docs: invoiced ? [invoiceDoc(o)] : o && goodsFirst ? [orderDoc(o, "Draft invoice")] : [], hint: invoiceHint,
+    state: invoiced ? "done" : draftInvoice ? "doing" : quoteState === "stopped" && !o && !t && !notes.length ? "none" : "todo",
+    docs: invoiced ? [...(c.invoices || []).filter((i) => i.status === "APPROVED" && i._id !== o._id).map(invoiceDoc), invoiceDoc(o)] : draftInvoice ? [orderDoc(o, "Draft invoice")] : [], hint: invoiceHint,
   });
 
   // The last step is the money: Paid is read from the invoice's amounts (what receipts have settled), never from a stored
@@ -193,6 +203,21 @@ export function nextAction(c, now = Date.now(), opts = {}) {
       ? { label: "Dispatch the delivery", why: `${n.deliveryNoteNo} has not left the warehouse`, to }
       : { label: "Confirm the delivery", why: `${n.deliveryNoteNo} is on the road: record who signed for it`, to };
   }
+  const t = c.tradeOrder;
+  if (t) {
+    if (partDelivered(c)) return { label: "Deliver the rest", why: `Still to deliver: ${leftText(c.delivery.remaining)}`, to: href(opts, "deliveryNotes", `/delivery-notes?tradeOrder=${t._id}`) };
+    if (opts.canSend !== false && o && o.status === "APPROVED" && !o.lastSend && isRecent(o.date, now)) {
+      return { label: "Send the invoice", why: "The invoice has not gone to the customer yet.", to: orderTo(o) };
+    }
+    if (o && o.status !== "APPROVED") return { label: "Approve the invoice", why: "Approving books the sale and takes the goods out of stock", to: orderTo(o) };
+    if (o) return null;
+    if (t.status === "DRAFT") return { label: "Confirm the order", why: "The order is still a draft", to: tradeOrderTo(t) };
+    if (t.status === "CLOSED") return null;
+    if (notes.length) return { label: "Create the invoice", why: c.invoiceClock ? clockText(c.invoiceClock) : "Delivered and not invoiced yet", to: tradeOrderTo(t) };
+    return on(opts, "deliveryNotes")
+      ? { label: "Deliver the order", why: "Nothing has been delivered yet", to: `/delivery-notes?tradeOrder=${t._id}` }
+      : { label: "Create the invoice", why: "Confirmed and not invoiced yet", to: tradeOrderTo(t) };
+  }
   // part of the order has gone out: the rest is the next delivery, whether or not it has been invoiced
   if (o && partDelivered(c)) {
     return { label: "Deliver the rest", why: `Still to deliver: ${leftText(c.delivery.remaining)}`, to: href(opts, "deliveryNotes", `/delivery-notes?order=${o._id}`) };
@@ -260,7 +285,8 @@ export const defaultFilter = (counts) => (counts.action > 0 ? "action" : "all");
 // false heads it "Invoice". It said "Tax invoice" for every approved order, which claimed a registration a
 // company without a tax number has not got.
 export function dealTitle(c, opts = {}) {
-  if (c.order) return { no: c.order.transactionNo, kind: c.order.status === "APPROVED" ? (on(opts, "taxInvoice") ? "Tax invoice" : "Invoice") : c.mode === "delivery_first" ? "Draft invoice" : "Sales order" };
+  if (c.order) return { no: c.order.transactionNo, kind: c.order.status === "APPROVED" ? (on(opts, "taxInvoice") ? "Tax invoice" : "Invoice") : c.mode === "delivery_first" || c.tradeOrder ? "Draft invoice" : "Sales order" };
+  if (c.tradeOrder) return { no: c.tradeOrder.orderNo, kind: "Sales order" };
   if (c.quotation) return { no: c.quotation.quotationNo, kind: "Quotation" };
   return { no: c.notes[0]?.deliveryNoteNo || "", kind: "Delivery note" };
 }

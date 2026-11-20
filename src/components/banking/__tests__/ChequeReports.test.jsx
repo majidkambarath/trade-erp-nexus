@@ -6,6 +6,7 @@ import "@testing-library/jest-dom";
 
 // The cheque reports on the Cheques page: what falls due and when, and what it does to the bank.
 const m = vi.hoisted(() => ({ cheques: vi.fn(), chequeMaturity: vi.fn(), chequeForward: vi.fn() }));
+vi.mock("../../../lib/vanSalesApi", () => ({ trips: { list: vi.fn(() => Promise.resolve([])) } }));
 vi.mock("../../../lib/bankingApi", () => ({
   banking: { cheques: m.cheques, chequeMaturity: m.chequeMaturity, chequeForward: m.chequeForward, clearCheque: vi.fn(), bounceCheque: vi.fn(), cancelCheque: vi.fn() },
   vouchers: { get: vi.fn() },

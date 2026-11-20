@@ -32,6 +32,7 @@ import BankReconciliation from "../BankReconciliation";
 import BankMaster from "../BankMaster";
 import CardTypeMaster from "../CardTypeMaster";
 import CardMaster from "../CardMaster";
+vi.mock("../../../lib/vanSalesApi", () => ({ trips: { list: vi.fn(() => Promise.resolve([])) } }));
 import ChequeRegister from "../ChequeRegister";
 import CashAndBank from "../CashAndBank";
 

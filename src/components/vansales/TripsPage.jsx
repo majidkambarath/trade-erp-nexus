@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowLeftRight, CheckCircle2, ClipboardCheck, Clock, PackagePlus, Plus, Scale, Truck, Wallet } from "lucide-react";
 import { DataTable, EmptyState, ErrorNote, PageHeader, Panel, Spinner, useAsync, useToasts } from "../accounting/kit.jsx";
 import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
@@ -57,6 +58,10 @@ export function TripView({ id, notify, onClose, onChanged }) {
             <TripActions trip={t} ask={(kind) => setDialog({ kind })} />
           </div>}
           <TripTiles trip={t} />
+          {/* the cheques this van took, in the cheque register (it filters by trip) */}
+          <Can permission={["banking.view", "finance.view"]}>
+            <p className="text-sm"><Link to={`/cheques?vanTrip=${t.id || id}`} className="font-medium text-primary underline-offset-2 hover:underline">Cheques on this trip</Link></p>
+          </Can>
 
           {/* grid-cols-1 below lg: an implicit auto column grows to the longest item name and pushes the page wide */}
           <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 lg:items-start">

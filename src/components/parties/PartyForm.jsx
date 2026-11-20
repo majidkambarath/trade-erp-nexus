@@ -147,6 +147,9 @@ function CountryFields({ value, set, errors }) {
           <SearchSelect aria-label="State" value={value.stateCode} options={states} onChange={(code) => set({ stateCode: code || "", addressLegacy: false })} />
         </Field>
       )}
+      <Field label="City or town" error={errors.city}>
+        <TextInput value={value.city || ""} onChange={(e) => set({ city: e.target.value })} maxLength={80} autoComplete="address-level2" />
+      </Field>
       {isAe && (
         <Field label="Emirate" required error={errors.emirate}>
           <Select value={value.emirate} onChange={(e) => set({ emirate: e.target.value, addressLegacy: false })}>

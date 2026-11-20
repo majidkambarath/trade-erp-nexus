@@ -187,7 +187,7 @@ export function emptyParty(kind) {
     billingAddress: "", shippingAddress: "", address: "",
     // the address's country and, in the UAE, emirate; a NEW party starts in the UAE, Abu Dhabi
     // (an Indian organisation's new party starts in India, with its state still to choose)
-    country: orgCountry() === "IN" ? "IN" : DEFAULT_COUNTRY, emirate: orgCountry() === "IN" ? "" : DEFAULT_EMIRATE, addressLegacy: false, stateCode: "",
+    country: orgCountry() === "IN" ? "IN" : DEFAULT_COUNTRY, emirate: orgCountry() === "IN" ? "" : DEFAULT_EMIRATE, addressLegacy: false, stateCode: "", city: "",
     status: kind === "vendor" ? "Compliant" : "Active",
     vatStatus: "unregistered", trn: "", tradeLicenseNo: "",
     creditLimit: "", paymentTerms: DEFAULT_TERMS[kind], creditDays: String(termsToDays(DEFAULT_TERMS[kind])),
@@ -215,6 +215,7 @@ export function partyToForm(kind, record) {
     ...(r.country
       ? { country: r.country, emirate: r.emirate || "", addressLegacy: false }
       : { country: DEFAULT_COUNTRY, emirate: "", addressLegacy: true }),
+    city: r.city || "",
     stateCode: r.stateCode || "", // India GST: decides CGST + SGST or IGST on a document
     status: r.status || base.status,
     vatStatus: r.vat?.status || (trn ? "registered" : "unregistered"),
@@ -261,6 +262,7 @@ export function formToPayload(kind, form) {
     : { country, emirate: country === DEFAULT_COUNTRY ? trimmed(form.emirate) : "" };
   // an Indian address also names its GST state; elsewhere there is none to send (the server clears a stored one)
   if (country === "IN") address.stateCode = trimmed(form.stateCode);
+  address.city = trimmed(form.city);
   Object.assign(body, address);
   if (kind === "vendor") return { vendorName: trimmed(form.name), address: trimmed(form.address), ...body };
   return {

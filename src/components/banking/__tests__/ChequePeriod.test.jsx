@@ -8,6 +8,8 @@ import "@testing-library/jest-dom";
 const m = vi.hoisted(() => ({ cheques: vi.fn() }));
 vi.mock("../../../lib/bankingApi", () => ({ banking: { cheques: m.cheques, clearCheque: vi.fn(), bounceCheque: vi.fn(), cancelCheque: vi.fn() }, vouchers: { get: vi.fn() } }));
 
+vi.mock("../../../lib/vanSalesApi", () => ({ trips: { list: vi.fn(() => Promise.resolve([])) } }));
+
 import ChequeRegister from "../ChequeRegister";
 import { todayInput } from "../../../utils/format";
 import { lastDayOf } from "../../../lib/calendarDays";

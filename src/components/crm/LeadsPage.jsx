@@ -7,12 +7,13 @@ import { Link } from "react-router-dom";
 import { Plus, Flame, UserPlus, AlarmClock, ArrowLeft, Download, Upload } from "lucide-react";
 import { PageHeader, Panel, Spinner, PageSpinner, ErrorNote, EmptyState, DataTable, useAsync, useToasts, Field, PhoneInput, TextInput, Textarea, Select, SearchSelect, inputClass, AmountInput } from "../accounting/kit.jsx";
 import StatCard from "../ui/stat-card.jsx";
-import FilterBar, { FilterSelect } from "../lists/FilterBar.jsx";
+import ListPage from "../lists/ListPage";
+import { FilterSelect } from "../lists/FilterBar.jsx";
+import { useListView } from "../../lib/useListView";
 import { PillTabs, Note } from "../salesDocs/parts.jsx";
 import { useOrganisation } from "../shell/OrganisationContext.jsx";
 import Can from "../shell/Can.jsx";
 import { useRecordRoute } from "../../lib/useRecordRoute";
-import { pageSession } from "../../lib/pageSession";
 import { formatCurrencyAED, formatDate, formatDateTime, downloadCSV } from "../../utils/format";
 import { crm } from "../../lib/crmApi";
 import * as rules from "../../lib/crm";
@@ -22,8 +23,6 @@ import {
 import ImportDialog from "./ImportDialog.jsx";
 import MeetingDialog from "./MeetingDialog.jsx";
 import EmailDialog from "./EmailDialog.jsx";
-
-const session = pageSession("crm-leads");
 
 const VIEWS = [
   ["open", "In hand"],
@@ -281,18 +280,13 @@ export default function LeadsPage() {
   const { notify, toastNode } = useToasts();
   const owners = useOwners();
   const record = useRecordRoute({ param: "lead" });
-  const [view, setView] = useState(() => session.get("view", "open"));
-  const [source, setSource] = useState(() => session.get("source", ""));
-  const [band, setBand] = useState(() => session.get("band", ""));
-  const [search, setSearch] = useState(() => session.get("search", ""));
-  const [owner, setOwner] = useState(() => session.get("owner", ""));
   const [dialog, setDialog] = useState(null);
   const [reload, setReload] = useState(0);
 
-  const keep = (setter, key) => (value) => {
-    session.set(key, value);
-    setter(value);
-  };
+  // The list platform: the search, the three filters and the status tab are remembered while the person visits another
+  // page, and can be saved as a named view. The tab is a filter like the others, so a saved view keeps it too.
+  const list = useListView("crm-leads", { filters: { view: "open", source: "", band: "", owner: "" } });
+  const { view, source, band, owner } = list.filters;
 
   const query = useMemo(
     () => ({
@@ -301,16 +295,15 @@ export default function LeadsPage() {
       source: source || undefined,
       band: band || undefined,
       ownerId: owner || undefined,
-      search: search || undefined,
+      search: list.search || undefined,
     }),
-    [view, source, band, owner, search]
+    [list.key] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const list = useAsync(() => crm.leads(query), [query, reload]);
+  const leads = useAsync(() => crm.leads(query), [query, reload]);
   const summary = useAsync(() => crm.leadSummary(), [reload]);
   const again = () => setReload((n) => n + 1);
-  const rows = Array.isArray(list.data) ? list.data : [];
-  const filtersOn = Boolean(source || band || owner || search);
+  const rows = Array.isArray(leads.data) ? leads.data : [];
   // What is on the screen, with the filters that made it - not a different list from a second request.
   const exportLeads = () => {
     const { headers, rows: lines } = rules.leadsCsv(rows);
@@ -334,7 +327,7 @@ export default function LeadsPage() {
       // A real link, not only a clickable row: it can be tabbed to, opened in a new tab, and read by anything that
       // works through the page's own controls.
       cell: (r) => (
-        <Link to={`/crm/leads?lead=${r._id}`} className="inline-flex min-h-10 items-center whitespace-nowrap font-medium hover:underline lg:min-h-0">
+        <Link to={`/crm/leads?lead=${r._id}`} onClick={(e) => e.stopPropagation()} className="inline-flex min-h-10 items-center whitespace-nowrap font-medium hover:underline lg:min-h-0">
           {r.leadNo}
         </Link>
       ),
@@ -364,12 +357,12 @@ export default function LeadsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
-      <PageHeader
+    <>
+      <ListPage
         title="Leads"
         description="Enquiries from people who are not customers yet. Every one gets an owner and a first call by itself."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             {rows.length > 0 && (
               <button type="button" onClick={exportLeads} className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
                 <Download className="h-4 w-4" aria-hidden="true" /> Export
@@ -385,68 +378,61 @@ export default function LeadsPage() {
                 <Plus className="h-4 w-4" aria-hidden="true" /> New enquiry
               </button>
             </Can>
-          </div>
+          </>
+        }
+        beforeFilters={
+          <>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard title="In hand" count={summary.data?.open ?? "–"} subText={summary.data ? `${formatCurrencyAED(summary.data.openValue)} of enquiries` : ""} />
+              <StatCard title="Hot" count={summary.data?.hot ?? "–"} icon={<Flame />} tone={summary.data?.hot ? "teal" : undefined} subText="Worth ringing today" />
+              <StatCard title="Nobody chasing" count={summary.data?.unassigned ?? "–"} icon={<UserPlus />} tone={summary.data?.unassigned ? "warning" : undefined} subText="Give them to somebody" />
+              <StatCard title="Follow-ups late" count={summary.data?.overdueFollowUps ?? "–"} icon={<AlarmClock />} tone={summary.data?.overdueFollowUps ? "danger" : undefined} />
+            </div>
+            <div className="mt-6">
+              <PillTabs tabs={VIEWS} value={view} onChange={(v) => list.setFilter("view", v)} label="Which leads" />
+            </div>
+          </>
+        }
+        list={list}
+        noun="leads"
+        searchLabel="Search leads"
+        placeholder="Search a name, a company, a number…"
+        filterChildren={
+          <>
+            <FilterSelect label="Where from" value={source} onChange={(v) => list.setFilter("source", v)} options={rules.SOURCES} allLabel="Anywhere" />
+            <FilterSelect label="How warm" value={band} onChange={(v) => list.setFilter("band", v)} options={rules.BANDS} allLabel="Any" />
+            <FilterSelect label="Chased by" value={owner} onChange={(v) => list.setFilter("owner", v)} options={owners.map((o) => [o.id, o.name])} allLabel="Anybody" />
+          </>
+        }
+        caption="Leads"
+        tableClassName="table-pin-first"
+        rows={rows}
+        rowKey={(r) => r._id}
+        onRowClick={(r) => record.open(r._id)}
+        columns={columns}
+        loading={leads.loading && !leads.data}
+        loadingLabel="Reading the leads"
+        error={leads.error}
+        onRetry={leads.reload}
+        emptyTitle="No enquiries yet"
+        emptyText="The first enquiry you take goes here, and the app gives it an owner and a first call."
+        emptyAction={
+          can("crm.create") ? (
+            <div className="flex flex-wrap justify-center gap-2">
+              <button type="button" onClick={() => setDialog("new")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
+                New enquiry
+              </button>
+              <button type="button" onClick={() => setDialog("import")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
+                Import a spreadsheet
+              </button>
+            </div>
+          ) : null
         }
       />
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="In hand" count={summary.data?.open ?? "–"} subText={summary.data ? `${formatCurrencyAED(summary.data.openValue)} of enquiries` : ""} />
-        <StatCard title="Hot" count={summary.data?.hot ?? "–"} icon={<Flame />} tone={summary.data?.hot ? "teal" : undefined} subText="Worth ringing today" />
-        <StatCard title="Nobody chasing" count={summary.data?.unassigned ?? "–"} icon={<UserPlus />} tone={summary.data?.unassigned ? "warning" : undefined} subText="Give them to somebody" />
-        <StatCard title="Follow-ups late" count={summary.data?.overdueFollowUps ?? "–"} icon={<AlarmClock />} tone={summary.data?.overdueFollowUps ? "danger" : undefined} />
-      </div>
-
-      <div className="mt-6">
-        <PillTabs tabs={VIEWS} value={view} onChange={keep(setView, "view")} label="Which leads" />
-      </div>
-
-      <div className="mt-4">
-        <FilterBar search={search} onSearch={keep(setSearch, "search")} placeholder="Search a name, a company, a number…" searchLabel="Search leads" active={filtersOn} onClear={() => { ["source", "band", "owner", "search"].forEach((k) => session.remove(k)); setSource(""); setBand(""); setOwner(""); setSearch(""); }}>
-          <FilterSelect label="Where from" value={source} onChange={keep(setSource, "source")} options={rules.SOURCES} allLabel="Anywhere" />
-          <FilterSelect label="How warm" value={band} onChange={keep(setBand, "band")} options={rules.BANDS} allLabel="Any" />
-          <FilterSelect label="Chased by" value={owner} onChange={keep(setOwner, "owner")} options={owners.map((o) => [o.id, o.name])} allLabel="Anybody" />
-        </FilterBar>
-      </div>
-
-      <Panel className="mt-4" bodyClassName="p-0">
-        {list.loading && !list.data && <Spinner label="Reading the leads" />}
-        {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
-        {list.data && rows.length === 0 && (
-          <EmptyState
-            title={filtersOn ? "Nothing matches" : "No enquiries yet"}
-            text={filtersOn ? "Clear the filters to see the rest." : "The first enquiry you take goes here, and the app gives it an owner and a first call."}
-            action={
-              !filtersOn && can("crm.create") ? (
-                <div className="flex flex-wrap justify-center gap-2">
-                  <button type="button" onClick={() => setDialog("new")} className="h-11 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground lg:h-10">
-                    New enquiry
-                  </button>
-                  <button type="button" onClick={() => setDialog("import")} className="h-11 rounded-lg border border-border px-4 text-sm font-medium lg:h-10">
-                    Import a spreadsheet
-                  </button>
-                </div>
-              ) : null
-            }
-          />
-        )}
-        {/* Six columns do not fit a tablet (the sweep measured 836px inside 820) and the last one was lost off the
-            edge. DataTable already owns the scroll box - `className` lands on it - so it only wanted `table-pin-first`:
-            the lead number freezes and the rest slides under it. Below md this never applies; DataTable draws cards. */}
-        {rows.length > 0 && (
-          <DataTable
-            className="table-pin-first"
-            caption="Leads"
-            rows={rows}
-            rowKey={(r) => r._id}
-            onRowClick={(r) => record.open(r._id)}
-            columns={columns}
-          />
-        )}
-      </Panel>
 
       {dialog === "new" && <LeadForm owners={owners} notify={notify} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); again(); }} />}
       {dialog === "import" && <ImportDialog kind="lead" notify={notify} onClose={() => setDialog(null)} onDone={() => { setDialog(null); again(); }} />}
       {toastNode}
-    </div>
+    </>
   );
 }
