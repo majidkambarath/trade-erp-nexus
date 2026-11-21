@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, FilePlus2, Plus, RefreshCw, X } from "lucide-react";
 import { api, einvoice } from "../../lib/accountingApi";
 import { pickerLabel } from "../../lib/itemTypes";
@@ -14,8 +14,11 @@ const LABEL = { RECEIVED: "To review", ACCEPTED: "Accepted", REJECTED: "Rejected
 // can be, to the purchase order it bills. Accepting records the decision and the link; it does not
 // create a purchase document by itself.
 export default function Inbound({ notify }) {
-  const [status, setStatus] = useState("");
-  const list = useAsync(() => einvoice.inbound({ status: status || undefined }), [status]);
+  const [params, setParams] = useSearchParams();
+  const status = params.get("status") || "";
+  const notRecorded = params.get("recorded") === "0";
+  const setStatus = (v) => { const next = new URLSearchParams(params); if (v) next.set("status", v); else next.delete("status"); next.delete("recorded"); setParams(next, { replace: true }); };
+  const list = useAsync(() => einvoice.inbound({ status: status || undefined, recorded: notRecorded ? "0" : undefined }), [status, notRecorded]);
   const [adding, setAdding] = useState(false);
   const [deciding, setDeciding] = useState(null); // { invoice, decision }
   const [recording, setRecording] = useState(null); // the received invoice being recorded as a purchase invoice

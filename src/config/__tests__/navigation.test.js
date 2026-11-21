@@ -28,7 +28,7 @@ const routerSrc = fs.readFileSync(path.join(srcDir, "router/index.jsx"), "utf8")
 // ...and the address Google returns the browser to after a person connects their calendar, which is a machine
 // redirect rather than a page anybody opens. The employee self-service portal (D15, W5) is its own identity
 // and its own frame outside the product's shell too, like /platform - it has no entry in MODULES.
-const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/portal/*", "/forgot-password", "/reset-password", "/crm/google/callback", "/settings/einvoicing/wafeq/callback", "/learn"]);
+const NON_APP = new Set(["/", "*", "/d/:token", "/platform/*", "/portal/*", "/forgot-password", "/reset-password", "/crm/google/callback", "/settings/einvoicing/wafeq/callback", "/e-invoicing", "/learn"]);
 const routes = [...routerSrc.matchAll(/path="([^"]+)"/g)]
   .map((m) => m[1])
   .filter((p) => !NON_APP.has(p));
@@ -129,7 +129,7 @@ describe("what a role may open", () => {
     // the one Accounts page that follows the sales and purchase documents (customer and vendor paperwork), and nothing of the chart
     expect(modules.find((m) => m.id === "accounts").tabs.map((t) => t.label)).toEqual(["KYC documents"]);
     // (the e-invoicing page is open to whoever may see sales documents, as the server's own list of it is)
-    expect(modules.find((m) => m.id === "reports").tabs.map((t) => t.label)).toEqual(["Analysis", "Ageing", "Account statement", "Stock", "e-Invoicing"]);
+    expect(modules.find((m) => m.id === "reports").tabs.map((t) => t.label)).toEqual(["Analysis", "Ageing", "Account statement", "Stock"]);
   });
 
   it("drops individual tabs the role cannot open, keeping the module", () => {
@@ -220,7 +220,7 @@ describe("getMobileNav", () => {
   it("pins the four flagged modules to the bar and leaves the rest behind More", () => {
     const { primary, rest } = getMobileNav(modulesIn(ERP, getVisibleModules()));
     expect(ids(primary)).toEqual(["home", "sales", "purchase", "finance"]);
-    expect(ids(rest)).toEqual(["inventory", "garage", "vansales", "accounts", "reports", "people", "settings"]);
+    expect(ids(rest)).toEqual(["inventory", "garage", "vansales", "accounts", "einvoicing", "reports", "people", "settings"]);
   });
 
   it("gives the CRM workspace its own bar, with no ERP page on it", () => {
@@ -274,7 +274,7 @@ describe("what the plan includes", () => {
   it("hides exactly the tabs whose feature is switched off", () => {
     const status = { features: { einvoicing: false, banking: false, quotations: true } };
     const shown = tabs(getVisibleModules(status));
-    expect(shown).not.toContain("e-Invoicing@/e-invoicing");
+    expect(shown).not.toContain("Dashboard@/e-invoicing/dashboard");
     for (const t of ["Cheques@/cheques", "Banks@/banks", "Card types@/card-types", "Cards@/cards"]) expect(shown).not.toContain(t);
     expect(shown).toContain("Quotations@/quotations");
     expect(shown).toContain("Cash & bank@/cash-and-bank"); // chart-based, not the banking feature

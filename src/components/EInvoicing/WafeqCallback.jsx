@@ -7,7 +7,7 @@ import { Spinner } from "../accounting/kit.jsx";
 import { Note } from "../salesDocs/parts.jsx";
 import { einvoice } from "../../lib/accountingApi";
 
-const BACK = "/e-invoicing?tab=settings";
+const BACK = "/e-invoicing/settings";
 
 export default function WafeqCallback() {
   const [params] = useSearchParams();

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, FileMinus2, History, RefreshCw, RotateCcw, Search, Send, Wrench } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
@@ -14,17 +14,24 @@ const PAGE = 50;
 
 export default function Outbound({ notify, enabled }) {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
+  const [params, setParams] = useSearchParams();
+  const status = params.get("status") || "";
+  const overdue = params.get("overdue") === "1";
+  const kind = params.get("kind") || "";
+  const query = params.get("search") || "";
+  const [search, setSearch] = useState(query);
   const [page, setPage] = useState(1);
+  // the filter is kept in the address (so the dashboard can link to it) and decided by the server, not by the page loaded
+  const setFilter = (patch) => { const next = new URLSearchParams(params); for (const [k, v] of Object.entries(patch)) { if (v) next.set(k, v); else next.delete(k); } setParams(next, { replace: true }); setPage(1); };
+  const setStatus = (v) => setFilter({ status: v, overdue: "" });
+  const setQuery = (v) => setFilter({ search: v });
   const [preview, setPreview] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busyId, setBusyId] = useState(null);
-  const docs = useAsync(() => einvoice.documents({ search: query || undefined, page, limit: PAGE }), [query, page]);
+  const docs = useAsync(() => einvoice.documents({ search: query || undefined, status: status || undefined, overdue: overdue ? 1 : undefined, kind: kind || undefined, page, limit: PAGE }), [query, status, overdue, kind, page]);
 
   const loaded = docs.data || [];
-  const rows = loaded.filter((d) => !status || d.status === status);
+  const rows = loaded;
   const first = (page - 1) * PAGE + 1;
   const hasOlder = loaded.length >= PAGE;
 
@@ -47,7 +54,7 @@ export default function Outbound({ notify, enabled }) {
       description={enabled ? "Approved sales documents. Send each one once its customer details are complete." : "E-invoicing is switched off. You can preview documents, but sending needs it switched on in Settings."}
       actions={
         <>
-          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); setPage(1); }} className="relative">
+          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); }} className="relative">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Document number" aria-label="Search by document number"
               className="h-9 w-44 rounded-full border border-input bg-background ps-9 pe-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40" />
@@ -55,6 +62,11 @@ export default function Outbound({ notify, enabled }) {
           <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 w-40 rounded-full">
             <option value="">All statuses</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </Select>
+          <Select aria-label="Filter by type" value={kind} onChange={(e) => setFilter({ kind: e.target.value })} className="h-9 w-36 rounded-full">
+            <option value="">All types</option>
+            <option value="380">Invoices</option>
+            <option value="381">Credit notes</option>
           </Select>
         </>
       }
@@ -64,7 +76,7 @@ export default function Outbound({ notify, enabled }) {
       {docs.data && rows.length === 0 && (
         <EmptyState
           title="No documents"
-          text={status || query ? "Nothing matches that filter." : page > 1 ? "There are no older documents." : "Approved sales invoices and sales returns appear here."}
+          text={status || query || kind || overdue ? "Nothing matches that filter." : page > 1 ? "There are no older documents." : "Approved sales invoices and sales returns appear here."}
           action={page > 1 ? <Button variant="outline" onClick={() => setPage(page - 1)}>Newer documents</Button> : undefined}
         />
       )}
@@ -75,7 +87,7 @@ export default function Outbound({ notify, enabled }) {
             rows={rows}
             rowKey={(d) => d._id}
             columns={[
-              { key: "document", header: "Document", card: "primary", cell: (d) => <><span className="font-mono text-xs font-semibold">{d.transactionNo}</span><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
+              { key: "document", header: "Document", card: "primary", cell: (d) => <><Link to={`${d.type === "sales_return" ? "/sales-return" : "/sales-order"}?search=${encodeURIComponent(d.transactionNo)}`} className="font-mono text-xs font-semibold text-primary hover:underline">{d.transactionNo}</Link><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
               { key: "customer", header: "Customer", card: "title", cell: (d) => <>{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (d) => <>{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</> },
               { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
@@ -109,7 +121,7 @@ export default function Outbound({ notify, enabled }) {
       {docs.data && (page > 1 || hasOlder) && (
         <nav aria-label="Pages" className="flex flex-col gap-2 border-t border-border px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <span className="text-muted-foreground">
-            {loaded.length ? `Documents ${first} to ${first + loaded.length - 1}, newest first${status ? ". The status filter applies to this page only" : ""}` : "No older documents"}
+            {loaded.length ? `Documents ${first} to ${first + loaded.length - 1}, newest first` : "No older documents"}
           </span>
           <span className="flex gap-2 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
             <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Newer</Button>

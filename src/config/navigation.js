@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Truck,
   Container,
+  FileCheck2,
   Users,
   Wallet,
   Warehouse,
@@ -389,6 +390,21 @@ export const MODULES = [
     ],
   },
   {
+    // Its own rail item: sending, tracking and receiving UAE e-invoices through the provider (Wafeq). Not mobilePrimary: the four pinned
+    // slots are taken. Each section is its own path (never a prefix of another), so the header tabs and the address agree.
+    id: "einvoicing",
+    label: "e-Invoicing",
+    short: "e-Invoice",
+    icon: FileCheck2,
+    tabs: [
+      { label: "Dashboard", to: "/e-invoicing/dashboard", permission: ["reports.financial", "sales.view"], feature: "einvoicing", keywords: ["einvoicing", "e-invoice", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tracking", "wafeq"] },
+      { label: "Outbound", to: "/e-invoicing/outbound", permission: ["reports.financial", "sales.view"], feature: "einvoicing", keywords: ["send invoice", "sales e-invoice", "credit note", "resend", "rejected", "failed"] },
+      { label: "Inbound", to: "/e-invoicing/inbound", permission: ["reports.financial", "sales.view", "purchase.view"], feature: "einvoicing", keywords: ["supplier invoices", "received invoices", "record purchase invoice"] },
+      { label: "Readiness", to: "/e-invoicing/readiness", permission: ["reports.financial", "sales.view"], feature: "einvoicing", keywords: ["trn", "customer details", "ready to send"] },
+      { label: "Settings", to: "/e-invoicing/settings", permission: ["reports.financial", "sales.view"], feature: "einvoicing", keywords: ["wafeq", "connect", "webhook", "participant id"] },
+    ],
+  },
+  {
     id: "reports",
     label: "Reports",
     icon: BarChart3,
@@ -405,9 +421,6 @@ export const MODULES = [
       { label: "VAT", to: "/vat-reports", permission: "reports.financial", feature: "vatReturn", keywords: ["vat report", "fta", "tax"] },
       // India's counterpart of the VAT return: shown to an Indian organisation (the server sends features.gstReturn), never alongside it
       { label: "GST", to: "/gst-returns", permission: "reports.financial", feature: "gstReturn", keywords: ["gst return", "gstr-1", "gstr1", "gstr-3b", "gstr3b", "hsn", "cgst", "sgst", "igst", "input tax credit", "tax"] },
-      // `soon`: the screens work against a built-in sandbox, but the connection to an accredited
-      // service provider (live exchange with other businesses and the FTA) is not built yet.
-      { label: "e-Invoicing", to: "/e-invoicing", permission: ["reports.financial", "sales.view"], feature: "einvoicing", soon: true, keywords: ["einvoicing", "peppol", "pint ae", "asp", "fta", "electronic invoice", "tax invoice", "credit note"] },
     ],
   },
   {

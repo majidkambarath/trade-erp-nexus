@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { einvoice } from "../../lib/accountingApi";
 import { Button } from "../ui/button";
-import { ErrorNote, Field, Panel, Pill, TextInput } from "../accounting/kit";
+import { DateInput, ErrorNote, Field, Panel, Pill, TextInput } from "../accounting/kit";
 import WafeqConnection from "./WafeqConnection";
 
 export default function EInvoiceSettings({ settings, notify, onSaved }) {
   const [participantId, setParticipantId] = useState(settings.participantId);
   const [dueDays, setDueDays] = useState(String(settings.dueDays));
+  const [startDate, setStartDate] = useState(settings.startDate || "");
   const [secret, setSecret] = useState("");
   const [replacing, setReplacing] = useState(!settings.hasWebhookSecret);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [errors, setErrors] = useState({});
-  useEffect(() => { setParticipantId(settings.participantId); setDueDays(String(settings.dueDays)); }, [settings]);
+  useEffect(() => { setParticipantId(settings.participantId); setDueDays(String(settings.dueDays)); setStartDate(settings.startDate || ""); }, [settings]);
 
   async function save(body, message) {
     setBusy(true);
@@ -37,7 +38,7 @@ export default function EInvoiceSettings({ settings, notify, onSaved }) {
     if (dueDays === "" || !Number.isInteger(Number(dueDays)) || Number(dueDays) < 0) e.dueDays = "Enter a whole number of days, 0 or more";
     setErrors(e);
     if (Object.keys(e).length) return;
-    save({ participantId, dueDays: Number(dueDays), ...(secret ? { webhookSecret: secret } : {}) }, "E-invoice settings saved");
+    save({ participantId, dueDays: Number(dueDays), ...(startDate ? { startDate } : {}), ...(secret ? { webhookSecret: secret } : {}) }, "E-invoice settings saved");
   }
 
   return (
@@ -61,6 +62,7 @@ export default function EInvoiceSettings({ settings, notify, onSaved }) {
         <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field label="Your Participant ID" error={errors.participantId} hint={settings.connected ? "Taken from Wafeq's record of your business." : "Your Peppol identifier, e.g. 0235:100123456700003."}><TextInput value={participantId} onChange={(e) => setParticipantId(e.target.value.trim())} placeholder="0235:…" disabled={settings.connected} /></Field>
           <Field label="Send within (days)" error={errors.dueDays} hint="Invoices not sent by then are flagged. 0 turns the reminder off."><TextInput type="number" min="0" step="1" value={dueDays} onChange={(e) => setDueDays(e.target.value)} /></Field>
+          <Field label="Applies to invoices dated from" hint="Approved invoices dated before this day are not expected to be e-invoiced, so they never show as unsent. Set automatically when you first switch e-invoicing on."><DateInput value={startDate} onChange={(e) => setStartDate(e.target.value)} /></Field>
           <div className="sm:col-span-2">
             <Field label="Signing secret for received invoices" hint="Deliveries to /einvoice/inbound/webhook must be signed with this secret (HMAC-SHA256 of the body in the x-einvoice-signature header). It is stored encrypted and can never be read back.">
               {replacing

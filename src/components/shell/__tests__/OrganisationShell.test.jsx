@@ -86,7 +86,7 @@ describe("the organisation in the shell", () => {
   });
 
   it("says so, in place of the page, when a screen is not in the plan", async () => {
-    renderAt("/e-invoicing");
+    renderAt("/e-invoicing/dashboard");
     expect(await screen.findByText("E-invoicing is not included in your plan")).toBeInTheDocument();
     expect(screen.queryByText("the page itself")).toBeNull();
   });
@@ -328,7 +328,7 @@ describe("what the person's role may open", () => {
 
   it("opens a page the role does hold, and the plan message wins when the plan is the reason", async () => {
     status = { ...base(), me: SALES };
-    renderAt("/e-invoicing"); // sales.view opens it, but this plan has no e-invoicing
+    renderAt("/e-invoicing/dashboard"); // sales.view opens it, but this plan has no e-invoicing
     expect(await screen.findByText("E-invoicing is not included in your plan")).toBeInTheDocument();
   });
 

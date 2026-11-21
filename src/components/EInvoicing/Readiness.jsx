@@ -11,7 +11,7 @@ const FIX = {
   legalName: ["/settings?tab=rules", "Tax identity"],
   address: ["/settings?tab=rules", "Tax identity"],
   taxCodes: ["/accounting-setup?tab=tax", "Tax codes"],
-  participantId: ["/e-invoicing?tab=settings", "Settings"],
+  participantId: ["/e-invoicing/settings", "Settings"],
 };
 
 export default function Readiness({ notify, onChanged }) {

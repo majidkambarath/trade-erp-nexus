@@ -1966,11 +1966,29 @@ function stubFor(pathname, search = "") {
       };
     }
     if (p.endsWith("/dashboard")) {
+      const legs = { delivery: { delivered: 3, inProgress: 1, ftaOnly: 0, failed: 1, rejected: 1, pending: 0 }, fta: { reported: 3, reporting: 1, notReported: 0, withdrawn: 0, unresolved: 0, rejected: 1, pending: 0 } };
       return {
+        period: { from: "2026-10-01", to: "2026-10-31" }, sandbox: true,
+        todo: [
+          { key: "notSent", label: "Not sent", count: 3, amount: 3150, link: "/e-invoicing/outbound?status=NOT_SENT", tone: "warning" },
+          { key: "failed", label: "Failed", count: 1, link: "/e-invoicing/outbound?status=FAILED", tone: "danger" },
+          { key: "rejectedByBuyer", label: "Rejected by buyer", hint: "fix and resend", count: 1, link: "/e-invoicing/outbound?status=REJECTED", tone: "danger" },
+          { key: "inboundToReview", label: "Supplier invoices to review", count: 4, link: "/e-invoicing/inbound?status=RECEIVED", tone: "warning" },
+        ],
+        pipeline: { byStatus: { REPORTED: 3, FAILED: 1, REJECTED: 1 }, notSent: 3, ...legs, deliveredRate: 60, reportedRate: 100 },
+        totals: { invoices: { count: 5, net: 1000, tax: 50, payable: 1050 }, creditNotes: { count: 1, net: 100, tax: 5, payable: 105 }, net: { net: 900, tax: 45, payable: 945 } },
+        monthly: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"].map((month, i) => ({ month, sent: i + 1, sentAmount: 1000 * (i + 1), received: i % 3, receivedAmount: 400 * (i % 3) })),
+        topCustomers: [{ name: "Al Noor Trading Company LLC with a very long registered name", count: 3, amount: 2100 }, { name: "Capital Hypermarket", count: 2, amount: 900 }],
+        topSuppliers: [{ name: "Gulf Mills", count: 2, amount: 1300 }],
+        inboundPeriod: { received: 4, accepted: 1, rejected: 0, recorded: 1, amount: 1700 },
+        attention: [{ _id: "a1", documentNo: "SO-2026-0003", sourceId: "d3", invoiceTypeCode: "380", buyerName: "Al Noor Trading", status: "REJECTED", action: "correct", reason: "The buyer rejected the details: fix the customer and resend" }],
         outbound: { total: 6, byStatus: { REPORTED: 3, FAILED: 1, REJECTED: 1 }, net: 1000, tax: 50, payable: 1050, successRate: 60, needsAttention: 2 },
-        inbound: { RECEIVED: 4 }, recent: [{ _id: "r1", documentNo: "SO-2026-0001", buyerName: "Al Noor Trading", status: "REPORTED", updatedAt: "2026-10-04T08:00:00Z" }],
+        inbound: { RECEIVED: 4 },
+        recent: [{ _id: "r1", documentNo: "SO-2026-0001", sourceId: "d1", invoiceTypeCode: "380", buyerName: "Al Noor Trading", status: "REPORTED", deliveryStatus: "delivered_confirmed", taxStatus: "reported", updatedAt: "2026-10-04T08:00:00Z" }],
       };
     }
+    if (p.endsWith("/wafeq/health")) return { connected: false };
+    if (p.endsWith("/wafeq/summary")) return { connected: false };
     if (p.endsWith("/documents")) {
       const d = (i, status, over = {}) => ({ _id: `d${i}`, transactionNo: `SO-2026-000${i}`, type: "sales_order", invoiceTypeCode: "380", date: "2026-10-0" + i, customer: `Al Noor Trading ${i}`, total: 1050 * i, status, partyReady: true, partyMissing: [], submissionId: null, lastError: null, overdue: false, ...over });
       return [d(1, "NOT_SENT"), d(2, "REPORTED", { submissionId: "s1" }), d(3, "FAILED", { submissionId: "s2", lastError: "Timed out" }), d(4, "NOT_SENT", { partyReady: false, partyMissing: ["City", "Participant ID"] })];
