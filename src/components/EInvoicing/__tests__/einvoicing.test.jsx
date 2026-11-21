@@ -299,6 +299,16 @@ describe("outbound", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Show exactly what was sent/ }));
     expect(within(dialog).getByText(/abc123/)).toBeInTheDocument();
   });
+
+  it("history of a delivered invoice does not show an error an earlier poll left behind; a failed one does", async () => {
+    m.documents.mockResolvedValue([doc({ status: "ACKNOWLEDGED", submissionId: "s1" })]);
+    m.submission.mockResolvedValue({ documentNo: "SO-2026-0001", status: "ACKNOWLEDGED", attempts: 1, history: [], lastError: "Cannot read properties of undefined (reading 'getStatus')" });
+    at("/e-invoicing/outbound");
+    fireEvent.click(await screen.findByRole("button", { name: "History of SO-2026-0001" }));
+    const dialog = await screen.findByRole("dialog", { name: /history/ });
+    await within(dialog).findByText("Attempts");
+    expect(within(dialog).queryByText(/getStatus/)).toBeNull();
+  });
 });
 
 describe("inbound", () => {
