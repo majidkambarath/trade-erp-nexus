@@ -249,6 +249,20 @@ describe("outbound", () => {
     await waitFor(() => expect(m.documents).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "380" })));
   });
 
+  it("a credit note names the invoice it credits, and the invoice names its credit notes", async () => {
+    m.documents.mockResolvedValue([
+      doc({ _id: "c1", transactionNo: "SR-1", type: "sales_return", invoiceTypeCode: "381", creditOf: "SO-2026-0001" }),
+      doc({ _id: "i1", transactionNo: "SO-2026-0001", creditedBy: ["SR-1", "SR-2"] }),
+    ]);
+    at("/e-invoicing/outbound");
+    const toInvoice = await screen.findAllByRole("link", { name: "SO-2026-0001" });
+    expect(toInvoice.length).toBe(2); // the invoice's own row, and the credit note's reference column
+    toInvoice.forEach((a) => expect(a.getAttribute("href")).toContain("/sales-order?search=SO-2026-0001"));
+    expect(screen.getByText(/^Credit note for/)).toBeInTheDocument();
+    expect(screen.getByText(/^Credited by/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "SR-2" })).toHaveAttribute("href", expect.stringContaining("/sales-return?search=SR-2"));
+  });
+
   it("sending is disabled while e-invoicing is off", async () => {
     m.settings.mockResolvedValue({ ...SETTINGS, enabled: false });
     m.documents.mockResolvedValue([doc()]);
