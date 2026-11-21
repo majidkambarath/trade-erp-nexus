@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Eye, History, RefreshCw, RotateCcw, Search, Send } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Eye, FileMinus2, History, RefreshCw, RotateCcw, Search, Send, Wrench } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
-import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
+import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill, deliveryText, ftaText } from "./shared";
 
 // The server returns the newest documents a page at a time (25 unless asked, 100 at most) as a plain list with no total, so
 // the screen asks for 50 and offers older ones while a page comes back full. (It used to ask for none and show only the
@@ -12,17 +13,25 @@ import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill } from "./shared";
 const PAGE = 50;
 
 export default function Outbound({ notify, enabled }) {
-  const [status, setStatus] = useState("");
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const status = params.get("status") || "";
+  const overdue = params.get("overdue") === "1";
+  const kind = params.get("kind") || "";
+  const query = params.get("search") || "";
+  const [search, setSearch] = useState(query);
   const [page, setPage] = useState(1);
+  // the filter is kept in the address (so the dashboard can link to it) and decided by the server, not by the page loaded
+  const setFilter = (patch) => { const next = new URLSearchParams(params); for (const [k, v] of Object.entries(patch)) { if (v) next.set(k, v); else next.delete(k); } setParams(next, { replace: true }); setPage(1); };
+  const setStatus = (v) => setFilter({ status: v, overdue: "" });
+  const setQuery = (v) => setFilter({ search: v });
   const [preview, setPreview] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busyId, setBusyId] = useState(null);
-  const docs = useAsync(() => einvoice.documents({ search: query || undefined, page, limit: PAGE }), [query, page]);
+  const docs = useAsync(() => einvoice.documents({ search: query || undefined, status: status || undefined, overdue: overdue ? 1 : undefined, kind: kind || undefined, page, limit: PAGE }), [query, status, overdue, kind, page]);
 
   const loaded = docs.data || [];
-  const rows = loaded.filter((d) => !status || d.status === status);
+  const rows = loaded;
   const first = (page - 1) * PAGE + 1;
   const hasOlder = loaded.length >= PAGE;
 
@@ -45,7 +54,7 @@ export default function Outbound({ notify, enabled }) {
       description={enabled ? "Approved sales documents. Send each one once its customer details are complete." : "E-invoicing is switched off. You can preview documents, but sending needs it switched on in Settings."}
       actions={
         <>
-          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); setPage(1); }} className="relative">
+          <form onSubmit={(e) => { e.preventDefault(); setQuery(search.trim()); }} className="relative">
             <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Document number" aria-label="Search by document number"
               className="h-9 w-44 rounded-full border border-input bg-background ps-9 pe-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40" />
@@ -53,6 +62,11 @@ export default function Outbound({ notify, enabled }) {
           <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 w-40 rounded-full">
             <option value="">All statuses</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </Select>
+          <Select aria-label="Filter by type" value={kind} onChange={(e) => setFilter({ kind: e.target.value })} className="h-9 w-36 rounded-full">
+            <option value="">All types</option>
+            <option value="380">Invoices</option>
+            <option value="381">Credit notes</option>
           </Select>
         </>
       }
@@ -62,7 +76,7 @@ export default function Outbound({ notify, enabled }) {
       {docs.data && rows.length === 0 && (
         <EmptyState
           title="No documents"
-          text={status || query ? "Nothing matches that filter." : page > 1 ? "There are no older documents." : "Approved sales invoices and sales returns appear here."}
+          text={status || query || kind || overdue ? "Nothing matches that filter." : page > 1 ? "There are no older documents." : "Approved sales invoices and sales returns appear here."}
           action={page > 1 ? <Button variant="outline" onClick={() => setPage(page - 1)}>Newer documents</Button> : undefined}
         />
       )}
@@ -73,11 +87,11 @@ export default function Outbound({ notify, enabled }) {
             rows={rows}
             rowKey={(d) => d._id}
             columns={[
-              { key: "document", header: "Document", card: "primary", cell: (d) => <><span className="font-mono text-xs font-semibold">{d.transactionNo}</span><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
+              { key: "document", header: "Document", card: "primary", cell: (d) => <><Link to={`${d.type === "sales_return" ? "/sales-return" : "/sales-order"}?search=${encodeURIComponent(d.transactionNo)}`} className="font-mono text-xs font-semibold text-primary hover:underline">{d.transactionNo}</Link><span className="block text-xs font-normal text-muted-foreground">{DOC_TYPE[d.invoiceTypeCode]}</span></> },
               { key: "customer", header: "Customer", card: "title", cell: (d) => <>{d.customer || "—"}{!d.partyReady && <span className="block text-xs text-status-warning">Missing: {d.partyMissing.join(", ")}</span>}</> },
               { key: "date", header: "Date", card: "meta", className: "whitespace-nowrap", cell: (d) => <>{formatDateGB(d.date)}{d.overdue && <span className="block text-xs text-status-danger">Past due date to send</span>}</> },
               { key: "total", header: "Total", money: true, align: "end", card: "amount", className: "tabular-nums", cell: (d) => formatNumber(d.total, 2) },
-              { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
+              { key: "status", header: "Status", card: "badge", cell: (d) => <><StatusPill status={d.status} />{d.deliveryStatus && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{deliveryText(d.deliveryStatus)}{d.taxStatus ? ` · ${ftaText(d.taxStatus)}` : ""}</span>}{d.lastError && ["FAILED", "REJECTED"].includes(d.status) && <span className="mt-1 block max-w-60 text-xs font-normal text-muted-foreground">{d.lastError}</span>}</> },
               {
       key: "actions", header: "Actions", align: "end", card: "actions",
       cell: (d) => {
@@ -90,6 +104,8 @@ export default function Outbound({ notify, enabled }) {
                 <Button size="sm" onClick={() => setPreview({ doc: d, confirmSend: true })} disabled={busy || !enabled}><Send className="h-3.5 w-3.5" aria-hidden="true" />Send</Button>
               </>
             )}
+            {d.status === "REJECTED" && d.rejectedBy === "buyer" && ["BV", "SV"].includes(d.deliveryReasonCode) && <Button size="sm" onClick={() => setPreview({ doc: d, confirmCorrect: true })} disabled={busy || !enabled}><Wrench className="h-3.5 w-3.5" aria-hidden="true" />Resend correction</Button>}
+            {["SUBMITTED", "ACKNOWLEDGED", "REPORTED"].includes(d.status) && d.type === "sales_order" && <Button size="sm" variant="outline" onClick={() => setPreview({ doc: d, confirmCredit: true })} disabled={busy}><FileMinus2 className="h-3.5 w-3.5" aria-hidden="true" />Credit in full</Button>}
             {d.status === "FAILED" && <Button size="sm" onClick={() => act(() => einvoice.retry(d.submissionId), d, `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
             {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Check status</Button>}
             {d.submissionId && <Button size="sm" variant="ghost" onClick={() => setDetail(d.submissionId)} aria-label={`History of ${d.transactionNo}`}><History className="h-3.5 w-3.5" aria-hidden="true" />History</Button>}
@@ -105,7 +121,7 @@ export default function Outbound({ notify, enabled }) {
       {docs.data && (page > 1 || hasOlder) && (
         <nav aria-label="Pages" className="flex flex-col gap-2 border-t border-border px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
           <span className="text-muted-foreground">
-            {loaded.length ? `Documents ${first} to ${first + loaded.length - 1}, newest first${status ? ". The status filter applies to this page only" : ""}` : "No older documents"}
+            {loaded.length ? `Documents ${first} to ${first + loaded.length - 1}, newest first` : "No older documents"}
           </span>
           <span className="flex gap-2 [&>button]:min-h-11 [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
             <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Newer</Button>
@@ -114,9 +130,19 @@ export default function Outbound({ notify, enabled }) {
         </nav>
       )}
 
-      {preview && !preview.confirmSend && (
+      {preview && !preview.confirmSend && !preview.confirmCorrect && !preview.confirmCredit && (
         <PreviewModal {...preview} enabled={enabled} onClose={() => setPreview(null)}
           onSend={() => { const d = preview.doc; setPreview(null); act(() => einvoice.submit(d._id), d, `${d.transactionNo} sent`); }} />
+      )}
+      {preview?.confirmCorrect && (
+        <ConfirmDialog title={`Resend ${preview.doc.transactionNo} as a correction?`} confirmLabel="Resend correction"
+          text={`The buyer rejected it${preview.doc.deliveryReasonText ? `: ${preview.doc.deliveryReasonText}` : ""}. Fix the customer's details first (Readiness, or the customer itself): the invoice is rebuilt from what is saved now. The number stays the same and Wafeq links it to the rejected one.`}
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(() => einvoice.correct(d.submissionId), d, `${d.transactionNo} corrected and sent again`); }} />
+      )}
+      {preview?.confirmCredit && (
+        <ConfirmDialog title={`Credit ${preview.doc.transactionNo} in full?`} confirmLabel="Make the credit note"
+          text="This makes a draft credit note (sales return) for everything on the invoice not yet credited. Review and approve it on Sales > Returns, then send it from here. The invoice itself stays as it was issued."
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(async () => { const r = await einvoice.creditInFull(d._id); navigate(`/sales-return?search=${encodeURIComponent(r.transactionNo)}`); }, d, ""); }} />
       )}
       {preview?.confirmSend && (
         <ConfirmDialog title={`Send ${preview.doc.transactionNo}?`} confirmLabel="Send e-invoice"
@@ -128,7 +154,7 @@ export default function Outbound({ notify, enabled }) {
   );
 }
 
-function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSend }) {
+function PreviewModal({ doc, issues = [], payload, ready, wafeq, enabled, onClose, onSend }) {
   return (
     <Modal size="lg" onClose={onClose} title={`${doc.transactionNo} · ${DOC_TYPE[doc.invoiceTypeCode]}`}
       description={ready ? "Checked and ready to send." : `${issues.length} problem${issues.length === 1 ? "" : "s"} to fix before this can be sent.`}
@@ -141,6 +167,15 @@ function PreviewModal({ doc, issues = [], payload, ready, enabled, onClose, onSe
             </li>
           ))}
         </ul>
+      )}
+      {wafeq && !wafeq.checked && <p className="mb-4 rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">{wafeq.note}</p>}
+      {wafeq?.checked && (
+        <div className="mb-4 space-y-2" aria-label="Wafeq check">
+          <p className="text-sm"><span className="font-medium">Checked with Wafeq:</span> {wafeq.valid ? "passes the PINT-AE rules" : "does not pass the PINT-AE rules"}{wafeq.route === "reporting_only" ? ". It will be reported to the tax authority only: the buyer is not on Peppol." : ""}</p>
+          {[...wafeq.errors, ...wafeq.warnings].map((i, k) => (
+            <p key={k} className={`rounded-lg px-3 py-2 text-sm ${wafeq.errors.includes(i) ? "border border-status-danger/25 bg-status-danger-soft text-status-danger" : "bg-secondary text-muted-foreground"}`}><span className="font-mono text-xs opacity-80">{i.code}</span> {i.message}</p>
+          ))}
+        </div>
       )}
       {payload && (
         <div className="space-y-4 text-sm">
@@ -191,8 +226,13 @@ function SubmissionModal({ id, onClose }) {
           <dl className="grid gap-2 text-sm sm:grid-cols-3">
             <div><dt className="text-xs text-muted-foreground">Attempts</dt><dd className="font-medium">{data.attempts}</dd></div>
             <div><dt className="text-xs text-muted-foreground">Reference</dt><dd className="font-mono text-xs font-medium">{data.providerEntryId || "—"}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">Tax authority</dt><dd className="font-medium">{data.taxStatus || "—"}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Tax authority</dt><dd className="font-medium">{ftaText(data.taxStatus) || "—"}</dd></div>
+            {data.deliveryStatus && <div><dt className="text-xs text-muted-foreground">Delivery</dt><dd className="font-medium">{deliveryText(data.deliveryStatus)}</dd></div>}
+            {data.route === "reporting_only" && <div><dt className="text-xs text-muted-foreground">Route</dt><dd className="font-medium">Tax authority only</dd></div>}
           </dl>
+          {data.providerIssues?.length > 0 && (
+            <ul className="space-y-2" aria-label="Refused by Wafeq">{data.providerIssues.map((i, k) => <li key={k} className="rounded-lg border border-status-danger/25 bg-status-danger-soft px-3 py-2 text-sm text-status-danger"><span className="font-mono text-xs opacity-80">{i.code}</span> {i.message}</li>)}</ul>
+          )}
           {data.lastError && <p className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm text-status-danger">{data.lastError}</p>}
           {data.nextRetryAt && data.status === "FAILED" && <Pill tone="warning">Automatic retry at {formatDateTime(data.nextRetryAt)}</Pill>}
           <div>

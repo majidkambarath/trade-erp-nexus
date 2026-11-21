@@ -355,6 +355,53 @@ export function CompanyTab({ detail, catalog, run, busy }) {
   );
 }
 
+
+// ------------------------------------------------------------------------------------------------------ e-invoicing
+
+// Linking the business to its Wafeq taxpayer by hand: for sandbox testing and for support, when the business cannot do the
+// "Connect with Wafeq" approval itself. The taxpayer id is checked with Wafeq before it is kept.
+export function EInvoiceTab({ detail, code, run, busy }) {
+  const org = detail.organisation;
+  const link = useAsync(() => platform.wafeqLink(code), [code]);
+  const [mode, setMode] = useState("sandbox");
+  const [taxpayerId, setTaxpayerId] = useState("");
+  const [grantId, setGrantId] = useState("");
+  const l = link.data;
+  const act = async (action, done) => {
+    const result = await run(action, done);
+    await link.reload();
+    return result;
+  };
+
+  if (org.country !== "AE") {
+    return <Panel title="E-invoicing"><p className="text-sm text-muted-foreground">E-invoicing through Wafeq is for organisations in the UAE.</p></Panel>;
+  }
+  return (
+    <Panel title="E-invoicing through Wafeq" description="Which Wafeq business this organisation's invoices are sent as. A business normally connects itself from its own Settings; use this to link one for testing or support.">
+      {link.loading && !l && <Spinner label="Reading the link" />}
+      {link.error && <ErrorNote error={{ message: consoleError(link.error) }} onRetry={link.reload} />}
+      {l && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Pill tone={l.status === "active" ? "success" : l.status === "revoked" ? "danger" : "neutral"}>{l.status === "active" ? "Linked" : l.status === "revoked" ? "Connection lost" : "Not linked"}</Pill>
+            {l.status === "active" && <span>{l.name} · TIN {l.tin} · {l.participantId} · {l.mode === "live" ? "live" : "test mode"} · linked {l.linkedVia === "console" ? "from the console" : "by the business"}</span>}
+            {l.uaeOnly && <Pill tone="warning">Plan does not include e-invoicing</Pill>}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Mode"><Select value={mode} onChange={(e) => setMode(e.target.value)}><option value="sandbox">Test mode</option><option value="live">Live</option></Select></Field>
+            <Field label="Wafeq taxpayer id" hint="Looks like txpay_..."><TextInput value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value.trim())} placeholder="txpay_…" /></Field>
+            <Field label="Grant id (optional)" hint="Looks like tgr_..."><TextInput value={grantId} onChange={(e) => setGrantId(e.target.value.trim())} placeholder="tgr_…" /></Field>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={busy || !taxpayerId} className={primaryButton} onClick={() => act(() => platform.linkWafeq(code, { mode, taxpayerId, ...(grantId ? { grantId } : {}) }), "Linked to Wafeq")}>Link this business</button>
+            {l.status !== "disconnected" && <button type="button" disabled={busy} className={secondaryButton} onClick={() => act(() => platform.unlinkWafeq(code), "Link removed")}>Remove the link</button>}
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------------- people
 
 function PersonDialog({ code, branches, roles, onClose, run, existing }) {

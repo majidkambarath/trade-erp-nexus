@@ -64,11 +64,19 @@ export default function TaxCodes({ notify }) {
   );
 }
 
+// What an e-invoice (Wafeq, PINT-AE) needs to know about a supply that carries no VAT, or one the buyer assesses. UAE only.
+const EXEMPTION_REASONS = {
+  exempt: [["DL8.46.1", "Some financial services (Decree-Law 8 of 2017, Art. 46(1))"], ["DL8.46.2", "Residential property: sale or lease (Art. 46(2))"], ["DL8.46.3", "Bare land (Art. 46(3))"], ["DL8.46.4", "Local passenger transport (Art. 46(4))"]],
+  out_of_scope: [["VATEX-AE-OOS", "Outside the scope of VAT"]],
+};
+const REVERSE_CHARGE_TYPES = [["DL8.48.8.1", "DL8.48.8.1"], ["DL8.48.8.2", "DL8.48.8.2"], ["DL8.48.3.1", "DL8.48.3.1"], ["DL8.48.3.2", "DL8.48.3.2"], ["DL8.48.3.3", "DL8.48.3.3"]];
+
 export function TaxCodeModal({ code, onClose, onSaved }) {
   const editing = Boolean(code);
   const [form, setForm] = useState({
     name: code?.name || "", kind: code?.kind || "standard", ratePercent: code?.ratePercent ?? 5,
     isDefault: code?.isDefault || false, isActive: code?.isActive ?? true,
+    exemptionReasonCode: code?.exemptionReasonCode || "", reverseChargeGoodsType: code?.reverseChargeGoodsType || "",
     history: (code?.rateHistory || []).map((h) => ({ date: String(h.date).slice(0, 10), ratePercent: h.ratePercent })),
   });
   const [errors, setErrors] = useState({});
@@ -92,6 +100,9 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
       const body = {
         name: form.name.trim(), kind: form.kind, ratePercent: rate, isDefault: form.isDefault, isActive: form.isActive,
         rateHistory: form.history.map((h) => ({ date: h.date, ratePercent: Number(h.ratePercent) })),
+        // the reason belongs to a kind: one that no longer applies is cleared
+        exemptionReasonCode: EXEMPTION_REASONS[form.kind] ? form.exemptionReasonCode : "",
+        reverseChargeGoodsType: form.kind === "reverse_charge" ? form.reverseChargeGoodsType : "",
       };
       if (editing) await accounting.updateTaxCode(code._id, body); else await accounting.createTaxCode(body);
       onSaved(editing ? `${form.name} updated` : `${form.name} created`);
@@ -113,6 +124,22 @@ export function TaxCodeModal({ code, onClose, onSaved }) {
             {Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
         </Field>
+        {isUae() && EXEMPTION_REASONS[form.kind] && (
+          <Field label="Reason for no VAT" hint="Needed on an e-invoice sent through Wafeq." className="sm:col-span-2">
+            <Select value={form.exemptionReasonCode} onChange={set("exemptionReasonCode")}>
+              <option value="">Not set</option>
+              {EXEMPTION_REASONS[form.kind].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </Select>
+          </Field>
+        )}
+        {isUae() && form.kind === "reverse_charge" && (
+          <Field label="Reverse-charge goods type" hint="The Decree-Law category the buyer declares. Needed on an e-invoice." className="sm:col-span-2">
+            <Select value={form.reverseChargeGoodsType} onChange={set("reverseChargeGoodsType")}>
+              <option value="">Not set</option>
+              {REVERSE_CHARGE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </Select>
+          </Field>
+        )}
         <Field label="Rate (%)" required error={errors.ratePercent}><TextInput type="number" step="0.01" min="0" max="100" value={form.ratePercent} onChange={set("ratePercent")} /></Field>
 
         <fieldset className="rounded-xl border border-border p-4 sm:col-span-2">

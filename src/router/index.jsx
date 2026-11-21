@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 
 // Pages load on demand. The whole app used to arrive as one 2.6 MB script before anything
 // could be drawn, which on a phone is seconds of nothing; now a page's code is fetched when
@@ -93,6 +93,7 @@ const CrmCalendar = lazy(() => import("../components/crm/CrmCalendar.jsx"));
 const CrmReports = lazy(() => import("../components/crm/CrmReports.jsx"));
 const CrmSetup = lazy(() => import("../components/crm/CrmSetup.jsx"));
 const GoogleCallback = lazy(() => import("../components/crm/GoogleCallback.jsx"));
+const WafeqCallback = lazy(() => import("../components/EInvoicing/WafeqCallback.jsx"));
 const VendorDetailsPage = lazy(() => import("../components/AccountsModule/Purchase/VendorDetailsPage.jsx"));
 const CustomerDetailsPage = lazy(() => import("../components/AccountsModule/Sales/CustomerDetailsPage.jsx"));
 const ReceiptVouchers = lazy(() => import("../components/finance/PartyVouchers.jsx").then((m) => ({ default: m.ReceiptVouchers })));
@@ -119,6 +120,17 @@ const ConsoleLoading = () => <div role="status" className="grid min-h-screen pla
 const PortalLoading = () => <div role="status" className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Loading…</div>;
 const SharedLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Opening the document…</div>;
 const AuthLoading = () => <div role="status" className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
+// /e-invoicing?tab=outbound (the address before e-Invoicing had its own module) -> /e-invoicing/outbound; any other parameter is kept
+const E_SECTIONS = ["dashboard", "outbound", "inbound", "readiness", "settings"];
+function EInvoicingRedirect() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  const tab = params.get("tab");
+  params.delete("tab");
+  const rest = params.toString();
+  return <Navigate to={`/e-invoicing/${E_SECTIONS.includes(tab) ? tab : "dashboard"}${rest ? `?${rest}` : ""}`} replace />;
+}
+
 export default function AdminRouter() {
   return (
     <Routes>
@@ -193,7 +205,13 @@ export default function AdminRouter() {
         <Route path="/transactors" element={<Navigate to="/cash-and-bank" replace />} />
         <Route path="/vat-reports" element={<VatReturn />} />
         <Route path="/gst-returns" element={<GstReturn />} />
-        <Route path="/e-invoicing" element={<EInvoicing />} />
+        {/* e-Invoicing is its own module: one route per section, and the old /e-invoicing?tab=x keeps working */}
+        <Route path="/e-invoicing" element={<EInvoicingRedirect />} />
+        <Route path="/e-invoicing/dashboard" element={<EInvoicing />} />
+        <Route path="/e-invoicing/outbound" element={<EInvoicing />} />
+        <Route path="/e-invoicing/inbound" element={<EInvoicing />} />
+        <Route path="/e-invoicing/readiness" element={<EInvoicing />} />
+        <Route path="/e-invoicing/settings" element={<EInvoicing />} />
         <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
         <Route path="/accounting-setup" element={<AccountingSetup />} />
         <Route path="/financial-statements" element={<FinancialStatements />} />
@@ -244,6 +262,7 @@ export default function AdminRouter() {
         {/* Where Google returns the browser after consent. Not a page anybody navigates to: it finishes the
             connection and sends the person back to Settings. */}
         <Route path="/crm/google/callback" element={<GoogleCallback />} />
+        <Route path="/settings/einvoicing/wafeq/callback" element={<WafeqCallback />} />
       </Route>
       </Route>
       <Route path="*" element={<NotFound />} />
