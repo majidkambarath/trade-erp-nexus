@@ -12,6 +12,13 @@ const m = vi.hoisted(() => ({
   wafeqHealth: vi.fn(), wafeqSummary: vi.fn(),
 }));
 vi.mock("../../../lib/accountingApi", () => ({ einvoice: m, api: { get: m.apiGet } }));
+// jsdom has no layout and no ResizeObserver, so a responsive chart cannot measure itself: give it a size
+// (the same stub as components/crm/__tests__/CrmWave2.test.jsx).
+vi.mock("recharts", async (orig) => {
+  const actual = await orig();
+  const { cloneElement } = await import("react");
+  return { ...actual, ResponsiveContainer: ({ children, height }) => cloneElement(children, { width: 320, height: typeof height === "number" ? height : 220 }) };
+});
 
 import EInvoicing from "../EInvoicing";
 
@@ -74,6 +81,21 @@ describe("the page", () => {
     expect(screen.queryByText("0% of those sent")).toBeNull();
   });
 
+  it("draws the status mix, the two journeys and the top customers as charts with named parts", async () => {
+    m.dashboard.mockResolvedValue(dash({
+      pipeline: { byStatus: { ACKNOWLEDGED: 2, FAILED: 1 }, notSent: 3, delivery: { ...LEGS.delivery, delivered: 2, failed: 1 }, fta: { ...LEGS.fta, reported: 2 }, deliveredRate: 66.7, reportedRate: 66.7 },
+      topCustomers: [{ name: "Capital Hypermarket", count: 2, amount: 900 }],
+    }));
+    at();
+    const mix = (await screen.findByText("Status mix")).closest("section");
+    expect(within(mix).getByText("Failed")).toBeInTheDocument();
+    expect(within(mix).getByText("Not sent")).toBeInTheDocument();
+    const delivery = screen.getByText("Buyer delivery").closest("section");
+    expect(within(delivery).getByText("Not reached")).toBeInTheDocument();
+    expect(within(delivery).getByText(/66.7% delivered/)).toBeInTheDocument();
+    expect(screen.getByText(/Capital Hypermarket/)).toBeInTheDocument();
+  });
+
   it("a worklist tile opens the list it counts, already filtered", async () => {
     m.dashboard.mockResolvedValue(dash({ todo: [{ ...TODO[1], count: 2 }, ...TODO.filter((t) => t.key !== "failed")] }));
     m.documents.mockResolvedValue([doc({ status: "FAILED", submissionId: "s1", lastError: "boom" })]);
@@ -101,6 +123,7 @@ describe("the page", () => {
     m.wafeqSummary.mockResolvedValue({ connected: true, sandbox: true, outbound: { count: 9 }, inbound: { count: 1 } });
     at();
     await screen.findByText("Harbour Trading");
+    expect(within(screen.getByRole("region", { name: "This period" })).getByText("262.50")).toBeInTheDocument(); // the period's payable: invoices less credit notes
     expect(m.wafeqHealth).not.toHaveBeenCalled(); // spends Wafeq's shared budget: only when asked
     fireEvent.click(screen.getByRole("button", { name: "Check connection" }));
     expect(await screen.findByText(/Wafeq's record differs from your company profile/)).toBeInTheDocument();

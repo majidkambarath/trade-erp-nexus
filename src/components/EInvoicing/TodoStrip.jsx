@@ -1,8 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2 } from "lucide-react";
+import { AlarmClock, AlertTriangle, CheckCircle2, CircleSlash, Clock, FileClock, Inbox, PackageCheck, ShieldX } from "lucide-react";
+
 import { CURRENCY, formatNumber } from "../../utils/format";
 import { StatCard } from "../ui/stat-card";
+
+const ICON = { notSent: FileClock, overdue: AlarmClock, failed: AlertTriangle, rejectedByBuyer: CircleSlash, rejectedByFta: ShieldX, stuck: Clock, inboundToReview: Inbox, inboundNotRecorded: PackageCheck };
 
 // The worklist: what needs a person right now, as of today (not tied to the period). Each tile opens the list it counts, already filtered.
 // A tile at zero is drawn quiet; when every tile is zero the strip says so in one line instead of eight zeros.
@@ -18,12 +21,12 @@ export default function TodoStrip({ todo }) {
     );
   }
   return (
-    <section aria-label="Needs you now">
+    <section aria-label="Needs you now" data-reveal>
       <h2 className="mb-2 text-sm font-semibold">Needs you now</h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {open.map((t) => (
           <StatCard
-            key={t.key} title={t.label} count={t.count} tone={t.tone}
+            key={t.key} title={t.label} count={t.count} tone={t.tone} icon={React.createElement(ICON[t.key] || Inbox)}
             subText={[t.amount ? `${CURRENCY} ${formatNumber(t.amount, 2)}` : null, t.hint].filter(Boolean).join(" · ") || "Open the list"}
             onClick={() => navigate(t.link)}
           />

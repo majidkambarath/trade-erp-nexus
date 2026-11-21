@@ -1,54 +1,65 @@
 import React from "react";
+import { Ring } from "../crm/CrmCharts";
 import { Panel } from "../accounting/kit";
+import { STATUS, STATUS_COLOR } from "./shared";
 
-// An e-invoice makes two journeys that succeed or fail separately: delivery to the buyer, and the report to the tax authority (FTA).
-// Each is one bar cut into segments. Every segment is named in words with its count (colour never stands alone).
+// Three rings, read together: what state the period's invoices are in, and the two journeys each one makes - delivery to the
+// buyer and the report to the tax authority (FTA). Wafeq's own advice is to show those two apart: one can succeed while the
+// other fails. Every slice is named in the legend with its count and share, so colour is never the only cue.
+const S = {
+  success: "var(--color-status-success)", info: "var(--color-status-info)", warning: "var(--color-status-warning)",
+  danger: "var(--color-status-danger)", muted: "var(--color-muted-foreground)", quiet: "var(--chart-4)",
+};
 const DELIVERY = [
-  { key: "delivered", label: "Delivered", bar: "bg-status-success" },
-  { key: "inProgress", label: "In progress", bar: "bg-status-info" },
-  { key: "ftaOnly", label: "Tax authority only", bar: "bg-muted-foreground" },
-  { key: "failed", label: "Not reached", bar: "bg-status-warning" },
-  { key: "rejected", label: "Rejected", bar: "bg-status-danger" },
+  { key: "delivered", name: "Delivered", color: S.success },
+  { key: "inProgress", name: "In progress", color: S.info },
+  { key: "ftaOnly", name: "Tax authority only", color: S.quiet },
+  { key: "failed", name: "Not reached", color: S.warning },
+  { key: "rejected", name: "Rejected", color: S.danger },
 ];
 const FTA = [
-  { key: "reported", label: "Reported", bar: "bg-status-success" },
-  { key: "reporting", label: "Being reported", bar: "bg-status-info" },
-  { key: "notReported", label: "Not reported (test mode)", bar: "bg-muted-foreground" },
-  { key: "withdrawn", label: "Withdrawn", bar: "bg-status-warning" },
-  { key: "unresolved", label: "Unresolved", bar: "bg-status-warning" },
-  { key: "rejected", label: "Rejected", bar: "bg-status-danger" },
+  { key: "reported", name: "Reported", color: S.success },
+  { key: "reporting", name: "Being reported", color: S.info },
+  { key: "notReported", name: "Not reported (test mode)", color: S.muted },
+  { key: "withdrawn", name: "Withdrawn", color: S.quiet },
+  { key: "unresolved", name: "Unresolved", color: S.warning },
+  { key: "rejected", name: "Rejected", color: S.danger },
 ];
+const STATUS_ORDER = ["NOT_SENT", "QUEUED", "SUBMITTED", "ACKNOWLEDGED", "REPORTED", "FAILED", "REJECTED"];
 
-function Bar({ title, parts, counts, note }) {
-  const total = parts.reduce((t, p) => t + (counts[p.key] || 0), 0);
+const count = (v) => String(Math.round(v));
+const rows = (parts, counts) => parts.map((p) => ({ ...p, value: counts?.[p.key] || 0 }));
+const sum = (r) => r.reduce((t, x) => t + x.value, 0);
+
+function RingPanel({ title, description, data, label, empty, note }) {
+  const total = sum(data);
   return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-medium">{title}</h3>
-        <span className="text-xs text-muted-foreground">{total} {total === 1 ? "invoice" : "invoices"}</span>
+    <Panel title={title} description={description} className="h-full">
+      <div data-chart={title}>
+        {total > 0 ? <Ring rows={data} total={total} label={label} format={count} /> : <p className="py-10 text-center text-sm text-muted-foreground">{empty}</p>}
       </div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-secondary" role="img" aria-label={`${title}: ${parts.filter((p) => counts[p.key]).map((p) => `${counts[p.key]} ${p.label.toLowerCase()}`).join(", ") || "nothing yet"}`}>
-        {total > 0 && parts.filter((p) => counts[p.key]).map((p) => <span key={p.key} className={p.bar} style={{ width: `${(counts[p.key] / total) * 100}%` }} />)}
-      </div>
-      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-        {parts.filter((p) => counts[p.key]).map((p) => (
-          <li key={p.key} className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${p.bar}`} aria-hidden="true" /><span className="text-muted-foreground">{p.label}</span><span className="font-semibold tabular-nums">{counts[p.key]}</span></li>
-        ))}
-        {total === 0 && <li className="text-muted-foreground">Nothing sent in this period.</li>}
-      </ul>
-      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
-    </div>
+      {note && <p className="mt-3 text-xs text-muted-foreground">{note}</p>}
+    </Panel>
   );
 }
 
-export default function LegsPanel({ pipeline, sandbox }) {
+export default function JourneyRings({ pipeline, sandbox }) {
+  const statusCounts = { ...pipeline.byStatus, NOT_SENT: pipeline.notSent || 0 };
+  const mix = STATUS_ORDER.map((k) => ({ key: k, name: STATUS[k]?.label || k, color: STATUS_COLOR[k], value: statusCounts[k] || 0 }));
+  const delivery = rows(DELIVERY, pipeline.delivery);
+  const fta = rows(FTA, pipeline.fta);
   return (
-    <Panel title="Where the invoices are" description="Delivery to the buyer and the report to the tax authority are separate journeys.">
-      <div className="space-y-6">
-        <Bar title="Buyer delivery" parts={DELIVERY} counts={pipeline.delivery} />
-        <Bar title="Tax authority (FTA)" parts={FTA} counts={pipeline.fta}
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <div data-reveal><RingPanel title="Status mix" description="Every invoice and credit note dated in the period." data={mix} label="documents" empty="Nothing dated in this period." /></div>
+      <div data-reveal>
+        <RingPanel title="Buyer delivery" description="Did it reach the buyer's provider?" data={delivery}
+          label={pipeline.deliveredRate == null ? "sent" : `sent · ${pipeline.deliveredRate}% delivered`} empty="Nothing sent in this period." />
+      </div>
+      <div data-reveal>
+        <RingPanel title="Tax authority (FTA)" description="Did the tax authority accept the report?" data={fta}
+          label={sandbox ? "sent · test mode" : pipeline.reportedRate == null ? "sent" : `sent · ${pipeline.reportedRate}% reported`} empty="Nothing sent in this period."
           note={sandbox ? "Test mode: Wafeq's sandbox never reports to the tax authority, so sent invoices stop at Delivered. This is expected." : undefined} />
       </div>
-    </Panel>
+    </div>
   );
 }
