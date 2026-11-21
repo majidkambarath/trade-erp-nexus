@@ -5,6 +5,7 @@ import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
+import { PillTabs } from "../salesDocs/parts";
 import SendProgress from "./SendProgress";
 import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill, deliveryText, ftaText } from "./shared";
 
@@ -72,7 +73,7 @@ export default function Outbound({ notify, enabled }) {
 
   return (
     <Panel
-      bodyClassName="p-0" title="Sales invoices and credit notes"
+      bodyClassName="p-0" title={kind === "380" ? "Sales invoices" : kind === "381" ? "Credit notes" : "Sales invoices and credit notes"}
       description={enabled ? "Approved sales documents. Send each one once its customer details are complete." : "E-invoicing is switched off. You can preview documents, but sending needs it switched on in Settings."}
       actions={
         <>
@@ -85,14 +86,12 @@ export default function Outbound({ notify, enabled }) {
             <option value="">All statuses</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </Select>
-          <Select aria-label="Filter by type" value={kind} onChange={(e) => setFilter({ kind: e.target.value })} className="h-9 w-36 rounded-full">
-            <option value="">All types</option>
-            <option value="380">Invoices</option>
-            <option value="381">Credit notes</option>
-          </Select>
         </>
       }
     >
+      <div className="border-b border-border px-5 py-3">
+        <PillTabs label="Document type" value={kind} onChange={(v) => setFilter({ kind: v })} tabs={[["", "All"], ["380", "Invoices"], ["381", "Credit notes"]]} />
+      </div>
       {docs.loading && !docs.data && <Spinner label="Loading documents" />}
       {docs.error && <div className="p-5"><ErrorNote error={docs.error} onRetry={docs.reload} /></div>}
       {docs.data && rows.length === 0 && (

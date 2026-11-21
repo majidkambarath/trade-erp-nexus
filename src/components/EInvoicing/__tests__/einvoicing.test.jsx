@@ -239,6 +239,16 @@ describe("outbound", () => {
     expect(await screen.findByRole("dialog", { name: "Sent to Wafeq" })).toBeInTheDocument();
   });
 
+  it("Outbound has Invoices and Credit notes tabs that ask the server by type", async () => {
+    m.documents.mockResolvedValue([doc()]);
+    at("/e-invoicing/outbound");
+    fireEvent.click(await screen.findByRole("tab", { name: "Credit notes" }));
+    await waitFor(() => expect(m.documents).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "381" })));
+    expect(screen.getByRole("tab", { name: "Credit notes" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Invoices" }));
+    await waitFor(() => expect(m.documents).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "380" })));
+  });
+
   it("sending is disabled while e-invoicing is off", async () => {
     m.settings.mockResolvedValue({ ...SETTINGS, enabled: false });
     m.documents.mockResolvedValue([doc()]);
