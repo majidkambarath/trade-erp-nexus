@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, FileMinus2, History, RefreshCw, RotateCcw, Search, Send, Wrench } from "lucide-react";
+import { Eye, FileMinus2, History, Loader2, RefreshCw, RotateCcw, Search, Send, Wrench } from "lucide-react";
 import { einvoice } from "../../lib/accountingApi";
 import { formatDateGB, formatNumber, moneyHeading } from "../../utils/format";
 import { Button } from "../ui/button";
 import { ConfirmDialog, DataTable, EmptyState, errorMessage, ErrorNote, formatDateTime, Modal, Panel, Pill, Select, Spinner, useAsync } from "../accounting/kit";
+import { PillTabs } from "../salesDocs/parts";
+import SendProgress from "./SendProgress";
 import { DOC_TYPE, NEXT_STEP, STATUS, StatusPill, deliveryText, ftaText } from "./shared";
 
 // The server returns the newest documents a page at a time (25 unless asked, 100 at most) as a plain list with no total, so
@@ -35,6 +37,27 @@ export default function Outbound({ notify, enabled }) {
   const first = (page - 1) * PAGE + 1;
   const hasOlder = loaded.length >= PAGE;
 
+  // A send is shown in its own dialog (SendProgress) that follows ONE request. The result also reaches the list and a toast
+  // here, so hiding the dialog never loses it.
+  const [sending, setSending] = useState(null);
+  const hidden = useRef(false);
+  function startSend(doc, kind, fn, okMessage) {
+    const promise = fn();
+    hidden.current = false;
+    setSending({ doc, kind, promise, fn, okMessage });
+    promise.then((r) => {
+      const sub = r?.submission || r;
+      if (sub?.status === "FAILED") notify(`${doc.transactionNo} not sent yet${sub.lastError ? `: ${sub.lastError}` : ""}`, "error");
+      else if (hidden.current) notify(okMessage);
+      else notify(okMessage);
+      docs.reload();
+    }, (e) => {
+      if (e?.code === "EINVOICE_VALIDATION") { setSending(null); setPreview({ doc, issues: e.details?.issues || [], payload: null, ready: false }); }
+      else if (hidden.current) notify(errorMessage(e), "error");
+    });
+  }
+  const closeSending = () => { hidden.current = true; setSending(null); };
+
   async function act(fn, doc, okMessage) {
     setBusyId(doc._id);
     try {
@@ -50,7 +73,7 @@ export default function Outbound({ notify, enabled }) {
 
   return (
     <Panel
-      bodyClassName="p-0" title="Sales invoices and credit notes"
+      bodyClassName="p-0" title={kind === "380" ? "Sales invoices" : kind === "381" ? "Credit notes" : "Sales invoices and credit notes"}
       description={enabled ? "Approved sales documents. Send each one once its customer details are complete." : "E-invoicing is switched off. You can preview documents, but sending needs it switched on in Settings."}
       actions={
         <>
@@ -63,14 +86,12 @@ export default function Outbound({ notify, enabled }) {
             <option value="">All statuses</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </Select>
-          <Select aria-label="Filter by type" value={kind} onChange={(e) => setFilter({ kind: e.target.value })} className="h-9 w-36 rounded-full">
-            <option value="">All types</option>
-            <option value="380">Invoices</option>
-            <option value="381">Credit notes</option>
-          </Select>
         </>
       }
     >
+      <div className="border-b border-border px-5 py-3">
+        <PillTabs label="Document type" value={kind} onChange={(v) => setFilter({ kind: v })} tabs={[["", "All"], ["380", "Invoices"], ["381", "Credit notes"]]} />
+      </div>
       {docs.loading && !docs.data && <Spinner label="Loading documents" />}
       {docs.error && <div className="p-5"><ErrorNote error={docs.error} onRetry={docs.reload} /></div>}
       {docs.data && rows.length === 0 && (
@@ -95,19 +116,19 @@ export default function Outbound({ notify, enabled }) {
               {
       key: "actions", header: "Actions", align: "end", card: "actions",
       cell: (d) => {
-        const busy = busyId === d._id;
+        const busy = busyId === d._id || sending?.doc?._id === d._id;
         return (
           <div className="flex flex-wrap items-center justify-end gap-1.5">
             {d.status === "NOT_SENT" && (
               <>
-                <Button size="sm" variant="outline" onClick={() => act(async () => setPreview({ doc: d, ...(await einvoice.preview(d._id)) }), d, "")} disabled={busy}><Eye className="h-3.5 w-3.5" aria-hidden="true" />Review</Button>
+                <Button size="sm" variant="outline" onClick={() => act(async () => setPreview({ doc: d, ...(await einvoice.preview(d._id)) }), d, "")} disabled={busy}>{busy && busyId === d._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}{busy && busyId === d._id ? "Checking…" : "Review"}</Button>
                 <Button size="sm" onClick={() => setPreview({ doc: d, confirmSend: true })} disabled={busy || !enabled}><Send className="h-3.5 w-3.5" aria-hidden="true" />Send</Button>
               </>
             )}
             {d.status === "REJECTED" && d.rejectedBy === "buyer" && ["BV", "SV"].includes(d.deliveryReasonCode) && <Button size="sm" onClick={() => setPreview({ doc: d, confirmCorrect: true })} disabled={busy || !enabled}><Wrench className="h-3.5 w-3.5" aria-hidden="true" />Resend correction</Button>}
             {["SUBMITTED", "ACKNOWLEDGED", "REPORTED"].includes(d.status) && d.type === "sales_order" && <Button size="sm" variant="outline" onClick={() => setPreview({ doc: d, confirmCredit: true })} disabled={busy}><FileMinus2 className="h-3.5 w-3.5" aria-hidden="true" />Credit in full</Button>}
-            {d.status === "FAILED" && <Button size="sm" onClick={() => act(() => einvoice.retry(d.submissionId), d, `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
-            {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Check status</Button>}
+            {d.status === "FAILED" && <Button size="sm" onClick={() => startSend(d, "retry", () => einvoice.retry(d.submissionId), `${d.transactionNo} sent again`)} disabled={busy}><RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Retry</Button>}
+            {["SUBMITTED", "ACKNOWLEDGED"].includes(d.status) && <Button size="sm" variant="outline" onClick={() => act(() => einvoice.refresh(d.submissionId), d, "Status updated")} disabled={busy}><RefreshCw className={`h-3.5 w-3.5 ${busyId === d._id ? "animate-spin" : ""}`} aria-hidden="true" />{busyId === d._id ? "Checking…" : "Check status"}</Button>}
             {d.submissionId && <Button size="sm" variant="ghost" onClick={() => setDetail(d.submissionId)} aria-label={`History of ${d.transactionNo}`}><History className="h-3.5 w-3.5" aria-hidden="true" />History</Button>}
           </div>
         );
@@ -132,12 +153,12 @@ export default function Outbound({ notify, enabled }) {
 
       {preview && !preview.confirmSend && !preview.confirmCorrect && !preview.confirmCredit && (
         <PreviewModal {...preview} enabled={enabled} onClose={() => setPreview(null)}
-          onSend={() => { const d = preview.doc; setPreview(null); act(() => einvoice.submit(d._id), d, `${d.transactionNo} sent`); }} />
+          onSend={() => { const d = preview.doc; setPreview(null); startSend(d, "send", () => einvoice.submit(d._id), `${d.transactionNo} sent`); }} />
       )}
       {preview?.confirmCorrect && (
         <ConfirmDialog title={`Resend ${preview.doc.transactionNo} as a correction?`} confirmLabel="Resend correction"
           text={`The buyer rejected it${preview.doc.deliveryReasonText ? `: ${preview.doc.deliveryReasonText}` : ""}. Fix the customer's details first (Readiness, or the customer itself): the invoice is rebuilt from what is saved now. The number stays the same and Wafeq links it to the rejected one.`}
-          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(() => einvoice.correct(d.submissionId), d, `${d.transactionNo} corrected and sent again`); }} />
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); startSend(d, "correct", () => einvoice.correct(d.submissionId), `${d.transactionNo} corrected and sent again`); }} />
       )}
       {preview?.confirmCredit && (
         <ConfirmDialog title={`Credit ${preview.doc.transactionNo} in full?`} confirmLabel="Make the credit note"
@@ -147,7 +168,12 @@ export default function Outbound({ notify, enabled }) {
       {preview?.confirmSend && (
         <ConfirmDialog title={`Send ${preview.doc.transactionNo}?`} confirmLabel="Send e-invoice"
           text="An invoice that has been sent cannot be edited. If it is wrong, you issue a credit note and a corrected invoice. The invoice is checked before it goes, and any problem is shown."
-          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); act(() => einvoice.submit(d._id), d, `${d.transactionNo} sent`); }} />
+          onClose={() => setPreview(null)} onConfirm={() => { const d = preview.doc; setPreview(null); startSend(d, "send", () => einvoice.submit(d._id), `${d.transactionNo} sent`); }} />
+      )}
+      {sending && (
+        <SendProgress doc={sending.doc} kind={sending.kind} promise={sending.promise} onClose={closeSending}
+          onValidation={() => {}} onHistory={(id) => { setSending(null); setDetail(id); }}
+          onRetry={() => startSend(sending.doc, sending.kind, sending.fn, sending.okMessage)} />
       )}
       {detail && <SubmissionModal id={detail} onClose={() => setDetail(null)} />}
     </Panel>
