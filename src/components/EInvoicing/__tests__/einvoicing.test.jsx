@@ -209,6 +209,36 @@ describe("outbound", () => {
     expect(await screen.findByText("Customer city is missing")).toBeInTheDocument();
   });
 
+  it("shows a sending dialog while the send runs, then the result", async () => {
+    m.documents.mockResolvedValue([doc()]);
+    let done; m.submit.mockReturnValue(new Promise((r) => { done = r; }));
+    at("/e-invoicing/outbound");
+    fireEvent.click(await screen.findByRole("button", { name: /^Send$/ }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Send SO-2026-0001?" })).getByRole("button", { name: "Send e-invoice" }));
+    const dlg = await screen.findByRole("dialog", { name: "Sending SO-2026-0001" });
+    expect(within(dlg).getByText("Checking the invoice against the UAE rules")).toBeInTheDocument();
+    done({ submission: { _id: "s1", status: "SUBMITTED" }, alreadySubmitted: false });
+    expect(await screen.findByRole("dialog", { name: "Sent to Wafeq" })).toBeInTheDocument();
+    expect(screen.getByText("Sent. Waiting for delivery confirmation.")).toBeInTheDocument();
+  });
+
+  it("a failed send says why, and a thrown error can be tried again", async () => {
+    m.documents.mockResolvedValue([doc()]);
+    m.submit.mockResolvedValueOnce({ submission: { status: "FAILED", lastError: "Wafeq unreachable" } });
+    at("/e-invoicing/outbound");
+    fireEvent.click(await screen.findByRole("button", { name: /^Send$/ }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Send SO-2026-0001?" })).getByRole("button", { name: "Send e-invoice" }));
+    expect(await screen.findByRole("dialog", { name: "Not sent yet" })).toBeInTheDocument();
+    expect(screen.getAllByText(/Wafeq unreachable/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    m.submit.mockRejectedValueOnce(new Error("Network down")).mockResolvedValueOnce({ submission: { status: "SUBMITTED" } });
+    fireEvent.click(await screen.findByRole("button", { name: /^Send$/ }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Send SO-2026-0001?" })).getByRole("button", { name: "Send e-invoice" }));
+    expect(await screen.findByRole("dialog", { name: "Could not send" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("dialog", { name: "Sent to Wafeq" })).toBeInTheDocument();
+  });
+
   it("sending is disabled while e-invoicing is off", async () => {
     m.settings.mockResolvedValue({ ...SETTINGS, enabled: false });
     m.documents.mockResolvedValue([doc()]);
