@@ -260,7 +260,7 @@ function SubmissionModal({ id, onClose }) {
           {data.providerIssues?.length > 0 && (
             <ul className="space-y-2" aria-label="Refused by Wafeq">{data.providerIssues.map((i, k) => <li key={k} className="rounded-lg border border-status-danger/25 bg-status-danger-soft px-3 py-2 text-sm text-status-danger"><span className="font-mono text-xs opacity-80">{i.code}</span> {i.message}</li>)}</ul>
           )}
-          {data.lastError && <p className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm text-status-danger">{data.lastError}</p>}
+          {data.lastError && ["FAILED", "REJECTED"].includes(data.status) && <p className="rounded-lg bg-status-danger-soft px-3 py-2 text-sm text-status-danger">{data.lastError}</p>}
           {data.nextRetryAt && data.status === "FAILED" && <Pill tone="warning">Automatic retry at {formatDateTime(data.nextRetryAt)}</Pill>}
           <div>
             <button type="button" className="text-sm font-semibold underline underline-offset-2" onClick={() => setShowPayload((v) => !v)} aria-expanded={showPayload}>{showPayload ? "Hide" : "Show"} exactly what was sent</button>
