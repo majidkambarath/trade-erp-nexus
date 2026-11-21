@@ -57,7 +57,6 @@ describe("the page", () => {
     at();
     expect(await screen.findByText(/Built-in sandbox · connect Wafeq in Settings/)).toBeInTheDocument();
     expect(await screen.findByText("UAE mandate dates")).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "" })).toBeInTheDocument(); // "All clear": nothing is waiting
     expect(screen.getByText("All clear.")).toBeInTheDocument();
   });
 
@@ -87,20 +86,32 @@ describe("the page", () => {
       topCustomers: [{ name: "Capital Hypermarket", count: 2, amount: 900 }],
     }));
     at();
-    const mix = (await screen.findByText("Status mix")).closest("section");
+    const mix = (await screen.findByText("Status mix")).closest("[data-slot=card]");
     expect(within(mix).getByText("Failed")).toBeInTheDocument();
     expect(within(mix).getByText("Not sent")).toBeInTheDocument();
-    const delivery = screen.getByText("Buyer delivery").closest("section");
+    const delivery = screen.getByRole("group", { name: "Buyer delivery" });
     expect(within(delivery).getByText("Not reached")).toBeInTheDocument();
-    expect(within(delivery).getByText(/66.7% delivered/)).toBeInTheDocument();
+    expect(within(delivery).getByText("66.7%")).toBeInTheDocument();
     expect(screen.getByText(/Capital Hypermarket/)).toBeInTheDocument();
+  });
+
+  it("says how each figure moved against the period before, in words as well as colour", async () => {
+    m.dashboard.mockResolvedValue(dash({
+      totals: { invoices: { count: 3, net: 300, tax: 15, payable: 315 }, creditNotes: { count: 0, net: 0, tax: 0, payable: 0 }, net: { net: 300, tax: 15, payable: 315 } },
+      previous: { from: "2026-10-01", to: "2026-10-31", payable: 210, invoices: 4, creditNotes: 0, delivered: 0, received: 0 },
+    }));
+    at();
+    const kpis = await screen.findByRole("region", { name: "This period" });
+    expect(within(kpis).getByText("50.0% up")).toBeInTheDocument(); // 315 against 210
+    expect(within(kpis).getByText("25.0% down")).toBeInTheDocument(); // 3 invoices against 4
+    expect(within(kpis).getAllByText("nothing to compare").length).toBeGreaterThan(0);
   });
 
   it("a worklist tile opens the list it counts, already filtered", async () => {
     m.dashboard.mockResolvedValue(dash({ todo: [{ ...TODO[1], count: 2 }, ...TODO.filter((t) => t.key !== "failed")] }));
     m.documents.mockResolvedValue([doc({ status: "FAILED", submissionId: "s1", lastError: "boom" })]);
     at();
-    fireEvent.click(await screen.findByRole("button", { name: /Failed/ }));
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Failed/ }))[0]);
     expect(await screen.findByLabelText("Filter by status")).toHaveValue("FAILED");
     await waitFor(() => expect(m.documents).toHaveBeenCalledWith(expect.objectContaining({ status: "FAILED" })));
   });

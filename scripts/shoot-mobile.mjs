@@ -1977,6 +1977,7 @@ function stubFor(pathname, search = "") {
         ],
         pipeline: { byStatus: { REPORTED: 3, FAILED: 1, REJECTED: 1 }, notSent: 3, ...legs, deliveredRate: 60, reportedRate: 100 },
         totals: { invoices: { count: 5, net: 1000, tax: 50, payable: 1050 }, creditNotes: { count: 1, net: 100, tax: 5, payable: 105 }, net: { net: 900, tax: 45, payable: 945 } },
+        previous: { from: "2026-09-01", to: "2026-09-30", payable: 820, invoices: 4, creditNotes: 2, delivered: 4, received: 3 },
         monthly: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"].map((month, i) => ({ month, sent: i + 1, sentAmount: 1000 * (i + 1), received: i % 3, receivedAmount: 400 * (i % 3) })),
         topCustomers: [{ name: "Al Noor Trading Company LLC with a very long registered name", count: 3, amount: 2100 }, { name: "Capital Hypermarket", count: 2, amount: 900 }],
         topSuppliers: [{ name: "Gulf Mills", count: 2, amount: 1300 }],
